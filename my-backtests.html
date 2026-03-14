@@ -1,0 +1,130 @@
+<!-- My Backtests Page -->
+<div class="form-card">
+    <h2>
+        <i class="fas fa-history"></i>
+        My Backtests
+    </h2>
+    
+    <div class="backtests-filter">
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input 
+                type="text" 
+                id="backtestSearchInput" 
+                placeholder="Search backtests by name, symbol, or strategy..."
+                autocomplete="off"
+            >
+            <button id="clearSearchBtn" class="clear-search-btn" style="display: none;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <!-- Filter Buttons -->
+        <div class="filter-buttons">
+            <button class="filter-btn active" data-status="all">All</button>
+            <button class="filter-btn" data-status="completed">Completed</button>
+            <button class="filter-btn" data-status="running">Running</button>
+            <button class="filter-btn" data-status="queued">Queued</button>
+            <button class="filter-btn" data-status="failed">Failed</button>
+        </div>
+    </div>
+    
+    <div class="backtests-list" id="backtestsList">
+        <!-- Backtests will be loaded here -->
+        <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <p>No backtests yet</p>
+            <small>Run your first backtest to see results here</small>
+        </div>
+    </div>
+</div>
+
+<!-- Backtest Detail Modal -->
+<div id="backtestDetailModal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3 id="backtestDetailTitle">Backtest Results</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="backtestDetailBody">
+            <!-- Performance Statistics -->
+            <div class="statistics-card">
+                <h4>Performance Statistics</h4>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Trades</span>
+                        <span class="stat-value" id="detailTotalTrades">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Win Rate</span>
+                        <span class="stat-value" id="detailWinRate">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total P&L</span>
+                        <span class="stat-value" id="detailTotalPL">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Average Trade</span>
+                        <span class="stat-value" id="detailAvgTrade">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Max Drawdown</span>
+                        <span class="stat-value" id="detailMaxDrawdown">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Sharpe Ratio</span>
+                        <span class="stat-value" id="detailSharpeRatio">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Final Capital</span>
+                        <span class="stat-value" id="detailFinalCapital">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Return %</span>
+                        <span class="stat-value" id="detailReturnPct">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equity Curve Chart -->
+            <div class="chart-card">
+                <h4>Equity Curve</h4>
+                <canvas id="detailEquityCurveChart"></canvas>
+            </div>
+
+            <!-- Trades Table -->
+            <div class="table-container">
+                <h4>Trade History</h4>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Trade #</th>
+                            <th>Entry Date</th>
+                            <th>Exit Date</th>
+                            <th>Entry Price</th>
+                            <th>Exit Price</th>
+                            <th>P&L</th>
+                            <th>P&L %</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailTradesTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="downloadDetailCSV" class="btn-secondary">
+                <i class="fas fa-file-csv"></i>
+                Download CSV
+            </button>
+            <button id="downloadDetailJSON" class="btn-secondary">
+                <i class="fas fa-file-code"></i>
+                Download JSON
+            </button>
+            <button id="closeDetailModal" class="btn-secondary">Close</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,80 @@
+<div class="dashboard-grid">
+    <div class="dashboard-welcome">
+        <h2>Welcome to BacktestPro</h2>
+        <p>Your trading strategy command center. View market movers, track your backtests, and stay informed.</p>
+    </div>
+
+    <div class="dashboard-row">
+        <div class="dashboard-card market-movers-card">
+            <div class="card-header">
+                <h3><i class="fas fa-arrow-trend-up"></i> Top Gainers</h3>
+                <span class="session-badge" id="marketSession">Loading...</span>
+            </div>
+            <div class="card-body">
+                <div id="gainersTable" class="movers-table">
+                    <div class="loading-spinner">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-card market-movers-card">
+            <div class="card-header">
+                <h3><i class="fas fa-arrow-trend-down"></i> Top Losers</h3>
+                <span class="refresh-time" id="refreshTime"></span>
+            </div>
+            <div class="card-body">
+                <div id="losersTable" class="movers-table">
+                    <div class="loading-spinner">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-row">
+        <div class="dashboard-card quick-actions-card">
+            <div class="card-header">
+                <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+            </div>
+            <div class="card-body">
+                <div class="quick-actions-grid">
+                    <a href="#" class="quick-action-btn" data-page="backtester">
+                        <i class="fas fa-play"></i>
+                        <span>Run Options Backtest</span>
+                    </a>
+                    <a href="#" class="quick-action-btn" data-page="stockBacktester">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Run Stock Backtest</span>
+                    </a>
+                    <a href="#" class="quick-action-btn" data-page="optionsResults">
+                        <i class="fas fa-history"></i>
+                        <span>View Results</span>
+                    </a>
+                    <a href="#" class="quick-action-btn" data-page="screener">
+                        <i class="fas fa-filter"></i>
+                        <span>Stock Screener</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-card api-status-card">
+            <div class="card-header">
+                <h3><i class="fas fa-plug"></i> API Status</h3>
+            </div>
+            <div class="card-body">
+                <div class="api-status-item">
+                    <span class="status-label">Polygon.io</span>
+                    <span class="status-indicator" id="polygonStatus">
+                        <i class="fas fa-circle"></i> Checking...
+                    </span>
+                </div>
+                <div class="api-status-item">
+                    <span class="status-label">Market Data</span>
+                    <span class="status-indicator" id="marketDataStatus">
+                        <i class="fas fa-circle"></i> Checking...
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

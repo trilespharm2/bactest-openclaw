@@ -1,0 +1,1099 @@
+<!-- Notifications Page - Dashboard SPA Compatible -->
+<style>
+    .notifications-container {
+        padding: 0;
+    }
+    
+    .section-card {
+        background: #fff;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid #eee;
+        background: #fafbfc;
+    }
+    
+    .section-header h5 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .section-header h5 i {
+        color: #1b55e2;
+    }
+    
+    .section-body {
+        padding: 20px;
+    }
+    
+    .scanner-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+    
+    .scanner-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 16px;
+        border: 1px solid #e9ecef;
+        transition: all 0.2s;
+    }
+    
+    .scanner-card:hover {
+        border-color: #1b55e2;
+        box-shadow: 0 4px 12px rgba(27,85,226,0.1);
+    }
+    
+    .scanner-card.inactive {
+        opacity: 0.6;
+    }
+    
+    .scanner-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+    
+    .scanner-name {
+        font-weight: 600;
+        font-size: 15px;
+        color: #333;
+    }
+    
+    .scanner-status {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 12px;
+    }
+    
+    .scanner-status.active {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .scanner-status.paused {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .scanner-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 12px;
+    }
+    
+    .scanner-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .scanner-meta i {
+        font-size: 14px;
+        color: #999;
+    }
+    
+    .scanner-actions {
+        display: flex;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .scanner-actions button {
+        flex: 1;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        transition: all 0.2s;
+    }
+    
+    .btn-toggle {
+        background: #e9ecef;
+        color: #495057;
+    }
+    
+    .btn-toggle:hover {
+        background: #dee2e6;
+    }
+    
+    .btn-run {
+        background: #1b55e2;
+        color: #fff;
+    }
+    
+    .btn-run:hover {
+        background: #1545b8;
+    }
+    
+    .btn-delete {
+        background: #f8d7da;
+        color: #721c24;
+        flex: 0.5;
+    }
+    
+    .btn-delete:hover {
+        background: #f5c6cb;
+    }
+    
+    .notification-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 16px;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background 0.2s;
+    }
+    
+    .notification-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .notification-item:last-child {
+        border-bottom: none;
+    }
+    
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #1b55e2, #4a7df5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        flex-shrink: 0;
+    }
+    
+    .notification-content {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 4px;
+    }
+    
+    .notification-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #333;
+    }
+    
+    .notification-time {
+        font-size: 12px;
+        color: #999;
+        white-space: nowrap;
+    }
+    
+    .notification-filter {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 8px;
+    }
+    
+    .notification-symbols {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .symbol-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        background: #e3f2fd;
+        color: #1565c0;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .symbol-tag.positive {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+    
+    .symbol-tag.negative {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .notification-delete-btn {
+        background: transparent;
+        border: none;
+        color: #999;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+    
+    .notification-delete-btn:hover {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .setup-form {
+        max-width: 600px;
+    }
+    
+    .form-step {
+        margin-bottom: 24px;
+    }
+    
+    .step-label {
+        font-weight: 600;
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .step-number {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #1b55e2;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .radio-group {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .radio-option {
+        flex: 1;
+        min-width: 140px;
+    }
+    
+    .radio-option input[type="radio"] {
+        display: none;
+    }
+    
+    .radio-option label {
+        display: block;
+        padding: 12px 16px;
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: center;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    
+    .radio-option input[type="radio"]:checked + label {
+        border-color: #1b55e2;
+        background: #e7f0ff;
+        color: #1b55e2;
+        font-weight: 500;
+    }
+    
+    .symbols-input-container {
+        margin-top: 12px;
+    }
+    
+    .symbol-inputs {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .symbol-input-row {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .symbol-input-row input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        text-transform: uppercase;
+    }
+    
+    .symbol-input-row input:focus {
+        outline: none;
+        border-color: #1b55e2;
+    }
+    
+    .btn-add-symbol {
+        padding: 10px;
+        background: #f8f9fa;
+        border: 1px dashed #ccc;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #666;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .btn-add-symbol:hover {
+        background: #e9ecef;
+        border-color: #999;
+    }
+    
+    .btn-remove-symbol {
+        padding: 10px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #dc3545;
+    }
+    
+    .btn-remove-symbol:hover {
+        background: #ffebee;
+    }
+    
+    .filter-select {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        background: #fff;
+        cursor: pointer;
+    }
+    
+    .filter-select:focus {
+        outline: none;
+        border-color: #1b55e2;
+    }
+    
+    .frequency-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 8px;
+    }
+    
+    .frequency-option {
+        text-align: center;
+    }
+    
+    .frequency-option input[type="radio"] {
+        display: none;
+    }
+    
+    .frequency-option label {
+        display: block;
+        padding: 10px 8px;
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .frequency-option input[type="radio"]:checked + label {
+        border-color: #1b55e2;
+        background: #e7f0ff;
+        color: #1b55e2;
+        font-weight: 500;
+    }
+    
+    .channel-config {
+        margin-top: 12px;
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .channel-config label {
+        display: block;
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 6px;
+    }
+    
+    .channel-config input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+    
+    .channel-config input:focus {
+        outline: none;
+        border-color: #1b55e2;
+    }
+    
+    .btn-create-scanner {
+        padding: 14px 28px;
+        background: linear-gradient(135deg, #1b55e2, #4a7df5);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+    
+    .btn-create-scanner:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(27,85,226,0.3);
+    }
+    
+    .btn-create-scanner:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #666;
+    }
+    
+    .empty-state i {
+        font-size: 48px;
+        color: #ddd;
+        margin-bottom: 16px;
+    }
+    
+    .empty-state h4 {
+        margin: 0 0 8px;
+        color: #333;
+    }
+    
+    .empty-state p {
+        margin: 0;
+        font-size: 14px;
+    }
+    
+    .telegram-help {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+    }
+    
+    .telegram-help a {
+        color: #1b55e2;
+    }
+    
+    .timing-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 12px;
+    }
+    
+    .timing-row {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+    
+    .timing-field {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .timing-field label {
+        display: block;
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 8px;
+    }
+    
+    .time-input-group {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .time-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        max-width: 100px;
+    }
+    
+    .time-input:focus {
+        outline: none;
+        border-color: #1b55e2;
+    }
+    
+    .ampm-select {
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        background: #fff;
+        cursor: pointer;
+    }
+    
+    .ampm-select:focus {
+        outline: none;
+        border-color: #1b55e2;
+    }
+    
+    .timing-help {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+    }
+    
+    .timing-help i {
+        margin-right: 4px;
+    }
+    
+    .btn-clear-all {
+        padding: 8px 16px;
+        background: #f8d7da;
+        color: #721c24;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    
+    .btn-clear-all:hover {
+        background: #f5c6cb;
+    }
+    
+    .notification-expand-btn {
+        background: transparent;
+        border: none;
+        color: #1b55e2;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+    
+    .notification-expand-btn:hover {
+        background: #e7f0ff;
+    }
+    
+    .pagination-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 16px;
+        border-top: 1px solid #eee;
+    }
+    
+    .pagination-btn {
+        padding: 8px 16px;
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    
+    .pagination-btn:hover:not(:disabled) {
+        background: #e9ecef;
+        border-color: #1b55e2;
+    }
+    
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .pagination-info {
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .notification-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+    }
+    
+    .notification-modal {
+        background: #fff;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 80vh;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    .notification-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid #eee;
+        background: #fafbfc;
+    }
+    
+    .notification-modal-header h4 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .modal-close-btn {
+        background: transparent;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+    
+    .modal-close-btn:hover {
+        background: #f0f0f0;
+        color: #333;
+    }
+    
+    .notification-modal-body {
+        padding: 20px;
+        overflow-y: auto;
+        max-height: calc(80vh - 60px);
+    }
+    
+    .modal-results-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+    }
+    
+    .modal-result-item {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    
+    .modal-result-item .symbol {
+        font-weight: 600;
+        font-size: 14px;
+        color: #333;
+    }
+    
+    .modal-result-item .change {
+        font-size: 13px;
+        margin-top: 4px;
+    }
+    
+    .modal-result-item .change.positive {
+        color: #2e7d32;
+    }
+    
+    .modal-result-item .change.negative {
+        color: #c62828;
+    }
+    
+    .modal-result-item .price {
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+    }
+
+    @media (max-width: 768px) {
+        .scanner-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .radio-group {
+            flex-direction: column;
+        }
+        
+        .frequency-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        .notification-modal {
+            width: 95%;
+            max-height: 90vh;
+        }
+    }
+</style>
+
+<div class="notifications-container" id="notificationsPage">
+    <div class="page-inner">
+        <div class="page-header">
+            <h3 class="fw-bold mb-3">Notifications</h3>
+            <ul class="breadcrumbs mb-3">
+                <li class="nav-home">
+                    <a href="#" onclick="loadPage('home'); return false;">
+                        <i class="fas fa-home"></i>
+                    </a>
+                </li>
+                <li class="separator">
+                    <i class="fas fa-chevron-right"></i>
+                </li>
+                <li class="nav-item">
+                    <a href="#">Notifications</a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Set Up New Scanner Section -->
+        <div class="section-card" id="setupSection">
+            <div class="section-header">
+                <h5><i class="fas fa-plus-circle"></i> Set Up New Scanner</h5>
+            </div>
+            <div class="section-body">
+                <form class="setup-form" id="scannerSetupForm">
+                    <!-- Scanner Name -->
+                    <div class="form-step">
+                        <div class="step-label">
+                            <span class="step-number">0</span>
+                            Scanner Name
+                        </div>
+                        <input type="text" id="scannerName" class="filter-select" placeholder="Enter a name for your scanner (e.g., Tech Movers)" required style="margin-top: 8px;">
+                    </div>
+                    
+                    <!-- Step 1: Symbol Selection -->
+                    <div class="form-step">
+                        <div class="step-label">
+                            <span class="step-number">1</span>
+                            Symbol Selection
+                        </div>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="symbolAny" name="symbolScope" value="any" checked>
+                                <label for="symbolAny">Any Symbol</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="symbolSpecific" name="symbolScope" value="specific">
+                                <label for="symbolSpecific">List Symbols</label>
+                            </div>
+                        </div>
+                        <div class="symbols-input-container" id="symbolsContainer" style="display: none;">
+                            <div class="symbol-inputs" id="symbolInputs">
+                                <div class="symbol-input-row">
+                                    <input type="text" placeholder="Enter symbol (e.g., AAPL)" class="symbol-input">
+                                    <button type="button" class="btn-remove-symbol" onclick="removeSymbolInput(this)" style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-add-symbol" onclick="addSymbolInput()">
+                                <i class="fas fa-plus"></i> Add Another Symbol
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 2: Filter Selection -->
+                    <div class="form-step">
+                        <div class="step-label">
+                            <span class="step-number">2</span>
+                            Filter Configuration
+                        </div>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="filterPreset" name="filterType" value="preset" checked>
+                                <label for="filterPreset">Preset Filters</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="filterSaved" name="filterType" value="saved">
+                                <label for="filterSaved">Stored Filters</label>
+                            </div>
+                        </div>
+                        <div id="presetFilterContainer" style="margin-top: 12px;">
+                            <select class="filter-select" id="presetFilterSelect">
+                                <option value="nasdaq_high_movers">NASDAQ High Movers (&gt;75% 1-day change)</option>
+                            </select>
+                        </div>
+                        <div id="savedFilterContainer" style="margin-top: 12px; display: none;">
+                            <select class="filter-select" id="savedFilterSelect">
+                                <option value="">-- Select a saved filter --</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 3: Scan Frequency -->
+                    <div class="form-step">
+                        <div class="step-label">
+                            <span class="step-number">3</span>
+                            Scan Frequency
+                        </div>
+                        <div class="frequency-grid">
+                            <div class="frequency-option">
+                                <input type="radio" id="freq1min" name="frequency" value="1min">
+                                <label for="freq1min">1 min</label>
+                            </div>
+                            <div class="frequency-option">
+                                <input type="radio" id="freq5min" name="frequency" value="5min">
+                                <label for="freq5min">5 min</label>
+                            </div>
+                            <div class="frequency-option">
+                                <input type="radio" id="freq30min" name="frequency" value="30min">
+                                <label for="freq30min">30 min</label>
+                            </div>
+                            <div class="frequency-option">
+                                <input type="radio" id="freq1hr" name="frequency" value="1hr" checked>
+                                <label for="freq1hr">1 hour</label>
+                            </div>
+                            <div class="frequency-option">
+                                <input type="radio" id="freq4hr" name="frequency" value="4hr">
+                                <label for="freq4hr">4 hours</label>
+                            </div>
+                            <div class="frequency-option">
+                                <input type="radio" id="freq1day" name="frequency" value="1day">
+                                <label for="freq1day">1 day</label>
+                            </div>
+                            <div class="frequency-option">
+                                <input type="radio" id="freq1week" name="frequency" value="1week">
+                                <label for="freq1week">1 week</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 4: Timing -->
+                    <div class="form-step">
+                        <div class="step-label">
+                            <span class="step-number">4</span>
+                            Timing (Optional)
+                        </div>
+                        <div class="timing-section">
+                            <div class="timing-row">
+                                <div class="timing-field">
+                                    <label>Active Hours - From</label>
+                                    <div class="time-input-group">
+                                        <input type="text" id="activeFromTime" class="time-input" placeholder="07:00" maxlength="5">
+                                        <select id="activeFromAmPm" class="ampm-select">
+                                            <option value="AM">AM</option>
+                                            <option value="PM">PM</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="timing-field">
+                                    <label>Active Hours - To</label>
+                                    <div class="time-input-group">
+                                        <input type="text" id="activeToTime" class="time-input" placeholder="03:00" maxlength="5">
+                                        <select id="activeToAmPm" class="ampm-select">
+                                            <option value="AM">AM</option>
+                                            <option value="PM" selected>PM</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="timing-row" style="margin-top: 16px;">
+                                <div class="timing-field">
+                                    <label>Duration</label>
+                                    <div class="radio-group" style="margin-bottom: 12px;">
+                                        <div class="radio-option">
+                                            <input type="radio" id="durationIndefinite" name="duration" value="indefinite" checked>
+                                            <label for="durationIndefinite">Indefinitely</label>
+                                        </div>
+                                        <div class="radio-option">
+                                            <input type="radio" id="durationUntil" name="duration" value="until">
+                                            <label for="durationUntil">Until Date</label>
+                                        </div>
+                                    </div>
+                                    <div id="expiresDateContainer" style="display: none;">
+                                        <input type="date" id="expiresAt" class="filter-select" style="max-width: 200px;">
+                                        <p class="timing-help">Scanner will deactivate on this date</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="timing-help" style="margin-top: 12px;">
+                                <i class="fas fa-info-circle"></i> Leave blank to run 24/7. Scanner will only execute during active hours and will auto-deactivate on the expiry date.
+                            </p>
+                            
+                            <!-- Repeat Symbol Filter -->
+                            <div class="timing-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e9ecef;">
+                                <div class="timing-field" style="min-width: 100%;">
+                                    <label style="font-size: 13px; color: #666; margin-bottom: 8px; display: block;">Repeat Symbol Filter</label>
+                                    <div class="radio-group" style="margin-bottom: 12px;">
+                                        <div class="radio-option">
+                                            <input type="radio" id="repeatFilterOff" name="repeatFilter" value="off" checked>
+                                            <label for="repeatFilterOff">Off</label>
+                                        </div>
+                                        <div class="radio-option">
+                                            <input type="radio" id="repeatFilterOn" name="repeatFilter" value="on">
+                                            <label for="repeatFilterOn">On</label>
+                                        </div>
+                                    </div>
+                                    <div id="repeatThresholdContainer" style="display: none;">
+                                        <label style="font-size: 13px; color: #666;">Exclude symbol after appearing in</label>
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                                            <input type="number" id="repeatThreshold" class="filter-select" 
+                                                   value="5" min="1" max="100" 
+                                                   style="width: 80px; text-align: center;">
+                                            <span style="color: #666; font-size: 13px;">consecutive notifications</span>
+                                        </div>
+                                        <p class="timing-help" style="margin-top: 8px;">
+                                            <i class="fas fa-filter"></i> If a symbol appears in results for the specified number of consecutive scans, it will be excluded from future notifications until it stops appearing.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 5: Communication Method -->
+                    <div class="form-step">
+                        <div class="step-label">
+                            <span class="step-number">5</span>
+                            Communication Method
+                        </div>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="channelEmail" name="channelType" value="email" checked>
+                                <label for="channelEmail"><i class="fas fa-envelope"></i> Email</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="channelTelegram" name="channelType" value="telegram">
+                                <label for="channelTelegram"><i class="fab fa-telegram"></i> Telegram</label>
+                            </div>
+                        </div>
+                        <div class="channel-config" id="emailConfig">
+                            <label>Email Address</label>
+                            <input type="email" id="emailAddress" placeholder="your@email.com">
+                        </div>
+                        <div class="channel-config" id="telegramConfig" style="display: none;">
+                            <label>Telegram Bot Token</label>
+                            <input type="text" id="telegramBotToken" placeholder="123456:ABC-DEF...">
+                            <label>Telegram Chat ID</label>
+                            <input type="text" id="telegramChatId" placeholder="-1001234567890">
+                            <p class="telegram-help">
+                                <a href="https://core.telegram.org/bots#creating-a-new-bot" target="_blank">How to create a Telegram bot</a> |
+                                <a href="https://stackoverflow.com/questions/32423837/telegram-bot-how-to-get-a-group-chat-id" target="_blank">How to get Chat ID</a>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-create-scanner" id="createScannerBtn">
+                        <i class="fas fa-bolt"></i> Create Scanner
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Live Scanners Section -->
+        <div class="section-card" id="scannersSection">
+            <div class="section-header">
+                <h5><i class="fas fa-satellite-dish"></i> Live Scanners</h5>
+                <span id="scannerCount" class="badge bg-primary">0</span>
+            </div>
+            <div class="section-body">
+                <div id="scannersGrid" class="scanner-grid">
+                    <div class="empty-state" id="noScannersMessage">
+                        <i class="fas fa-satellite-dish"></i>
+                        <h4>No Scanners Yet</h4>
+                        <p>Create your first scanner above to start receiving automated alerts.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Notifications Section -->
+        <div class="section-card" id="recentSection">
+            <div class="section-header">
+                <h5><i class="fas fa-bell"></i> Recent Notifications</h5>
+                <button class="btn-clear-all" id="clearAllBtn" onclick="clearAllNotifications()" style="display: none;">
+                    <i class="fas fa-trash-alt"></i> Clear All
+                </button>
+            </div>
+            <div class="section-body" style="padding: 0;">
+                <div id="notificationsList">
+                    <div class="empty-state" id="noNotificationsMessage">
+                        <i class="fas fa-inbox"></i>
+                        <h4>No Notifications Yet</h4>
+                        <p>Notifications will appear here once your scanners find matches.</p>
+                    </div>
+                </div>
+                <div id="notificationsPagination" class="pagination-container" style="display: none;">
+                    <button class="pagination-btn" id="prevPageBtn" onclick="prevNotificationPage()">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <span class="pagination-info" id="paginationInfo">Page 1 of 1</span>
+                    <button class="pagination-btn" id="nextPageBtn" onclick="nextNotificationPage()">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Detail Modal -->
+<div class="notification-modal-overlay" id="notificationModal" style="display: none;">
+    <div class="notification-modal">
+        <div class="notification-modal-header">
+            <h4 id="modalTitle">Notification Details</h4>
+            <button class="modal-close-btn" onclick="closeNotificationModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="notification-modal-body" id="modalBody">
+        </div>
+    </div>
+</div>

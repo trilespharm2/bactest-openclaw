@@ -1,0 +1,170 @@
+<!-- Plans Page Content -->
+<div class="plans-page">
+    <div class="page-title-section">
+        <h3 class="page-main-title">Plans & Pricing</h3>
+        <p class="page-subtitle">Choose the plan that best fits your trading needs</p>
+    </div>
+
+    <!-- Embedded Payment Modal -->
+    <div id="paymentSetupModal" class="payment-modal-overlay" style="display: none;">
+        <div class="payment-modal payment-modal-embedded">
+            <div class="payment-modal-header">
+                <h3>Complete Your Subscription</h3>
+                <button class="modal-close-btn" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="payment-modal-body">
+                <div class="selected-plan-info">
+                    <div class="plan-icon">
+                        <i class="material-symbols-rounded">trending_up</i>
+                    </div>
+                    <div class="plan-details">
+                        <h4 id="modalPlanName">Stocks Starter</h4>
+                        <p>Billed monthly</p>
+                    </div>
+                    <div class="plan-price-tag">
+                        <span id="modalPlanPrice">$29</span>/mo
+                    </div>
+                </div>
+                
+                <!-- Payment Form Container -->
+                <div id="paymentFormContainer">
+                    <!-- Initial state: Loading/Setup -->
+                    <div id="paymentLoading" class="payment-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Setting up secure payment...</p>
+                    </div>
+                    
+                    <!-- Payment Form (shown after initialization) -->
+                    <div id="paymentFormWrapper" style="display: none;">
+                        <div class="payment-form-section">
+                            <label class="payment-label">Card Information</label>
+                            <div id="card-element" class="stripe-element-container"></div>
+                            <div id="card-errors" class="stripe-error-message" role="alert"></div>
+                        </div>
+                        
+                        <div class="payment-security-note">
+                            <i class="material-symbols-rounded">lock</i>
+                            <span>Your payment information is encrypted and secure</span>
+                        </div>
+                        
+                        <div class="payment-modal-actions">
+                            <button id="submitPaymentBtn" class="btn-primary-checkout" onclick="submitPayment()">
+                                <i class="material-symbols-rounded">credit_card</i>
+                                <span id="submitPaymentText">Subscribe Now</span>
+                            </button>
+                            <button class="btn-secondary-skip" onclick="closePaymentModal()">
+                                Maybe Later
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Success State -->
+                    <div id="paymentSuccess" class="payment-success" style="display: none;">
+                        <div class="success-icon">
+                            <i class="material-symbols-rounded">check_circle</i>
+                        </div>
+                        <h4>Payment Successful!</h4>
+                        <p>Your subscription is now active. Enjoy your premium features!</p>
+                        <button class="btn-primary-checkout" onclick="closePaymentModal(); location.reload();">
+                            Continue to Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Plan Card -->
+    <div class="current-plan-card" id="currentPlanCard">
+        <div class="plan-badge">Current Plan</div>
+        <div class="plan-info">
+            <h4 id="currentPlanName">Loading...</h4>
+            <p id="currentPlanRenewal">-</p>
+        </div>
+        <div class="plan-price">
+            <span class="amount" id="currentPlanPrice">$0</span>
+            <span class="period">/month</span>
+        </div>
+        <button class="btn-manage-plan" id="manageSubBtn" style="display: none;">Manage Subscription</button>
+    </div>
+
+    <!-- Pricing Toggle -->
+    <div class="pricing-toggle-container">
+        <span class="toggle-label">Monthly</span>
+        <label class="pricing-toggle">
+            <input type="checkbox" id="billingToggle">
+            <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
+    </div>
+
+    <!-- Pricing Cards -->
+    <div class="pricing-grid">
+        <div class="pricing-card" data-plan="stocks-basic">
+            <h5>Stocks Basic</h5>
+            <p class="plan-desc">Great for trying our APIs</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="0" data-annual="0">$0</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="material-symbols-rounded">check</i> 100 API calls/day</li>
+                <li><i class="material-symbols-rounded">check</i> Basic strategies</li>
+                <li><i class="material-symbols-rounded">check</i> 1 year historical data</li>
+                <li><i class="material-symbols-rounded">check</i> Email support</li>
+            </ul>
+            <button class="btn-plan-select" data-plan-id="stocks-basic">Select Plan</button>
+        </div>
+
+        <div class="pricing-card" data-plan="stocks-starter">
+            <h5>Stocks Starter</h5>
+            <p class="plan-desc">Great for aggregates</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="29" data-annual="23">$29</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="material-symbols-rounded">check</i> 1,000 API calls/day</li>
+                <li><i class="material-symbols-rounded">check</i> 8 strategies</li>
+                <li><i class="material-symbols-rounded">check</i> 5 years historical data</li>
+                <li><i class="material-symbols-rounded">check</i> Priority support</li>
+            </ul>
+            <button class="btn-plan-select" data-plan-id="stocks-starter">Select Plan</button>
+        </div>
+
+        <div class="pricing-card" data-plan="stocks-developer">
+            <h5>Stocks Developer</h5>
+            <p class="plan-desc">Great for historical data</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="79" data-annual="63">$79</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="material-symbols-rounded">check</i> 10,000 API calls/day</li>
+                <li><i class="material-symbols-rounded">check</i> 16+ strategies</li>
+                <li><i class="material-symbols-rounded">check</i> 10 years historical data</li>
+                <li><i class="material-symbols-rounded">check</i> Priority support</li>
+                <li><i class="material-symbols-rounded">check</i> Advanced analytics</li>
+            </ul>
+            <button class="btn-plan-select" data-plan-id="stocks-developer">Select Plan</button>
+        </div>
+
+        <div class="pricing-card popular" data-plan="stocks-advanced">
+            <div class="popular-badge">Popular</div>
+            <h5>Stocks Advanced</h5>
+            <p class="plan-desc">Great for real-time data</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="199" data-annual="159">$199</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="material-symbols-rounded">check</i> Unlimited API calls</li>
+                <li><i class="material-symbols-rounded">check</i> All strategies</li>
+                <li><i class="material-symbols-rounded">check</i> Full historical data</li>
+                <li><i class="material-symbols-rounded">check</i> 24/7 support</li>
+                <li><i class="material-symbols-rounded">check</i> Custom integrations</li>
+            </ul>
+            <button class="btn-plan-select" data-plan-id="stocks-advanced">Select Plan</button>
+        </div>
+    </div>
+</div>

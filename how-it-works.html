@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How it Works - BacktestPro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #1a9988;
+            --primary-light: #14b8a6;
+            --primary-gradient: linear-gradient(135deg, #1a9988, #14b8a6);
+            --text-dark: #344767;
+            --text-black: #1a1a2e;
+            --text-muted: #7b809a;
+            --white: #ffffff;
+            --light-bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --border-color: #e9ecef;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--light-bg);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        .page-container {
+            min-height: 100vh;
+        }
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 48px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-gradient);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: white;
+            font-size: 16px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--primary-color);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-signin {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-dark);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+
+        .btn-signin:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-create {
+            background: var(--primary-gradient);
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .btn-create:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(26, 153, 136, 0.3);
+        }
+
+        .btn-dashboard {
+            background: var(--primary-gradient);
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .btn-dashboard:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(26, 153, 136, 0.3);
+        }
+
+        .account-dropdown {
+            position: relative;
+        }
+
+        .account-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .account-btn:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .account-btn i {
+            font-size: 28px;
+            color: var(--text-dark);
+        }
+
+        .account-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            padding: 8px 0;
+            display: none;
+            z-index: 1000;
+        }
+
+        .account-menu.active {
+            display: block;
+        }
+
+        .account-menu .account-name {
+            display: block;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .account-menu a {
+            display: block;
+            padding: 10px 16px;
+            color: var(--text-dark);
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .account-menu a:hover {
+            background: #f5f5f5;
+        }
+
+        .hero-section {
+            background: var(--primary-gradient);
+            padding: 80px 48px;
+            text-align: center;
+            color: white;
+        }
+
+        .hero-section h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .hero-section p {
+            font-size: 18px;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .content-wrapper {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 60px 48px;
+        }
+
+        .section-nav {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 48px;
+            justify-content: center;
+        }
+
+        .section-nav-btn {
+            padding: 12px 24px;
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-nav-btn:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .section-nav-btn.active {
+            background: var(--primary-gradient);
+            border-color: var(--primary-color);
+            color: white;
+        }
+
+        .section-nav-btn i {
+            font-size: 16px;
+        }
+
+        .feature-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .feature-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .section-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(26, 153, 136, 0.1);
+            color: var(--primary-color);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--text-black);
+            margin-bottom: 12px;
+        }
+
+        .section-subtitle {
+            font-size: 16px;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .example-grid {
+            display: grid;
+            gap: 32px;
+        }
+
+        .example-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .example-card-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .example-card-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .example-card-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-black);
+        }
+
+        .example-card-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .config-item {
+            background: var(--light-bg);
+            padding: 16px;
+            border-radius: 10px;
+        }
+
+        .config-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .config-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .results-section {
+            margin-top: 32px;
+        }
+
+        .results-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-black);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .results-title i {
+            color: var(--primary-color);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--light-bg);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-black);
+        }
+
+        .stat-value.positive {
+            color: var(--success-color);
+        }
+
+        .stat-value.negative {
+            color: var(--danger-color);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .equity-curve-container {
+            background: var(--light-bg);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+
+        .equity-curve-container img {
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        .trade-log-section {
+            margin-top: 32px;
+        }
+
+        .trade-log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .trade-log-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-black);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .trade-log-title i {
+            color: var(--primary-color);
+        }
+
+        .trade-log-badge {
+            background: rgba(26, 153, 136, 0.1);
+            color: var(--primary-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .trade-table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .trade-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .trade-table th {
+            background: var(--light-bg);
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-dark);
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .trade-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .trade-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .trade-table tr:hover {
+            background: rgba(26, 153, 136, 0.03);
+        }
+
+        .pnl-positive {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .pnl-negative {
+            color: var(--danger-color);
+            font-weight: 600;
+        }
+
+        .coming-soon-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .coming-soon-card {
+            text-align: center;
+            padding: 80px 40px;
+        }
+
+        .coming-soon-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+
+        .coming-soon-icon i {
+            font-size: 36px;
+            color: #6366f1;
+        }
+
+        .coming-soon-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-black);
+            margin-bottom: 12px;
+        }
+
+        .coming-soon-text {
+            font-size: 16px;
+            color: var(--text-muted);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .footer {
+            background: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            padding: 32px 48px;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 16px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--primary-color);
+        }
+
+        .footer-copyright {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 16px 20px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero-section {
+                padding: 60px 20px;
+            }
+
+            .hero-section h1 {
+                font-size: 32px;
+            }
+
+            .content-wrapper {
+                padding: 40px 20px;
+            }
+
+            .section-nav {
+                flex-direction: column;
+            }
+
+            .section-nav-btn {
+                justify-content: center;
+            }
+
+            .config-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .example-card {
+                padding: 20px;
+            }
+
+            .footer {
+                padding: 24px 20px;
+            }
+
+            .footer-links {
+                flex-direction: column;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <nav class="navbar">
+            <a href="/" class="logo">
+                <div class="logo-icon">B</div>
+                <span>BacktestPro</span>
+            </a>
+
+            <ul class="nav-links">
+                <li><a href="/#features">Features</a></li>
+                <li><a href="/how-it-works" class="active">How it Works</a></li>
+                <li><a href="/pricing">Pricing</a></li>
+            </ul>
+
+            <div class="nav-actions" id="navActions">
+                <a href="/register" class="btn-create" id="createAccountBtn">Create account</a>
+                <a href="/login" class="btn-signin" id="signInBtn">Sign in <span class="material-symbols-rounded">arrow_forward</span></a>
+                <a href="/dashboard" class="btn-dashboard" id="dashboardBtn" style="display: none;">Dashboard</a>
+                <div class="account-dropdown" id="accountDropdown" style="display: none;">
+                    <button class="account-btn" id="accountBtn">
+                        <i class="fas fa-user-circle"></i>
+                    </button>
+                    <div class="account-menu" id="accountMenu">
+                        <span class="account-name" id="accountName"></span>
+                        <a href="/dashboard?section=settings">Settings</a>
+                        <a href="#" id="logoutBtn">Log Out</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="hero-section">
+            <h1>How BacktestPro Works</h1>
+            <p>See real examples of how our backtesting platform helps you test and validate trading strategies with historical data.</p>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="section-nav">
+                <button class="section-nav-btn active" data-section="options">
+                    <i class="fas fa-chart-line"></i>
+                    Options Backtester
+                </button>
+                <button class="section-nav-btn" data-section="stocks">
+                    <i class="fas fa-chart-bar"></i>
+                    Stock Backtester
+                </button>
+                <button class="section-nav-btn" data-section="forex">
+                    <i class="fas fa-globe"></i>
+                    Forex Backtester
+                </button>
+                <button class="section-nav-btn" data-section="crypto">
+                    <i class="fab fa-bitcoin"></i>
+                    Crypto Backtester
+                </button>
+                <button class="section-nav-btn" data-section="screener">
+                    <i class="fas fa-filter"></i>
+                    Screener
+                </button>
+                <button class="section-nav-btn" data-section="notifications">
+                    <i class="fas fa-bell"></i>
+                    Notifications
+                </button>
+            </div>
+
+            <!-- Options Backtester Section -->
+            <div class="feature-section active" id="options-section">
+                <div class="section-header">
+                    <div class="section-badge">
+                        <i class="fas fa-chart-line"></i>
+                        Options Backtester
+                    </div>
+                    <h2 class="section-title">Test Options Strategies with Precision</h2>
+                    <p class="section-subtitle">Configure 16+ strategy types, analyze performance metrics, and review detailed trade logs.</p>
+                </div>
+
+                <div class="example-grid">
+                    <div class="example-card">
+                        <div class="example-card-header">
+                            <div class="example-card-icon">
+                                <i class="fas fa-cog"></i>
+                            </div>
+                            <div>
+                                <div class="example-card-title">Strategy Configuration</div>
+                                <div class="example-card-subtitle">Short Put Spread on SPX - 0 DTE Strategy</div>
+                            </div>
+                        </div>
+
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <div class="config-label">Symbol</div>
+                                <div class="config-value">SPX</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Strategy Type</div>
+                                <div class="config-value">Short Put Spread</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Days to Expiration</div>
+                                <div class="config-value">0 DTE</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Entry Time</div>
+                                <div class="config-value">15:59</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Date Range</div>
+                                <div class="config-value">Jan 1 - Dec 20, 2025</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Initial Capital</div>
+                                <div class="config-value">$50,000</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Allocation</div>
+                                <div class="config-value">10% per trade</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Stop Loss</div>
+                                <div class="config-value">200%</div>
+                            </div>
+                        </div>
+
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <div class="config-label">Short Put Strike</div>
+                                <div class="config-value">$3 below underlying</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Long Put Strike</div>
+                                <div class="config-value">$5 below short leg</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Min Net Premium</div>
+                                <div class="config-value">$0.10</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Concurrent Trades</div>
+                                <div class="config-value">Disabled</div>
+                            </div>
+                        </div>
+
+                        <div class="results-section">
+                            <div class="results-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Performance Results
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value">75</div>
+                                    <div class="stat-label">Total Trades</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">90.67%</div>
+                                    <div class="stat-label">Win Rate</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+$25,115</div>
+                                    <div class="stat-label">Total P&L</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+50.23%</div>
+                                    <div class="stat-label">Total Return</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value negative">-5.15%</div>
+                                    <div class="stat-label">Max Drawdown</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">3.58</div>
+                                    <div class="stat-label">Profit Factor</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">$513</div>
+                                    <div class="stat-label">Avg Win</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value negative">-$1,391</div>
+                                    <div class="stat-label">Avg Loss</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="equity-curve-container">
+                            <div class="results-title">
+                                <i class="fas fa-chart-area"></i>
+                                Equity Curve & Drawdown
+                            </div>
+                            <img src="/attached_assets/equity_curve_20251206_224547_e432144d_1765471413439.png" alt="Equity Curve">
+                        </div>
+
+                        <div class="trade-log-section">
+                            <div class="trade-log-header">
+                                <div class="trade-log-title">
+                                    <i class="fas fa-list-alt"></i>
+                                    Trade Log
+                                </div>
+                                <div class="trade-log-badge">First 10 of 75 trades</div>
+                            </div>
+                            <div class="trade-table-wrapper">
+                                <table class="trade-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Entry Date</th>
+                                            <th>Strategy</th>
+                                            <th>Underlying</th>
+                                            <th>Short Put</th>
+                                            <th>Long Put</th>
+                                            <th>Contracts</th>
+                                            <th>Net Premium</th>
+                                            <th>P&L</th>
+                                            <th>Exit Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>2025-01-07</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,908.42</td>
+                                            <td>$5,905</td>
+                                            <td>$5,900</td>
+                                            <td>10</td>
+                                            <td>$0.25</td>
+                                            <td class="pnl-positive">+$252.30</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-01-10</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,829.22</td>
+                                            <td>$5,825</td>
+                                            <td>$5,820</td>
+                                            <td>10</td>
+                                            <td>$0.22</td>
+                                            <td class="pnl-positive">+$220.80</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-01-29</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$6,041.19</td>
+                                            <td>$6,035</td>
+                                            <td>$6,030</td>
+                                            <td>10</td>
+                                            <td>$0.15</td>
+                                            <td class="pnl-positive">+$148.00</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-02-03</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,998.98</td>
+                                            <td>$5,995</td>
+                                            <td>$5,990</td>
+                                            <td>11</td>
+                                            <td>$0.74</td>
+                                            <td class="pnl-positive">+$337.26</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-02-21</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$6,013.96</td>
+                                            <td>$6,010</td>
+                                            <td>$6,005</td>
+                                            <td>10</td>
+                                            <td>$0.30</td>
+                                            <td class="pnl-positive">+$303.30</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-02-25</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,958.88</td>
+                                            <td>$5,955</td>
+                                            <td>$5,950</td>
+                                            <td>13</td>
+                                            <td>$1.11</td>
+                                            <td class="pnl-positive">+$1,448.72</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-03-31</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,620.01</td>
+                                            <td>$5,615</td>
+                                            <td>$5,610</td>
+                                            <td>14</td>
+                                            <td>$1.05</td>
+                                            <td class="pnl-negative">-$2,938.74</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-04-03</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,398.59</td>
+                                            <td>$5,395</td>
+                                            <td>$5,390</td>
+                                            <td>16</td>
+                                            <td>$1.66</td>
+                                            <td class="pnl-positive">+$2,651.52</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-04-16</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,278.74</td>
+                                            <td>$5,275</td>
+                                            <td>$5,270</td>
+                                            <td>20</td>
+                                            <td>$2.07</td>
+                                            <td class="pnl-positive">+$4,139.60</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2025-05-15</td>
+                                            <td>Short Put Spread</td>
+                                            <td>$5,913.26</td>
+                                            <td>$5,910</td>
+                                            <td>$5,905</td>
+                                            <td>13</td>
+                                            <td>$0.60</td>
+                                            <td class="pnl-positive">+$776.62</td>
+                                            <td>EXPIRATION</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock Backtester Section -->
+            <div class="feature-section" id="stocks-section">
+                <div class="section-header">
+                    <div class="section-badge">
+                        <i class="fas fa-chart-bar"></i>
+                        Stock Backtester
+                    </div>
+                    <h2 class="section-title">Backtest Stock Trading Strategies</h2>
+                    <p class="section-subtitle">Build custom entry/exit conditions and test equity strategies with precision.</p>
+                </div>
+
+                <div class="example-grid">
+                    <div class="example-card">
+                        <div class="example-card-header">
+                            <div class="example-card-icon">
+                                <i class="fas fa-cog"></i>
+                            </div>
+                            <div>
+                                <div class="example-card-title">Strategy Configuration</div>
+                                <div class="example-card-subtitle">RSI Mean Reversion on AAPL</div>
+                            </div>
+                        </div>
+
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <div class="config-label">Symbol</div>
+                                <div class="config-value">AAPL</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Strategy Type</div>
+                                <div class="config-value">Mean Reversion</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Entry Condition</div>
+                                <div class="config-value">RSI(14) &lt; 30</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Exit Condition</div>
+                                <div class="config-value">RSI(14) &gt; 70</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Date Range</div>
+                                <div class="config-value">Jan 1, 2024 - Dec 31, 2024</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Initial Capital</div>
+                                <div class="config-value">$100,000</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Position Size</div>
+                                <div class="config-value">25% of capital</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Stop Loss</div>
+                                <div class="config-value">5%</div>
+                            </div>
+                        </div>
+
+                        <div class="results-section">
+                            <div class="results-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Performance Results
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value">23</div>
+                                    <div class="stat-label">Total Trades</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">65.22%</div>
+                                    <div class="stat-label">Win Rate</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+$18,450</div>
+                                    <div class="stat-label">Total P&L</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+18.45%</div>
+                                    <div class="stat-label">Total Return</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value negative">-7.2%</div>
+                                    <div class="stat-label">Max Drawdown</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">2.14</div>
+                                    <div class="stat-label">Profit Factor</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="equity-curve-container">
+                            <div class="results-title">
+                                <i class="fas fa-chart-area"></i>
+                                Equity Curve & Drawdown
+                            </div>
+                            <img src="/attached_assets/equity_curve_stock_aapl_rsi.png" alt="Equity Curve">
+                        </div>
+
+                        <div class="trade-log-section">
+                            <div class="trade-log-header">
+                                <div class="trade-log-title">
+                                    <i class="fas fa-list-alt"></i>
+                                    Sample Trade Log
+                                </div>
+                                <div class="trade-log-badge">Example trades</div>
+                            </div>
+                            <div class="trade-table-wrapper">
+                                <table class="trade-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Entry Date</th>
+                                            <th>Exit Date</th>
+                                            <th>Symbol</th>
+                                            <th>Entry Price</th>
+                                            <th>Exit Price</th>
+                                            <th>Shares</th>
+                                            <th>P&L</th>
+                                            <th>Return %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>2024-01-18</td>
+                                            <td>2024-02-05</td>
+                                            <td>AAPL</td>
+                                            <td>$178.25</td>
+                                            <td>$189.95</td>
+                                            <td>140</td>
+                                            <td class="pnl-positive">+$1,638.00</td>
+                                            <td class="pnl-positive">+6.57%</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2024-03-12</td>
+                                            <td>2024-03-28</td>
+                                            <td>AAPL</td>
+                                            <td>$171.50</td>
+                                            <td>$175.80</td>
+                                            <td>146</td>
+                                            <td class="pnl-positive">+$627.60</td>
+                                            <td class="pnl-positive">+2.51%</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2024-04-22</td>
+                                            <td>2024-05-08</td>
+                                            <td>AAPL</td>
+                                            <td>$165.30</td>
+                                            <td>$182.45</td>
+                                            <td>151</td>
+                                            <td class="pnl-positive">+$2,589.65</td>
+                                            <td class="pnl-positive">+10.37%</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Forex Backtester Section -->
+            <div class="feature-section" id="forex-section">
+                <div class="section-header">
+                    <div class="section-badge">
+                        <i class="fas fa-globe"></i>
+                        Forex Backtester
+                    </div>
+                    <h2 class="section-title">Test Forex & Index Strategies</h2>
+                    <p class="section-subtitle">Backtest currency pairs and global indices with real historical data.</p>
+                </div>
+
+                <div class="example-grid">
+                    <div class="example-card">
+                        <div class="example-card-header">
+                            <div class="example-card-icon">
+                                <i class="fas fa-cog"></i>
+                            </div>
+                            <div>
+                                <div class="example-card-title">Strategy Configuration</div>
+                                <div class="example-card-subtitle">Moving Average Crossover on EUR/USD</div>
+                            </div>
+                        </div>
+
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <div class="config-label">Currency Pair</div>
+                                <div class="config-value">EUR/USD</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Strategy Type</div>
+                                <div class="config-value">MA Crossover</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Fast MA Period</div>
+                                <div class="config-value">9 EMA</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Slow MA Period</div>
+                                <div class="config-value">21 EMA</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Timeframe</div>
+                                <div class="config-value">4 Hour</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Date Range</div>
+                                <div class="config-value">Jan - Dec 2024</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Lot Size</div>
+                                <div class="config-value">0.10 Lots</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Stop Loss</div>
+                                <div class="config-value">50 pips</div>
+                            </div>
+                        </div>
+
+                        <div class="results-section">
+                            <div class="results-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Performance Results
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value">156</div>
+                                    <div class="stat-label">Total Trades</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">58.33%</div>
+                                    <div class="stat-label">Win Rate</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+$4,280</div>
+                                    <div class="stat-label">Total P&L</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+42.8%</div>
+                                    <div class="stat-label">Total Return</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value negative">-8.5%</div>
+                                    <div class="stat-label">Max Drawdown</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">1.85</div>
+                                    <div class="stat-label">Profit Factor</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="equity-curve-container">
+                            <div class="results-title">
+                                <i class="fas fa-chart-area"></i>
+                                Equity Curve & Drawdown
+                            </div>
+                            <img src="/attached_assets/equity_curve_forex_eurusd_ma.png" alt="Equity Curve">
+                        </div>
+
+                        <div class="trade-log-section">
+                            <div class="trade-log-header">
+                                <div class="trade-log-title">
+                                    <i class="fas fa-list-alt"></i>
+                                    Sample Trade Log
+                                </div>
+                                <div class="trade-log-badge">Example trades</div>
+                            </div>
+                            <div class="trade-table-wrapper">
+                                <table class="trade-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Entry Date</th>
+                                            <th>Exit Date</th>
+                                            <th>Pair</th>
+                                            <th>Direction</th>
+                                            <th>Entry Price</th>
+                                            <th>Exit Price</th>
+                                            <th>Pips</th>
+                                            <th>P&L</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>2024-01-08 08:00</td>
+                                            <td>2024-01-09 16:00</td>
+                                            <td>EUR/USD</td>
+                                            <td>Long</td>
+                                            <td>1.0925</td>
+                                            <td>1.0985</td>
+                                            <td class="pnl-positive">+60</td>
+                                            <td class="pnl-positive">+$60.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2024-01-15 12:00</td>
+                                            <td>2024-01-16 08:00</td>
+                                            <td>EUR/USD</td>
+                                            <td>Short</td>
+                                            <td>1.0890</td>
+                                            <td>1.0845</td>
+                                            <td class="pnl-positive">+45</td>
+                                            <td class="pnl-positive">+$45.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2024-01-22 04:00</td>
+                                            <td>2024-01-22 12:00</td>
+                                            <td>EUR/USD</td>
+                                            <td>Long</td>
+                                            <td>1.0855</td>
+                                            <td>1.0805</td>
+                                            <td class="pnl-negative">-50</td>
+                                            <td class="pnl-negative">-$50.00</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crypto Backtester Section -->
+            <div class="feature-section" id="crypto-section">
+                <div class="section-header">
+                    <div class="section-badge">
+                        <i class="fab fa-bitcoin"></i>
+                        Crypto Backtester
+                    </div>
+                    <h2 class="section-title">Backtest Cryptocurrency Strategies</h2>
+                    <p class="section-subtitle">Test trading strategies on Bitcoin, Ethereum, and other cryptocurrencies with historical data.</p>
+                </div>
+
+                <div class="example-grid">
+                    <div class="example-card">
+                        <div class="example-card-header">
+                            <div class="example-card-icon" style="background: linear-gradient(135deg, #f7931a, #ff9500);">
+                                <i class="fab fa-bitcoin"></i>
+                            </div>
+                            <div>
+                                <div class="example-card-title">Strategy Configuration</div>
+                                <div class="example-card-subtitle">Bitcoin Breakout Strategy</div>
+                            </div>
+                        </div>
+
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <div class="config-label">Symbol</div>
+                                <div class="config-value">BTC/USD</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Strategy Type</div>
+                                <div class="config-value">Breakout</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Lookback Period</div>
+                                <div class="config-value">20 Days</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Entry Trigger</div>
+                                <div class="config-value">20-day High Break</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Date Range</div>
+                                <div class="config-value">Jan 1 - Dec 31, 2024</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Initial Capital</div>
+                                <div class="config-value">$25,000</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Position Size</div>
+                                <div class="config-value">20% of capital</div>
+                            </div>
+                            <div class="config-item">
+                                <div class="config-label">Stop Loss</div>
+                                <div class="config-value">8%</div>
+                            </div>
+                        </div>
+
+                        <div class="results-section">
+                            <div class="results-title">
+                                <i class="fas fa-chart-pie"></i>
+                                Performance Results
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value">42</div>
+                                    <div class="stat-label">Total Trades</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">52.38%</div>
+                                    <div class="stat-label">Win Rate</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+$18,750</div>
+                                    <div class="stat-label">Total P&L</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value positive">+75%</div>
+                                    <div class="stat-label">Total Return</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value negative">-18.5%</div>
+                                    <div class="stat-label">Max Drawdown</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">2.45</div>
+                                    <div class="stat-label">Profit Factor</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="equity-curve-container">
+                            <div class="results-title">
+                                <i class="fas fa-chart-area"></i>
+                                Equity Curve & Drawdown
+                            </div>
+                            <img src="/attached_assets/equity_curve_crypto_btc_breakout.png" alt="Equity Curve">
+                        </div>
+
+                        <div class="trade-log-section">
+                            <div class="trade-log-header">
+                                <div class="trade-log-title">
+                                    <i class="fas fa-list-alt"></i>
+                                    Sample Trade Log
+                                </div>
+                                <div class="trade-log-badge">Example trades</div>
+                            </div>
+                            <div class="trade-table-wrapper">
+                                <table class="trade-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Entry Date</th>
+                                            <th>Exit Date</th>
+                                            <th>Symbol</th>
+                                            <th>Direction</th>
+                                            <th>Entry Price</th>
+                                            <th>Exit Price</th>
+                                            <th>Size</th>
+                                            <th>P&L</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>2024-01-15</td>
+                                            <td>2024-02-02</td>
+                                            <td>BTC/USD</td>
+                                            <td>Long</td>
+                                            <td>$42,850</td>
+                                            <td>$48,200</td>
+                                            <td>0.12 BTC</td>
+                                            <td class="pnl-positive">+$642.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2024-02-28</td>
+                                            <td>2024-03-14</td>
+                                            <td>BTC/USD</td>
+                                            <td>Long</td>
+                                            <td>$57,350</td>
+                                            <td>$73,100</td>
+                                            <td>0.09 BTC</td>
+                                            <td class="pnl-positive">+$1,417.50</td>
+                                        </tr>
+                                        <tr>
+                                            <td>2024-04-12</td>
+                                            <td>2024-04-18</td>
+                                            <td>BTC/USD</td>
+                                            <td>Long</td>
+                                            <td>$70,200</td>
+                                            <td>$64,580</td>
+                                            <td>0.08 BTC</td>
+                                            <td class="pnl-negative">-$449.60</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screener Section -->
+            <div class="feature-section" id="screener-section">
+                <div class="section-header">
+                    <div class="section-badge">
+                        <i class="fas fa-filter"></i>
+                        Screener
+                    </div>
+                    <h2 class="section-title">Find Trading Opportunities</h2>
+                    <p class="section-subtitle">Scan the market for stocks and options that match your criteria in real-time.</p>
+                </div>
+
+                <div class="example-grid">
+                    <div class="example-card coming-soon-card">
+                        <div class="coming-soon-icon">
+                            <i class="fas fa-rocket"></i>
+                        </div>
+                        <div class="coming-soon-badge">Coming Soon</div>
+                        <h3 class="coming-soon-title">Powerful Market Screener</h3>
+                        <p class="coming-soon-text">We're building an advanced screener to help you discover the best trading opportunities based on technical indicators, options flow, and custom filters.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Section -->
+            <div class="feature-section" id="notifications-section">
+                <div class="section-header">
+                    <div class="section-badge">
+                        <i class="fas fa-bell"></i>
+                        Notifications
+                    </div>
+                    <h2 class="section-title">Real-Time Trading Alerts</h2>
+                    <p class="section-subtitle">Get notified when your strategy conditions are met or important market events occur.</p>
+                </div>
+
+                <div class="example-grid">
+                    <div class="example-card coming-soon-card">
+                        <div class="coming-soon-icon">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <div class="coming-soon-badge">Coming Soon</div>
+                        <h3 class="coming-soon-title">Smart Notifications</h3>
+                        <p class="coming-soon-text">Set up custom alerts for price movements, technical indicator signals, options unusual activity, and backtest completion notifications via email, SMS, or push notifications.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="footer-links">
+                <a href="/terms">Terms of Service</a>
+                <a href="/privacy">Privacy Policy</a>
+                <a href="/faq">FAQ</a>
+                <a href="/contact">Contact Us</a>
+            </div>
+            <p class="footer-copyright">2024 BacktestPro. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken');
+            return token ? { 'Authorization': 'Bearer ' + token } : {};
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const navBtns = document.querySelectorAll('.section-nav-btn');
+            const sections = document.querySelectorAll('.feature-section');
+
+            navBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const sectionId = this.dataset.section;
+
+                    navBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+
+                    sections.forEach(s => s.classList.remove('active'));
+                    document.getElementById(sectionId + '-section').classList.add('active');
+                });
+            });
+            
+            checkAuthStatus();
+        });
+        
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/status', { credentials: 'include', headers: getAuthHeaders() });
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    document.getElementById('createAccountBtn').style.display = 'none';
+                    document.getElementById('signInBtn').style.display = 'none';
+                    document.getElementById('dashboardBtn').style.display = 'inline-block';
+                    document.getElementById('accountDropdown').style.display = 'block';
+                    document.getElementById('accountName').textContent = data.user.name;
+                    
+                    const accountBtn = document.getElementById('accountBtn');
+                    const accountMenu = document.getElementById('accountMenu');
+                    
+                    accountBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        accountMenu.classList.toggle('active');
+                    });
+                    
+                    document.addEventListener('click', function() {
+                        accountMenu.classList.remove('active');
+                    });
+                    
+                    document.getElementById('logoutBtn').addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        localStorage.removeItem('authToken');
+                        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
+                        window.location.href = '/';
+                    });
+                }
+            } catch (error) {
+                console.log('Auth check failed:', error);
+            }
+        }
+    </script>
+</body>
+</html>

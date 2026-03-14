@@ -1,0 +1,420 @@
+<!-- Stock Backtester - Matching Options Backtester Design -->
+<div class="form-card">
+    <h2>
+        <i class="fas fa-chart-bar"></i>
+        STOCK BACKTESTING SYSTEM V3.0
+    </h2>
+
+    <form id="stockBacktestForm">
+        <!-- [1/7] BACKTEST NAME -->
+        <div class="section-header">
+            <span class="section-number">[1/7]</span>
+            <h3>BACKTEST NAME</h3>
+        </div>
+        <div class="form-group">
+            <label for="backtestName">Enter a name for this backtest:</label>
+            <input type="text" id="backtestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
+            <p class="help-text">This name will be used to identify your backtest in the results page</p>
+        </div>
+
+        <!-- [2/7] DATE RANGE -->
+        <div class="section-header">
+            <span class="section-number">[2/7]</span>
+            <h3>DATE RANGE</h3>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="startDate">Start Date:</label>
+                <input type="date" id="startDate" required>
+            </div>
+            <div class="form-group">
+                <label for="endDate">End Date:</label>
+                <input type="date" id="endDate" required>
+            </div>
+        </div>
+
+        <!-- [3/7] SYMBOL SELECTION -->
+        <div class="section-header">
+            <span class="section-number">[3/7]</span>
+            <h3>SYMBOL SELECTION</h3>
+        </div>
+        <div class="form-group">
+            <label>Select symbol mode:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="symbol_mode" value="single" checked onchange="updateSymbolMode()">
+                    <span>Single Symbol</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="symbol_mode" value="multiple" onchange="updateSymbolMode()">
+                    <span>Multiple Symbols</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="symbol_mode" value="all" onchange="updateSymbolMode()">
+                    <span>All (from CSV)</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Single symbol input -->
+        <div id="singleSymbolSection" class="form-group">
+            <label for="singleSymbol">Enter symbol:</label>
+            <input type="text" id="singleSymbol" placeholder="e.g., SPY" style="text-transform: uppercase;">
+        </div>
+        
+        <!-- Multiple symbols input -->
+        <div id="multipleSymbolsSection" class="form-group" style="display: none;">
+            <label for="multipleSymbols">Enter symbols (comma-separated):</label>
+            <textarea id="multipleSymbols" rows="3" placeholder="e.g., AAPL, MSFT, TSLA, GOOGL"></textarea>
+        </div>
+        
+        <!-- CSV upload -->
+        <div id="csvSymbolsSection" style="display: none;">
+            <div class="form-group">
+                <label for="csvFile">Upload CSV file:</label>
+                <input type="file" id="csvFile" accept=".csv">
+                <p class="help-text">CSV file with ticker symbols (one per row)</p>
+            </div>
+            
+            <div class="info-box">
+                <i class="fas fa-filter"></i>
+                <span>Optional Filters for CSV Mode</span>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Shares Outstanding (Min):</label>
+                    <input type="number" id="filterSharesMin" placeholder="e.g., 100000000">
+                </div>
+                <div class="form-group">
+                    <label>Shares Outstanding (Max):</label>
+                    <input type="number" id="filterSharesMax" placeholder="e.g., 500000000">
+                </div>
+                <div class="form-group">
+                    <label>Price Min ($):</label>
+                    <input type="number" id="filterPriceMin" step="0.01" placeholder="e.g., 5.00">
+                </div>
+                <div class="form-group">
+                    <label>Price Max ($):</label>
+                    <input type="number" id="filterPriceMax" step="0.01" placeholder="e.g., 100.00">
+                </div>
+                <div class="form-group">
+                    <label>Market Cap Min ($):</label>
+                    <input type="number" id="filterMcapMin" placeholder="e.g., 1000000000">
+                </div>
+                <div class="form-group">
+                    <label>Market Cap Max ($):</label>
+                    <input type="number" id="filterMcapMax" placeholder="e.g., 10000000000">
+                </div>
+            </div>
+        </div>
+
+        <!-- [4/7] ENTRY CONDITIONS -->
+        <div class="section-header">
+            <span class="section-number">[4/7]</span>
+            <h3>ENTRY CONDITIONS</h3>
+        </div>
+        <div class="form-group">
+            <label>Condition type:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="entry_type" value="preset" checked onchange="updateEntryType()">
+                    <span>Preset Conditions</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="entry_type" value="custom" onchange="updateEntryType()">
+                    <span>Custom Builder</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Preset Conditions -->
+        <div id="presetSection">
+            <div class="form-group">
+                <label for="presetCondition">Select Preset:</label>
+                <select id="presetCondition" onchange="updatePresetFields()">
+                    <option value="1">Premarket Change %</option>
+                    <option value="2">Change %</option>
+                    <option value="3">Gap %</option>
+                    <option value="4">Change-Open %</option>
+                    <option value="5">Velocity (Rate of Change)</option>
+                </select>
+            </div>
+            
+            <!-- Standard preset fields -->
+            <div id="standardPresetFields" class="form-grid">
+                <div class="form-group">
+                    <label for="presetOperator">Operator:</label>
+                    <select id="presetOperator">
+                        <option value=">">></option>
+                        <option value="<"><</option>
+                        <option value=">=">>=</option>
+                        <option value="<="><=</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="presetThreshold">Threshold (%):</label>
+                    <input type="number" id="presetThreshold" step="0.01" placeholder="e.g., 2.5">
+                </div>
+            </div>
+            
+            <!-- Velocity specific fields -->
+            <div id="velocityFields" style="display: none;">
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <div class="form-group">
+                        <label for="velocityLookback">Time Interval (minutes):</label>
+                        <input type="number" id="velocityLookback" placeholder="e.g., 5" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label for="velocityOperator">Operator:</label>
+                        <select id="velocityOperator">
+                            <option value=">">></option>
+                            <option value="<"><</option>
+                            <option value=">=">>=</option>
+                            <option value="<="><=</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="velocityThreshold">Threshold (%):</label>
+                        <input type="number" id="velocityThreshold" step="0.01" placeholder="e.g., 1.5">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Custom Conditions Builder -->
+        <div id="customSection" style="display: none;">
+            <div class="info-box">
+                <i class="fas fa-tools"></i>
+                <span>Custom Condition Builder - Compare candles to define entry triggers</span>
+            </div>
+            <div id="conditionsContainer" class="conditions-container">
+                <!-- Conditions will be added here dynamically -->
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="addCondition()" style="margin-top: 10px;">
+                <i class="fas fa-plus"></i> Add Condition
+            </button>
+        </div>
+
+        <!-- [5/7] ENTRY CRITERIA -->
+        <div class="section-header">
+            <span class="section-number">[5/7]</span>
+            <h3>ENTRY CRITERIA</h3>
+        </div>
+        
+        <!-- Direction Selection -->
+        <div class="form-group">
+            <label>Direction:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="direction" value="long" checked>
+                    <span>Long</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="direction" value="short">
+                    <span>Short</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Position Sizing -->
+        <div class="form-group">
+            <label>Position Sizing:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="sizing_type" value="shares" checked onchange="updateSizingType()">
+                    <span>Fixed Shares</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="sizing_type" value="dollars" onchange="updateSizingType()">
+                    <span>Fixed Dollars</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="sizing_type" value="percent" onchange="updateSizingType()">
+                    <span>% of Capital</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Shares -->
+        <div id="sharesSection" class="form-group">
+            <label for="sizingShares">Number of Shares:</label>
+            <input type="number" id="sizingShares" min="1" placeholder="e.g., 100">
+        </div>
+        
+        <!-- Dollars -->
+        <div id="dollarsSection" class="form-group" style="display: none;">
+            <label for="sizingDollars">Dollar Amount:</label>
+            <input type="number" id="sizingDollars" step="0.01" min="0.01" placeholder="e.g., 5000.00">
+        </div>
+        
+        <!-- Percent -->
+        <div id="percentSection" style="display: none;">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="startingCapital">Starting Capital ($):</label>
+                    <input type="number" id="startingCapital" step="0.01" min="1" placeholder="e.g., 50000">
+                </div>
+                <div class="form-group">
+                    <label for="sizingPercent">Percent of Capital (%):</label>
+                    <input type="number" id="sizingPercent" step="0.01" min="0.01" max="100" placeholder="e.g., 10">
+                </div>
+            </div>
+        </div>
+
+        <!-- [6/7] EXIT CRITERIA -->
+        <div class="section-header">
+            <span class="section-number">[6/7]</span>
+            <h3>EXIT CRITERIA</h3>
+        </div>
+        
+        <!-- Take Profit -->
+        <div class="form-group">
+            <label>Take Profit Type:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="take_profit_type" value="percent" checked>
+                    <span>Percent (%)</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="take_profit_type" value="dollar">
+                    <span>Dollar ($)</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="takeProfitValue">Take Profit Value:</label>
+            <input type="number" id="takeProfitValue" step="0.01" min="0.01" placeholder="e.g., 5 (for 5% or $5)" required>
+        </div>
+        
+        <!-- Stop Loss -->
+        <div class="form-group">
+            <label>Stop Loss Type:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="stop_loss_type" value="percent" checked>
+                    <span>Percent (%)</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="stop_loss_type" value="dollar">
+                    <span>Dollar ($)</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="stopLossValue">Stop Loss Value:</label>
+            <input type="number" id="stopLossValue" step="0.01" min="0.01" placeholder="e.g., 3 (for 3% or $3)" required>
+        </div>
+        
+        <!-- Max Days -->
+        <div class="form-group">
+            <label for="maxDays">Max Days in Trade:</label>
+            <input type="number" id="maxDays" min="1" placeholder="e.g., 5" required>
+        </div>
+
+        <!-- [7/7] ADVANCED OPTIONS -->
+        <div class="section-header">
+            <span class="section-number">[7/7]</span>
+            <h3>ADVANCED OPTIONS</h3>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="allowConsecutive">
+                <span>Allow consecutive trades (new entry if already in position for same symbol)</span>
+            </label>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="form-submit">
+            <button type="submit" class="btn btn-primary btn-large">
+                <i class="fas fa-rocket"></i> Run Backtest
+            </button>
+        </div>
+        
+        <p class="help-text" style="text-align: center; margin-top: 10px;">
+            Runs backtest using Polygon.io data for the specified period
+        </p>
+    </form>
+
+    <div id="loadingMessage" class="loading-message" style="display: none;">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Running backtest... This may take a few minutes.</span>
+    </div>
+
+    <div id="errorMessage" class="error-message" style="display: none;"></div>
+</div>
+
+<!-- Results Section -->
+<div id="backtestResults" class="form-card" style="display: none; margin-top: 20px;">
+    <h2>
+        <i class="fas fa-chart-line"></i>
+        BACKTEST RESULTS
+    </h2>
+    
+    <div class="results-actions" style="margin-bottom: 20px;">
+        <button id="viewFullResults" class="btn btn-secondary">
+            <i class="fas fa-external-link-alt"></i> View Full Results
+        </button>
+        <button id="downloadCSV" class="btn btn-secondary">
+            <i class="fas fa-file-csv"></i> Download Trade Log
+        </button>
+    </div>
+
+    <!-- Equity Curve -->
+    <div id="equityCurveSection" style="display: none; margin-bottom: 20px;">
+        <div class="section-header">
+            <h3><i class="fas fa-chart-area"></i> Equity Curve</h3>
+        </div>
+        <div id="equityCurveContainer" class="equity-curve-container"></div>
+    </div>
+
+    <!-- Performance Statistics -->
+    <div class="section-header">
+        <h3><i class="fas fa-analytics"></i> Performance Statistics</h3>
+    </div>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <span class="stat-label">Total Trades</span>
+            <span class="stat-value" id="statTotalTrades">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Win Rate</span>
+            <span class="stat-value" id="statWinRate">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Total P&L</span>
+            <span class="stat-value" id="statTotalPL">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Avg Win</span>
+            <span class="stat-value" id="statAvgWin">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Avg Loss</span>
+            <span class="stat-value" id="statAvgLoss">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Profit Factor</span>
+            <span class="stat-value" id="statProfitFactor">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Max Drawdown</span>
+            <span class="stat-value" id="statMaxDrawdown">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Total Return</span>
+            <span class="stat-value" id="statTotalReturn">-</span>
+        </div>
+    </div>
+
+    <!-- Trades Table -->
+    <div class="section-header" style="margin-top: 20px;">
+        <h3><i class="fas fa-table"></i> Trade Log</h3>
+    </div>
+    <div class="table-container">
+        <table class="results-table">
+            <thead id="tradesTableHead"></thead>
+            <tbody id="tradesTableBody"></tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Backtest Results - BacktestPro</title>
+    <link rel="icon" href="/static/img/kaiadmin/favicon.ico" type="image/x-icon" />
+
+    <script src="/static/js/plugin/webfont/webfont.min.js"></script>
+    <script>
+      WebFont.load({
+        google: { families: ["Public Sans:300,400,500,600,700"] },
+        custom: {
+          families: ["Font Awesome 5 Solid", "Font Awesome 5 Regular", "Font Awesome 5 Brands", "simple-line-icons"],
+          urls: ["/static/css/fonts.min.css"],
+        },
+        active: function () { sessionStorage.fonts = true; },
+      });
+    </script>
+
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/static/css/plugins.min.css" />
+    <link rel="stylesheet" href="/static/css/kaiadmin.min.css" />
+    <link rel="stylesheet" href="/static/css/fonts.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        .stat-value.positive { color: #31ce36 !important; }
+        .stat-value.negative { color: #f25961 !important; }
+        .backtest-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .backtest-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .badge-status { font-size: 11px; padding: 4px 8px; }
+        .search-input-wrapper { position: relative; }
+        .search-input-wrapper i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #8d9498; }
+        .search-input-wrapper input { padding-left: 40px; }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+      <!-- Sidebar -->
+      <div class="sidebar" data-background-color="dark">
+        <div class="sidebar-logo">
+          <div class="logo-header" data-background-color="dark">
+            <a href="/" class="logo">
+              <span class="navbar-brand text-white fw-bold">BacktestPro</span>
+            </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar"><i class="gg-menu-right"></i></button>
+              <button class="btn btn-toggle sidenav-toggler"><i class="gg-menu-left"></i></button>
+            </div>
+            <button class="topbar-toggler more"><i class="gg-more-vertical-alt"></i></button>
+          </div>
+        </div>
+        <div class="sidebar-wrapper scrollbar scrollbar-inner">
+          <div class="sidebar-content">
+            <ul class="nav nav-secondary">
+              <li class="nav-item">
+                <a href="/"><i class="fas fa-home"></i><p>Home</p></a>
+              </li>
+              <li class="nav-item">
+                <a data-bs-toggle="collapse" href="#fetchDataMenu"><i class="fas fa-database"></i><p>Fetch Data</p><span class="caret"></span></a>
+                <div class="collapse" id="fetchDataMenu">
+                  <ul class="nav nav-collapse">
+                    <li><a href="/?page=stocks"><span class="sub-item">Stocks</span></a></li>
+                    <li><a href="/?page=options"><span class="sub-item">Options</span></a></li>
+                  </ul>
+                </div>
+              </li>
+              <li class="nav-item">
+                <a data-bs-toggle="collapse" href="#backtesterMenu"><i class="fas fa-flask"></i><p>Backtester</p><span class="caret"></span></a>
+                <div class="collapse" id="backtesterMenu">
+                  <ul class="nav nav-collapse">
+                    <li><a href="/?page=backtester"><span class="sub-item">Options Backtest</span></a></li>
+                    <li><a href="/?page=stockBacktester"><span class="sub-item">Stock Backtest</span></a></li>
+                  </ul>
+                </div>
+              </li>
+              <li class="nav-item active">
+                <a data-bs-toggle="collapse" href="#resultsMenu" aria-expanded="true"><i class="fas fa-chart-area"></i><p>Results</p><span class="caret"></span></a>
+                <div class="collapse show" id="resultsMenu">
+                  <ul class="nav nav-collapse">
+                    <li class="active"><a href="/options-backtest-results.html"><span class="sub-item">Options Results</span></a></li>
+                    <li><a href="/stock-backtest-results-list.html"><span class="sub-item">Stock Results</span></a></li>
+                  </ul>
+                </div>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Account</h4>
+              </li>
+              <li class="nav-item">
+                <a href="/?page=subscription"><i class="fas fa-credit-card"></i><p>Subscription</p></a>
+              </li>
+              <li class="nav-item">
+                <a href="/?page=settings"><i class="fas fa-cog"></i><p>Settings</p></a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-panel">
+        <div class="main-header">
+          <div class="main-header-logo"><div class="logo-header" data-background-color="dark"><a href="/" class="logo"><span class="navbar-brand text-white fw-bold">BacktestPro</span></a></div></div>
+          <nav class="navbar navbar-header navbar-header-left navbar-expand-lg navbar-form-left">
+            <div class="collapse" id="search-nav">
+              <form class="navbar-left navbar-form nav-search me-md-3">
+                <div class="input-group search-input-wrapper">
+                  <i class="fas fa-search"></i>
+                  <input type="text" id="backtestSearchInput" placeholder="Search backtests..." class="form-control">
+                </div>
+              </form>
+            </div>
+          </nav>
+          <nav class="navbar navbar-header navbar-header-right navbar-expand-lg">
+            <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+              <li class="nav-item topbar-user dropdown hidden-caret">
+                <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
+                  <div class="avatar-sm"><img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" /></div>
+                  <span class="profile-username"><span class="fw-bold" id="userName">User</span></span>
+                </a>
+                <ul class="dropdown-menu dropdown-user animated fadeIn">
+                  <div class="dropdown-user-scroll scrollbar-outer">
+                    <li><a class="dropdown-item" href="/?page=settings"><i class="fas fa-cog"></i> Settings</a></li>
+                    <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                  </div>
+                </ul>
+              </li>
+            </ul>
+          </nav>
+        </div>
+
+        <div class="container">
+          <div class="page-inner">
+            <div class="page-header">
+              <h3 class="fw-bold mb-3">Options Backtest Results</h3>
+              <ul class="breadcrumbs mb-3">
+                <li class="nav-home"><a href="/"><i class="fas fa-home"></i></a></li>
+                <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                <li class="nav-item"><a href="#">Results</a></li>
+                <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                <li class="nav-item"><a href="#">Options Backtests</a></li>
+              </ul>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="row" id="statsRow">
+              <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                  <div class="card-body">
+                    <div class="row align-items-center">
+                      <div class="col-icon">
+                        <div class="icon-big text-center icon-primary bubble-shadow-small">
+                          <i class="fas fa-chart-bar"></i>
+                        </div>
+                      </div>
+                      <div class="col col-stats ms-3 ms-sm-0">
+                        <div class="numbers">
+                          <p class="card-category">Total Backtests</p>
+                          <h4 class="card-title" id="totalBacktests">0</h4>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                  <div class="card-body">
+                    <div class="row align-items-center">
+                      <div class="col-icon">
+                        <div class="icon-big text-center icon-success bubble-shadow-small">
+                          <i class="fas fa-exchange-alt"></i>
+                        </div>
+                      </div>
+                      <div class="col col-stats ms-3 ms-sm-0">
+                        <div class="numbers">
+                          <p class="card-category">Total Trades</p>
+                          <h4 class="card-title" id="totalTrades">0</h4>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                  <div class="card-body">
+                    <div class="row align-items-center">
+                      <div class="col-icon">
+                        <div class="icon-big text-center icon-warning bubble-shadow-small">
+                          <i class="fas fa-trophy"></i>
+                        </div>
+                      </div>
+                      <div class="col col-stats ms-3 ms-sm-0">
+                        <div class="numbers">
+                          <p class="card-category">Best Win Rate</p>
+                          <h4 class="card-title" id="bestWinRate">0%</h4>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <div class="card card-stats card-round">
+                  <div class="card-body">
+                    <div class="row align-items-center">
+                      <div class="col-icon">
+                        <div class="icon-big text-center icon-info bubble-shadow-small">
+                          <i class="fas fa-dollar-sign"></i>
+                        </div>
+                      </div>
+                      <div class="col col-stats ms-3 ms-sm-0">
+                        <div class="numbers">
+                          <p class="card-category">Best Return</p>
+                          <h4 class="card-title" id="bestReturn">0%</h4>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row mb-3">
+              <div class="col-12">
+                <button class="btn btn-primary" id="refreshBtn">
+                  <i class="fas fa-sync-alt me-2"></i>Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingSection" class="text-center py-5">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-3">Loading backtests...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="errorSection" class="alert alert-danger" style="display: none;">
+              <strong>Error:</strong> <span id="errorMessage"></span>
+            </div>
+
+            <!-- Backtests Grid -->
+            <div class="row" id="backtestsGrid" style="display: none;"></div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="card" style="display: none;">
+              <div class="card-body text-center py-5">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <h4>No backtests yet</h4>
+                <p class="text-muted">Run your first options backtest to see results here</p>
+                <a href="/?page=backtester" class="btn btn-primary">Run Backtest</a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <footer class="footer">
+          <div class="container-fluid d-flex justify-content-between">
+            <nav class="pull-left"><ul class="nav"><li class="nav-item"><a class="nav-link" href="/terms">Terms</a></li><li class="nav-item"><a class="nav-link" href="/privacy">Privacy</a></li></ul></nav>
+            <div class="copyright">2024, BacktestPro</div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <script src="/static/js/core/jquery-3.7.1.min.js"></script>
+    <script src="/static/js/core/popper.min.js"></script>
+    <script src="/static/js/core/bootstrap.min.js"></script>
+    <script src="/static/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+    <script src="/static/js/kaiadmin.min.js"></script>
+
+    <script>
+      let allBacktests = [];
+
+      document.addEventListener('DOMContentLoaded', () => {
+        loadBacktests();
+        setupSearch();
+      });
+
+      function setupSearch() {
+        const searchInput = document.getElementById('backtestSearchInput');
+        if (searchInput) {
+          searchInput.addEventListener('input', () => displayBacktests());
+        }
+      }
+
+      document.getElementById('refreshBtn').onclick = async () => {
+        const btn = document.getElementById('refreshBtn');
+        btn.innerHTML = '<i class="fas fa-sync-alt fa-spin me-2"></i>Refreshing...';
+        btn.disabled = true;
+        await loadBacktests();
+        btn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Refresh';
+        btn.disabled = false;
+      };
+
+      async function loadBacktests() {
+        try {
+          document.getElementById('loadingSection').style.display = 'block';
+          document.getElementById('errorSection').style.display = 'none';
+          document.getElementById('backtestsGrid').style.display = 'none';
+          document.getElementById('emptyState').style.display = 'none';
+
+          const response = await fetch('/api/backtests/list');
+          if (!response.ok) throw new Error('Failed to load backtests');
+
+          const data = await response.json();
+          allBacktests = data.backtests || [];
+
+          document.getElementById('loadingSection').style.display = 'none';
+          displayBacktests();
+          updateStats();
+
+        } catch (error) {
+          document.getElementById('loadingSection').style.display = 'none';
+          document.getElementById('errorSection').style.display = 'block';
+          document.getElementById('errorMessage').textContent = error.message;
+        }
+      }
+
+      function updateStats() {
+        document.getElementById('totalBacktests').textContent = allBacktests.length;
+        
+        let totalTrades = 0;
+        let bestWinRate = 0;
+        let bestReturn = -Infinity;
+
+        allBacktests.forEach(bt => {
+          if (bt.summary) {
+            totalTrades += bt.summary.total_trades || 0;
+            if (bt.summary.win_rate > bestWinRate) bestWinRate = bt.summary.win_rate;
+            if (bt.summary.total_return > bestReturn) bestReturn = bt.summary.total_return;
+          }
+        });
+
+        document.getElementById('totalTrades').textContent = totalTrades;
+        document.getElementById('bestWinRate').textContent = bestWinRate.toFixed(1) + '%';
+        document.getElementById('bestReturn').textContent = (bestReturn === -Infinity ? 0 : bestReturn.toFixed(2)) + '%';
+      }
+
+      function displayBacktests() {
+        const searchInput = document.getElementById('backtestSearchInput');
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        
+        const filtered = allBacktests.filter(bt => {
+          if (!searchTerm) return true;
+          const symbol = bt.config?.symbol?.toLowerCase() || '';
+          const strategy = bt.config?.strategy?.toLowerCase() || '';
+          const name = bt.config?.name?.toLowerCase() || '';
+          return symbol.includes(searchTerm) || strategy.includes(searchTerm) || name.includes(searchTerm);
+        });
+
+        const grid = document.getElementById('backtestsGrid');
+        
+        if (filtered.length === 0) {
+          grid.style.display = 'none';
+          document.getElementById('emptyState').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('emptyState').style.display = 'none';
+        grid.style.display = 'flex';
+        grid.className = 'row';
+
+        grid.innerHTML = filtered.map(bt => {
+          const config = bt.config || {};
+          const summary = bt.summary || {};
+          const returnClass = (summary.total_return || 0) >= 0 ? 'positive' : 'negative';
+          const returnSign = (summary.total_return || 0) >= 0 ? '+' : '';
+          
+          return `
+            <div class="col-sm-6 col-lg-4 col-xl-3">
+              <div class="card backtest-card">
+                <div class="card-header">
+                  <div class="card-title">${config.symbol || 'Unknown'}</div>
+                  <span class="badge bg-secondary badge-status">${config.strategy || 'Strategy'}</span>
+                </div>
+                <div class="card-body">
+                  <div class="row mb-2">
+                    <div class="col-6">
+                      <small class="text-muted">Return</small>
+                      <div class="fw-bold stat-value ${returnClass}">${returnSign}${(summary.total_return || 0).toFixed(2)}%</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Win Rate</small>
+                      <div class="fw-bold">${(summary.win_rate || 0).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-6">
+                      <small class="text-muted">Trades</small>
+                      <div class="fw-bold">${summary.total_trades || 0}</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Date</small>
+                      <div class="fw-bold">${bt.timestamp ? new Date(bt.timestamp).toLocaleDateString() : 'N/A'}</div>
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 mt-3">
+                    <a href="/api/backtests/${bt.id}/details" class="btn btn-sm btn-primary flex-grow-1">
+                      <i class="fas fa-eye me-1"></i>View
+                    </a>
+                    <button class="btn btn-sm btn-danger" onclick="deleteBacktest('${bt.id}')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      async function deleteBacktest(id) {
+        if (!confirm('Are you sure you want to delete this backtest?')) return;
+        
+        try {
+          const response = await fetch(`/api/backtests/${id}`, { method: 'DELETE' });
+          if (response.ok) {
+            loadBacktests();
+          } else {
+            alert('Failed to delete backtest');
+          }
+        } catch (error) {
+          alert('Error deleting backtest: ' + error.message);
+        }
+      }
+    </script>
+</body>
+</html>

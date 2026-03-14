@@ -1,0 +1,228 @@
+<!-- Stocks OHLCV Query Form -->
+<div class="form-card">
+    <h2>
+        <i class="fas fa-chart-bar"></i>
+        Stock Aggregates (OHLCV)
+    </h2>
+    
+    <div class="form-grid">
+        <!-- Ticker -->
+        <div class="form-group">
+            <label for="stocksTicker">
+                Ticker Symbol <span class="required">*</span>
+            </label>
+            <input type="text" id="stocksTicker" placeholder="SPY" required>
+            <small>Stock ticker symbol (e.g., AAPL, SPY, TSLA)</small>
+        </div>
+
+        <!-- Multiplier -->
+        <div class="form-group">
+            <label for="stocksMultiplier">
+                Multiplier <span class="required">*</span>
+            </label>
+            <input type="number" id="stocksMultiplier" value="1" min="1" required>
+            <small>Size of the timespan multiplier</small>
+        </div>
+
+        <!-- Timespan -->
+        <div class="form-group">
+            <label for="stocksTimespan">
+                Timespan <span class="required">*</span>
+            </label>
+            <select id="stocksTimespan" required>
+                <option value="minute">Minute</option>
+                <option value="hour">Hour</option>
+                <option value="day" selected>Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="quarter">Quarter</option>
+                <option value="year">Year</option>
+            </select>
+            <small>Size of the time window</small>
+        </div>
+
+        <!-- From Date -->
+        <div class="form-group">
+            <label for="stocksFromDate">
+                From Date <span class="required">*</span>
+            </label>
+            <input type="date" id="stocksFromDate" required>
+            <small>Start of aggregate window (YYYY-MM-DD)</small>
+        </div>
+
+        <!-- To Date -->
+        <div class="form-group">
+            <label for="stocksToDate">
+                To Date <span class="required">*</span>
+            </label>
+            <input type="date" id="stocksToDate" required>
+            <small>End of aggregate window (YYYY-MM-DD)</small>
+        </div>
+
+        <!-- Adjusted -->
+        <div class="form-group">
+            <label for="stocksAdjusted">Adjusted for Splits</label>
+            <select id="stocksAdjusted">
+                <option value="true" selected>True</option>
+                <option value="false">False</option>
+            </select>
+            <small>Whether results are adjusted for splits</small>
+        </div>
+
+        <!-- Sort -->
+        <div class="form-group">
+            <label for="stocksSort">Sort Order</label>
+            <select id="stocksSort">
+                <option value="asc" selected>Ascending</option>
+                <option value="desc">Descending</option>
+            </select>
+            <small>Sort results by timestamp</small>
+        </div>
+
+        <!-- Limit -->
+        <div class="form-group">
+            <label for="stocksLimit">Limit</label>
+            <input type="number" id="stocksLimit" value="120" min="1" max="50000">
+            <small>Max results (1-50000)</small>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button id="fetchStocksBtn" class="btn-primary">
+            <i class="fas fa-download"></i>
+            Fetch Data
+        </button>
+        <button id="resetStocksBtn" class="btn-secondary">
+            <i class="fas fa-redo"></i>
+            Reset
+        </button>
+    </div>
+
+    <!-- API URL Display -->
+    <div id="stocksApiUrlDisplay" class="api-url-display" style="display: none;">
+        <label>API URL:</label>
+        <div class="url-container">
+            <code id="stocksApiUrl"></code>
+            <button id="copyStocksUrlBtn" class="btn-copy" title="Copy URL">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading -->
+<div id="stocksLoading" class="loading" style="display: none;">
+    <div class="spinner"></div>
+    <p>Fetching stock data...</p>
+</div>
+
+<!-- Error Message -->
+<div id="stocksError" class="error-message" style="display: none;"></div>
+
+<!-- Results Section -->
+<div id="stocksResults" class="results-card" style="display: none;">
+    <div class="results-header">
+        <div class="results-info">
+            <h3>Results</h3>
+            <div class="results-meta">
+                <span id="stocksResultCount" class="badge badge-primary"></span>
+                <span id="stocksDateRange" class="text-secondary"></span>
+            </div>
+        </div>
+        <div class="results-actions">
+            <button id="downloadStocksCSV" class="btn-secondary">
+                <i class="fas fa-file-csv"></i>
+                Download CSV
+            </button>
+            <button id="downloadStocksJSON" class="btn-secondary">
+                <i class="fas fa-file-code"></i>
+                Download JSON
+            </button>
+        </div>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination-controls">
+        <div class="pagination-info">
+            <span id="stocksPaginationInfo">Showing 1-50 of 0</span>
+        </div>
+        <div class="pagination-buttons">
+            <button id="stocksFirstPage" class="btn-pagination" disabled>
+                <i class="fas fa-angle-double-left"></i>
+            </button>
+            <button id="stocksPrevPage" class="btn-pagination" disabled>
+                <i class="fas fa-angle-left"></i>
+            </button>
+            <span id="stocksPageIndicator" class="page-indicator">Page 1 of 1</span>
+            <button id="stocksNextPage" class="btn-pagination">
+                <i class="fas fa-angle-right"></i>
+            </button>
+            <button id="stocksLastPage" class="btn-pagination">
+                <i class="fas fa-angle-double-right"></i>
+            </button>
+        </div>
+        <div class="pagination-settings">
+            <label>Rows per page:</label>
+            <select id="stocksRowsPerPage">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="table-container">
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th class="sortable" data-column="t">
+                        <i class="fas fa-calendar"></i> Timestamp
+                    </th>
+                    <th class="sortable" data-column="o">Open</th>
+                    <th class="sortable" data-column="h">High</th>
+                    <th class="sortable" data-column="l">Low</th>
+                    <th class="sortable" data-column="c">Close</th>
+                    <th class="sortable" data-column="v">Volume</th>
+                    <th class="sortable" data-column="vw">VWAP</th>
+                    <th class="sortable" data-column="n">Transactions</th>
+                </tr>
+            </thead>
+            <tbody id="stocksTableBody">
+                <!-- Data populated by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Statistics -->
+    <div class="statistics-card">
+        <h3>Summary Statistics</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Total Volume</span>
+                <span class="stat-value" id="stocksTotalVolume">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Avg Volume</span>
+                <span class="stat-value" id="stocksAvgVolume">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Highest Price</span>
+                <span class="stat-value" id="stocksHighestPrice">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Lowest Price</span>
+                <span class="stat-value" id="stocksLowestPrice">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Avg VWAP</span>
+                <span class="stat-value" id="stocksAvgVWAP">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Total Transactions</span>
+                <span class="stat-value" id="stocksTotalTransactions">-</span>
+            </div>
+        </div>
+    </div>
+</div>

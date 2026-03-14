@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test - My Backtests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #output {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .info { color: #17a2b8; }
+        .section { margin: 15px 0; padding: 10px; background: #f8f9fa; border-left: 3px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 My Backtests API Diagnostic</h1>
+    
+    <div>
+        <button onclick="testListAPI()">Test /api/backtests/list</button>
+        <button onclick="checkFolder()">Check Folder Structure</button>
+        <button onclick="clearOutput()">Clear</button>
+    </div>
+    
+    <div id="output">Click a button to run tests...</div>
+    
+    <script>
+        const API_BASE_URL = `http://${window.location.hostname}:${window.location.port}/api`;
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'info' ? 'info' : '';
+            output.innerHTML += `<span class="${className}">${message}</span>\n`;
+        }
+        
+        function section(title) {
+            output.innerHTML += `<div class="section"><strong>${title}</strong></div>\n`;
+        }
+        
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+        
+        async function testListAPI() {
+            clearOutput();
+            section('🧪 TESTING /api/backtests/list');
+            
+            const url = `${API_BASE_URL}/backtests/list`;
+            log(`\n📍 Full URL: ${url}`, 'info');
+            log(`\n⏳ Fetching...`);
+            
+            try {
+                const startTime = performance.now();
+                const response = await fetch(url);
+                const endTime = performance.now();
+                
+                log(`\n✓ Response received in ${(endTime - startTime).toFixed(0)}ms`, 'success');
+                log(`\nStatus: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                log(`Content-Type: ${response.headers.get('content-type')}`);
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    log(`\n❌ Error response body:`, 'error');
+                    log(text, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                section('📊 RESPONSE DATA');
+                log(`Backtests array exists: ${!!data.backtests}`, data.backtests ? 'success' : 'error');
+                log(`Number of backtests: ${data.backtests ? data.backtests.length : 0}`, data.backtests && data.backtests.length > 0 ? 'success' : 'error');
+                
+                if (data.backtests && data.backtests.length > 0) {
+                    section(`📋 FOUND ${data.backtests.length} BACKTESTS`);
+                    data.backtests.forEach((bt, i) => {
+                        log(`\n--- Backtest ${i + 1} ---`);
+                        log(`  ID: ${bt.id}`);
+                        log(`  Timestamp: ${bt.timestamp}`);
+                        log(`  Strategy: ${bt.config?.strategy || 'N/A'}`);
+                        log(`  Trades: ${bt.summary?.total_trades || 'N/A'}`);
+                        log(`  Win Rate: ${bt.summary?.win_rate?.toFixed(1) || 'N/A'}%`);
+                        log(`  P&L: $${bt.summary?.total_pnl?.toFixed(2) || 'N/A'}`);
+                    });
+                    
+                    log(`\n✅ SUCCESS! Found ${data.backtests.length} backtests`, 'success');
+                } else {
+                    log(`\n⚠️  No backtests in response!`, 'error');
+                    log(`\nFull response:`, 'error');
+                    log(JSON.stringify(data, null, 2));
+                }
+                
+            } catch (error) {
+                log(`\n❌ ERROR: ${error.message}`, 'error');
+                log(error.stack, 'error');
+            }
+        }
+        
+        async function checkFolder() {
+            clearOutput();
+            section('📁 FOLDER STRUCTURE CHECK');
+            
+            log(`This test will tell you:`);
+            log(`1. If the API endpoint works`);
+            log(`2. How many metadata files were found`);
+            log(`3. What the server is looking for\n`);
+            
+            log(`\nExpected folder: /Users/Drip/Downloads/base 2/backtest_results/`);
+            log(`Expected files: metadata_*.json\n`);
+            
+            log(`\nCheck Flask console for detailed file listing!`, 'info');
+            
+            await testListAPI();
+        }
+    </script>
+</body>
+</html>

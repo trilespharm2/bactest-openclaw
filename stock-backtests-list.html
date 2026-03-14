@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Backtest Results - List</title>
+    <link rel="stylesheet" href="main-styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .backtests-list {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .page-header {
+            margin-bottom: 30px;
+        }
+        
+        .page-header h1 {
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+        
+        .page-header p {
+            color: #6b7280;
+        }
+        
+        .backtest-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .backtest-card:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .backtest-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .backtest-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .backtest-date {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .backtest-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .stat-value.positive {
+            color: #10b981;
+        }
+        
+        .stat-value.negative {
+            color: #ef4444;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state i {
+            font-size: 64px;
+            color: #d1d5db;
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #6b7280;
+        }
+        
+        .loading i {
+            font-size: 48px;
+            color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .btn-new {
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .btn-new:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="backtests-list">
+        <div class="page-header">
+            <h1><i class="fas fa-chart-area"></i> Stock Backtest Results</h1>
+            <p>View and manage your stock backtest results</p>
+            <button class="btn-new" onclick="window.location.href='stock-backtester.html'">
+                <i class="fas fa-plus"></i> New Backtest
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingSection" class="loading">
+            <i class="fas fa-spinner"></i>
+            <h3>Loading backtests...</h3>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorSection" class="error" style="display: none;">
+            <strong>Error:</strong> <span id="errorMessage"></span>
+        </div>
+
+        <!-- Backtests Container -->
+        <div id="backtestsContainer" style="display: none;">
+            <!-- Backtest cards will be inserted here -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <i class="fas fa-inbox"></i>
+            <h3>No backtests yet</h3>
+            <p>Run your first stock backtest to see results here</p>
+            <button class="btn-new" onclick="window.location.href='stock-backtester.html'">
+                <i class="fas fa-plus"></i> Create First Backtest
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let backtests = [];
+
+        // Load backtests on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadBacktests();
+        });
+
+        async function loadBacktests() {
+            try {
+                // Get API key
+                const apiKey = localStorage.getItem('polygonApiKey');
+                if (!apiKey) {
+                    throw new Error('API key not found. Please configure it in settings.');
+                }
+
+                // Fetch list of backtests
+                const response = await fetch('/api/stocks-backtest-v3/list', {
+                    headers: {
+                        'X-API-Key': apiKey
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch backtests');
+                }
+
+                const data = await response.json();
+                backtests = data.backtests || [];
+
+                // Hide loading
+                document.getElementById('loadingSection').style.display = 'none';
+
+                if (backtests.length === 0) {
+                    // Show empty state
+                    document.getElementById('emptyState').style.display = 'block';
+                } else {
+                    // Show backtests
+                    document.getElementById('backtestsContainer').style.display = 'block';
+                    displayBacktests();
+                }
+
+            } catch (error) {
+                console.error('Error loading backtests:', error);
+                document.getElementById('loadingSection').style.display = 'none';
+                document.getElementById('errorSection').style.display = 'block';
+                document.getElementById('errorMessage').textContent = error.message;
+            }
+        }
+
+        function displayBacktests() {
+            const container = document.getElementById('backtestsContainer');
+            container.innerHTML = '';
+
+            backtests.forEach(backtest => {
+                const card = createBacktestCard(backtest);
+                container.appendChild(card);
+            });
+        }
+
+        function createBacktestCard(backtest) {
+            const card = document.createElement('div');
+            card.className = 'backtest-card';
+            card.onclick = () => viewBacktest(backtest.id);
+
+            // Format date properly
+            let dateStr = 'Date not available';
+            if (backtest.timestamp) {
+                try {
+                    // Try parsing as ISO string
+                    const date = new Date(backtest.timestamp);
+                    if (!isNaN(date.getTime())) {
+                        dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                    }
+                } catch (e) {
+                    console.error('Error parsing date:', e);
+                }
+            }
+
+            // Get backtest name
+            const backtestName = backtest.name || 'Unnamed Backtest';
+
+            card.innerHTML = `
+                <div class="backtest-header">
+                    <div class="backtest-title">${backtestName}</div>
+                    <div class="backtest-date">${dateStr}</div>
+                </div>
+                <div class="backtest-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Total Trades</div>
+                        <div class="stat-value">${backtest.total_trades || 0}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Symbols</div>
+                        <div class="stat-value">${backtest.symbol_count || 0}</div>
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        function viewBacktest(backtestId) {
+            window.location.href = `stock-backtest-results.html?id=${backtestId}`;
+        }
+    </script>
+</body>
+</html>

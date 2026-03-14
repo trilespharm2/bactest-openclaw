@@ -1,0 +1,3392 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>BacktestPro - Dashboard</title>
+    <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
+    <link rel="icon" href="/static/img/kaiadmin/favicon.ico" type="image/x-icon" />
+
+    <script src="/static/js/plugin/webfont/webfont.min.js"></script>
+    <script>
+      WebFont.load({
+        google: { families: ["Public Sans:300,400,500,600,700"] },
+        custom: {
+          families: [
+            "Font Awesome 5 Solid",
+            "Font Awesome 5 Regular",
+            "Font Awesome 5 Brands",
+            "simple-line-icons",
+          ],
+          urls: ["/static/css/fonts.min.css"],
+        },
+        active: function () {
+          sessionStorage.fonts = true;
+        },
+      });
+    </script>
+
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/static/css/plugins.min.css" />
+    <link rel="stylesheet" href="/static/css/kaiadmin.min.css" />
+    <link rel="stylesheet" href="/static/css/pricing.css" />
+    <link rel="stylesheet" href="/static/css/stock-backtester.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+      /* Hide content during initialization to prevent flash */
+      body.initializing .wrapper { opacity: 0; }
+      body:not(.initializing) .wrapper { opacity: 1; transition: opacity 0.1s ease-in; }
+      .page { display: none; }
+      .page.active { display: block; }
+      .nav-item.active > a { background: rgba(27, 85, 226, 0.1) !important; color: #1b55e2 !important; }
+      .nav-item.active > a i { color: #1b55e2 !important; }
+      .logo-text { font-size: 18px; font-weight: 700; color: #1b55e2; margin-left: 10px; }
+      .card-stats .card-body { padding: 20px 25px; }
+      .card-stats .icon-big { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+      .card-stats .icon-big i { font-size: 24px; color: #fff; }
+      .quick-action-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+      .quick-action-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+      .api-status-badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+      .api-status-badge.online { background: rgba(49, 203, 158, 0.1); color: #31cb9e; }
+      .api-status-badge.offline { background: rgba(249, 112, 102, 0.1); color: #f97066; }
+      .movers-table { font-size: 14px; }
+      .movers-table .ticker { font-weight: 600; color: #1b55e2; }
+      .movers-table .positive { color: #31cb9e; }
+      .movers-table .negative { color: #f97066; }
+      .form-card { background: #fff; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+      .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+      .strategy-group { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+      .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+      .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; }
+      .stat-card.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+      .stat-card.danger { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+      .stat-card.info { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
+      .landing-hero { padding: 60px 0; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin-bottom: 30px; }
+      .hero-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 20px; }
+      .hero-subtitle { font-size: 1.1rem; opacity: 0.9; max-width: 600px; margin: 0 auto 30px; }
+      .hero-stats { display: flex; justify-content: center; gap: 50px; margin-top: 40px; }
+      .hero-stats .stat-item { text-align: center; }
+      .hero-stats .stat-value { font-size: 2rem; font-weight: 700; }
+      .hero-stats .stat-label { font-size: 0.9rem; opacity: 0.8; }
+      .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-top: 30px; }
+      .feature-card { background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); transition: transform 0.3s; }
+      .feature-card:hover { transform: translateY(-5px); }
+      .feature-icon { width: 60px; height: 60px; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+      .feature-icon i { font-size: 24px; color: white; }
+      .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-top: 30px; }
+      .pricing-card { background: #fff; border-radius: 12px; padding: 35px 25px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.08); border: 2px solid transparent; }
+      .pricing-card.popular { border-color: #1b55e2; position: relative; }
+      .pricing-card.popular::before { content: 'Most Popular'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #1b55e2; color: white; padding: 5px 20px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+      .pricing-amount { font-size: 3rem; font-weight: 700; color: #1b55e2; }
+      .pricing-features { list-style: none; padding: 0; margin: 25px 0; text-align: left; }
+      .pricing-features li { padding: 10px 0; border-bottom: 1px solid #eee; }
+      .pricing-features li i { color: #31cb9e; margin-right: 10px; }
+      .section-header { text-align: center; margin-bottom: 40px; }
+      .section-label { background: rgba(27, 85, 226, 0.1); color: #1b55e2; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+      .section-title { font-size: 2rem; font-weight: 700; margin: 15px 0; }
+      .cta-section { background: linear-gradient(135deg, #1b55e2 0%, #764ba2 100%); color: white; padding: 60px; border-radius: 15px; text-align: center; margin: 40px 0; }
+
+      /* Subscription Page Styles */
+      .subscription-page { padding: 24px; max-width: 1200px; margin: 0 auto; }
+      .subscription-hero-card { background: linear-gradient(135deg, #1a9988, #14b8a6); border-radius: 16px; padding: 32px; color: white; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(26, 153, 136, 0.3); }
+      .subscription-hero-content { text-align: center; }
+      .plan-badge-container { margin-bottom: 16px; }
+      .plan-badge { display: inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+      .plan-badge.active { background: rgba(255,255,255,0.3); }
+      .plan-badge.pending { background: rgba(251, 191, 36, 0.3); }
+      .plan-badge.free { background: rgba(255,255,255,0.15); }
+      .plan-badge.cancelling { background: rgba(251, 146, 60, 0.4); color: #fff; }
+      .plan-badge.cancelled { background: rgba(239, 68, 68, 0.3); color: #fff; }
+      .plan-badge.downgrading { background: rgba(251, 191, 36, 0.4); color: #fff; }
+      .current-plan-name { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+      .plan-status { opacity: 0.9; margin-bottom: 16px; font-size: 0.95rem; }
+      .subscription-hero-card .plan-price-display { margin-bottom: 24px; }
+      .subscription-hero-card .price-amount { font-size: 2.5rem; font-weight: 700; }
+      .subscription-hero-card .price-period { font-size: 1rem; opacity: 0.8; }
+      .subscription-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .btn-manage-subscription, .btn-billing-portal { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; border: none; }
+      .btn-manage-subscription { background: white; color: #1a9988; }
+      .btn-manage-subscription:hover { background: #f0f0f0; transform: translateY(-2px); }
+      .btn-billing-portal { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
+      .btn-billing-portal:hover { background: rgba(255,255,255,0.3); }
+      .billing-stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+      .billing-stat-card { background: white; border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+      .billing-stat-card .stat-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #1a9988, #14b8a6); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; }
+      .billing-stat-card .stat-icon i { font-size: 24px; }
+      .billing-stat-card .stat-info { display: flex; flex-direction: column; }
+      .billing-stat-card .stat-label { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+      .billing-stat-card .stat-value { font-size: 1.1rem; font-weight: 600; color: #1e293b; }
+      .subscription-bottom-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px; }
+      .billing-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+      .billing-card-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+      .billing-card-header h6 { font-size: 0.95rem; font-weight: 600; color: #1e293b; margin: 0; }
+      .billing-card-body { padding: 20px; }
+      .payment-method-display { display: flex; align-items: center; gap: 16px; padding: 16px; background: #f8fafc; border-radius: 10px; }
+      .card-details { display: flex; flex-direction: column; gap: 4px; }
+      .card-number { font-weight: 600; font-size: 1rem; color: #1e293b; }
+      .card-expiry { font-size: 0.85rem; color: #64748b; }
+      .no-payment-method { flex-direction: column; align-items: center; text-align: center; padding: 24px; color: #64748b; }
+      .no-payment-method i { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+      .btn-add-payment { margin-top: 12px; padding: 10px 20px; background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; border: none; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+      .invoice-list { list-style: none; padding: 0; margin: 0; }
+      .invoice-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+      .invoice-info { display: flex; flex-direction: column; gap: 2px; }
+      .invoice-date { font-weight: 500; color: #1e293b; }
+      .invoice-id { font-size: 0.8rem; color: #64748b; }
+      .invoice-actions { display: flex; align-items: center; gap: 12px; }
+      .invoice-amount { font-weight: 600; color: #1e293b; }
+      .btn-download-pdf { color: #1a9988; text-decoration: none; }
+      .no-invoices { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; color: #64748b; }
+      .no-invoices i { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+      .pricing-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 20px; overflow-y: auto; }
+      .pricing-modal { background: white; border-radius: 16px; width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+      .pricing-modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 10; }
+      .pricing-modal-header h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+      .modal-close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #64748b; line-height: 1; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; }
+      .modal-close-btn:hover { background: #f0f0f0; }
+      .pricing-modal-body { padding: 24px; }
+      .pricing-toggle-container { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; }
+      .pricing-toggle { position: relative; width: 50px; height: 26px; cursor: pointer; }
+      .pricing-toggle input { opacity: 0; width: 0; height: 0; }
+      .toggle-slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 26px; transition: 0.3s; }
+      .toggle-slider:before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+      .pricing-toggle input:checked + .toggle-slider { background: #1a9988; }
+      .pricing-toggle input:checked + .toggle-slider:before { transform: translateX(24px); }
+      .toggle-label { font-size: 0.9rem; color: #64748b; }
+      .save-badge { background: #dcfce7; color: #16a34a; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+      .pricing-grid-modal { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+      .pricing-card-modal { background: #f8fafc; border: 2px solid transparent; border-radius: 12px; padding: 20px; position: relative; transition: all 0.2s; }
+      .pricing-card-modal:hover { border-color: #1a9988; transform: translateY(-4px); box-shadow: 0 8px 24px rgba(26, 153, 136, 0.15); }
+      .pricing-card-modal.current { border-color: #1a9988; background: rgba(26, 153, 136, 0.05); }
+      .pricing-card-modal.popular { border-color: #1a9988; }
+      .pricing-card-modal .popular-badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+      .pricing-card-modal h5 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; color: #1e293b; }
+      .pricing-card-modal .plan-desc { font-size: 0.8rem; color: #64748b; margin-bottom: 12px; }
+      .pricing-card-modal .plan-price-display { margin-bottom: 16px; }
+      .pricing-card-modal .price { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+      .pricing-card-modal .period { font-size: 0.85rem; color: #64748b; }
+      .pricing-card-modal .plan-features { list-style: none; padding: 0; margin: 0 0 16px 0; }
+      .pricing-card-modal .plan-features li { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #64748b; margin-bottom: 8px; }
+      .pricing-card-modal .plan-features li i { color: #22c55e; font-size: 16px; }
+      .pricing-card-modal .btn-plan-select { width: 100%; padding: 10px 16px; background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+      .pricing-card-modal .btn-plan-select:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(26, 153, 136, 0.3); }
+      .pricing-card-modal .btn-plan-select.disabled, .pricing-card-modal .btn-plan-select:disabled { background: #e2e8f0; color: #64748b; cursor: not-allowed; transform: none; box-shadow: none; }
+      .payment-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10001; padding: 20px; }
+      .payment-modal { background: white; border-radius: 16px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+      .payment-modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+      .payment-modal-header h3 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+      .payment-modal-body { padding: 24px; }
+      .selected-plan-info { display: flex; align-items: center; gap: 16px; padding: 16px; background: #f0fdfa; border-radius: 12px; margin-bottom: 24px; }
+      .plan-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #1a9988, #14b8a6); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; }
+      .plan-details h4 { margin: 0 0 4px 0; font-size: 1rem; font-weight: 600; }
+      .plan-details p { margin: 0; font-size: 0.85rem; color: #64748b; }
+      .plan-price-tag { margin-left: auto; font-size: 1.25rem; font-weight: 700; color: #1a9988; }
+      .payment-loading { text-align: center; padding: 40px; }
+      .loading-spinner { width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #1a9988; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .stripe-element-container { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; }
+      .stripe-error-message { color: #ef4444; font-size: 0.85rem; margin-top: 8px; }
+      .payment-security-note { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #64748b; margin: 16px 0; }
+      .payment-modal-actions { display: flex; flex-direction: column; gap: 12px; }
+      .btn-primary-checkout { padding: 14px 24px; background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+      .btn-secondary-skip { padding: 12px 24px; background: none; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; cursor: pointer; }
+      .payment-success { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; }
+      .success-icon i { font-size: 64px; color: #22c55e; }
+      .payment-label { display: block; font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; color: #1e293b; }
+      .payment-form-section { margin-bottom: 16px; }
+      
+      /* Login Required Tooltip */
+      .login-required-overlay {
+        position: relative;
+      }
+      .login-required-overlay.disabled input,
+      .login-required-overlay.disabled select,
+      .login-required-overlay.disabled textarea,
+      .login-required-overlay.disabled button:not(.login-prompt-btn) {
+        opacity: 0.5;
+        pointer-events: none;
+        background-color: #f3f4f6 !important;
+        cursor: not-allowed;
+      }
+      .login-tooltip {
+        position: absolute;
+        background: #1e293b;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        z-index: 1000;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        white-space: nowrap;
+        display: none;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .login-tooltip.show {
+        display: block;
+        animation: fadeInTooltip 0.2s ease;
+      }
+      .login-tooltip a {
+        color: #60a5fa;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .login-tooltip a:hover {
+        text-decoration: underline;
+      }
+      @keyframes fadeInTooltip {
+        from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+        to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      }
+      .login-banner {
+        background: linear-gradient(135deg, #1e40af, #7c3aed);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .login-banner-text {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .login-banner-text i {
+        font-size: 20px;
+      }
+      .login-banner-actions {
+        display: flex;
+        gap: 10px;
+      }
+      .login-banner-actions a {
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+      }
+      .login-banner-actions .btn-login {
+        background: white;
+        color: #1e40af;
+      }
+      .login-banner-actions .btn-signup {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        border: 1px solid rgba(255,255,255,0.3);
+      }
+      .login-banner-actions a:hover {
+        transform: translateY(-1px);
+      }
+      
+      /* Backtester Styles */
+      .backtester-section { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
+      .backtester-section:last-of-type { border-bottom: none; }
+      .section-label { display: flex; align-items: center; gap: 10px; font-weight: 600; color: #1f2937; margin-bottom: 12px; font-size: 1rem; }
+      .section-number { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
+      .leg-config-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+      .leg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+      .leg-title { font-weight: 600; color: #1f2937; }
+      .leg-badge { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.8em; }
+      .stock-filter-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; margin-right: 6px; }
+      .stock-filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+    </style>
+  </head>
+  <body class="initializing">
+    <div class="wrapper">
+      <div class="sidebar" data-background-color="dark">
+        <div class="sidebar-logo">
+          <div class="logo-header" data-background-color="dark">
+            <a href="/" class="logo">
+              <span class="logo-text" style="color: #fff;">BacktestPro</span>
+            </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+              </button>
+              <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+              </button>
+            </div>
+            <button class="topbar-toggler more">
+              <i class="gg-more-vertical-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-wrapper scrollbar scrollbar-inner">
+          <div class="sidebar-content">
+            <ul class="nav nav-secondary">
+              <li class="nav-item active" id="nav-home">
+                <a href="#" data-page="home">
+                  <i class="fas fa-home"></i>
+                  <p>Home</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-screener">
+                <a href="#" data-page="screener">
+                  <i class="fas fa-search-dollar"></i>
+                  <p>Screener</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-notifications">
+                <a href="#" data-page="notifications">
+                  <i class="fas fa-bell"></i>
+                  <p>Notifications</p>
+                </a>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Backtesting</h4>
+              </li>
+              <li class="nav-item" id="nav-backtester">
+                <a href="#" data-page="backtester">
+                  <i class="fas fa-flask"></i>
+                  <p>Option Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-stockBacktester">
+                <a href="#" data-page="stockBacktester">
+                  <i class="fas fa-chart-line"></i>
+                  <p>Stock Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-simulatedTrading">
+                <a href="#" data-page="simulatedTrading">
+                  <i class="fas fa-gamepad"></i>
+                  <p>Simulated Trading</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a data-bs-toggle="collapse" href="#resultsMenu">
+                  <i class="fas fa-chart-area"></i>
+                  <p>Results</p>
+                  <span class="caret"></span>
+                </a>
+                <div class="collapse" id="resultsMenu">
+                  <ul class="nav nav-collapse">
+                    <li id="nav-optionsResults">
+                      <a href="#" data-page="optionsResults">
+                        <span class="sub-item">Option Results</span>
+                      </a>
+                    </li>
+                    <li id="nav-stockResults">
+                      <a href="#" data-page="stockResults">
+                        <span class="sub-item">Stock Results</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Account</h4>
+              </li>
+              <li class="nav-item" id="nav-subscription">
+                <a href="#" data-page="subscription">
+                  <i class="fas fa-credit-card"></i>
+                  <p id="subscriptionNavText">Pricing</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-faq">
+                <a href="#" data-page="faq">
+                  <i class="fas fa-question-circle"></i>
+                  <p>FAQ</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-settings" style="display: none;">
+                <a href="#" data-page="settings">
+                  <i class="fas fa-cog"></i>
+                  <p>Settings</p>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-panel">
+        <div class="main-header">
+          <div class="main-header-logo">
+            <div class="logo-header" data-background-color="dark">
+              <a href="/" class="logo">
+                <span class="logo-text" style="color: #fff;">BacktestPro</span>
+              </a>
+              <div class="nav-toggle">
+                <button class="btn btn-toggle toggle-sidebar">
+                  <i class="gg-menu-right"></i>
+                </button>
+                <button class="btn btn-toggle sidenav-toggler">
+                  <i class="gg-menu-left"></i>
+                </button>
+              </div>
+              <button class="topbar-toggler more">
+                <i class="gg-more-vertical-alt"></i>
+              </button>
+            </div>
+          </div>
+          <nav class="navbar navbar-header navbar-header-transparent navbar-expand-lg border-bottom">
+            <div class="container-fluid">
+              <nav class="navbar navbar-header-left navbar-expand-lg navbar-form nav-search p-0 d-none d-lg-flex">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <button type="submit" class="btn btn-search pe-1">
+                      <i class="fa fa-search search-icon"></i>
+                    </button>
+                  </div>
+                  <input type="text" placeholder="Search ..." class="form-control" id="globalSearch" />
+                </div>
+              </nav>
+              <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+                <li class="nav-item topbar-icon dropdown hidden-caret d-flex d-lg-none">
+                  <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false" aria-haspopup="true">
+                    <i class="fa fa-search"></i>
+                  </a>
+                  <ul class="dropdown-menu dropdown-search animated fadeIn">
+                    <form class="navbar-left navbar-form nav-search">
+                      <div class="input-group">
+                        <input type="text" placeholder="Search ..." class="form-control" />
+                      </div>
+                    </form>
+                  </ul>
+                </li>
+                <li class="nav-item topbar-icon dropdown hidden-caret">
+                  <a class="nav-link" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-bell"></i>
+                    <span class="notification" id="notificationBadge">0</span>
+                  </a>
+                  <ul class="dropdown-menu notif-box animated fadeIn" aria-labelledby="notifDropdown">
+                    <li><div class="dropdown-title">Notifications</div></li>
+                    <li>
+                      <div class="notif-scroll scrollbar-outer">
+                        <div class="notif-center" id="headerNotificationsList">
+                          <a href="#"><div class="notif-content"><span class="block">No new notifications</span></div></a>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <li class="nav-item topbar-user dropdown hidden-caret" id="userProfileNav" style="display: none;">
+                  <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
+                    <div class="avatar-sm">
+                      <img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" />
+                    </div>
+                    <span class="profile-username">
+                      <span class="op-7">Hi,</span>
+                      <span class="fw-bold" id="userName">User</span>
+                    </span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-user animated fadeIn">
+                    <div class="dropdown-user-scroll scrollbar-outer">
+                      <li>
+                        <div class="user-box">
+                          <div class="avatar-lg"><img src="/static/img/profile.jpg" alt="image profile" class="avatar-img rounded" /></div>
+                          <div class="u-text">
+                            <h4 id="userNameDisplay">User</h4>
+                            <p class="text-muted" id="userEmailDisplay">user@email.com</p>
+                            <a href="#" class="btn btn-xs btn-secondary btn-sm" data-page="settings">View Profile</a>
+                          </div>
+                        </div>
+                      </li>
+                      <li>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" data-page="settings">My Profile</a>
+                        <a class="dropdown-item" href="#" data-page="subscription">Subscription</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="/logout">Logout</a>
+                      </li>
+                    </div>
+                  </ul>
+                </li>
+                <li class="nav-item d-flex align-items-center gap-2" id="guestNav">
+                  <a href="/login" class="btn btn-outline-primary btn-sm">Sign In</a>
+                  <a href="/register" class="btn btn-primary btn-sm">Sign Up</a>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+
+        <div class="container">
+          <div class="page-inner">
+            
+            <!-- Home Page -->
+            <section id="homePage" class="page active">
+              <div class="landing-hero">
+                <div class="hero-badge mb-3">
+                  <span class="badge bg-light text-primary">What's new</span>
+                  <span class="ms-2">AI-Powered Strategy Analysis</span>
+                </div>
+                <h1 class="hero-title">Modernizing <span style="color: #ffd700;">Options.</span> one market at a time.</h1>
+                <p class="hero-subtitle">At BacktestPro, we're on a mission to modernize options trading. We believe that the industry runs on outdated tools, and we're here to change that.</p>
+                <div class="d-flex justify-content-center gap-3">
+                  <a href="/register" class="btn btn-light btn-lg">Start Free</a>
+                  <a href="/login" class="btn btn-outline-light btn-lg">Sign In <i class="fas fa-arrow-right ms-2"></i></a>
+                </div>
+                <div class="hero-stats">
+                  <div class="stat-item">
+                    <div class="stat-value">16+</div>
+                    <div class="stat-label">Options Strategies</div>
+                  </div>
+                  <div class="stat-item">
+                    <div class="stat-value">10+</div>
+                    <div class="stat-label">Years of Data</div>
+                  </div>
+                  <div class="stat-item">
+                    <div class="stat-value">Real-time</div>
+                    <div class="stat-label">Market Data</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section-header">
+                <span class="section-label">Platform Features</span>
+                <h2 class="section-title">Everything you need to backtest strategies</h2>
+                <p class="text-muted">Our platform provides powerful tools to test and validate your trading strategies before risking real capital.</p>
+              </div>
+              
+              <div class="features-grid">
+                <div class="feature-card">
+                  <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                  <h4>Options Backtesting</h4>
+                  <p class="text-muted">Test 16+ options strategies including spreads, straddles, strangles, iron condors, and more with real historical data.</p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon"><i class="fas fa-database"></i></div>
+                  <h4>Historical Data</h4>
+                  <p class="text-muted">Access years of historical OHLCV data for stocks and options contracts through our Polygon.io integration.</p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+                  <h4>Real-time Analytics</h4>
+                  <p class="text-muted">Monitor market movers, track gainers and losers, and stay updated with economic calendar events.</p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon"><i class="fas fa-cogs"></i></div>
+                  <h4>Custom Conditions</h4>
+                  <p class="text-muted">Build custom entry and exit conditions using technical indicators and price action triggers.</p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon"><i class="fas fa-chart-area"></i></div>
+                  <h4>Visual Results</h4>
+                  <p class="text-muted">View equity curves, trade logs, and detailed performance metrics for every backtest run.</p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                  <h4>Risk Management</h4>
+                  <p class="text-muted">Set stop losses, take profits, and position sizing rules to simulate real trading scenarios.</p>
+                </div>
+              </div>
+
+              <div class="cta-section">
+                <h2>Ready to start backtesting?</h2>
+                <p class="mb-4">Join thousands of traders using BacktestPro to validate their strategies.</p>
+                <a href="/register" class="btn btn-light btn-lg">Get Started Free</a>
+              </div>
+            </section>
+
+            <!-- Dashboard Page -->
+            <section id="dashboardPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Dashboard</h3>
+              </div>
+              <div class="row">
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-primary bubble-shadow-small">
+                            <i class="fas fa-chart-line"></i>
+                          </div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">Total Backtests</p>
+                            <h4 class="card-title" id="totalBacktests">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-success bubble-shadow-small">
+                            <i class="fas fa-trophy"></i>
+                          </div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">Profitable</p>
+                            <h4 class="card-title" id="profitableBacktests">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-info bubble-shadow-small">
+                            <i class="fas fa-clock"></i>
+                          </div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">This Month</p>
+                            <h4 class="card-title" id="monthBacktests">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-secondary bubble-shadow-small">
+                            <i class="fas fa-plug"></i>
+                          </div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">API Status</p>
+                            <h4 class="card-title"><span class="api-status-badge online" id="apiStatusBadge">Online</span></h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title"><i class="fas fa-arrow-trend-up text-success me-2"></i>Top Gainers</div>
+                      <span class="badge bg-secondary" id="marketSession">Loading...</span>
+                    </div>
+                    <div class="card-body">
+                      <div id="gainersTable" class="movers-table">
+                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title"><i class="fas fa-arrow-trend-down text-danger me-2"></i>Top Losers</div>
+                      <span class="text-muted" id="refreshTime"></span>
+                    </div>
+                    <div class="card-body">
+                      <div id="losersTable" class="movers-table">
+                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row mt-3">
+                <div class="col-md-8">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title"><i class="fas fa-bolt text-warning me-2"></i>Quick Actions</div>
+                    </div>
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-md-3 col-6 mb-3">
+                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="backtester">
+                            <i class="fas fa-play fa-2x text-primary mb-2"></i>
+                            <p class="mb-0">Options Backtest</p>
+                          </a>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="stockBacktester">
+                            <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
+                            <p class="mb-0">Stock Backtest</p>
+                          </a>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="optionsResults">
+                            <i class="fas fa-history fa-2x text-info mb-2"></i>
+                            <p class="mb-0">View Results</p>
+                          </a>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="screener">
+                            <i class="fas fa-filter fa-2x text-warning mb-2"></i>
+                            <p class="mb-0">Screener</p>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title"><i class="fas fa-plug text-secondary me-2"></i>API Status</div>
+                    </div>
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Polygon.io</span>
+                        <span class="api-status-badge" id="polygonStatus">Checking...</span>
+                      </div>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span>Market Data</span>
+                        <span class="api-status-badge" id="marketDataStatus">Checking...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Stocks Page -->
+            <section id="stocksPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Stock Aggregates (OHLCV)</h3>
+              </div>
+              <div class="card">
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Ticker Symbol <span class="text-danger">*</span></label>
+                      <input type="text" class="form-control" id="stocksTicker" placeholder="SPY">
+                      <small class="text-muted">Stock ticker symbol (e.g., AAPL, SPY, TSLA)</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Multiplier <span class="text-danger">*</span></label>
+                      <input type="number" class="form-control" id="stocksMultiplier" value="1" min="1">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Timespan <span class="text-danger">*</span></label>
+                      <select class="form-select" id="stocksTimespan">
+                        <option value="minute">Minute</option>
+                        <option value="hour">Hour</option>
+                        <option value="day" selected>Day</option>
+                        <option value="week">Week</option>
+                        <option value="month">Month</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">From Date <span class="text-danger">*</span></label>
+                      <input type="date" class="form-control" id="stocksFromDate">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">To Date <span class="text-danger">*</span></label>
+                      <input type="date" class="form-control" id="stocksToDate">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Adjusted for Splits</label>
+                      <select class="form-select" id="stocksAdjusted">
+                        <option value="true" selected>Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button class="btn btn-primary" id="fetchStocksBtn">
+                    <i class="fas fa-download me-2"></i>Fetch Data
+                  </button>
+                </div>
+              </div>
+              <div class="card mt-3">
+                <div class="card-header">
+                  <div class="card-title">Results</div>
+                </div>
+                <div class="card-body">
+                  <div id="stocksResults" class="table-responsive">
+                    <p class="text-muted">No data fetched yet. Configure the form above and click "Fetch Data".</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Options Page -->
+            <section id="optionsPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Options Data</h3>
+              </div>
+              <div class="card">
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Underlying Ticker <span class="text-danger">*</span></label>
+                      <input type="text" class="form-control" id="optionsTicker" placeholder="SPY">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Expiration Date <span class="text-danger">*</span></label>
+                      <input type="date" class="form-control" id="optionsExpiration">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Option Type</label>
+                      <select class="form-select" id="optionsType">
+                        <option value="call">Call</option>
+                        <option value="put">Put</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label">Strike Price</label>
+                      <input type="number" class="form-control" id="optionsStrike" step="0.5">
+                    </div>
+                  </div>
+                  <button class="btn btn-primary" id="fetchOptionsBtn">
+                    <i class="fas fa-download me-2"></i>Fetch Options Chain
+                  </button>
+                </div>
+              </div>
+              <div class="card mt-3">
+                <div class="card-header">
+                  <div class="card-title">Options Chain</div>
+                </div>
+                <div class="card-body">
+                  <div id="optionsResults" class="table-responsive">
+                    <p class="text-muted">No data fetched yet. Configure the form above and click "Fetch Options Chain".</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Backtester Page -->
+            <section id="backtesterPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Options Backtester</h3>
+              </div>
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title"><i class="fas fa-chart-line me-2"></i>OPTIONS BACKTESTING SYSTEM</div>
+                </div>
+                <div class="card-body">
+                  <form id="backtestForm">
+                    <!-- [1/14] BACKTEST NAME -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[1/14]</span> BACKTEST NAME</div>
+                      <div class="mb-3">
+                        <label class="form-label">Enter a name for this backtest:</label>
+                        <input type="text" class="form-control" id="backtestName" placeholder="e.g., Roblox Strategy, SPX Scalp">
+                        <small class="text-muted">This name will be used to identify your backtest in the results page</small>
+                      </div>
+                    </div>
+
+                    <!-- [2/14] SYMBOL -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[2/14]</span> SYMBOL</div>
+                      <div class="mb-3">
+                        <label class="form-label">Enter symbol (e.g., SPX, AAPL):</label>
+                        <input type="text" class="form-control" id="symbol" placeholder="SPX" required>
+                      </div>
+                    </div>
+
+                    <!-- [3/14] DATE RANGE -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[3/14]</span> DATE RANGE</div>
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Start Date:</label>
+                          <input type="date" class="form-control" id="startDate" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">End Date:</label>
+                          <input type="date" class="form-control" id="endDate" required>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [4/15] ENTRY TIME -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[4/15]</span> ENTRY TIME</div>
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Entry time start (HH:MM, 09:30-16:00):</label>
+                          <input type="time" class="form-control" id="entryTime" min="09:30" max="16:00" value="10:00" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Entry time end (optional):</label>
+                          <input type="time" class="form-control" id="entryTimeMax" min="09:30" max="16:00" placeholder="Max entry time">
+                          <small class="text-muted">Leave blank for exact time entry</small>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [5/15] UNDERLYING PRICE CONDITIONS -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[5/15]</span> UNDERLYING PRICE CONDITIONS <small class="text-muted">(Optional)</small></div>
+                      <p class="text-muted small mb-3">Add conditions based on technical indicators. All conditions must be true simultaneously for entry.</p>
+                      
+                      <div id="priceConditionsContainer">
+                        <!-- Conditions will be added here dynamically -->
+                      </div>
+                      
+                      <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPriceCondition()">
+                        <i class="fas fa-plus me-1"></i>Add Condition
+                      </button>
+                    </div>
+
+                    <!-- [6/15] DTE -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[6/15]</span> DAYS TO EXPIRATION (DTE)</div>
+                      <div class="mb-3">
+                        <label class="form-label">Enter DTE (0 for same day):</label>
+                        <input type="number" class="form-control" id="dte" min="0" value="0" required>
+                      </div>
+                    </div>
+
+                    <!-- [6/14] STRATEGY TYPE -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[6/14]</span> STRATEGY TYPE</div>
+                      <div class="mb-3">
+                        <label class="form-label">Select strategy:</label>
+                        <select class="form-select" id="strategy" required>
+                          <option value="">-- Select Strategy --</option>
+                          <option value="Long Call">1. Long Call</option>
+                          <option value="Long Put">2. Long Put</option>
+                          <option value="Naked Short Call">3. Naked Short Call</option>
+                          <option value="Naked Short Put">4. Naked Short Put</option>
+                          <option value="Short Put Spread">5. Short Put Spread</option>
+                          <option value="Short Call Spread">6. Short Call Spread</option>
+                          <option value="Short Iron Condor">7. Short Iron Condor</option>
+                          <option value="Short Iron Butterfly">8. Short Iron Butterfly</option>
+                          <option value="Long Call Spread">9. Long Call Spread</option>
+                          <option value="Long Put Spread">10. Long Put Spread</option>
+                          <option value="Long Straddle">11. Long Straddle</option>
+                          <option value="Long Strangle">12. Long Strangle</option>
+                          <option value="Long Iron Butterfly">13. Long Iron Butterfly</option>
+                          <option value="Long Iron Condor">14. Long Iron Condor</option>
+                          <option value="Short Straddle">15. Short Straddle</option>
+                          <option value="Short Strangle">16. Short Strangle</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Wing Configuration (Iron strategies) -->
+                    <div id="wingConfigSection" class="backtester-section" style="display: none;">
+                      <div class="section-label"><span class="section-number">[5.5/13]</span> WING CONFIGURATION</div>
+                      <div class="mb-3">
+                        <label class="form-label">Allow skewed wings?</label>
+                        <small class="text-muted d-block mb-2">Spread width can differ between put side and call side</small>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="allowSkewedWings" id="skewedNo" value="n" checked>
+                          <label class="form-check-label" for="skewedNo">No - Require balanced wings</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="allowSkewedWings" id="skewedYes" value="y">
+                          <label class="form-check-label" for="skewedYes">Yes - Allow different widths</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [7/14] LEG CONFIGURATION -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[7/14]</span> <span id="legConfigTitle">LEG CONFIGURATION</span></div>
+                      <div id="legConfigSection">
+                        <div class="alert alert-info">
+                          <i class="fas fa-info-circle me-2"></i>Select a strategy above to configure legs
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [6.5/14] NET PREMIUM FILTER -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[6.5/14]</span> NET PREMIUM FILTER (Optional)</div>
+                      <small class="text-muted d-block mb-2">Filter trades based on net premium at entry. Leave blank to skip.</small>
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Min net premium:</label>
+                          <input type="number" class="form-control" id="netPremiumMin" step="0.01" placeholder="Leave blank to skip">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Max net premium:</label>
+                          <input type="number" class="form-control" id="netPremiumMax" step="0.01" placeholder="Leave blank to skip">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [8/14] TAKE PROFIT -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[8/14]</span> TAKE PROFIT</div>
+                      <div class="mb-3">
+                        <label class="form-label">Take profit by:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="takeProfitType" id="tpPct" value="P" checked>
+                          <label class="form-check-label" for="tpPct">Percentage</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="takeProfitType" id="tpDollar" value="D">
+                          <label class="form-check-label" for="tpDollar">Dollar</label>
+                        </div>
+                      </div>
+                      <div class="mb-3" id="takeProfitPctGroup">
+                        <label class="form-label">TP % (e.g., 50):</label>
+                        <input type="number" class="form-control" id="takeProfitPct" min="0" step="0.01" value="50">
+                      </div>
+                      <div class="mb-3" id="takeProfitDollarGroup" style="display: none;">
+                        <label class="form-label">TP $ per contract:</label>
+                        <input type="number" class="form-control" id="takeProfitDollar" min="0" step="1" placeholder="100">
+                      </div>
+                    </div>
+
+                    <!-- [9/14] STOP LOSS -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[9/14]</span> STOP LOSS</div>
+                      <div class="mb-3">
+                        <label class="form-label">Stop loss by:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="stopLossType" id="slPct" value="P" checked>
+                          <label class="form-check-label" for="slPct">Percentage</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="stopLossType" id="slDollar" value="D">
+                          <label class="form-check-label" for="slDollar">Dollar</label>
+                        </div>
+                      </div>
+                      <div class="mb-3" id="stopLossPctGroup">
+                        <label class="form-label">SL % (e.g., 200):</label>
+                        <input type="number" class="form-control" id="stopLossPct" min="0" step="0.01" value="200">
+                      </div>
+                      <div class="mb-3" id="stopLossDollarGroup" style="display: none;">
+                        <label class="form-label">SL $ per contract:</label>
+                        <input type="number" class="form-control" id="stopLossDollar" min="0" step="1" placeholder="500">
+                      </div>
+                    </div>
+
+                    <!-- [10/14] DETECTION BARS -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[10/14]</span> DETECTION BARS</div>
+                      <div class="mb-3">
+                        <label class="form-label">Select bar size:</label>
+                        <select class="form-select" id="detectionBars" required>
+                          <option value="0.25">1. 15-second (High Precision)</option>
+                          <option value="1">2. 1-minute</option>
+                          <option value="5" selected>3. 5-minute</option>
+                          <option value="10">4. 10-minute</option>
+                          <option value="15">5. 15-minute</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- [11/14] CONCURRENT TRADES -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[11/14]</span> CONCURRENT TRADES</div>
+                      <div class="mb-3">
+                        <label class="form-label">Allow concurrent trades?</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="concurrentTrades" id="concNo" value="n" checked>
+                          <label class="form-check-label" for="concNo">No</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="concurrentTrades" id="concYes" value="y">
+                          <label class="form-check-label" for="concYes">Yes</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [12/14] PDT AVOIDANCE -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[12/14]</span> PDT AVOIDANCE</div>
+                      <div class="mb-3">
+                        <label class="form-label">Avoid day trades?</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="avoidPdt" id="pdtNo" value="n" checked>
+                          <label class="form-check-label" for="pdtNo">No</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="avoidPdt" id="pdtYes" value="y">
+                          <label class="form-check-label" for="pdtYes">Yes</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [13/14] STARTING CAPITAL -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[13/14]</span> STARTING CAPITAL</div>
+                      <div class="mb-3">
+                        <label class="form-label">Starting capital ($):</label>
+                        <input type="number" class="form-control" id="startingCapital" min="1000" step="1" value="50000" required>
+                      </div>
+                    </div>
+
+                    <!-- [14/14] ALLOCATION PER TRADE -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[14/14]</span> ALLOCATION PER TRADE</div>
+                      <div class="mb-3">
+                        <label class="form-label">Select allocation type:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="allocationType" id="allocPct" value="1" checked>
+                          <label class="form-check-label" for="allocPct">Percentage of capital</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="allocationType" id="allocContracts" value="2">
+                          <label class="form-check-label" for="allocContracts">Fixed # of contracts</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="allocationType" id="allocFixed" value="3">
+                          <label class="form-check-label" for="allocFixed">Fixed $ amount</label>
+                        </div>
+                      </div>
+                      <div class="mb-3" id="allocationPctGroup">
+                        <label class="form-label">Enter % (e.g., 10):</label>
+                        <input type="number" class="form-control" id="allocationPct" min="0.1" max="100" step="0.01" value="10">
+                      </div>
+                      <div class="mb-3" id="allocationContractsGroup" style="display: none;">
+                        <label class="form-label">Enter # of contracts:</label>
+                        <input type="number" class="form-control" id="allocationContracts" min="1" step="1" placeholder="1">
+                      </div>
+                      <div class="mb-3" id="allocationFixedGroup" style="display: none;">
+                        <label class="form-label">Enter $ amount:</label>
+                        <input type="number" class="form-control" id="allocationFixed" min="100" step="1" placeholder="5000">
+                      </div>
+                    </div>
+
+                    <!-- Submit Buttons -->
+                    <div class="d-flex gap-2 mt-4 flex-wrap">
+                      <button type="submit" class="btn btn-primary btn-lg" id="runBacktestBtn">
+                        <i class="fas fa-play me-2"></i>Run Backtest
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-lg" id="resetBacktestBtn">
+                        <i class="fas fa-redo me-2"></i>Reset Form
+                      </button>
+                      <div style="position: relative;">
+                        <button type="button" id="templatesBtn" class="btn btn-secondary btn-lg" onclick="toggleTemplatesMenu()">
+                          <i class="fas fa-folder-open me-2"></i>Templates
+                        </button>
+                        <div id="templatesMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; min-width: 200px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; max-height: 300px; overflow-y: auto;">
+                          <div id="templatesList" style="padding: 5px 0;">
+                            <div style="padding: 10px; color: #666;">Loading...</div>
+                          </div>
+                        </div>
+                      </div>
+                      <button type="button" id="saveTemplateBtn" class="btn btn-secondary btn-lg" onclick="saveOptionsTemplate()">
+                        <i class="fas fa-save me-2"></i>Save Template
+                      </button>
+                    </div>
+                  </form>
+
+                  <!-- Loading -->
+                  <div id="backtestLoading" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Running backtest...</p>
+                    <small id="backtestProgress" class="text-muted">Initializing...</small>
+                  </div>
+
+                  <!-- Error Message -->
+                  <div id="backtestError" class="alert alert-danger mt-3" style="display: none;"></div>
+                </div>
+              </div>
+
+              <!-- Results Section -->
+              <div class="card mt-3" id="backtestResults" style="display: none;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div class="card-title">Backtest Results</div>
+                  <button class="btn btn-sm btn-secondary" id="downloadCSV">
+                    <i class="fas fa-file-csv me-1"></i>Download Trade Log
+                  </button>
+                </div>
+                <div class="card-body">
+                  <!-- Equity Curve -->
+                  <div id="equityCurveSection" class="mb-4" style="display: none;">
+                    <h5>Equity Curve</h5>
+                    <div id="equityCurveContainer" class="text-center p-3 bg-light rounded"></div>
+                  </div>
+
+                  <!-- Performance Statistics -->
+                  <h5>Performance Statistics</h5>
+                  <div class="row mb-4">
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Total Trades</small>
+                          <h4 id="statTotalTrades">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Win Rate</small>
+                          <h4 id="statWinRate">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Total P&L</small>
+                          <h4 id="statTotalPL">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Total Return</small>
+                          <h4 id="statTotalReturn">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Avg Win</small>
+                          <h4 id="statAvgWin">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Avg Loss</small>
+                          <h4 id="statAvgLoss">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Profit Factor</small>
+                          <h4 id="statProfitFactor">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Max Drawdown</small>
+                          <h4 id="statMaxDrawdown">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Trade Log -->
+                  <h5>Trade Log</h5>
+                  <div class="table-responsive">
+                    <table class="table table-striped">
+                      <thead id="tradesTableHead"></thead>
+                      <tbody id="tradesTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Stock Backtester Page -->
+            <section id="stockBacktesterPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Stock Backtester</h3>
+              </div>
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title"><i class="fas fa-chart-bar me-2"></i>STOCK BACKTESTING SYSTEM V3.0</div>
+                </div>
+                <div class="card-body">
+                  <form id="stockBacktestForm">
+                    <!-- [1/7] BACKTEST NAME -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[1/7]</span> BACKTEST NAME</div>
+                      <div class="mb-3">
+                        <label class="form-label">Enter a name for this backtest:</label>
+                        <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
+                        <small class="text-muted">This name will be used to identify your backtest in the results page</small>
+                      </div>
+                    </div>
+
+                    <!-- [2/7] DATE RANGE -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[2/7]</span> DATE RANGE</div>
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Start Date:</label>
+                          <input type="date" class="form-control" id="stockStartDate" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">End Date:</label>
+                          <input type="date" class="form-control" id="stockEndDate" required>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [3/7] SYMBOL SELECTION -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[3/7]</span> SYMBOL SELECTION</div>
+                      <div class="mb-3">
+                        <label class="form-label">Select symbol mode:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="symbol_mode" id="symbolSingle" value="single" checked>
+                          <label class="form-check-label" for="symbolSingle">Single Symbol</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="symbol_mode" id="symbolMultiple" value="multiple">
+                          <label class="form-check-label" for="symbolMultiple">Multiple Symbols</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="symbol_mode" id="symbolCsv" value="all">
+                          <label class="form-check-label" for="symbolCsv">All (from CSV)</label>
+                        </div>
+                      </div>
+                      
+                      <!-- Single symbol input -->
+                      <div id="singleSymbolSection" class="mb-3">
+                        <label class="form-label">Enter symbol:</label>
+                        <input type="text" class="form-control" id="singleSymbol" placeholder="e.g., SPY" style="text-transform: uppercase;">
+                      </div>
+                      
+                      <!-- Multiple symbols input -->
+                      <div id="multipleSymbolsSection" class="mb-3" style="display: none;">
+                        <label class="form-label">Enter symbols (comma-separated):</label>
+                        <textarea class="form-control" id="multipleSymbols" rows="3" placeholder="e.g., AAPL, MSFT, TSLA, GOOGL"></textarea>
+                      </div>
+                      
+                      <!-- CSV upload -->
+                      <div id="csvSymbolsSection" style="display: none;">
+                        <div class="mb-3">
+                          <label class="form-label">Upload CSV file:</label>
+                          <input type="file" class="form-control" id="csvFile" accept=".csv">
+                          <small class="text-muted">CSV file with ticker symbols (one per row)</small>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                          <i class="fas fa-filter me-2"></i>Optional Filters for CSV Mode
+                        </div>
+                        <div class="row">
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Shares Outstanding (Min):</label>
+                            <input type="number" class="form-control" id="filterSharesMin" placeholder="e.g., 100000000">
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Shares Outstanding (Max):</label>
+                            <input type="number" class="form-control" id="filterSharesMax" placeholder="e.g., 500000000">
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Price Min ($):</label>
+                            <input type="number" class="form-control" id="filterPriceMin" step="0.01" placeholder="e.g., 5.00">
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Price Max ($):</label>
+                            <input type="number" class="form-control" id="filterPriceMax" step="0.01" placeholder="e.g., 100.00">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [4/7] ENTRY CONDITIONS -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[4/7]</span> ENTRY CONDITIONS</div>
+                      <div class="mb-3">
+                        <label class="form-label">Condition type:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="entry_type" id="entryPreset" value="preset" checked>
+                          <label class="form-check-label" for="entryPreset">Preset Conditions</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="entry_type" id="entryCustom" value="custom">
+                          <label class="form-check-label" for="entryCustom">Custom Builder</label>
+                        </div>
+                      </div>
+                      
+                      <!-- Preset Conditions -->
+                      <div id="presetSection">
+                        <div class="mb-3">
+                          <label class="form-label">Select Preset:</label>
+                          <select class="form-select" id="presetCondition">
+                            <option value="1">Premarket Change %</option>
+                            <option value="2">Change %</option>
+                            <option value="3">Gap %</option>
+                            <option value="4">Change-Open %</option>
+                            <option value="5">Velocity (Rate of Change)</option>
+                          </select>
+                        </div>
+                        
+                        <!-- Standard preset fields -->
+                        <div id="standardPresetFields" class="row">
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Operator:</label>
+                            <select class="form-select" id="presetOperator">
+                              <option value=">">></option>
+                              <option value="<"><</option>
+                              <option value=">=">>=</option>
+                              <option value="<="><=</option>
+                              <option value="=">=</option>
+                            </select>
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Threshold (%):</label>
+                            <input type="number" class="form-control" id="presetThreshold" step="0.01" placeholder="e.g., 2.5">
+                          </div>
+                        </div>
+                        
+                        <!-- Velocity specific fields -->
+                        <div id="velocityFields" class="row" style="display: none;">
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Time Interval (minutes):</label>
+                            <input type="number" class="form-control" id="velocityLookback" placeholder="e.g., 5" value="5">
+                          </div>
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Operator:</label>
+                            <select class="form-select" id="velocityOperator">
+                              <option value=">">></option>
+                              <option value="<"><</option>
+                              <option value=">=">>=</option>
+                              <option value="<="><=</option>
+                            </select>
+                          </div>
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Threshold (%):</label>
+                            <input type="number" class="form-control" id="velocityThreshold" step="0.01" placeholder="e.g., 1.5">
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <!-- Custom Conditions Builder -->
+                      <div id="customSection" class="stock-backtester-builder" style="display: none;">
+                        <div class="alert alert-info">
+                          <i class="fas fa-tools me-2"></i>Custom Condition Builder - Compare candles to define entry triggers
+                        </div>
+                        <div id="conditionsContainer" class="conditions-container"></div>
+                        <button type="button" class="btn btn-secondary btn-sm mt-2" id="addConditionBtn" onclick="addCondition()">
+                          <i class="fas fa-plus me-1"></i>Add Condition
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- [5/7] ENTRY CRITERIA -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[5/7]</span> ENTRY CRITERIA</div>
+                      
+                      <!-- Direction Selection -->
+                      <div class="mb-3">
+                        <label class="form-label">Direction:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="direction" id="dirLong" value="long" checked>
+                          <label class="form-check-label" for="dirLong">Long</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="direction" id="dirShort" value="short">
+                          <label class="form-check-label" for="dirShort">Short</label>
+                        </div>
+                      </div>
+                      
+                      <!-- Position Sizing -->
+                      <div class="mb-3">
+                        <label class="form-label">Position Sizing:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="sizing_type" id="sizingShares" value="shares" checked>
+                          <label class="form-check-label" for="sizingShares">Fixed Shares</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="sizing_type" id="sizingDollars" value="dollars">
+                          <label class="form-check-label" for="sizingDollars">Fixed Dollars</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="sizing_type" id="sizingPercent" value="percent">
+                          <label class="form-check-label" for="sizingPercent">% of Capital</label>
+                        </div>
+                      </div>
+                      
+                      <!-- Shares -->
+                      <div id="sharesSection" class="mb-3">
+                        <label class="form-label">Number of Shares:</label>
+                        <input type="number" class="form-control" id="stockSizingShares" min="1" placeholder="e.g., 100">
+                      </div>
+                      
+                      <!-- Dollars -->
+                      <div id="dollarsSection" class="mb-3" style="display: none;">
+                        <label class="form-label">Dollar Amount:</label>
+                        <input type="number" class="form-control" id="stockSizingDollars" step="0.01" min="0.01" placeholder="e.g., 5000.00">
+                      </div>
+                      
+                      <!-- Percent -->
+                      <div id="percentSection" class="row" style="display: none;">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Starting Capital ($):</label>
+                          <input type="number" class="form-control" id="stockStartingCapital" step="0.01" min="1" placeholder="e.g., 50000">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Percent of Capital (%):</label>
+                          <input type="number" class="form-control" id="stockSizingPercent" step="0.01" min="0.01" max="100" placeholder="e.g., 10">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [6/7] EXIT CRITERIA -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[6/7]</span> EXIT CRITERIA</div>
+                      
+                      <!-- Take Profit -->
+                      <div class="mb-3">
+                        <label class="form-label">Take Profit Type:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="take_profit_type" id="stockTpPct" value="percent" checked>
+                          <label class="form-check-label" for="stockTpPct">Percent (%)</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="take_profit_type" id="stockTpDollar" value="dollar">
+                          <label class="form-check-label" for="stockTpDollar">Dollar ($)</label>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Take Profit Value:</label>
+                        <input type="number" class="form-control" id="takeProfitValue" step="0.01" min="0.01" placeholder="e.g., 5 (for 5% or $5)" required>
+                      </div>
+                      
+                      <!-- Stop Loss -->
+                      <div class="mb-3">
+                        <label class="form-label">Stop Loss Type:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="stop_loss_type" id="stockSlPct" value="percent" checked>
+                          <label class="form-check-label" for="stockSlPct">Percent (%)</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="stop_loss_type" id="stockSlDollar" value="dollar">
+                          <label class="form-check-label" for="stockSlDollar">Dollar ($)</label>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Stop Loss Value:</label>
+                        <input type="number" class="form-control" id="stopLossValue" step="0.01" min="0.01" placeholder="e.g., 3 (for 3% or $3)" required>
+                      </div>
+                      
+                      <!-- Max Days -->
+                      <div class="mb-3">
+                        <label class="form-label">Max Days in Trade:</label>
+                        <input type="number" class="form-control" id="maxDays" min="1" placeholder="e.g., 5" required>
+                      </div>
+                    </div>
+
+                    <!-- [7/7] ADVANCED OPTIONS -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[7/7]</span> ADVANCED OPTIONS</div>
+                      <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="allowConsecutive">
+                        <label class="form-check-label" for="allowConsecutive">Allow consecutive trades (new entry if already in position for same symbol)</label>
+                      </div>
+                    </div>
+
+                    <!-- Submit Buttons -->
+                    <div class="d-flex gap-2 mt-4 flex-wrap">
+                      <button type="submit" class="btn btn-success btn-lg" id="runStockBacktestBtn">
+                        <i class="fas fa-play me-2"></i>Run Backtest
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-lg" id="resetStockBacktestBtn">
+                        <i class="fas fa-redo me-2"></i>Reset Form
+                      </button>
+                      <div style="position: relative;">
+                        <button type="button" id="stockTemplatesBtn" class="btn btn-secondary btn-lg" onclick="toggleStockTemplatesMenu()">
+                          <i class="fas fa-folder-open me-2"></i>Templates
+                        </button>
+                        <div id="stockTemplatesMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; min-width: 200px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; max-height: 300px; overflow-y: auto;">
+                          <div id="stockTemplatesList" style="padding: 5px 0;">
+                            <div style="padding: 10px; color: #666;">Loading...</div>
+                          </div>
+                        </div>
+                      </div>
+                      <button type="button" id="saveStockTemplateBtn" class="btn btn-secondary btn-lg" onclick="saveStockTemplate()">
+                        <i class="fas fa-save me-2"></i>Save Template
+                      </button>
+                    </div>
+                  </form>
+
+                  <!-- Loading -->
+                  <div id="stockLoadingMessage" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="mt-2">Running backtest... This may take a few minutes.</p>
+                  </div>
+
+                  <!-- Error Message -->
+                  <div id="stockErrorMessage" class="alert alert-danger mt-3" style="display: none;"></div>
+                </div>
+              </div>
+
+              <!-- Results Section -->
+              <div class="card mt-3" id="stockBacktestResults" style="display: none;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div class="card-title">Backtest Results</div>
+                  <div>
+                    <button class="btn btn-sm btn-secondary me-2" id="viewFullStockResults">
+                      <i class="fas fa-external-link-alt me-1"></i>View Full Results
+                    </button>
+                    <button class="btn btn-sm btn-secondary" id="downloadStockCSV">
+                      <i class="fas fa-file-csv me-1"></i>Download Trade Log
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <!-- Performance Statistics -->
+                  <h5>Performance Statistics</h5>
+                  <div class="row mb-4">
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Total Trades</small>
+                          <h4 id="stockStatTotalTrades">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Win Rate</small>
+                          <h4 id="stockStatWinRate">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Total P&L</small>
+                          <h4 id="stockStatTotalPL">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                      <div class="card card-stats">
+                        <div class="card-body text-center">
+                          <small class="text-muted">Total Return</small>
+                          <h4 id="stockStatTotalReturn">-</h4>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Trade Log -->
+                  <h5>Trade Log</h5>
+                  <div class="table-responsive">
+                    <table class="table table-striped">
+                      <thead id="stockTradesTableHead"></thead>
+                      <tbody id="stockTradesTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Simulated Trading Page -->
+            <section id="simulatedTradingPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Simulated Trading</h3>
+                <p class="text-muted">Practice trading by stepping through historical price data bar-by-bar</p>
+              </div>
+              <div class="card mb-4">
+                <div class="card-header">
+                  <div class="card-title"><i class="fas fa-cog me-2"></i>CHART CONFIGURATION</div>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Symbol:</label>
+                      <input type="text" class="form-control" id="simSymbol" placeholder="e.g., SPY, AAPL" value="SPY">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Chart Start Date:</label>
+                      <input type="date" class="form-control" id="simChartStartDate">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Chart End Date:</label>
+                      <input type="date" class="form-control" id="simChartEndDate">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Trading Start Date:</label>
+                      <input type="date" class="form-control" id="simTradingStartDate">
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Account Balance:</label>
+                      <input type="number" class="form-control" id="simAccountBalance" value="100000" min="0" step="1000">
+                    </div>
+                    <div class="col-md-6 mb-3 d-flex align-items-end">
+                      <button type="button" class="btn btn-primary me-2" id="simLoadChartBtn">
+                        <i class="fas fa-chart-bar me-1"></i> Load Chart
+                      </button>
+                      <button type="button" class="btn btn-secondary" id="simResetBtn">
+                        <i class="fas fa-redo me-1"></i> Reset
+                      </button>
+                    </div>
+                  </div>
+                  <div id="simDateError" class="alert alert-danger d-none mb-3" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="simDateErrorText"></span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Chart Container -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="d-flex align-items-center">
+                      <span id="simChartSymbolDisplay" class="fw-bold me-3" style="font-size: 16px; color: #333;"></span>
+                      <span id="simCurrentTimeDisplay" class="me-3" style="font-size: 15px; font-weight: 600; color: #3b7cff;"></span>
+                      <span id="simChartPriceDisplay" class="me-2" style="font-size: 14px;"></span>
+                      <span id="simChartChangeDisplay" style="font-size: 13px;"></span>
+                    </div>
+                  </div>
+                  <div id="simTimeframeSelector" class="mt-2" style="display: none;">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <div class="btn-group btn-group-sm" role="group" aria-label="Timeframe selection">
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn active" data-timeframe="1m">1m</button>
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="5m">5m</button>
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="15m">15m</button>
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="30m">30m</button>
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="1h">1h</button>
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="2h">2h</button>
+                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="4h">4h</button>
+                      </div>
+                      <div class="chart-navigation d-flex align-items-center" id="chartNavigation" style="display: none;">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-1" id="simPrevBar" disabled>
+                          <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <span class="badge bg-info me-1" id="simBarVisibilityInfo" style="font-size: 11px;">0 bars</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary me-1" id="simNextBar">
+                          <i class="fas fa-arrow-right"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-warning me-2" id="simResetViewBtn" title="Reset to current candle view">
+                          <i class="fas fa-crosshairs"></i>
+                        </button>
+                        <div class="d-flex align-items-center me-2" style="border: 1px solid #d0d3da; border-radius: 6px; padding: 2px 4px; background: #f8f9fa;">
+                          <button type="button" class="btn btn-sm" id="simPlayPauseBtn" title="Auto-advance bars" style="padding: 2px 8px; font-size: 14px; color: #26a69a; border: none; background: transparent;">
+                            <i class="fas fa-play" id="simPlayIcon"></i>
+                          </button>
+                        </div>
+                        <div class="d-flex align-items-center me-2" style="border: 1px solid #d0d3da; border-radius: 6px; padding: 2px 6px; background: #f8f9fa;">
+                          <label class="me-1 small text-muted" style="white-space: nowrap;">Interval:</label>
+                          <select class="form-select form-select-sm" id="simAutoplayInterval" style="width: 70px; border: none; background: transparent; padding: 2px 4px; font-size: 12px;">
+                            <option value="1">1 min</option>
+                            <option value="5">5 min</option>
+                            <option value="15">15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">1 hr</option>
+                          </select>
+                        </div>
+                        <div class="d-flex align-items-center me-2" style="border: 1px solid #d0d3da; border-radius: 6px; padding: 2px 6px; background: #f8f9fa;">
+                          <label class="me-1 small text-muted" style="white-space: nowrap;">Speed:</label>
+                          <select class="form-select form-select-sm" id="simAutoplaySpeed" style="width: 75px; border: none; background: transparent; padding: 2px 4px; font-size: 12px;">
+                            <option value="1000">1 sec</option>
+                            <option value="2000">2 sec</option>
+                            <option value="3000">3 sec</option>
+                            <option value="5000" selected>5 sec</option>
+                            <option value="10000">10 sec</option>
+                          </select>
+                        </div>
+                        <div class="d-flex align-items-center">
+                          <label class="me-1 small text-muted">Skip:</label>
+                          <input type="number" class="form-control form-control-sm" id="simSkipBars" value="1" min="1" max="100" style="width: 50px;">
+                          <span class="small text-muted ms-1">min</span>
+                        </div>
+                      </div>
+                      <div class="d-flex align-items-center ms-auto" id="gotoDateGroup" style="display: none;">
+                        <label class="me-1 small text-muted">Date:</label>
+                        <input type="text" class="form-control form-control-sm me-1" id="simGotoDate" placeholder="MM/DD/YYYY" style="width: 100px;">
+                        <input type="text" class="form-control form-control-sm me-1" id="simGotoTime" placeholder="HH:MM" style="width: 65px;">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="simGotoDateBtn">Go</button>
+                      </div>
+                      <span id="simDataLoadingStatus" class="text-muted small"></span>
+                    </div>
+                  </div>
+                  <div id="simOHLCDisplay" class="mt-2" style="display: none; font-size: 13px;">
+                    <span class="me-3">O <span id="simOHLC_O" style="color: #333;">-</span></span>
+                    <span class="me-3">H <span id="simOHLC_H" style="color: #26a69a;">-</span></span>
+                    <span class="me-3">L <span id="simOHLC_L" style="color: #ef5350;">-</span></span>
+                    <span class="me-3">C <span id="simOHLC_C" style="color: #333;">-</span></span>
+                    <span>Vol <span id="simOHLC_V" style="color: #666;">-</span></span>
+                  </div>
+                </div>
+                <div class="card-body p-0">
+                  <div id="simChartContainer" style="height: 500px; position: relative; background: #ffffff;">
+                                        <div id="simChartPlaceholder" class="text-center text-muted py-5" style="padding-top: 150px !important;">
+                      <i class="fas fa-chart-line fa-3x mb-3" style="opacity: 0.3;"></i>
+                      <p>Configure settings above and click "Load Chart" to begin</p>
+                    </div>
+                    <div id="simChartLoader" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.95); z-index: 10;">
+                      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                          <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="mt-3 text-dark" id="simLoaderText">Loading chart data...</div>
+                        <div class="mt-2 text-muted small" id="simLoaderProgress"></div>
+                      </div>
+                    </div>
+                    <canvas id="simCandlestickChart" style="display: none;"></canvas>
+                  </div>
+                </div>
+                <div class="card-footer" id="simTradingControls" style="display: none; background: #ffffff; border-top: 1px solid #e0e3eb;">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="d-flex align-items-center">
+                      <button type="button" class="btn btn-sm me-1" id="simBuyBtn" style="background: #26a69a; color: white; font-weight: 600; padding: 6px 16px;">Buy</button>
+                      <button type="button" class="btn btn-sm me-2" id="simSellBtn" style="background: #ef5350; color: white; font-weight: 600; padding: 6px 16px;">Sell</button>
+                      <div class="d-flex align-items-center">
+                        <input type="number" class="form-control form-control-sm" id="simQuantity" value="1" min="1" style="width: 70px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <div class="me-4" style="color: #666;">
+                        <span class="small">Account Balance:</span>
+                        <span class="fw-bold ms-1" id="simCurrentBalance" style="color: #333;">$100,000.00</span>
+                      </div>
+                      <div class="me-4" style="color: #666;">
+                        <span class="small">Stock Realized:</span>
+                        <span class="fw-bold ms-1" id="simRealizedPnl" style="color: #26a69a;">$0.00</span>
+                      </div>
+                      <div style="color: #666;">
+                        <span class="small">Stock Unrealized:</span>
+                        <span class="fw-bold ms-1" id="simUnrealizedPnl" style="color: #666;">$0.00</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mt-3 pt-3" style="border-top: 1px solid #e0e3eb;">
+                    <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+                      <div class="d-flex align-items-center">
+                        <label class="small me-1" style="color: #666; white-space: nowrap;">DTE:</label>
+                        <input type="number" class="form-control form-control-sm" id="simOptionDTE" value="0" min="0" max="365" style="width: 55px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      </div>
+                      <div class="d-flex align-items-center">
+                        <label class="small me-1" style="color: #666; white-space: nowrap;">Strategy:</label>
+                        <select class="form-select form-select-sm" id="simOptionStrategy" style="width: 160px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                          <option value="Long Call">Long Call</option>
+                          <option value="Long Put">Long Put</option>
+                          <option value="Naked Short Call">Naked Short Call</option>
+                          <option value="Naked Short Put">Naked Short Put</option>
+                          <option value="Short Put Spread">Short Put Spread</option>
+                          <option value="Short Call Spread">Short Call Spread</option>
+                          <option value="Short Iron Condor">Short Iron Condor</option>
+                          <option value="Short Iron Butterfly">Short Iron Butterfly</option>
+                          <option value="Long Call Spread">Long Call Spread</option>
+                          <option value="Long Put Spread">Long Put Spread</option>
+                          <option value="Long Straddle">Long Straddle</option>
+                          <option value="Long Strangle">Long Strangle</option>
+                          <option value="Long Iron Butterfly">Long Iron Butterfly</option>
+                          <option value="Long Iron Condor">Long Iron Condor</option>
+                          <option value="Short Straddle">Short Straddle</option>
+                          <option value="Short Strangle">Short Strangle</option>
+                        </select>
+                      </div>
+                      <div class="d-flex align-items-center">
+                        <label class="small me-1" style="color: #666; white-space: nowrap;">TP%:</label>
+                        <input type="number" class="form-control form-control-sm" id="simOptionTP" value="50" step="5" style="width: 60px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      </div>
+                      <div class="d-flex align-items-center">
+                        <label class="small me-1" style="color: #666; white-space: nowrap;">SL$:</label>
+                        <input type="number" class="form-control form-control-sm" id="simOptionSL" value="-100" step="10" style="width: 70px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      </div>
+                      <div class="d-flex align-items-center">
+                        <label class="small me-1" style="color: #666; white-space: nowrap;">Det.Bar:</label>
+                        <select class="form-select form-select-sm" id="simOptionDetectionBar" style="width: 70px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                          <option value="1" selected>1m</option>
+                          <option value="5">5m</option>
+                          <option value="10">10m</option>
+                          <option value="15">15m</option>
+                        </select>
+                      </div>
+                      <div class="d-flex align-items-center">
+                        <label class="small me-1" style="color: #666; white-space: nowrap;">Qty:</label>
+                        <input type="number" class="form-control form-control-sm" id="simOptionQuantity" value="10" min="1" style="width: 60px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      </div>
+                      <button type="button" class="btn btn-sm" id="simOptionTradeBtn" style="background: #3b7cff; color: white; font-weight: 600; padding: 6px 14px;">
+                        <i class="fas fa-bolt me-1"></i>Trade Option
+                      </button>
+                    </div>
+                    
+                    <div id="simLegConfigSection" class="mt-3 pt-2" style="border-top: 1px solid #e0e3eb;"></div>
+                  </div>
+                  
+                  <div class="mt-3 pt-2 d-flex justify-content-end" style="border-top: 1px solid #e0e3eb;">
+                    <div class="me-4" style="color: #666;">
+                      <span class="small">Options Realized:</span>
+                      <span class="fw-bold ms-1" id="simOptionsRealizedPnl" style="color: #26a69a;">$0.00</span>
+                    </div>
+                    <div style="color: #666;">
+                      <span class="small">Options Unrealized:</span>
+                      <span class="fw-bold ms-1" id="simOptionsUnrealizedPnl" style="color: #666;">$0.00</span>
+                    </div>
+                  </div>
+                  
+                  <div id="simOptionsPositionsCard" class="mt-3 pt-3" style="border-top: 1px solid #e0e3eb; display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0" style="color: #333; font-weight: 600;">
+                        <i class="fas fa-layer-group me-2" style="color: #3b7cff;"></i>Open Options Positions
+                      </h6>
+                      <span id="simOptionsPositionCount" class="badge" style="background: #3b7cff;">0</span>
+                    </div>
+                    <div id="simOptionsPositionsList" style="max-height: 300px; overflow-y: auto;"></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            <div id="simTradeToast" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: none;">
+              <div class="d-flex align-items-center p-3 rounded-3 shadow-lg" style="background: #1e222d; color: white; min-width: 300px;">
+                <i id="simToastIcon" class="fas fa-check-circle me-3" style="font-size: 24px;"></i>
+                <div>
+                  <div id="simToastTitle" class="fw-bold" style="font-size: 14px;">Trade Closed</div>
+                  <div id="simToastMessage" class="small" style="color: #b2b5be;"></div>
+                </div>
+                <button type="button" class="btn-close btn-close-white ms-auto" onclick="hideTradeToast()"></button>
+              </div>
+            </div>
+
+            <!-- Screener Page -->
+            <section id="screenerPage" class="page"></section>
+
+            <!-- Options Results Page -->
+            <section id="optionsResultsPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Options Backtest Results</h3>
+                <ul class="breadcrumbs mb-3">
+                  <li class="nav-home"><a href="#" data-page="home"><i class="fas fa-home"></i></a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#">Results</a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#">Options Backtests</a></li>
+                </ul>
+              </div>
+
+              <!-- Stats Row -->
+              <div class="row" id="optionsStatsRow">
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-primary bubble-shadow-small"><i class="fas fa-chart-bar"></i></div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">Total Backtests</p>
+                            <h4 class="card-title" id="optionsTotalBacktests">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-success bubble-shadow-small"><i class="fas fa-exchange-alt"></i></div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">Total Trades</p>
+                            <h4 class="card-title" id="optionsTotalTrades">0</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-warning bubble-shadow-small"><i class="fas fa-trophy"></i></div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">Best Win Rate</p>
+                            <h4 class="card-title" id="optionsBestWinRate">0%</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                  <div class="card card-stats card-round">
+                    <div class="card-body">
+                      <div class="row align-items-center">
+                        <div class="col-icon">
+                          <div class="icon-big text-center icon-info bubble-shadow-small"><i class="fas fa-dollar-sign"></i></div>
+                        </div>
+                        <div class="col col-stats ms-3 ms-sm-0">
+                          <div class="numbers">
+                            <p class="card-category">Best Return</p>
+                            <h4 class="card-title" id="optionsBestReturn">0%</h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="row mb-3">
+                <div class="col-12">
+                  <button class="btn btn-primary" id="optionsRefreshBtn">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                  </button>
+                </div>
+              </div>
+
+              <!-- Loading State -->
+              <div id="optionsLoadingSection" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3">Loading backtests...</p>
+              </div>
+
+              <!-- Error State -->
+              <div id="optionsErrorSection" class="alert alert-danger" style="display: none;">
+                <strong>Error:</strong> <span id="optionsErrorMessage"></span>
+              </div>
+
+              <!-- Backtests Grid -->
+              <div class="row" id="optionsBacktestsGrid" style="display: none;"></div>
+
+              <!-- Empty State -->
+              <div id="optionsEmptyState" class="card" style="display: none;">
+                <div class="card-body text-center py-5">
+                  <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                  <h4>No backtests yet</h4>
+                  <p class="text-muted">Run your first options backtest to see results here</p>
+                  <a href="#" class="btn btn-primary" data-page="backtester">Run Backtest</a>
+                </div>
+              </div>
+            </section>
+
+            <!-- Stock Results Page -->
+            <section id="stockResultsPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Stock Backtest Results</h3>
+                <ul class="breadcrumbs mb-3">
+                  <li class="nav-home"><a href="#" data-page="home"><i class="fas fa-home"></i></a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#">Results</a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#">Stock Backtests</a></li>
+                </ul>
+              </div>
+
+              <!-- Filter Buttons -->
+              <div class="card mb-3">
+                <div class="card-body">
+                  <button class="btn btn-sm stock-filter-btn active" data-filter="all">All</button>
+                  <button class="btn btn-sm stock-filter-btn" data-filter="today">Today</button>
+                  <button class="btn btn-sm stock-filter-btn" data-filter="week">This Week</button>
+                  <button class="btn btn-sm stock-filter-btn" data-filter="month">This Month</button>
+                  <button class="btn btn-primary btn-sm float-end" id="stockRefreshBtn">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                  </button>
+                </div>
+              </div>
+
+              <!-- Loading State -->
+              <div id="stockLoadingSection" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3">Loading backtests...</p>
+              </div>
+
+              <!-- Error State -->
+              <div id="stockErrorSection" class="alert alert-danger" style="display: none;">
+                <strong>Error:</strong> <span id="stockErrorMessage"></span>
+              </div>
+
+              <!-- Backtests Grid -->
+              <div class="row" id="stockBacktestsGrid" style="display: none;"></div>
+
+              <!-- Empty State -->
+              <div id="stockEmptyState" class="card" style="display: none;">
+                <div class="card-body text-center py-5">
+                  <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                  <h4>No stock backtests yet</h4>
+                  <p class="text-muted">Run your first stock backtest to see results here</p>
+                  <a href="#" class="btn btn-primary" data-page="stockBacktester">Run Stock Backtest</a>
+                </div>
+              </div>
+            </section>
+
+            <!-- Subscription Page -->
+            <section id="subscriptionPage" class="page">
+              <!-- Pricing content for guests -->
+              <div id="pricingContent" class="pricing-page-content">
+                <div class="page-header">
+                  <h3 class="fw-bold mb-3">Pricing</h3>
+                  <p class="text-muted">Choose the plan that fits your trading needs.</p>
+                </div>
+                <div class="pricing-grid">
+                  <div class="pricing-card">
+                    <h3>Free</h3>
+                    <div class="pricing-amount">$0<span style="font-size: 1rem; font-weight: 400;">/month</span></div>
+                    <ul class="pricing-features">
+                      <li><i class="fas fa-check"></i> 5 backtests per month</li>
+                      <li><i class="fas fa-check"></i> Basic options strategies</li>
+                      <li><i class="fas fa-check"></i> 1 year historical data</li>
+                      <li><i class="fas fa-check"></i> Community support</li>
+                    </ul>
+                    <a href="/register" class="btn btn-outline-primary btn-block">Get Started</a>
+                  </div>
+                  <div class="pricing-card popular">
+                    <h3>Pro</h3>
+                    <div class="pricing-amount">$29<span style="font-size: 1rem; font-weight: 400;">/month</span></div>
+                    <ul class="pricing-features">
+                      <li><i class="fas fa-check"></i> Unlimited backtests</li>
+                      <li><i class="fas fa-check"></i> All options strategies</li>
+                      <li><i class="fas fa-check"></i> 5 years historical data</li>
+                      <li><i class="fas fa-check"></i> Priority support</li>
+                      <li><i class="fas fa-check"></i> Custom conditions</li>
+                    </ul>
+                    <a href="/register" class="btn btn-primary btn-block">Start Free Trial</a>
+                  </div>
+                  <div class="pricing-card">
+                    <h3>Enterprise</h3>
+                    <div class="pricing-amount">$99<span style="font-size: 1rem; font-weight: 400;">/month</span></div>
+                    <ul class="pricing-features">
+                      <li><i class="fas fa-check"></i> Everything in Pro</li>
+                      <li><i class="fas fa-check"></i> 10+ years data</li>
+                      <li><i class="fas fa-check"></i> API access</li>
+                      <li><i class="fas fa-check"></i> White-label options</li>
+                      <li><i class="fas fa-check"></i> Dedicated support</li>
+                    </ul>
+                    <a href="/contact" class="btn btn-outline-primary btn-block">Contact Sales</a>
+                  </div>
+                </div>
+              </div>
+              <!-- Subscription content for logged-in users -->
+              <div class="subscription-page" id="subscriptionContent" style="display: none;">
+                <div class="page-title-section">
+                  <h3 class="page-main-title fw-bold mb-3">Subscription</h3>
+                  <p class="page-subtitle text-muted">Manage your subscription and billing information</p>
+                </div>
+                <div class="subscription-hero-card" id="subscriptionHeroCard">
+                  <div class="subscription-hero-content">
+                    <div class="plan-badge-container">
+                      <span class="plan-badge" id="subscriptionBadge">Loading...</span>
+                    </div>
+                    <h2 class="current-plan-name" id="currentPlanName">Loading...</h2>
+                    <p class="plan-status" id="planStatus">Checking subscription status...</p>
+                    <div class="plan-price-display">
+                      <span class="price-amount" id="currentPlanPrice">$0</span>
+                      <span class="price-period">/month</span>
+                    </div>
+                    <div class="subscription-actions">
+                      <button class="btn-manage-subscription" id="manageSubscriptionBtn" onclick="openPricingModal()">
+                        <i class="material-symbols-rounded">swap_horiz</i>
+                        Change Plan
+                      </button>
+                      <button class="btn-billing-portal" id="billingPortalBtn" onclick="openStripePortal('subscription_cancel', event)" style="display: none;">
+                        <i class="material-symbols-rounded">settings</i>
+                        Manage in Stripe
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="billing-stats-row">
+                  <div class="billing-stat-card">
+                    <div class="stat-icon">
+                      <i class="material-symbols-rounded" id="billingDateIcon">calendar_month</i>
+                    </div>
+                    <div class="stat-info">
+                      <span class="stat-label" id="billingDateLabel">Next Billing</span>
+                      <span class="stat-value" id="nextBillingDate">-</span>
+                    </div>
+                  </div>
+                </div>
+                <span id="paymentMethodDisplay" style="display:none;"></span>
+                <div class="subscription-bottom-row">
+                  <div class="billing-card">
+                    <div class="billing-card-header">
+                      <h6>Payment Method</h6>
+                      <button class="btn-link" id="updatePaymentBtn" onclick="openStripePortal('payment_method_update', event)" style="display: none;">
+                        <i class="material-symbols-rounded">edit</i>
+                        Update
+                      </button>
+                    </div>
+                    <div class="billing-card-body">
+                      <div class="payment-method-display" id="paymentMethodCard" style="display: none;">
+                        <div id="cardLogo" class="card-logo"></div>
+                        <div class="card-details">
+                          <span class="card-number" id="cardNumber">•••• •••• •••• ****</span>
+                          <span class="card-expiry">Expires <span id="cardExpiry">--/--</span></span>
+                        </div>
+                      </div>
+                      <div class="no-payment-method" id="noPaymentMethod" style="display: flex;">
+                        <i class="material-symbols-rounded">credit_card_off</i>
+                        <p>No payment method on file</p>
+                        <button class="btn-add-payment" id="addPaymentBtn" onclick="openStripePortal('payment_method_update', event)">
+                          <i class="material-symbols-rounded">add_card</i>
+                          Add Payment Method
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="billing-card">
+                    <div class="billing-card-header">
+                      <h6>Recent Invoices</h6>
+                    </div>
+                    <div class="billing-card-body">
+                      <ul class="invoice-list" id="invoiceList">
+                        <li class="loading-placeholder">Loading invoices...</li>
+                      </ul>
+                      <div class="no-invoices" id="noInvoices" style="display: none;">
+                        <i class="material-symbols-rounded">receipt_long</i>
+                        <p>No invoices yet</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Pricing Modal -->
+            <div id="pricingModal" class="pricing-modal-overlay" style="display: none;">
+              <div class="pricing-modal">
+                <div class="pricing-modal-header">
+                  <h3>Choose Your Plan</h3>
+                  <button class="modal-close-btn" onclick="closePricingModal()">&times;</button>
+                </div>
+                <div class="pricing-modal-body">
+                  <div class="pricing-toggle-container">
+                    <span class="toggle-label">Monthly</span>
+                    <label class="pricing-toggle">
+                      <input type="checkbox" id="billingToggle">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
+                  </div>
+                  <div class="pricing-grid-modal">
+                    <div class="pricing-card-modal" data-plan="stocks-basic">
+                      <h5>Stocks Basic</h5>
+                      <p class="plan-desc">Great for trying our APIs</p>
+                      <div class="plan-price-display">
+                        <span class="price" data-monthly="0" data-annual="0">$0</span>
+                        <span class="period">/month</span>
+                      </div>
+                      <ul class="plan-features">
+                        <li><i class="material-symbols-rounded">check</i> 100 API calls/day</li>
+                        <li><i class="material-symbols-rounded">check</i> Basic strategies</li>
+                        <li><i class="material-symbols-rounded">check</i> 1 year historical data</li>
+                      </ul>
+                      <button class="btn-plan-select" data-plan-id="stocks-basic">Select Plan</button>
+                    </div>
+                    <div class="pricing-card-modal" data-plan="stocks-starter">
+                      <h5>Stocks Starter</h5>
+                      <p class="plan-desc">Great for aggregates</p>
+                      <div class="plan-price-display">
+                        <span class="price" data-monthly="29" data-annual="23">$29</span>
+                        <span class="period">/month</span>
+                      </div>
+                      <ul class="plan-features">
+                        <li><i class="material-symbols-rounded">check</i> 1,000 API calls/day</li>
+                        <li><i class="material-symbols-rounded">check</i> 8 strategies</li>
+                        <li><i class="material-symbols-rounded">check</i> 5 years historical data</li>
+                      </ul>
+                      <button class="btn-plan-select" data-plan-id="stocks-starter">Select Plan</button>
+                    </div>
+                    <div class="pricing-card-modal" data-plan="stocks-developer">
+                      <h5>Stocks Developer</h5>
+                      <p class="plan-desc">Great for historical data</p>
+                      <div class="plan-price-display">
+                        <span class="price" data-monthly="79" data-annual="63">$79</span>
+                        <span class="period">/month</span>
+                      </div>
+                      <ul class="plan-features">
+                        <li><i class="material-symbols-rounded">check</i> 10,000 API calls/day</li>
+                        <li><i class="material-symbols-rounded">check</i> 16+ strategies</li>
+                        <li><i class="material-symbols-rounded">check</i> 10 years historical data</li>
+                      </ul>
+                      <button class="btn-plan-select" data-plan-id="stocks-developer">Select Plan</button>
+                    </div>
+                    <div class="pricing-card-modal popular" data-plan="stocks-advanced">
+                      <div class="popular-badge">Popular</div>
+                      <h5>Stocks Advanced</h5>
+                      <p class="plan-desc">Great for real-time data</p>
+                      <div class="plan-price-display">
+                        <span class="price" data-monthly="199" data-annual="159">$199</span>
+                        <span class="period">/month</span>
+                      </div>
+                      <ul class="plan-features">
+                        <li><i class="material-symbols-rounded">check</i> Unlimited API calls</li>
+                        <li><i class="material-symbols-rounded">check</i> All strategies</li>
+                        <li><i class="material-symbols-rounded">check</i> Full historical data</li>
+                      </ul>
+                      <button class="btn-plan-select" data-plan-id="stocks-advanced">Select Plan</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment Modal -->
+            <div id="paymentSetupModal" class="payment-modal-overlay" style="display: none;">
+              <div class="payment-modal payment-modal-embedded">
+                <div class="payment-modal-header">
+                  <h3>Complete Your Subscription</h3>
+                  <button class="modal-close-btn" onclick="closePaymentModal()">&times;</button>
+                </div>
+                <div class="payment-modal-body">
+                  <div class="selected-plan-info">
+                    <div class="plan-icon">
+                      <i class="material-symbols-rounded">trending_up</i>
+                    </div>
+                    <div class="plan-details">
+                      <h4 id="modalPlanName">Stocks Starter</h4>
+                      <p>Billed monthly</p>
+                    </div>
+                    <div class="plan-price-tag">
+                      <span id="modalPlanPrice">$29</span>/mo
+                    </div>
+                  </div>
+                  <div id="paymentFormContainer">
+                    <div id="paymentLoading" class="payment-loading">
+                      <div class="loading-spinner"></div>
+                      <p>Setting up secure payment...</p>
+                    </div>
+                    <div id="paymentFormWrapper" style="display: none;">
+                      <div class="payment-form-section">
+                        <label class="payment-label">Card Information</label>
+                        <div id="card-element" class="stripe-element-container"></div>
+                        <div id="card-errors" class="stripe-error-message" role="alert"></div>
+                      </div>
+                      <div class="payment-security-note">
+                        <i class="material-symbols-rounded">lock</i>
+                        <span>Your payment information is encrypted and secure</span>
+                      </div>
+                      <div class="payment-modal-actions">
+                        <button id="submitPaymentBtn" class="btn-primary-checkout" onclick="submitPayment()">
+                          <i class="material-symbols-rounded">credit_card</i>
+                          <span id="submitPaymentText">Subscribe Now</span>
+                        </button>
+                        <button class="btn-secondary-skip" onclick="closePaymentModal()">
+                          Maybe Later
+                        </button>
+                      </div>
+                    </div>
+                    <div id="paymentSuccess" class="payment-success" style="display: none;">
+                      <div class="success-icon">
+                        <i class="material-symbols-rounded">check_circle</i>
+                      </div>
+                      <h4>Payment Successful!</h4>
+                      <p>Your subscription is now active. Enjoy your premium features!</p>
+                      <button class="btn-primary-checkout" onclick="closePaymentModal(); location.reload();">
+                        Continue
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Settings Page -->
+            <section id="settingsPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3">Account Settings</h3>
+              </div>
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title d-flex align-items-center justify-content-between">
+                        Profile Information
+                        <div id="googleBadge" class="badge bg-light text-dark d-flex align-items-center gap-1" style="display: none !important;">
+                          <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                          <span>Google</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="settingsName" placeholder="Your name">
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="settingsEmail" placeholder="email@example.com" readonly>
+                        <small class="form-text text-muted" id="emailHelp">Email cannot be changed</small>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="changeEmailBtn" onclick="showEmailChangeModal()" style="display: none;">Change Email</button>
+                      </div>
+                      <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-primary" onclick="saveAccountInfo()">Save Changes</button>
+                        <span class="text-muted" id="accountSaveStatus"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card" id="passwordSection">
+                    <div class="card-header">
+                      <div class="card-title">Change Password</div>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword">
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newPassword">
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirmPassword">
+                      </div>
+                      <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-warning" onclick="changePassword()">Change Password</button>
+                        <span class="text-muted" id="passwordSaveStatus"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title">API Configuration</div>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-3">
+                        <label class="form-label">Polygon.io API Key</label>
+                        <div class="input-group">
+                          <input type="password" class="form-control" id="polygonApiKey" placeholder="Enter your API key">
+                          <button class="btn btn-outline-secondary" type="button" onclick="toggleApiKeyVisibility()">
+                            <i class="fas fa-eye"></i>
+                          </button>
+                        </div>
+                        <small class="form-text text-muted">Your API key is stored locally and used for market data requests.</small>
+                      </div>
+                      <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-primary" onclick="saveApiKey()">Update API Key</button>
+                        <span class="text-muted" id="apiKeySaveStatus"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Email Change Modal -->
+              <div id="emailChangeModal" class="modal fade" tabindex="-1" style="display: none;">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Change Email Address</h5>
+                      <button type="button" class="btn-close" onclick="closeEmailChangeModal()"></button>
+                    </div>
+                    <div class="modal-body">
+                      <p class="text-muted">Enter your new email address. We'll send a verification link to confirm the change.</p>
+                      <div class="mb-3">
+                        <label class="form-label">New Email Address</label>
+                        <input type="email" class="form-control" id="newEmailInput" placeholder="Enter new email">
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="emailChangePassword" placeholder="Enter your password">
+                      </div>
+                      <div class="alert" id="emailChangeAlert" style="display: none;"></div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" onclick="closeEmailChangeModal()">Cancel</button>
+                      <button type="button" class="btn btn-primary" id="confirmEmailChangeBtn" onclick="requestEmailChange()">Send Verification</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Notifications Page - Content loaded dynamically from notifications.html -->
+            <section id="notificationsPage" class="page"></section>
+
+          </div>
+        </div>
+
+        <footer class="footer">
+          <div class="container-fluid d-flex justify-content-between">
+            <nav class="pull-left">
+              <ul class="nav">
+                <li class="nav-item"><a class="nav-link" href="/terms">Terms</a></li>
+                <li class="nav-item"><a class="nav-link" href="/privacy">Privacy</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+              </ul>
+            </nav>
+            <div class="copyright">2024, BacktestPro. All rights reserved.</div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <script src="/static/js/core/jquery-3.7.1.min.js"></script>
+    <script src="/static/js/core/popper.min.js"></script>
+    <script src="/static/js/core/bootstrap.min.js"></script>
+    <script src="/static/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+    <script src="/static/js/kaiadmin.min.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="/static/js/auth-utils.js"></script>
+    <script src="/static/js/subscription-script.js"></script>
+    <script src="/settings-script.js"></script>
+    <script src="/static/js/main-script.js"></script>
+
+    <script>
+      // Close sidebar when clicking outside (on main content area)
+      document.addEventListener('click', function(e) {
+        const sidebar = document.querySelector('.sidebar');
+        const mainPanel = document.querySelector('.main-panel');
+        
+        // Check if sidebar is open (nav_open class is added to html element)
+        const isSidebarOpen = document.documentElement.classList.contains('nav_open');
+        
+        // If sidebar is open and click is NOT on sidebar, close it
+        if (isSidebarOpen && sidebar && !sidebar.contains(e.target)) {
+          // Check if click is not on the toggler button itself
+          const isToggler = e.target.closest('.sidenav-toggler') || e.target.closest('.topbar-toggler');
+          if (!isToggler) {
+            // Remove nav_open class and toggled class from sidenav-toggler
+            document.documentElement.classList.remove('nav_open');
+            const toggler = document.querySelector('.sidenav-toggler');
+            if (toggler) {
+              toggler.classList.remove('toggled');
+            }
+          }
+        }
+      });
+
+      // Navigation is handled by main-script.js
+
+      // Dashboard data loading
+      function loadDashboardData() {
+        // Load market movers
+        fetch('/api/market-movers')
+          .then(r => r.json())
+          .then(data => {
+            if (data.gainers) {
+              const gainersHtml = data.gainers.slice(0, 5).map(g => `
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                  <span class="ticker">${g.ticker}</span>
+                  <span class="positive">+${g.todaysChangePerc?.toFixed(2) || 0}%</span>
+                </div>
+              `).join('');
+              document.getElementById('gainersTable').innerHTML = gainersHtml || '<p class="text-muted">No data</p>';
+            }
+            if (data.losers) {
+              const losersHtml = data.losers.slice(0, 5).map(l => `
+                <div class="d-flex justify-content-between py-2 border-bottom">
+                  <span class="ticker">${l.ticker}</span>
+                  <span class="negative">${l.todaysChangePerc?.toFixed(2) || 0}%</span>
+                </div>
+              `).join('');
+              document.getElementById('losersTable').innerHTML = losersHtml || '<p class="text-muted">No data</p>';
+            }
+          })
+          .catch(() => {
+            document.getElementById('gainersTable').innerHTML = '<p class="text-muted">Unable to load data</p>';
+            document.getElementById('losersTable').innerHTML = '<p class="text-muted">Unable to load data</p>';
+          });
+
+        // Check API status
+        fetch('/api/health')
+          .then(r => r.json())
+          .then(data => {
+            const badge = document.getElementById('apiStatusBadge');
+            const polygonStatus = document.getElementById('polygonStatus');
+            const marketDataStatus = document.getElementById('marketDataStatus');
+            
+            if (data.status === 'ok') {
+              badge.textContent = 'Online';
+              badge.className = 'api-status-badge online';
+              if (polygonStatus) {
+                polygonStatus.textContent = 'Online';
+                polygonStatus.className = 'api-status-badge online';
+              }
+              if (marketDataStatus) {
+                marketDataStatus.textContent = 'Online';
+                marketDataStatus.className = 'api-status-badge online';
+              }
+            } else {
+              badge.textContent = 'Offline';
+              badge.className = 'api-status-badge offline';
+            }
+          })
+          .catch(() => {
+            document.getElementById('apiStatusBadge').textContent = 'Offline';
+            document.getElementById('apiStatusBadge').className = 'api-status-badge offline';
+          });
+
+        // Update market session
+        const now = new Date();
+        const hours = now.getHours();
+        const sessionEl = document.getElementById('marketSession');
+        if (sessionEl) {
+          if (hours >= 9 && hours < 16) {
+            sessionEl.textContent = 'Market Open';
+            sessionEl.className = 'badge bg-success';
+          } else {
+            sessionEl.textContent = 'Market Closed';
+            sessionEl.className = 'badge bg-secondary';
+          }
+        }
+      }
+
+      // User data is now loaded via main-script.js checkAuthStatus() and applyAuthUIState()
+
+      // Set default dates
+      const today = new Date();
+      const yearAgo = new Date(today);
+      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+      
+      const formatDateISO = (d) => d.toISOString().split('T')[0];
+      
+      ['stocksFromDate', 'btStartDate', 'stockBtStartDate'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = formatDateISO(yearAgo);
+      });
+      
+      ['stocksToDate', 'btEndDate', 'stockBtEndDate', 'optionsExpiration'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = formatDateISO(today);
+      });
+
+      // Options Results Page
+      let allOptionsBacktests = [];
+      
+      function initOptionsResultsPage() {
+        loadOptionsBacktests();
+        setupOptionsRefresh();
+      }
+      
+      function setupOptionsRefresh() {
+        const btn = document.getElementById('optionsRefreshBtn');
+        if (btn && !btn.hasAttribute('data-initialized')) {
+          btn.setAttribute('data-initialized', 'true');
+          btn.onclick = async () => {
+            btn.innerHTML = '<i class="fas fa-sync-alt fa-spin me-2"></i>Refreshing...';
+            btn.disabled = true;
+            await loadOptionsBacktests();
+            btn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Refresh';
+            btn.disabled = false;
+          };
+        }
+      }
+      
+      async function loadOptionsBacktests() {
+        try {
+          document.getElementById('optionsLoadingSection').style.display = 'block';
+          document.getElementById('optionsErrorSection').style.display = 'none';
+          document.getElementById('optionsBacktestsGrid').style.display = 'none';
+          document.getElementById('optionsEmptyState').style.display = 'none';
+
+          const response = await fetch('/api/backtests/list');
+          if (!response.ok) throw new Error('Failed to load backtests');
+
+          const data = await response.json();
+          allOptionsBacktests = data.backtests || [];
+
+          document.getElementById('optionsLoadingSection').style.display = 'none';
+          displayOptionsBacktests();
+          updateOptionsStats();
+
+        } catch (error) {
+          document.getElementById('optionsLoadingSection').style.display = 'none';
+          document.getElementById('optionsErrorSection').style.display = 'block';
+          document.getElementById('optionsErrorMessage').textContent = error.message;
+        }
+      }
+
+      function updateOptionsStats() {
+        document.getElementById('optionsTotalBacktests').textContent = allOptionsBacktests.length;
+        
+        let totalTrades = 0;
+        let bestWinRate = 0;
+        let bestReturn = -Infinity;
+
+        allOptionsBacktests.forEach(bt => {
+          if (bt.summary) {
+            totalTrades += bt.summary.total_trades || 0;
+            if (bt.summary.win_rate > bestWinRate) bestWinRate = bt.summary.win_rate;
+            if (bt.summary.total_return > bestReturn) bestReturn = bt.summary.total_return;
+          }
+        });
+
+        document.getElementById('optionsTotalTrades').textContent = totalTrades;
+        document.getElementById('optionsBestWinRate').textContent = bestWinRate.toFixed(1) + '%';
+        document.getElementById('optionsBestReturn').textContent = (bestReturn === -Infinity ? 0 : bestReturn.toFixed(2)) + '%';
+      }
+
+      function displayOptionsBacktests() {
+        const grid = document.getElementById('optionsBacktestsGrid');
+        
+        if (allOptionsBacktests.length === 0) {
+          grid.style.display = 'none';
+          document.getElementById('optionsEmptyState').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('optionsEmptyState').style.display = 'none';
+        grid.style.display = 'flex';
+        grid.className = 'row';
+
+        grid.innerHTML = allOptionsBacktests.map(bt => {
+          const config = bt.config || {};
+          const summary = bt.summary || {};
+          const returnClass = (summary.total_return || 0) >= 0 ? 'text-success' : 'text-danger';
+          const returnSign = (summary.total_return || 0) >= 0 ? '+' : '';
+          
+          return `
+            <div class="col-sm-6 col-lg-4 col-xl-3">
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">${config.symbol || 'Unknown'}</div>
+                  <span class="badge bg-secondary">${config.strategy || 'Strategy'}</span>
+                </div>
+                <div class="card-body">
+                  <div class="row mb-2">
+                    <div class="col-6">
+                      <small class="text-muted">Return</small>
+                      <div class="fw-bold ${returnClass}">${returnSign}${(summary.total_return || 0).toFixed(2)}%</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Win Rate</small>
+                      <div class="fw-bold">${(summary.win_rate || 0).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-6">
+                      <small class="text-muted">Trades</small>
+                      <div class="fw-bold">${summary.total_trades || 0}</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Date</small>
+                      <div class="fw-bold">${bt.timestamp ? new Date(bt.timestamp).toLocaleDateString() : 'N/A'}</div>
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 mt-3">
+                    <a href="/options-backtest-result-detail.html?id=${bt.id}&from=optionsResults" class="btn btn-sm btn-primary flex-grow-1">
+                      <i class="fas fa-eye me-1"></i>View
+                    </a>
+                    <button class="btn btn-sm btn-danger" onclick="deleteOptionsBacktest('${bt.id}')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      async function deleteOptionsBacktest(id) {
+        if (!confirm('Are you sure you want to delete this backtest?')) return;
+        
+        try {
+          const response = await fetch('/api/backtests/' + id, { method: 'DELETE' });
+          if (response.ok) {
+            loadOptionsBacktests();
+          } else {
+            alert('Failed to delete backtest');
+          }
+        } catch (error) {
+          alert('Error deleting backtest: ' + error.message);
+        }
+      }
+
+      // Stock Results Page
+      let allStockBacktests = [];
+      let stockCurrentFilter = 'all';
+      
+      function initStockResultsPage() {
+        loadStockBacktests();
+        setupStockFilters();
+        setupStockRefresh();
+      }
+      
+      function setupStockRefresh() {
+        const btn = document.getElementById('stockRefreshBtn');
+        if (btn && !btn.hasAttribute('data-initialized')) {
+          btn.setAttribute('data-initialized', 'true');
+          btn.onclick = async () => {
+            btn.innerHTML = '<i class="fas fa-sync-alt fa-spin me-1"></i>Refreshing...';
+            btn.disabled = true;
+            await loadStockBacktests();
+            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh';
+            btn.disabled = false;
+          };
+        }
+      }
+      
+      function setupStockFilters() {
+        document.querySelectorAll('.stock-filter-btn').forEach(btn => {
+          if (!btn.hasAttribute('data-initialized')) {
+            btn.setAttribute('data-initialized', 'true');
+            btn.addEventListener('click', () => {
+              document.querySelectorAll('.stock-filter-btn').forEach(b => b.classList.remove('active'));
+              btn.classList.add('active');
+              stockCurrentFilter = btn.dataset.filter;
+              displayStockBacktests();
+            });
+          }
+        });
+      }
+
+      async function loadStockBacktests() {
+        try {
+          document.getElementById('stockLoadingSection').style.display = 'block';
+          document.getElementById('stockErrorSection').style.display = 'none';
+          document.getElementById('stockBacktestsGrid').style.display = 'none';
+          document.getElementById('stockEmptyState').style.display = 'none';
+
+          const response = await fetch('/api/stocks-backtest-v3/list');
+          if (!response.ok) throw new Error('Failed to load backtests');
+
+          const data = await response.json();
+          allStockBacktests = data.backtests || [];
+
+          document.getElementById('stockLoadingSection').style.display = 'none';
+          displayStockBacktests();
+
+        } catch (error) {
+          document.getElementById('stockLoadingSection').style.display = 'none';
+          document.getElementById('stockErrorSection').style.display = 'block';
+          document.getElementById('stockErrorMessage').textContent = error.message;
+        }
+      }
+
+      function filterStockByDate(backtests) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        return backtests.filter(bt => {
+          if (stockCurrentFilter === 'all') return true;
+          const btDate = new Date(bt.timestamp);
+          if (stockCurrentFilter === 'today') return btDate >= today;
+          if (stockCurrentFilter === 'week') return btDate >= weekAgo;
+          if (stockCurrentFilter === 'month') return btDate >= monthAgo;
+          return true;
+        });
+      }
+
+      function displayStockBacktests() {
+        let filtered = filterStockByDate(allStockBacktests);
+
+        const grid = document.getElementById('stockBacktestsGrid');
+        
+        if (filtered.length === 0) {
+          grid.style.display = 'none';
+          document.getElementById('stockEmptyState').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('stockEmptyState').style.display = 'none';
+        grid.style.display = 'flex';
+        grid.className = 'row';
+
+        grid.innerHTML = filtered.map(bt => {
+          const totalReturn = bt.total_return || 0;
+          const returnClass = totalReturn >= 0 ? 'text-success' : 'text-danger';
+          const returnSign = totalReturn >= 0 ? '+' : '';
+          
+          return `
+            <div class="col-sm-6 col-lg-4 col-xl-3">
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">${bt.name || 'Unnamed'}</div>
+                  <small class="text-muted">${bt.id}</small>
+                </div>
+                <div class="card-body">
+                  <div class="row mb-2">
+                    <div class="col-6">
+                      <small class="text-muted">Return</small>
+                      <div class="fw-bold ${returnClass}">${returnSign}${totalReturn.toFixed(2)}%</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Win Rate</small>
+                      <div class="fw-bold">${(bt.win_rate || 0).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-6">
+                      <small class="text-muted">Trades</small>
+                      <div class="fw-bold">${bt.total_trades || 0}</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Symbols</small>
+                      <div class="fw-bold">${bt.symbol_count || 0}</div>
+                    </div>
+                  </div>
+                  <small class="text-muted d-block mb-2">${bt.timestamp ? new Date(bt.timestamp).toLocaleString() : 'N/A'}</small>
+                  <div class="d-flex gap-2">
+                    <a href="/stock-backtest-results.html?id=${bt.id}&from=stockResults" class="btn btn-sm btn-primary flex-grow-1">
+                      <i class="fas fa-eye me-1"></i>View
+                    </a>
+                    <button class="btn btn-sm btn-danger" onclick="deleteStockBacktest('${bt.id}')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      async function deleteStockBacktest(id) {
+        if (!confirm('Are you sure you want to delete this backtest?')) return;
+        
+        try {
+          const response = await fetch('/api/stocks-backtest-v3/' + id, { method: 'DELETE' });
+          if (response.ok) {
+            loadStockBacktests();
+          } else {
+            alert('Failed to delete backtest');
+          }
+        } catch (error) {
+          alert('Error deleting backtest: ' + error.message);
+        }
+      }
+
+      // ========== OPTIONS BACKTESTER ==========
+      let currentStrategy = null;
+      
+      function initOptionsBacktester() {
+        setupOptionsFormControls();
+        setupOptionsStrategySelection();
+        // DISABLED: Legacy form submit - now handled by backtester-script.js
+        // setupOptionsFormSubmit();
+      }
+      
+      function setupOptionsFormControls() {
+        // Take Profit Type Toggle
+        document.querySelectorAll('input[name="takeProfitType"]').forEach(radio => {
+          radio.addEventListener('change', (e) => {
+            const isPct = e.target.value === 'P';
+            const pctGroup = document.getElementById('takeProfitPctGroup');
+            const dollarGroup = document.getElementById('takeProfitDollarGroup');
+            if (pctGroup) pctGroup.style.display = isPct ? 'block' : 'none';
+            if (dollarGroup) dollarGroup.style.display = isPct ? 'none' : 'block';
+          });
+        });
+        
+        // Stop Loss Type Toggle
+        document.querySelectorAll('input[name="stopLossType"]').forEach(radio => {
+          radio.addEventListener('change', (e) => {
+            const isPct = e.target.value === 'P';
+            const pctGroup = document.getElementById('stopLossPctGroup');
+            const dollarGroup = document.getElementById('stopLossDollarGroup');
+            if (pctGroup) pctGroup.style.display = isPct ? 'block' : 'none';
+            if (dollarGroup) dollarGroup.style.display = isPct ? 'none' : 'block';
+          });
+        });
+        
+        // Allocation Type Toggle
+        document.querySelectorAll('input[name="allocationType"]').forEach(radio => {
+          radio.addEventListener('change', (e) => {
+            const type = e.target.value;
+            const pctGroup = document.getElementById('allocationPctGroup');
+            const contractsGroup = document.getElementById('allocationContractsGroup');
+            const fixedGroup = document.getElementById('allocationFixedGroup');
+            if (pctGroup) pctGroup.style.display = type === '1' ? 'block' : 'none';
+            if (contractsGroup) contractsGroup.style.display = type === '2' ? 'block' : 'none';
+            if (fixedGroup) fixedGroup.style.display = type === '3' ? 'block' : 'none';
+          });
+        });
+        
+        // Reset Button
+        const resetBtn = document.getElementById('resetBacktestBtn');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            const form = document.getElementById('backtestForm');
+            if (form) form.reset();
+            document.getElementById('legConfigSection').innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>Select a strategy above to configure legs</div>';
+            document.getElementById('wingConfigSection').style.display = 'none';
+          });
+        }
+      }
+      
+      function setupOptionsStrategySelection() {
+        const strategySelect = document.getElementById('strategy');
+        if (!strategySelect) return;
+        
+        strategySelect.addEventListener('change', (e) => {
+          const strategy = e.target.value;
+          currentStrategy = strategy;
+          
+          if (strategy) {
+            const isIronStrategy = strategy.includes('Iron');
+            const wingSection = document.getElementById('wingConfigSection');
+            if (wingSection) wingSection.style.display = isIronStrategy ? 'block' : 'none';
+            
+            const titleEl = document.getElementById('legConfigTitle');
+            if (titleEl) titleEl.textContent = 'LEG CONFIGURATION - ' + strategy;
+            
+            buildLegConfiguration(strategy);
+          } else {
+            document.getElementById('wingConfigSection').style.display = 'none';
+            document.getElementById('legConfigSection').innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>Select a strategy above to configure legs</div>';
+          }
+        });
+      }
+      
+      function getStrategyLegs(strategy) {
+        const legMaps = {
+          'Long Call': [{name: 'Long Call', type: 'C', position: 'long'}],
+          'Long Put': [{name: 'Long Put', type: 'P', position: 'long'}],
+          'Naked Short Call': [{name: 'Short Call', type: 'C', position: 'short'}],
+          'Naked Short Put': [{name: 'Short Put', type: 'P', position: 'short'}],
+          'Short Put Spread': [{name: 'Short Put', type: 'P', position: 'short'}, {name: 'Long Put', type: 'P', position: 'long'}],
+          'Short Call Spread': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+          'Short Iron Condor': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+          'Short Iron Butterfly': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+          'Long Call Spread': [{name: 'Long Call', type: 'C', position: 'long'}, {name: 'Short Call', type: 'C', position: 'short'}],
+          'Long Put Spread': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}],
+          'Long Straddle': [{name: 'Long Call', type: 'C', position: 'long'}, {name: 'Long Put', type: 'P', position: 'long'}],
+          'Long Strangle': [{name: 'Long Call', type: 'C', position: 'long'}, {name: 'Long Put', type: 'P', position: 'long'}],
+          'Long Iron Butterfly': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+          'Long Iron Condor': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+          'Short Straddle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}],
+          'Short Strangle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}]
+        };
+        return legMaps[strategy] || [];
+      }
+      
+      function buildLegConfiguration(strategy) {
+        const legDefs = getStrategyLegs(strategy);
+        const container = document.getElementById('legConfigSection');
+        if (legDefs.length === 0) {
+          container.innerHTML = '<p class="text-muted">No legs to configure for this strategy.</p>';
+          return;
+        }
+        
+        let html = '<div class="alert alert-info mb-3"><strong>Strategy requires ' + legDefs.length + ' legs</strong></div>';
+        
+        legDefs.forEach((leg, index) => {
+          html += '<div class="leg-config-card"><div class="leg-header"><span class="leg-title">Leg ' + (index + 1) + ': ' + leg.name + '</span><span class="leg-badge">' + (leg.type === 'C' ? 'Call' : 'Put') + ' - ' + leg.position + '</span></div><div class="mb-3"><label class="form-label">Configuration method:</label><select class="form-select leg-method-select" data-leg-index="' + index + '"><option value="">-- Select Method --</option><option value="mid_price">1. Mid Price Range</option><option value="pct_underlying">2. % Distance from Underlying</option><option value="dollar_underlying">3. $ Distance from Underlying</option><option value="pct_leg">4. % Distance from Another Leg</option><option value="dollar_leg">5. $ Distance from Another Leg</option></select></div><div id="legParams' + index + '"></div></div>';
+        });
+        
+        container.innerHTML = html;
+        
+        document.querySelectorAll('.leg-method-select').forEach(select => {
+          select.addEventListener('change', handleLegMethodChange);
+        });
+      }
+      
+      function handleLegMethodChange(e) {
+        const select = e.target;
+        const legIndex = parseInt(select.dataset.legIndex);
+        const method = select.value;
+        const paramsContainer = document.getElementById('legParams' + legIndex);
+        
+        if (!method) { paramsContainer.innerHTML = ''; return; }
+        
+        const legDefs = getStrategyLegs(currentStrategy);
+        const currentLeg = legDefs[legIndex];
+        const isCall = currentLeg && currentLeg.type === 'C';
+        const defaultDirection = isCall ? 'above' : 'below';
+        
+        let html = '';
+        if (method === 'mid_price') {
+          html = '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Min mid price:</label><input type="number" class="form-control leg-param" data-param="min" step="0.01" placeholder="0.50"></div><div class="col-md-6 mb-3"><label class="form-label">Max mid price:</label><input type="number" class="form-control leg-param" data-param="max" step="0.01" placeholder="5.00"></div></div>';
+        } else if (method === 'pct_underlying' || method === 'dollar_underlying') {
+          const label = method === 'pct_underlying' ? '% distance:' : '$ distance:';
+          const param = method === 'pct_underlying' ? 'pct' : 'amount';
+          html = '<div class="row"><div class="col-md-6 mb-3"><label class="form-label">Direction:</label><select class="form-select leg-param" data-param="direction"><option value="below" ' + (defaultDirection === 'below' ? 'selected' : '') + '>Below</option><option value="above" ' + (defaultDirection === 'above' ? 'selected' : '') + '>Above</option></select></div><div class="col-md-6 mb-3"><label class="form-label">' + label + '</label><input type="number" class="form-control leg-param" data-param="' + param + '" step="0.01" placeholder="2.0"></div></div>';
+        } else if (method === 'pct_leg' || method === 'dollar_leg') {
+          let refOptions = '';
+          legDefs.forEach((leg, i) => { if (i !== legIndex) refOptions += '<option value="' + i + '">' + (i + 1) + '. ' + leg.name + '</option>'; });
+          const label = method === 'pct_leg' ? '% distance:' : '$ distance:';
+          const param = method === 'pct_leg' ? 'pct' : 'amount';
+          html = '<div class="row"><div class="col-md-4 mb-3"><label class="form-label">Reference leg:</label><select class="form-select leg-param" data-param="reference">' + refOptions + '</select></div><div class="col-md-4 mb-3"><label class="form-label">Direction:</label><select class="form-select leg-param" data-param="direction"><option value="below" ' + (defaultDirection === 'below' ? 'selected' : '') + '>Below</option><option value="above" ' + (defaultDirection === 'above' ? 'selected' : '') + '>Above</option></select></div><div class="col-md-4 mb-3"><label class="form-label">' + label + '</label><input type="number" class="form-control leg-param" data-param="' + param + '" step="0.01" placeholder="2.0"></div></div>';
+        }
+        paramsContainer.innerHTML = html;
+      }
+      
+      function setupOptionsFormSubmit() {
+        const form = document.getElementById('backtestForm');
+        if (!form) return;
+        
+        form.addEventListener('submit', async function(e) {
+          e.preventDefault();
+          
+          const loadingEl = document.getElementById('backtestLoading');
+          const errorEl = document.getElementById('backtestError');
+          const resultsEl = document.getElementById('backtestResults');
+          
+          if (loadingEl) loadingEl.style.display = 'block';
+          if (errorEl) errorEl.style.display = 'none';
+          if (resultsEl) resultsEl.style.display = 'none';
+          
+          try {
+            const config = collectOptionsFormData();
+            const apiKey = localStorage.getItem('polygonApiKey');
+            if (!apiKey) throw new Error('API key not found. Please configure it in settings.');
+            
+            const response = await fetch('/api/backtest/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+              body: JSON.stringify(config)
+            });
+            
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Backtest failed to start');
+            }
+            
+            const result = await response.json();
+            window.location.href = '/options-backtest-result-detail.html?id=' + result.backtest_id;
+            
+          } catch (error) {
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (errorEl) {
+              errorEl.style.display = 'block';
+              errorEl.textContent = error.message;
+            }
+          }
+        });
+      }
+      
+      function collectOptionsFormData() {
+        const config = {};
+        config.backtest_name = document.getElementById('backtestName')?.value || '';
+        config.symbol = document.getElementById('symbol')?.value?.toUpperCase() || '';
+        config.start_date = document.getElementById('startDate')?.value || '';
+        config.end_date = document.getElementById('endDate')?.value || '';
+        config.entry_time = document.getElementById('entryTime')?.value || '10:00';
+        config.dte = parseInt(document.getElementById('dte')?.value) || 0;
+        config.strategy = document.getElementById('strategy')?.value || '';
+        config.take_profit_pct = document.querySelector('input[name="takeProfitType"]:checked')?.value === 'P' 
+            ? parseFloat(document.getElementById('takeProfitPct')?.value) || 50 : null;
+        config.take_profit_dollar = document.querySelector('input[name="takeProfitType"]:checked')?.value === 'D' 
+            ? parseFloat(document.getElementById('takeProfitDollar')?.value) || 0 : null;
+        config.stop_loss_pct = document.querySelector('input[name="stopLossType"]:checked')?.value === 'P' 
+            ? parseFloat(document.getElementById('stopLossPct')?.value) || 200 : null;
+        config.stop_loss_dollar = document.querySelector('input[name="stopLossType"]:checked')?.value === 'D' 
+            ? parseFloat(document.getElementById('stopLossDollar')?.value) || 0 : null;
+        config.net_premium_min = document.getElementById('netPremiumMin')?.value ? parseFloat(document.getElementById('netPremiumMin').value) : null;
+        config.net_premium_max = document.getElementById('netPremiumMax')?.value ? parseFloat(document.getElementById('netPremiumMax').value) : null;
+        config.detection_bar_size = parseFloat(document.getElementById('detectionBars')?.value) || 5;
+        config.concurrent_trades = document.querySelector('input[name="concurrentTrades"]:checked')?.value === 'y';
+        config.avoid_pdt = document.querySelector('input[name="avoidPdt"]:checked')?.value === 'y';
+        config.starting_capital = parseFloat(document.getElementById('startingCapital')?.value) || 50000;
+        
+        const allocTypeRaw = document.querySelector('input[name="allocationType"]:checked')?.value || '1';
+        if (allocTypeRaw === '1') {
+            config.allocation_type = 'pct';
+            config.allocation_value = parseFloat(document.getElementById('allocationPct')?.value) || 10;
+        } else if (allocTypeRaw === '2') {
+            config.allocation_type = 'contracts';
+            config.allocation_value = parseInt(document.getElementById('allocationContracts')?.value) || 1;
+        } else {
+            config.allocation_type = 'fixed';
+            config.allocation_value = parseFloat(document.getElementById('allocationFixed')?.value) || 5000;
+        }
+        
+        config.legs = collectLegConfigurations();
+        return config;
+      }
+      
+      function collectLegConfigurations() {
+        const legs = [];
+        document.querySelectorAll('.leg-config-card').forEach((card, index) => {
+          const method = card.querySelector('.leg-method-select')?.value;
+          if (!method) return;
+          const leg = { method: method };
+          card.querySelectorAll('.leg-param').forEach(param => {
+            const paramName = param.dataset.param;
+            leg[paramName] = param.value;
+          });
+          legs.push(leg);
+        });
+        return legs;
+      }
+      
+      // ========== STOCK BACKTESTER ==========
+      function initStockBacktester() {
+        setupStockSymbolMode();
+        setupStockEntryType();
+        setupStockSizingType();
+        setupStockPresetCondition();
+        setupStockFormSubmit();
+        setupStockResetBtn();
+        setStockDefaultDates();
+      }
+      
+      function setStockDefaultDates() {
+        const today = new Date();
+        const oneMonthAgo = new Date(today);
+        oneMonthAgo.setMonth(today.getMonth() - 1);
+        
+        const startDateEl = document.getElementById('stockStartDate');
+        const endDateEl = document.getElementById('stockEndDate');
+        if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
+        if (endDateEl) endDateEl.valueAsDate = today;
+      }
+      
+      function setupStockSymbolMode() {
+        document.querySelectorAll('input[name="symbol_mode"]').forEach(radio => {
+          radio.addEventListener('change', () => {
+            const mode = document.querySelector('input[name="symbol_mode"]:checked').value;
+            document.getElementById('singleSymbolSection').style.display = mode === 'single' ? 'block' : 'none';
+            document.getElementById('multipleSymbolsSection').style.display = mode === 'multiple' ? 'block' : 'none';
+            document.getElementById('csvSymbolsSection').style.display = mode === 'all' ? 'block' : 'none';
+          });
+        });
+      }
+      
+      function setupStockEntryType() {
+        document.querySelectorAll('input[name="entry_type"]').forEach(radio => {
+          radio.addEventListener('change', () => {
+            const type = document.querySelector('input[name="entry_type"]:checked').value;
+            document.getElementById('presetSection').style.display = type === 'preset' ? 'block' : 'none';
+            document.getElementById('customSection').style.display = type === 'custom' ? 'block' : 'none';
+          });
+        });
+      }
+      
+      function setupStockSizingType() {
+        document.querySelectorAll('input[name="sizing_type"]').forEach(radio => {
+          radio.addEventListener('change', () => {
+            const type = document.querySelector('input[name="sizing_type"]:checked').value;
+            document.getElementById('sharesSection').style.display = type === 'shares' ? 'block' : 'none';
+            document.getElementById('dollarsSection').style.display = type === 'dollars' ? 'block' : 'none';
+            document.getElementById('percentSection').style.display = type === 'percent' ? 'flex' : 'none';
+          });
+        });
+      }
+      
+      function setupStockPresetCondition() {
+        const presetSelect = document.getElementById('presetCondition');
+        if (presetSelect) {
+          presetSelect.addEventListener('change', () => {
+            const isVelocity = presetSelect.value === '5';
+            document.getElementById('standardPresetFields').style.display = isVelocity ? 'none' : 'flex';
+            document.getElementById('velocityFields').style.display = isVelocity ? 'flex' : 'none';
+          });
+        }
+      }
+      
+      function setupStockResetBtn() {
+        const resetBtn = document.getElementById('resetStockBacktestBtn');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            const form = document.getElementById('stockBacktestForm');
+            if (form) form.reset();
+            setStockDefaultDates();
+            document.getElementById('singleSymbolSection').style.display = 'block';
+            document.getElementById('multipleSymbolsSection').style.display = 'none';
+            document.getElementById('csvSymbolsSection').style.display = 'none';
+            document.getElementById('presetSection').style.display = 'block';
+            document.getElementById('customSection').style.display = 'none';
+            document.getElementById('sharesSection').style.display = 'block';
+            document.getElementById('dollarsSection').style.display = 'none';
+            document.getElementById('percentSection').style.display = 'none';
+          });
+        }
+      }
+      
+      function setupStockFormSubmit() {
+        const form = document.getElementById('stockBacktestForm');
+        if (!form) return;
+        
+        form.addEventListener('submit', async function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const loadingEl = document.getElementById('stockLoadingMessage');
+          const errorEl = document.getElementById('stockErrorMessage');
+          
+          if (loadingEl) loadingEl.style.display = 'block';
+          if (errorEl) errorEl.style.display = 'none';
+          
+          try {
+            const config = collectStockFormData();
+            const apiKey = localStorage.getItem('polygonApiKey');
+            if (!apiKey) throw new Error('API key not found. Please configure it in settings.');
+            
+            const response = await fetch('/api/stocks-backtest-v3/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+              body: JSON.stringify(config)
+            });
+            
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Backtest failed to start');
+            }
+            
+            const result = await response.json();
+            sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
+            window.location.href = '/stock-backtest-results.html?id=' + result.backtest_id;
+            
+          } catch (error) {
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (errorEl) {
+              errorEl.style.display = 'block';
+              errorEl.textContent = error.message;
+            }
+          }
+        });
+      }
+      
+      function collectStockFormData() {
+        const config = {};
+        config.name = document.getElementById('stockBacktestName')?.value || '';
+        config.start_date = document.getElementById('stockStartDate')?.value || '';
+        config.end_date = document.getElementById('stockEndDate')?.value || '';
+        config.symbol_mode = document.querySelector('input[name="symbol_mode"]:checked')?.value || 'single';
+        
+        if (config.symbol_mode === 'single') {
+          config.symbols = [document.getElementById('singleSymbol')?.value?.toUpperCase() || ''];
+        } else if (config.symbol_mode === 'multiple') {
+          const symbolsText = document.getElementById('multipleSymbols')?.value || '';
+          config.symbols = symbolsText.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+        }
+        
+        config.entry_type = document.querySelector('input[name="entry_type"]:checked')?.value || 'preset';
+        config.preset_condition = document.getElementById('presetCondition')?.value || '1';
+        config.preset_operator = document.getElementById('presetOperator')?.value || '>';
+        config.preset_threshold = parseFloat(document.getElementById('presetThreshold')?.value) || 0;
+        
+        config.direction = document.querySelector('input[name="direction"]:checked')?.value || 'long';
+        config.sizing_type = document.querySelector('input[name="sizing_type"]:checked')?.value || 'shares';
+        config.sizing_shares = parseInt(document.getElementById('stockSizingShares')?.value) || 100;
+        config.sizing_dollars = parseFloat(document.getElementById('stockSizingDollars')?.value) || 5000;
+        config.sizing_percent = parseFloat(document.getElementById('stockSizingPercent')?.value) || 10;
+        config.starting_capital = parseFloat(document.getElementById('stockStartingCapital')?.value) || 50000;
+        
+        config.take_profit_type = document.querySelector('input[name="take_profit_type"]:checked')?.value || 'percent';
+        config.take_profit_value = parseFloat(document.getElementById('takeProfitValue')?.value) || 5;
+        config.stop_loss_type = document.querySelector('input[name="stop_loss_type"]:checked')?.value || 'percent';
+        config.stop_loss_value = parseFloat(document.getElementById('stopLossValue')?.value) || 3;
+        config.max_days = parseInt(document.getElementById('maxDays')?.value) || 5;
+        config.allow_consecutive_trades = document.getElementById('allowConsecutive')?.checked || false;
+        
+        return config;
+      }
+      
+      // Initialize backtester pages when shown
+      function initBacktesterPages() {
+        initOptionsBacktester();
+        initStockBacktester();
+      }
+      
+      // Call initialization after DOM ready
+      document.addEventListener('DOMContentLoaded', initBacktesterPages);
+
+      // Handle URL query parameter for page navigation
+      const urlParams = new URLSearchParams(window.location.search);
+      const pageParam = urlParams.get('page');
+      if (pageParam) {
+        showPage(pageParam);
+      } else {
+        // Initial dashboard load (default page)
+        loadDashboardData();
+      }
+    </script>
+  </body>
+</html>

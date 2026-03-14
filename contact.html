@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Contact Us - BacktestPro</title>
+    <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
+    <link rel="icon" href="/static/img/kaiadmin/favicon.ico" type="image/x-icon" />
+
+    <script src="/static/js/plugin/webfont/webfont.min.js"></script>
+    <script>
+      WebFont.load({
+        google: { families: ["Public Sans:300,400,500,600,700"] },
+        custom: {
+          families: [
+            "Font Awesome 5 Solid",
+            "Font Awesome 5 Regular",
+            "Font Awesome 5 Brands",
+            "simple-line-icons",
+          ],
+          urls: ["/static/css/fonts.min.css"],
+        },
+        active: function () {
+          sessionStorage.fonts = true;
+        },
+      });
+    </script>
+
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/static/css/plugins.min.css" />
+    <link rel="stylesheet" href="/static/css/kaiadmin.min.css" />
+    
+    <style>
+      .contact-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 25px;
+      }
+      .contact-info-card, .contact-form-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 30px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      }
+      .contact-info-card h4, .contact-form-card h4 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a2035;
+        margin-bottom: 25px;
+      }
+      .info-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        margin-bottom: 25px;
+      }
+      .info-item:last-child {
+        margin-bottom: 0;
+      }
+      .info-icon {
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, #1b55e2, #764ba2);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .info-content h5 {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1a2035;
+        margin-bottom: 4px;
+      }
+      .info-content p {
+        font-size: 14px;
+        color: #8a92a6;
+        line-height: 1.5;
+        margin: 0;
+      }
+      .info-content a {
+        color: #1b55e2;
+        text-decoration: none;
+      }
+      .btn-submit {
+        width: 100%;
+        padding: 14px 24px;
+        background: linear-gradient(135deg, #1b55e2, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(27, 85, 226, 0.3);
+      }
+      @media (max-width: 768px) {
+        .contact-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="sidebar" data-background-color="dark">
+        <div class="sidebar-logo">
+          <div class="logo-header" data-background-color="dark">
+            <a href="/" class="logo">
+              <span class="logo-text" style="color: #fff;">BacktestPro</span>
+            </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+              </button>
+              <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+              </button>
+            </div>
+            <button class="topbar-toggler more">
+              <i class="gg-more-vertical-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-wrapper scrollbar scrollbar-inner">
+          <div class="sidebar-content">
+            <ul class="nav nav-secondary">
+              <li class="nav-item">
+                <a href="/">
+                  <i class="fas fa-home"></i>
+                  <p>Home</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=screener">
+                  <i class="fas fa-search-dollar"></i>
+                  <p>Screener</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=notifications">
+                  <i class="fas fa-bell"></i>
+                  <p>Notifications</p>
+                </a>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Backtesting</h4>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=backtester">
+                  <i class="fas fa-flask"></i>
+                  <p>Option Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=stockBacktester">
+                  <i class="fas fa-chart-line"></i>
+                  <p>Stock Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a data-bs-toggle="collapse" href="#resultsMenu">
+                  <i class="fas fa-chart-area"></i>
+                  <p>Results</p>
+                  <span class="caret"></span>
+                </a>
+                <div class="collapse" id="resultsMenu">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <a href="/dashboard?section=optionsResults">
+                        <span class="sub-item">Option Results</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a href="/dashboard?section=stockResults">
+                        <span class="sub-item">Stock Results</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Account</h4>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=subscription">
+                  <i class="fas fa-credit-card"></i>
+                  <p id="subscriptionNavText">Pricing</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=faq">
+                  <i class="fas fa-question-circle"></i>
+                  <p>FAQ</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-settings" style="display: none;">
+                <a href="/dashboard?section=settings">
+                  <i class="fas fa-cog"></i>
+                  <p>Settings</p>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-panel">
+        <div class="main-header">
+          <div class="main-header-logo">
+            <div class="logo-header" data-background-color="dark">
+              <a href="/" class="logo">
+                <span class="logo-text" style="color: #fff;">BacktestPro</span>
+              </a>
+              <div class="nav-toggle">
+                <button class="btn btn-toggle toggle-sidebar">
+                  <i class="gg-menu-right"></i>
+                </button>
+                <button class="btn btn-toggle sidenav-toggler">
+                  <i class="gg-menu-left"></i>
+                </button>
+              </div>
+              <button class="topbar-toggler more">
+                <i class="gg-more-vertical-alt"></i>
+              </button>
+            </div>
+          </div>
+          <nav class="navbar navbar-header navbar-header-transparent navbar-expand-lg border-bottom">
+            <div class="container-fluid">
+              <nav class="navbar navbar-header-left navbar-expand-lg navbar-form nav-search p-0 d-none d-lg-flex">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <button type="submit" class="btn btn-search pe-1">
+                      <i class="fa fa-search search-icon"></i>
+                    </button>
+                  </div>
+                  <input type="text" placeholder="Search ..." class="form-control" />
+                </div>
+              </nav>
+              <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+                <li class="nav-item topbar-icon dropdown hidden-caret">
+                  <a class="nav-link" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-bell"></i>
+                    <span class="notification">0</span>
+                  </a>
+                  <ul class="dropdown-menu notif-box animated fadeIn" aria-labelledby="notifDropdown">
+                    <li><div class="dropdown-title">Notifications</div></li>
+                    <li>
+                      <div class="notif-scroll scrollbar-outer">
+                        <div class="notif-center">
+                          <a href="#"><div class="notif-content"><span class="block">No new notifications</span></div></a>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <li class="nav-item topbar-user dropdown hidden-caret">
+                  <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
+                    <div class="avatar-sm">
+                      <img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" />
+                    </div>
+                    <span class="profile-username">
+                      <span class="op-7">Hi,</span>
+                      <span class="fw-bold" id="userName">Guest</span>
+                    </span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-user animated fadeIn">
+                    <div class="dropdown-user-scroll scrollbar-outer">
+                      <li>
+                        <div class="user-box">
+                          <div class="avatar-lg"><img src="/static/img/profile.jpg" alt="image profile" class="avatar-img rounded" /></div>
+                          <div class="u-text">
+                            <h4 id="userNameDisplay">Guest</h4>
+                            <p class="text-muted" id="userEmailDisplay"></p>
+                            <a href="/login" class="btn btn-xs btn-secondary btn-sm" id="profileBtn">Sign In</a>
+                          </div>
+                        </div>
+                      </li>
+                      <li id="userMenuItems">
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="/login">Sign In</a>
+                        <a class="dropdown-item" href="/register">Sign Up</a>
+                      </li>
+                    </div>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+
+        <div class="container">
+          <div class="page-inner">
+            <div class="page-header">
+              <h3 class="fw-bold mb-3">Contact Us</h3>
+              <ul class="breadcrumbs mb-3">
+                <li class="nav-home"><a href="/"><i class="icon-home"></i></a></li>
+                <li class="separator"><i class="icon-arrow-right"></i></li>
+                <li class="nav-item"><a href="#">Support</a></li>
+                <li class="separator"><i class="icon-arrow-right"></i></li>
+                <li class="nav-item"><a href="#">Contact Us</a></li>
+              </ul>
+            </div>
+            <p class="text-muted mb-4">We'd love to hear from you. Get in touch with our team.</p>
+
+            <div class="contact-grid">
+              <div class="contact-info-card">
+                <h4>Get in Touch</h4>
+                
+                <div class="info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-envelope"></i>
+                  </div>
+                  <div class="info-content">
+                    <h5>Email</h5>
+                    <p>support@backtestpro.com</p>
+                  </div>
+                </div>
+
+                <div class="info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-clock"></i>
+                  </div>
+                  <div class="info-content">
+                    <h5>Response Time</h5>
+                    <p>We typically respond within 24-48 hours</p>
+                  </div>
+                </div>
+
+                <div class="info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-question-circle"></i>
+                  </div>
+                  <div class="info-content">
+                    <h5>FAQ</h5>
+                    <p>Check our <a href="/faq">FAQ page</a> for quick answers to common questions</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="contact-form-card">
+                <h4>Send a Message</h4>
+                <form id="contactForm">
+                  <div class="mb-3">
+                    <label for="name" class="form-label">Your Name</label>
+                    <input type="text" class="form-control" id="name" name="name" placeholder="Enter your name" required>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="subject" class="form-label">Subject</label>
+                    <input type="text" class="form-control" id="subject" name="subject" placeholder="What's this about?" required>
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="message" class="form-label">Message</label>
+                    <textarea class="form-control" id="message" name="message" rows="4" placeholder="Your message..." required></textarea>
+                  </div>
+
+                  <button type="submit" class="btn-submit">Send Message</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer class="footer">
+          <div class="container-fluid d-flex justify-content-between">
+            <nav class="pull-left">
+              <ul class="nav">
+                <li class="nav-item"><a class="nav-link" href="/terms">Terms</a></li>
+                <li class="nav-item"><a class="nav-link" href="/privacy">Privacy</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+              </ul>
+            </nav>
+            <div class="copyright">2024, BacktestPro. All rights reserved.</div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <script src="/static/js/core/jquery-3.7.1.min.js"></script>
+    <script src="/static/js/core/popper.min.js"></script>
+    <script src="/static/js/core/bootstrap.min.js"></script>
+    <script src="/static/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+    <script src="/static/js/kaiadmin.min.js"></script>
+    <script>
+      function getAuthHeaders() {
+          const token = localStorage.getItem('authToken');
+          return token ? { 'Authorization': 'Bearer ' + token } : {};
+      }
+
+      document.getElementById('contactForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        alert('Thank you for your message! We will get back to you soon.');
+        this.reset();
+      });
+      
+      document.addEventListener('DOMContentLoaded', async function() {
+        try {
+          const response = await fetch('/api/auth/status', { credentials: 'include', headers: getAuthHeaders() });
+          const data = await response.json();
+          if (data.authenticated) {
+            document.getElementById('userName').textContent = data.user.name;
+            document.getElementById('userNameDisplay').textContent = data.user.name;
+            document.getElementById('userEmailDisplay').textContent = data.user.email;
+            document.getElementById('profileBtn').href = '/dashboard?section=settings';
+            document.getElementById('profileBtn').textContent = 'View Profile';
+            document.getElementById('userMenuItems').innerHTML = `
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/dashboard?section=settings">My Profile</a>
+              <a class="dropdown-item" href="/dashboard?section=subscription">Subscription</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/logout">Logout</a>
+            `;
+            // Show settings and update subscription text for logged-in users
+            const settingsNav = document.getElementById('nav-settings');
+            const subscriptionNav = document.getElementById('subscriptionNavText');
+            if (settingsNav) settingsNav.style.display = '';
+            if (subscriptionNav) subscriptionNav.textContent = 'Subscription';
+          }
+        } catch (error) {
+          console.log('Auth check failed');
+        }
+      });
+    </script>
+  </body>
+</html>

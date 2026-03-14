@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Terms of Service - BacktestPro</title>
+    <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
+    <link rel="icon" href="/static/img/kaiadmin/favicon.ico" type="image/x-icon" />
+
+    <script src="/static/js/plugin/webfont/webfont.min.js"></script>
+    <script>
+      WebFont.load({
+        google: { families: ["Public Sans:300,400,500,600,700"] },
+        custom: {
+          families: [
+            "Font Awesome 5 Solid",
+            "Font Awesome 5 Regular",
+            "Font Awesome 5 Brands",
+            "simple-line-icons",
+          ],
+          urls: ["/static/css/fonts.min.css"],
+        },
+        active: function () {
+          sessionStorage.fonts = true;
+        },
+      });
+    </script>
+
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/static/css/plugins.min.css" />
+    <link rel="stylesheet" href="/static/css/kaiadmin.min.css" />
+    
+    <style>
+      .content-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 35px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      }
+      .content-card h2 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a2035;
+        margin-bottom: 15px;
+        margin-top: 30px;
+      }
+      .content-card h2:first-child {
+        margin-top: 0;
+      }
+      .content-card p {
+        font-size: 15px;
+        line-height: 1.7;
+        color: #575962;
+        margin-bottom: 15px;
+      }
+      .content-card ul {
+        margin: 15px 0;
+        padding-left: 25px;
+      }
+      .content-card li {
+        font-size: 15px;
+        line-height: 1.7;
+        color: #575962;
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="sidebar" data-background-color="dark">
+        <div class="sidebar-logo">
+          <div class="logo-header" data-background-color="dark">
+            <a href="/" class="logo">
+              <span class="logo-text" style="color: #fff;">BacktestPro</span>
+            </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+              </button>
+              <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+              </button>
+            </div>
+            <button class="topbar-toggler more">
+              <i class="gg-more-vertical-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-wrapper scrollbar scrollbar-inner">
+          <div class="sidebar-content">
+            <ul class="nav nav-secondary">
+              <li class="nav-item">
+                <a href="/">
+                  <i class="fas fa-home"></i>
+                  <p>Home</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=screener">
+                  <i class="fas fa-search-dollar"></i>
+                  <p>Screener</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=notifications">
+                  <i class="fas fa-bell"></i>
+                  <p>Notifications</p>
+                </a>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Backtesting</h4>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=backtester">
+                  <i class="fas fa-flask"></i>
+                  <p>Option Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=stockBacktester">
+                  <i class="fas fa-chart-line"></i>
+                  <p>Stock Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a data-bs-toggle="collapse" href="#resultsMenu">
+                  <i class="fas fa-chart-area"></i>
+                  <p>Results</p>
+                  <span class="caret"></span>
+                </a>
+                <div class="collapse" id="resultsMenu">
+                  <ul class="nav nav-collapse">
+                    <li>
+                      <a href="/dashboard?section=optionsResults">
+                        <span class="sub-item">Option Results</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a href="/dashboard?section=stockResults">
+                        <span class="sub-item">Stock Results</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Account</h4>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=subscription">
+                  <i class="fas fa-credit-card"></i>
+                  <p id="subscriptionNavText">Pricing</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/dashboard?section=faq">
+                  <i class="fas fa-question-circle"></i>
+                  <p>FAQ</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-settings" style="display: none;">
+                <a href="/dashboard?section=settings">
+                  <i class="fas fa-cog"></i>
+                  <p>Settings</p>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-panel">
+        <div class="main-header">
+          <div class="main-header-logo">
+            <div class="logo-header" data-background-color="dark">
+              <a href="/" class="logo">
+                <span class="logo-text" style="color: #fff;">BacktestPro</span>
+              </a>
+              <div class="nav-toggle">
+                <button class="btn btn-toggle toggle-sidebar">
+                  <i class="gg-menu-right"></i>
+                </button>
+                <button class="btn btn-toggle sidenav-toggler">
+                  <i class="gg-menu-left"></i>
+                </button>
+              </div>
+              <button class="topbar-toggler more">
+                <i class="gg-more-vertical-alt"></i>
+              </button>
+            </div>
+          </div>
+          <nav class="navbar navbar-header navbar-header-transparent navbar-expand-lg border-bottom">
+            <div class="container-fluid">
+              <nav class="navbar navbar-header-left navbar-expand-lg navbar-form nav-search p-0 d-none d-lg-flex">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <button type="submit" class="btn btn-search pe-1">
+                      <i class="fa fa-search search-icon"></i>
+                    </button>
+                  </div>
+                  <input type="text" placeholder="Search ..." class="form-control" />
+                </div>
+              </nav>
+              <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+                <li class="nav-item topbar-icon dropdown hidden-caret">
+                  <a class="nav-link" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-bell"></i>
+                    <span class="notification">0</span>
+                  </a>
+                  <ul class="dropdown-menu notif-box animated fadeIn" aria-labelledby="notifDropdown">
+                    <li><div class="dropdown-title">Notifications</div></li>
+                    <li>
+                      <div class="notif-scroll scrollbar-outer">
+                        <div class="notif-center">
+                          <a href="#"><div class="notif-content"><span class="block">No new notifications</span></div></a>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <li class="nav-item topbar-user dropdown hidden-caret">
+                  <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
+                    <div class="avatar-sm">
+                      <img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" />
+                    </div>
+                    <span class="profile-username">
+                      <span class="op-7">Hi,</span>
+                      <span class="fw-bold" id="userName">Guest</span>
+                    </span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-user animated fadeIn">
+                    <div class="dropdown-user-scroll scrollbar-outer">
+                      <li>
+                        <div class="user-box">
+                          <div class="avatar-lg"><img src="/static/img/profile.jpg" alt="image profile" class="avatar-img rounded" /></div>
+                          <div class="u-text">
+                            <h4 id="userNameDisplay">Guest</h4>
+                            <p class="text-muted" id="userEmailDisplay"></p>
+                            <a href="/login" class="btn btn-xs btn-secondary btn-sm" id="profileBtn">Sign In</a>
+                          </div>
+                        </div>
+                      </li>
+                      <li id="userMenuItems">
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="/login">Sign In</a>
+                        <a class="dropdown-item" href="/register">Sign Up</a>
+                      </li>
+                    </div>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+
+        <div class="container">
+          <div class="page-inner">
+            <div class="page-header">
+              <h3 class="fw-bold mb-3">Terms of Service</h3>
+              <ul class="breadcrumbs mb-3">
+                <li class="nav-home"><a href="/"><i class="icon-home"></i></a></li>
+                <li class="separator"><i class="icon-arrow-right"></i></li>
+                <li class="nav-item"><a href="#">Legal</a></li>
+                <li class="separator"><i class="icon-arrow-right"></i></li>
+                <li class="nav-item"><a href="#">Terms of Service</a></li>
+              </ul>
+            </div>
+            <p class="text-muted mb-4">Last updated: December 2025</p>
+
+            <div class="content-card">
+              <h2>1. Acceptance of Terms</h2>
+              <p>By accessing and using BacktestPro, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service.</p>
+
+              <h2>2. Description of Service</h2>
+              <p>BacktestPro provides a web-based platform for backtesting trading strategies using historical market data. The service includes:</p>
+              <ul>
+                <li>Options and stock backtesting capabilities</li>
+                <li>Historical market data analysis</li>
+                <li>Performance metrics and visualization tools</li>
+                <li>Strategy configuration and management</li>
+              </ul>
+
+              <h2>3. User Accounts</h2>
+              <p>To access certain features, you must create an account. You are responsible for maintaining the confidentiality of your account credentials and for all activities under your account.</p>
+
+              <h2>4. Acceptable Use</h2>
+              <p>You agree not to:</p>
+              <ul>
+                <li>Use the service for any illegal purpose</li>
+                <li>Attempt to gain unauthorized access to our systems</li>
+                <li>Interfere with or disrupt the service</li>
+                <li>Share your account credentials with others</li>
+              </ul>
+
+              <h2>5. Data and Market Information</h2>
+              <p>Market data provided through BacktestPro is sourced from third-party providers. We do not guarantee the accuracy or completeness of this data. Backtesting results are for informational purposes only and do not constitute financial advice.</p>
+
+              <h2>6. Disclaimer</h2>
+              <p>BacktestPro is provided "as is" without warranties of any kind. Past performance does not guarantee future results. Trading involves substantial risk of loss and is not suitable for all investors.</p>
+
+              <h2>7. Limitation of Liability</h2>
+              <p>BacktestPro shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the service.</p>
+
+              <h2>8. Changes to Terms</h2>
+              <p>We reserve the right to modify these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms.</p>
+
+              <h2>9. Contact</h2>
+              <p>For questions about these Terms of Service, please contact us through our <a href="/contact" style="color: #1b55e2;">Contact page</a>.</p>
+            </div>
+          </div>
+        </div>
+
+        <footer class="footer">
+          <div class="container-fluid d-flex justify-content-between">
+            <nav class="pull-left">
+              <ul class="nav">
+                <li class="nav-item"><a class="nav-link" href="/terms">Terms</a></li>
+                <li class="nav-item"><a class="nav-link" href="/privacy">Privacy</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+              </ul>
+            </nav>
+            <div class="copyright">2024, BacktestPro. All rights reserved.</div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <script src="/static/js/core/jquery-3.7.1.min.js"></script>
+    <script src="/static/js/core/popper.min.js"></script>
+    <script src="/static/js/core/bootstrap.min.js"></script>
+    <script src="/static/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+    <script src="/static/js/kaiadmin.min.js"></script>
+    <script>
+      function getAuthHeaders() {
+          const token = localStorage.getItem('authToken');
+          return token ? { 'Authorization': 'Bearer ' + token } : {};
+      }
+
+      document.addEventListener('DOMContentLoaded', async function() {
+        try {
+          const response = await fetch('/api/auth/status', { credentials: 'include', headers: getAuthHeaders() });
+          const data = await response.json();
+          if (data.authenticated) {
+            document.getElementById('userName').textContent = data.user.name;
+            document.getElementById('userNameDisplay').textContent = data.user.name;
+            document.getElementById('userEmailDisplay').textContent = data.user.email;
+            document.getElementById('profileBtn').href = '/dashboard?section=settings';
+            document.getElementById('profileBtn').textContent = 'View Profile';
+            document.getElementById('userMenuItems').innerHTML = `
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/dashboard?section=settings">My Profile</a>
+              <a class="dropdown-item" href="/dashboard?section=subscription">Subscription</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item" href="/logout">Logout</a>
+            `;
+            // Show settings and update subscription text for logged-in users
+            const settingsNav = document.getElementById('nav-settings');
+            const subscriptionNav = document.getElementById('subscriptionNavText');
+            if (settingsNav) settingsNav.style.display = '';
+            if (subscriptionNav) subscriptionNav.textContent = 'Subscription';
+          }
+        } catch (error) {
+          console.log('Auth check failed');
+        }
+      });
+    </script>
+  </body>
+</html>

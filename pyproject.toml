@@ -1,0 +1,34 @@
+[project]
+name = "backtestpro"
+version = "0.1.0"
+description = "BacktestPro SaaS application for stock and options analysis and backtesting."
+authors = ["BacktestPro <support@backtestpro.com>"]
+requires-python = ">=3.11"
+dependencies = [
+    "apscheduler>=3.11.2",
+    "cryptography>=46.0.3",
+    "flask>=3.1.2",
+    "flask-cors>=6.0.2",
+    "flask-login>=0.6.3",
+    "flask-mail>=0.10.0",
+    "flask-migrate>=4.1.0",
+    "flask-sqlalchemy>=3.1.1",
+    "matplotlib>=3.10.8",
+    "numpy>=2.3.5",
+    "oauthlib>=3.3.1",
+    "pandas>=2.3.3",
+    "polygon>=1.2.8",
+    "polygon-api-client>=1.16.3",
+    "psycopg2-binary>=2.9.11",
+    "python-telegram-bot>=22.5",
+    "pytz>=2025.2",
+    "query>=0.1.4",
+    "requests>=2.32.5",
+    "scipy>=1.16.3",
+    "sqlalchemy>=2.0.45",
+    "stripe>=14.0.1",
+    "tabulate>=0.9.0",
+    "tradingview-screener>=3.0.0",
+    "webull>=0.6.1",
+    "werkzeug>=3.1.4",
+]

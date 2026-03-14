@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - BacktestPro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1a9988;
+            --primary-light: #14b8a6;
+            --text-dark: #344767;
+            --text-muted: #7b809a;
+            --white: #ffffff;
+            --light-bg: #f8fafc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 400px;
+            width: 100%;
+            padding: 20px;
+            text-align: left;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+
+        .email-text {
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        .description {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .resend-btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: var(--white);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 20px;
+        }
+
+        .resend-btn:hover {
+            background: var(--light-bg);
+            border-color: #cbd5e1;
+        }
+
+        .resend-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .help-text {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .help-text a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: var(--text-dark);
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verify your email</h1>
+        <p class="description">
+            Check <span class="email-text" id="userEmail">your email</span> to verify your account and get started. If you don't see our email, check your spam or junk folder.
+        </p>
+
+        <div id="alertBox" class="alert"></div>
+
+        <button class="resend-btn" id="resendBtn" onclick="resendEmail()">
+            Resend verification email
+        </button>
+
+        <p class="help-text">
+            Need help? <a href="/contact">Contact us.</a>
+        </p>
+
+        <p class="help-text" style="margin-top: 16px;">
+            Already verified? <a href="/login">Back to login</a>
+        </p>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+        const alertBox = document.getElementById('alertBox');
+        const resendBtn = document.getElementById('resendBtn');
+
+        if (email) {
+            document.getElementById('userEmail').textContent = email;
+        }
+
+        function showAlert(message, type) {
+            alertBox.textContent = message;
+            alertBox.className = `alert show alert-${type}`;
+        }
+
+        async function resendEmail() {
+            if (!email) {
+                showAlert('Email address not found. Please register again.', 'error');
+                return;
+            }
+
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<span class="loading-spinner"></span>Sending...';
+
+            try {
+                const response = await fetch('/api/auth/resend-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email: email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Verification email sent! Please check your inbox.', 'success');
+                } else {
+                    showAlert(data.error || 'Failed to send email. Please try again.', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.', 'error');
+            }
+
+            resendBtn.disabled = false;
+            resendBtn.textContent = 'Resend verification email';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!-- Billing Page Content -->
+<div class="billing-page">
+    <!-- Page Header -->
+    <div class="page-title-section">
+        <h3 class="page-main-title">Billing</h3>
+        <p class="page-subtitle">View your billing information and subscription details</p>
+    </div>
+
+    <!-- Top Row: Stats Cards -->
+    <div class="billing-top-row">
+        <div class="billing-stats">
+            <div class="billing-stat-card">
+                <div class="stat-icon-container">
+                    <i class="material-symbols-rounded">trending_up</i>
+                </div>
+                <h6>Current Plan</h6>
+                <span class="stat-label" id="planProvider">BacktestPro</span>
+                <hr>
+                <h5 id="currentPlanName">Loading...</h5>
+            </div>
+            <div class="billing-stat-card">
+                <div class="stat-icon-container">
+                    <i class="material-symbols-rounded">account_balance_wallet</i>
+                </div>
+                <h6>Monthly Cost</h6>
+                <span class="stat-label" id="nextBillingDate">-</span>
+                <hr>
+                <h5 id="monthlyPrice">$0.00</h5>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscription Status Section -->
+    <div class="billing-card subscription-status-card" id="subscriptionStatusCard">
+        <div class="billing-card-header">
+            <h6>Subscription Status</h6>
+            <span class="subscription-badge" id="subscriptionBadge">-</span>
+        </div>
+        <div class="billing-card-body">
+            <div class="subscription-details" id="subscriptionDetails">
+                <p class="subscription-info" id="subscriptionInfo">Loading subscription information...</p>
+            </div>
+            <div class="subscription-actions" id="subscriptionActions" style="display: none;">
+                <button class="btn-billing-action" id="manageSubscriptionBtn" onclick="openStripePortal('subscription_cancel')">
+                    <i class="material-symbols-rounded">settings</i>
+                    Manage Subscription
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Methods Section -->
+    <div class="billing-card">
+        <div class="billing-card-header">
+            <h6>Payment Methods</h6>
+        </div>
+        <div class="billing-card-body">
+            <div class="payment-methods-row" id="paymentMethodsList">
+                <div class="loading-placeholder">Loading payment methods...</div>
+            </div>
+            <div class="no-payment-methods" id="noPaymentMethods" style="display: none;">
+                <i class="material-symbols-rounded">credit_card_off</i>
+                <p>No payment methods on file</p>
+                <button class="btn-billing-action btn-add-payment" id="addPaymentMethodBtn" onclick="openStripePortal('payment_method_update')">
+                    <i class="material-symbols-rounded">add_card</i>
+                    Add Payment Method
+                </button>
+            </div>
+            <div class="payment-method-actions" id="paymentMethodActions" style="display: none;">
+                <button class="btn-billing-action" id="updatePaymentMethodBtn" onclick="openStripePortal('payment_method_update')">
+                    <i class="material-symbols-rounded">credit_card</i>
+                    Update Payment Method
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row: Account Info + Invoices -->
+    <div class="billing-bottom-row">
+        <!-- Account Information (Read-only) -->
+        <div class="billing-card billing-info-card">
+            <div class="billing-card-header">
+                <h6>Account Information</h6>
+            </div>
+            <div class="billing-card-body">
+                <div class="billing-info-item">
+                    <div class="billing-info-content">
+                        <h6 class="info-name" id="accountName">-</h6>
+                        <p><span class="info-label">Email:</span> <span class="info-value" id="accountEmail">-</span></p>
+                        <p><span class="info-label">Customer ID:</span> <span class="info-value" id="customerIdDisplay">-</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoices (Read-only) -->
+        <div class="billing-card invoices-card">
+            <div class="billing-card-header">
+                <h6>Invoices</h6>
+            </div>
+            <div class="billing-card-body">
+                <ul class="invoice-list" id="invoiceList">
+                    <li class="loading-placeholder">Loading invoices...</li>
+                </ul>
+                <div class="no-invoices" id="noInvoices" style="display: none;">
+                    <i class="material-symbols-rounded">receipt_long</i>
+                    <p>No invoices yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

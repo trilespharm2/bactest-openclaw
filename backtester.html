@@ -1,0 +1,676 @@
+<!-- Options Strategy Backtester - EXACT match to options_backtester_v2_3_3-5.py -->
+<div class="form-card">
+    <h2>
+        <i class="fas fa-chart-line"></i>
+        OPTIONS BACKTESTING SYSTEM
+    </h2>
+
+    <form id="backtestForm">
+        <!-- [1/14] BACKTEST NAME -->
+        <div class="section-header">
+            <span class="section-number">[1/14]</span>
+            <h3>BACKTEST NAME</h3>
+        </div>
+        <div class="form-group">
+            <label for="backtestName">Enter a name for this backtest:</label>
+            <input type="text" id="backtestName" placeholder="e.g., Roblox Strategy, SPX Scalp, Conservative Iron Condor">
+            <p class="help-text">This name will be used to identify your backtest in the results page</p>
+        </div>
+
+        <!-- [2/14] SYMBOL -->
+        <div class="section-header">
+            <span class="section-number">[2/14]</span>
+            <h3>SYMBOL</h3>
+        </div>
+        <div class="form-group">
+            <label for="symbol">Enter symbol (e.g., SPX, AAPL):</label>
+            <input type="text" id="symbol" placeholder="SPX" required>
+        </div>
+
+        <!-- [3/14] DATE RANGE -->
+        <div class="section-header">
+            <span class="section-number">[3/14]</span>
+            <h3>DATE RANGE</h3>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="startDate">Enter start date (YYYY-MM-DD):</label>
+                <input type="date" id="startDate" required>
+            </div>
+            <div class="form-group">
+                <label for="endDate">Enter end date (YYYY-MM-DD):</label>
+                <input type="date" id="endDate" required>
+            </div>
+        </div>
+
+        <!-- [4/14] ENTRY TIME -->
+        <div class="section-header">
+            <span class="section-number">[4/14]</span>
+            <h3>ENTRY TIME</h3>
+        </div>
+        <div class="form-group">
+            <label for="entryTime">Enter entry time (HH:MM, 09:30-16:00):</label>
+            <input type="time" id="entryTime" min="09:30" max="16:00" value="10:00" required>
+        </div>
+
+        <!-- [5/14] DAYS TO EXPIRATION (DTE) -->
+        <div class="section-header">
+            <span class="section-number">[5/14]</span>
+            <h3>DAYS TO EXPIRATION (DTE)</h3>
+        </div>
+        <div class="form-group">
+            <label for="dte">Enter DTE (0 for same day):</label>
+            <input type="number" id="dte" min="0" value="0" required>
+        </div>
+
+        <!-- [6/14] STRATEGY TYPE -->
+        <div class="section-header">
+            <span class="section-number">[6/14]</span>
+            <h3>STRATEGY TYPE</h3>
+        </div>
+        <div class="form-group">
+            <label for="strategy">Select strategy (1-16):</label>
+            <select id="strategy" required>
+                <option value="">-- Select Strategy --</option>
+                <option value="Long Call">1. Long Call</option>
+                <option value="Long Put">2. Long Put</option>
+                <option value="Naked Short Call">3. Naked Short Call</option>
+                <option value="Naked Short Put">4. Naked Short Put</option>
+                <option value="Short Put Spread">5. Short Put Spread</option>
+                <option value="Short Call Spread">6. Short Call Spread</option>
+                <option value="Short Iron Condor">7. Short Iron Condor</option>
+                <option value="Short Iron Butterfly">8. Short Iron Butterfly</option>
+                <option value="Long Call Spread">9. Long Call Spread</option>
+                <option value="Long Put Spread">10. Long Put Spread</option>
+                <option value="Long Straddle">11. Long Straddle</option>
+                <option value="Long Strangle">12. Long Strangle</option>
+                <option value="Long Iron Butterfly">13. Long Iron Butterfly</option>
+                <option value="Long Iron Condor">14. Long Iron Condor</option>
+                <option value="Short Straddle">15. Short Straddle</option>
+                <option value="Short Strangle">16. Short Strangle</option>
+            </select>
+        </div>
+
+        <!-- [5.5/13] WING CONFIGURATION (for Iron strategies only) -->
+        <div id="wingConfigSection" class="section-header" style="display: none;">
+            <span class="section-number">[5.5/13]</span>
+            <h3>WING CONFIGURATION</h3>
+        </div>
+        <div id="wingConfigForm" style="display: none;">
+            <div class="form-group">
+                <label>Allow skewed wings? [y/n]:</label>
+                <p class="help-text">Do you want to allow skewed/unbalanced wings?<br>
+                (Spread width can differ between put side and call side)</p>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="allowSkewedWings" value="n" checked>
+                        <span>No - Require balanced wings (e.g., both 5-point spreads)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="allowSkewedWings" value="y">
+                        <span>Yes - Allow different widths (e.g., 5-point put spread, 10-point call spread)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- [7/14] LEG CONFIGURATION -->
+        <div class="section-header">
+            <span class="section-number">[7/14]</span>
+            <h3 id="legConfigTitle">LEG CONFIGURATION</h3>
+        </div>
+        <div id="legConfigSection">
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <span>Select a strategy above to configure legs</span>
+            </div>
+        </div>
+
+        <!-- [6.5/14] NET PREMIUM FILTER (Optional) -->
+        <div class="section-header">
+            <span class="section-number">[6.5/14]</span>
+            <h3>NET PREMIUM FILTER (Optional)</h3>
+        </div>
+        <div class="form-group">
+            <p class="help-text">Filter trades based on net premium at entry<br>Leave blank to skip filtering</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="netPremiumMin">Minimum net premium (or leave blank to skip):</label>
+                    <input type="number" id="netPremiumMin" step="0.01" placeholder="Leave blank to skip">
+                </div>
+                <div class="form-group">
+                    <label for="netPremiumMax">Maximum net premium (or leave blank to skip):</label>
+                    <input type="number" id="netPremiumMax" step="0.01" placeholder="Leave blank to skip">
+                </div>
+            </div>
+        </div>
+
+        <!-- [8/14] TAKE PROFIT -->
+        <div class="section-header">
+            <span class="section-number">[8/14]</span>
+            <h3>TAKE PROFIT</h3>
+        </div>
+        <div class="form-group">
+            <label>Take profit by (P)ercentage or (D)ollar? [P/D]:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="takeProfitType" value="P" checked>
+                    <span>P - Percentage</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="takeProfitType" value="D">
+                    <span>D - Dollar</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-group" id="takeProfitPctGroup">
+            <label for="takeProfitPct">Enter TP % (e.g., 50):</label>
+            <input type="number" id="takeProfitPct" min="0" step="0.01" value="50" placeholder="50">
+        </div>
+        <div class="form-group" id="takeProfitDollarGroup" style="display: none;">
+            <label for="takeProfitDollar">Enter TP $ per contract:</label>
+            <input type="number" id="takeProfitDollar" min="0" step="1" placeholder="100">
+        </div>
+
+        <!-- [9/14] STOP LOSS -->
+        <div class="section-header">
+            <span class="section-number">[9/14]</span>
+            <h3>STOP LOSS</h3>
+        </div>
+        <div class="form-group">
+            <label>Stop loss by (P)ercentage or (D)ollar? [P/D]:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="stopLossType" value="P" checked>
+                    <span>P - Percentage</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="stopLossType" value="D">
+                    <span>D - Dollar</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-group" id="stopLossPctGroup">
+            <label for="stopLossPct">Enter SL % (e.g., 200):</label>
+            <input type="number" id="stopLossPct" min="0" step="0.01" value="200" placeholder="200">
+        </div>
+        <div class="form-group" id="stopLossDollarGroup" style="display: none;">
+            <label for="stopLossDollar">Enter SL $ per contract:</label>
+            <input type="number" id="stopLossDollar" min="0" step="1" placeholder="500">
+        </div>
+
+        <!-- [10/14] DETECTION BARS -->
+        <div class="section-header">
+            <span class="section-number">[10/14]</span>
+            <h3>DETECTION BARS</h3>
+        </div>
+        <div class="form-group">
+            <label for="detectionBars">Select bar size [1-5]:</label>
+            <select id="detectionBars" required>
+                <option value="0.25">1. 15-second (High Precision)</option>
+                <option value="1">2. 1-minute</option>
+                <option value="5" selected>3. 5-minute</option>
+                <option value="10">4. 10-minute</option>
+                <option value="15">5. 15-minute</option>
+            </select>
+        </div>
+
+        <!-- [11/14] CONCURRENT TRADES -->
+        <div class="section-header">
+            <span class="section-number">[11/14]</span>
+            <h3>CONCURRENT TRADES</h3>
+        </div>
+        <div class="form-group">
+            <label>Allow concurrent trades? [y/n]:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="concurrentTrades" value="n" checked>
+                    <span>No</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="concurrentTrades" value="y">
+                    <span>Yes</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- [12/14] PDT AVOIDANCE -->
+        <div class="section-header">
+            <span class="section-number">[12/14]</span>
+            <h3>PDT AVOIDANCE</h3>
+        </div>
+        <div class="form-group">
+            <label>Avoid day trades? [y/n]:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="avoidPdt" value="n" checked>
+                    <span>No</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="avoidPdt" value="y">
+                    <span>Yes</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- [13/14] STARTING CAPITAL -->
+        <div class="section-header">
+            <span class="section-number">[13/14]</span>
+            <h3>STARTING CAPITAL</h3>
+        </div>
+        <div class="form-group">
+            <label for="startingCapital">Starting capital ($):</label>
+            <input type="number" id="startingCapital" min="1000" step="1" value="50000" required>
+        </div>
+
+        <!-- [14/14] ALLOCATION PER TRADE -->
+        <div class="section-header">
+            <span class="section-number">[14/14]</span>
+            <h3>ALLOCATION PER TRADE</h3>
+        </div>
+        <div class="form-group">
+            <label>Select [1-3]:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="allocationType" value="1" checked>
+                    <span>1. Percentage of capital</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="allocationType" value="2">
+                    <span>2. Fixed # of contracts</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="allocationType" value="3">
+                    <span>3. Fixed $ amount</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-group" id="allocationPctGroup">
+            <label for="allocationPct">Enter % (e.g., 10):</label>
+            <input type="number" id="allocationPct" min="0.1" max="100" step="0.01" value="10" placeholder="10">
+        </div>
+        <div class="form-group" id="allocationContractsGroup" style="display: none;">
+            <label for="allocationContracts">Enter # of contracts:</label>
+            <input type="number" id="allocationContracts" min="1" step="1" placeholder="1">
+        </div>
+        <div class="form-group" id="allocationFixedGroup" style="display: none;">
+            <label for="allocationFixed">Enter $ amount:</label>
+            <input type="number" id="allocationFixed" min="100" step="1" placeholder="5000">
+        </div>
+
+        <!-- Submit Button -->
+        <div class="button-group">
+            <button type="submit" id="runBacktestBtn" class="btn-primary">
+                <i class="fas fa-play"></i>
+                Run Backtest
+            </button>
+            <button type="button" id="resetBacktestBtn" class="btn-secondary">
+                <i class="fas fa-redo"></i>
+                Reset Form
+            </button>
+        </div>
+        
+        <!-- Template Buttons -->
+        <div class="template-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+            <div class="template-dropdown" style="position: relative;">
+                <button type="button" id="templatesBtn" class="btn-secondary" onclick="toggleTemplatesMenu()">
+                    <i class="fas fa-folder-open"></i>
+                    Templates
+                </button>
+                <div id="templatesMenu" class="dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; min-width: 200px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 1000; max-height: 300px; overflow-y: auto;">
+                    <div id="templatesList" style="padding: 5px 0;">
+                        <div style="padding: 10px; color: #666; font-style: italic;">No saved templates</div>
+                    </div>
+                </div>
+            </div>
+            <button type="button" id="saveTemplateBtn" class="btn-secondary" onclick="saveOptionsTemplate()">
+                <i class="fas fa-save"></i>
+                Save Template
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Loading -->
+<div id="backtestLoading" class="loading" style="display: none;">
+    <div class="spinner"></div>
+    <p>Running backtest...</p>
+    <small id="backtestProgress">Initializing...</small>
+</div>
+
+<!-- Error Message -->
+<div id="backtestError" class="error-message" style="display: none;"></div>
+
+<!-- Results Section -->
+<div id="backtestResults" class="results-card" style="display: none;">
+    <div class="results-header">
+        <h3>Backtest Results</h3>
+        <div class="results-actions">
+            <button id="downloadCSV" class="btn-secondary">
+                <i class="fas fa-file-csv"></i>
+                Download Trade Log
+            </button>
+        </div>
+    </div>
+
+    <!-- Equity Curve -->
+    <div id="equityCurveSection" class="equity-curve-card" style="display: none;">
+        <h4>Equity Curve</h4>
+        <div id="equityCurveContainer" class="equity-curve-container">
+            <!-- Image will be inserted here -->
+        </div>
+    </div>
+
+    <!-- Performance Statistics -->
+    <div class="statistics-card">
+        <h4>Performance Statistics</h4>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Total Trades</span>
+                <span class="stat-value" id="statTotalTrades">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Win Rate</span>
+                <span class="stat-value" id="statWinRate">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Total P&L</span>
+                <span class="stat-value" id="statTotalPL">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Avg Win</span>
+                <span class="stat-value" id="statAvgWin">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Avg Loss</span>
+                <span class="stat-value" id="statAvgLoss">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Profit Factor</span>
+                <span class="stat-value" id="statProfitFactor">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Max Drawdown</span>
+                <span class="stat-value" id="statMaxDrawdown">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Total Return</span>
+                <span class="stat-value" id="statTotalReturn">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trades Table -->
+    <div class="table-container">
+        <h4>Trade Log</h4>
+        <table class="results-table">
+            <thead id="tradesTableHead"></thead>
+            <tbody id="tradesTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+.section-header {
+    margin: 30px 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-number {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.section-header h3 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 1.1em;
+}
+
+.help-text {
+    color: #6b7280;
+    font-size: 0.9em;
+    margin: 5px 0;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.radio-label:hover {
+    background: #f3f4f6;
+}
+
+.radio-label input[type="radio"] {
+    width: auto;
+    margin: 0;
+}
+
+.info-box {
+    background: #eff6ff;
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #1e40af;
+}
+
+.leg-config-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+}
+
+.leg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.leg-title {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.leg-badge {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.equity-curve-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.equity-curve-card h4 {
+    margin: 0 0 15px 0;
+    color: #1f2937;
+}
+
+.equity-curve-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+.equity-curve-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+</style>
+
+<script>
+// Date validation - prevent end date before start date
+document.addEventListener('DOMContentLoaded', function() {
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const form = document.getElementById('backtestForm');
+    
+    // DTE and PDT inputs
+    const dteInput = document.getElementById('dte');
+    const avoidPdtRadios = document.querySelectorAll('input[name="avoidPdt"]');
+    
+    // TP/SL inputs
+    const takeProfitPctInput = document.getElementById('takeProfitPct');
+    const takeProfitDollarInput = document.getElementById('takeProfitDollar');
+    const stopLossPctInput = document.getElementById('stopLossPct');
+    const stopLossDollarInput = document.getElementById('stopLossDollar');
+    const takeProfitRadios = document.querySelectorAll('input[name="takeProfitType"]');
+    const stopLossRadios = document.querySelectorAll('input[name="stopLossType"]');
+    
+    // Check if 0-DTE + avoid_pdt and disable TP/SL
+    function checkDtePdtAndDisableExits() {
+        const dte = parseInt(dteInput.value);
+        const avoidPdt = document.querySelector('input[name="avoidPdt"]:checked')?.value === 'y';
+        
+        if (dte === 0 && avoidPdt) {
+            // Disable TP/SL inputs
+            takeProfitPctInput.disabled = true;
+            takeProfitDollarInput.disabled = true;
+            stopLossPctInput.disabled = true;
+            stopLossDollarInput.disabled = true;
+            takeProfitRadios.forEach(r => r.disabled = true);
+            stopLossRadios.forEach(r => r.disabled = true);
+            
+            // Clear values
+            takeProfitPctInput.value = '';
+            takeProfitDollarInput.value = '';
+            stopLossPctInput.value = '';
+            stopLossDollarInput.value = '';
+            
+            // Add visual indicator
+            takeProfitPctInput.style.backgroundColor = '#f0f0f0';
+            takeProfitDollarInput.style.backgroundColor = '#f0f0f0';
+            stopLossPctInput.style.backgroundColor = '#f0f0f0';
+            stopLossDollarInput.style.backgroundColor = '#f0f0f0';
+            
+            // Show message
+            showDtePdtMessage(true);
+        } else {
+            // Enable TP/SL inputs
+            takeProfitPctInput.disabled = false;
+            takeProfitDollarInput.disabled = false;
+            stopLossPctInput.disabled = false;
+            stopLossDollarInput.disabled = false;
+            takeProfitRadios.forEach(r => r.disabled = false);
+            stopLossRadios.forEach(r => r.disabled = false);
+            
+            // Restore background
+            takeProfitPctInput.style.backgroundColor = '';
+            takeProfitDollarInput.style.backgroundColor = '';
+            stopLossPctInput.style.backgroundColor = '';
+            stopLossDollarInput.style.backgroundColor = '';
+            
+            // Restore default values if empty
+            if (!takeProfitPctInput.value) takeProfitPctInput.value = '50';
+            if (!stopLossPctInput.value) stopLossPctInput.value = '200';
+            
+            // Hide message
+            showDtePdtMessage(false);
+        }
+    }
+    
+    function showDtePdtMessage(show) {
+        let messageDiv = document.getElementById('dtePdtWarning');
+        
+        if (show && !messageDiv) {
+            // Create message
+            messageDiv = document.createElement('div');
+            messageDiv.id = 'dtePdtWarning';
+            messageDiv.style.cssText = 'background: #fff3cd; border: 2px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 6px; color: #856404;';
+            messageDiv.innerHTML = `
+                <strong>⚠️ 0-DTE with PDT Avoidance:</strong><br>
+                Take Profit and Stop Loss are disabled.<br>
+                Exit will occur at expiration only (4:00 PM ET).<br>
+                This prevents day trades and complies with PDT rules.
+            `;
+            
+            // Insert after stop loss section
+            const stopLossSection = document.querySelector('.section-header:has(h3:contains("STOP LOSS"))');
+            if (stopLossSection) {
+                stopLossSection.parentElement.insertBefore(messageDiv, stopLossSection.nextElementSibling.nextElementSibling);
+            }
+        } else if (!show && messageDiv) {
+            // Remove message
+            messageDiv.remove();
+        }
+    }
+    
+    // Attach listeners
+    if (dteInput) {
+        dteInput.addEventListener('change', checkDtePdtAndDisableExits);
+        dteInput.addEventListener('input', checkDtePdtAndDisableExits);
+    }
+    
+    avoidPdtRadios.forEach(radio => {
+        radio.addEventListener('change', checkDtePdtAndDisableExits);
+    });
+    
+    // Check on page load
+    checkDtePdtAndDisableExits();
+    
+    // Validate dates
+    if (endDateInput && startDateInput) {
+        endDateInput.addEventListener('change', validateDates);
+        startDateInput.addEventListener('change', validateDates);
+    }
+    
+    // Validate on form submit
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!validateDates()) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+    
+    function validateDates() {
+        const startDate = new Date(startDateInput.value);
+        const endDate = new Date(endDateInput.value);
+        
+        if (startDateInput.value && endDateInput.value && endDate < startDate) {
+            alert('Error: End date cannot be before start date!\n\nPlease correct the dates before running the backtest.');
+            endDateInput.focus();
+            return false;
+        }
+        return true;
+    }
+});
+</script>
+

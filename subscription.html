@@ -1,0 +1,336 @@
+<!-- Subscription/Pricing Page Content -->
+
+<!-- Pricing Content (for logged-out users) -->
+<div id="pricingContent" class="pricing-page" style="display: none;">
+    <div class="page-title-section">
+        <h3 class="page-main-title">Pricing</h3>
+        <p class="page-subtitle">Choose the plan that's right for you</p>
+    </div>
+    
+    <!-- Pricing Toggle -->
+    <div class="pricing-toggle-container-page">
+        <span class="toggle-label">Monthly</span>
+        <label class="pricing-toggle">
+            <input type="checkbox" id="pricingBillingToggle">
+            <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
+    </div>
+    
+    <!-- Pricing Cards Grid -->
+    <div class="pricing-grid-page">
+        <div class="pricing-card-page" data-plan="stocks-basic">
+            <h5>Stocks Basic</h5>
+            <p class="plan-desc">Great for trying our APIs</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="0" data-annual="0">$0</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="fas fa-check"></i> 100 API calls/day</li>
+                <li><i class="fas fa-check"></i> Basic strategies</li>
+                <li><i class="fas fa-check"></i> 1 year historical data</li>
+            </ul>
+            <a href="/register" class="btn-plan-select-page">Get Started Free</a>
+        </div>
+
+        <div class="pricing-card-page" data-plan="stocks-starter">
+            <h5>Stocks Starter</h5>
+            <p class="plan-desc">Great for aggregates</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="29" data-annual="23">$29</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="fas fa-check"></i> 1,000 API calls/day</li>
+                <li><i class="fas fa-check"></i> 8 strategies</li>
+                <li><i class="fas fa-check"></i> 5 years historical data</li>
+            </ul>
+            <a href="/register" class="btn-plan-select-page">Get Started</a>
+        </div>
+
+        <div class="pricing-card-page" data-plan="stocks-developer">
+            <h5>Stocks Developer</h5>
+            <p class="plan-desc">Great for historical data</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="79" data-annual="63">$79</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="fas fa-check"></i> 10,000 API calls/day</li>
+                <li><i class="fas fa-check"></i> 16+ strategies</li>
+                <li><i class="fas fa-check"></i> 10 years historical data</li>
+            </ul>
+            <a href="/register" class="btn-plan-select-page">Get Started</a>
+        </div>
+
+        <div class="pricing-card-page popular" data-plan="stocks-advanced">
+            <div class="popular-badge">Popular</div>
+            <h5>Stocks Advanced</h5>
+            <p class="plan-desc">Great for real-time data</p>
+            <div class="plan-price-display">
+                <span class="price" data-monthly="199" data-annual="159">$199</span>
+                <span class="period">/month</span>
+            </div>
+            <ul class="plan-features">
+                <li><i class="fas fa-check"></i> Unlimited API calls</li>
+                <li><i class="fas fa-check"></i> All strategies</li>
+                <li><i class="fas fa-check"></i> Full historical data</li>
+            </ul>
+            <a href="/register" class="btn-plan-select-page">Get Started</a>
+        </div>
+    </div>
+    
+    <!-- CTA Section -->
+    <div class="pricing-cta-section">
+        <h4>Ready to start backtesting?</h4>
+        <p>Sign up now and start testing your trading strategies with our powerful tools.</p>
+        <a href="/register" class="btn-cta-primary">Create Free Account</a>
+    </div>
+</div>
+
+<!-- Subscription Content (for logged-in users) -->
+<div id="subscriptionContent" class="subscription-page">
+    <!-- Page Header -->
+    <div class="page-title-section">
+        <h3 class="page-main-title">Subscription</h3>
+        <p class="page-subtitle">Manage your subscription and billing information</p>
+    </div>
+
+    <!-- Current Plan Card -->
+    <div class="subscription-hero-card" id="subscriptionHeroCard">
+        <div class="subscription-hero-content">
+            <div class="plan-badge-container">
+                <span class="plan-badge" id="subscriptionBadge">Loading...</span>
+            </div>
+            <h2 class="current-plan-name" id="currentPlanName">Loading...</h2>
+            <p class="plan-status" id="planStatus">Checking subscription status...</p>
+            <div class="plan-price-display">
+                <span class="price-amount" id="currentPlanPrice">$0</span>
+                <span class="price-period">/month</span>
+            </div>
+            <div class="subscription-actions">
+                <button class="btn-manage-subscription" id="manageSubscriptionBtn" onclick="openPricingModal()">
+                    <i class="fas fa-exchange-alt"></i>
+                    Change Plan
+                </button>
+                <button class="btn-billing-portal" id="billingPortalBtn" onclick="openStripePortal('subscription_cancel', event)" style="display: none;">
+                    <i class="fas fa-cog"></i>
+                    Manage in Stripe
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="billing-stats-row">
+        <div class="billing-stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-alt" id="billingDateIcon"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-label" id="billingDateLabel">Next Billing</span>
+                <span class="stat-value" id="nextBillingDate">-</span>
+            </div>
+        </div>
+    </div>
+    <span id="paymentMethodDisplay" style="display:none;"></span>
+
+    <!-- Bottom Row: Payment Methods + Invoices -->
+    <div class="subscription-bottom-row">
+        <!-- Payment Methods Section -->
+        <div class="billing-card">
+            <div class="billing-card-header">
+                <h6>Payment Method</h6>
+                <button class="btn-link" id="updatePaymentBtn" onclick="openStripePortal('payment_method_update', event)" style="display: none;">
+                    <i class="fas fa-edit"></i>
+                    Update
+                </button>
+            </div>
+            <div class="billing-card-body">
+                <div class="payment-method-display" id="paymentMethodCard" style="display: none;">
+                    <div id="cardLogo" class="card-logo"></div>
+                    <div class="card-details">
+                        <span class="card-number" id="cardNumber">.... .... .... ****</span>
+                        <span class="card-expiry">Expires <span id="cardExpiry">--/--</span></span>
+                    </div>
+                </div>
+                <div class="no-payment-method" id="noPaymentMethod" style="display: flex;">
+                    <i class="fas fa-credit-card" style="font-size: 48px; color: #ccc; margin-bottom: 15px;"></i>
+                    <p>No payment method on file</p>
+                    <button class="btn-add-payment" id="addPaymentBtn" onclick="openStripePortal('payment_method_update', event)">
+                        <i class="fas fa-plus-circle"></i>
+                        Add Payment Method
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoices Section -->
+        <div class="billing-card">
+            <div class="billing-card-header">
+                <h6>Recent Invoices</h6>
+            </div>
+            <div class="billing-card-body">
+                <ul class="invoice-list" id="invoiceList">
+                    <li class="loading-placeholder">Loading invoices...</li>
+                </ul>
+                <div class="no-invoices" id="noInvoices" style="display: none;">
+                    <i class="fas fa-file-invoice" style="font-size: 48px; color: #ccc; margin-bottom: 15px;"></i>
+                    <p>No invoices yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Pricing Modal -->
+<div id="pricingModal" class="pricing-modal-overlay" style="display: none;">
+    <div class="pricing-modal">
+        <div class="pricing-modal-header">
+            <h3>Choose Your Plan</h3>
+            <button class="modal-close-btn" onclick="closePricingModal()">&times;</button>
+        </div>
+        <div class="pricing-modal-body">
+            <!-- Pricing Toggle -->
+            <div class="pricing-toggle-container">
+                <span class="toggle-label">Monthly</span>
+                <label class="pricing-toggle">
+                    <input type="checkbox" id="billingToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
+            </div>
+
+            <!-- Pricing Cards -->
+            <div class="pricing-grid-modal">
+                <div class="pricing-card-modal" data-plan="stocks-basic">
+                    <h5>Stocks Basic</h5>
+                    <p class="plan-desc">Great for trying our APIs</p>
+                    <div class="plan-price-display">
+                        <span class="price" data-monthly="0" data-annual="0">$0</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> 100 API calls/day</li>
+                        <li><i class="fas fa-check"></i> Basic strategies</li>
+                        <li><i class="fas fa-check"></i> 1 year historical data</li>
+                    </ul>
+                    <button class="btn-plan-select" data-plan-id="stocks-basic">Select Plan</button>
+                </div>
+
+                <div class="pricing-card-modal" data-plan="stocks-starter">
+                    <h5>Stocks Starter</h5>
+                    <p class="plan-desc">Great for aggregates</p>
+                    <div class="plan-price-display">
+                        <span class="price" data-monthly="29" data-annual="23">$29</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> 1,000 API calls/day</li>
+                        <li><i class="fas fa-check"></i> 8 strategies</li>
+                        <li><i class="fas fa-check"></i> 5 years historical data</li>
+                    </ul>
+                    <button class="btn-plan-select" data-plan-id="stocks-starter">Select Plan</button>
+                </div>
+
+                <div class="pricing-card-modal" data-plan="stocks-developer">
+                    <h5>Stocks Developer</h5>
+                    <p class="plan-desc">Great for historical data</p>
+                    <div class="plan-price-display">
+                        <span class="price" data-monthly="79" data-annual="63">$79</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> 10,000 API calls/day</li>
+                        <li><i class="fas fa-check"></i> 16+ strategies</li>
+                        <li><i class="fas fa-check"></i> 10 years historical data</li>
+                    </ul>
+                    <button class="btn-plan-select" data-plan-id="stocks-developer">Select Plan</button>
+                </div>
+
+                <div class="pricing-card-modal popular" data-plan="stocks-advanced">
+                    <div class="popular-badge">Popular</div>
+                    <h5>Stocks Advanced</h5>
+                    <p class="plan-desc">Great for real-time data</p>
+                    <div class="plan-price-display">
+                        <span class="price" data-monthly="199" data-annual="159">$199</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> Unlimited API calls</li>
+                        <li><i class="fas fa-check"></i> All strategies</li>
+                        <li><i class="fas fa-check"></i> Full historical data</li>
+                    </ul>
+                    <button class="btn-plan-select" data-plan-id="stocks-advanced">Select Plan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div id="paymentSetupModal" class="payment-modal-overlay" style="display: none;">
+    <div class="payment-modal payment-modal-embedded">
+        <div class="payment-modal-header">
+            <h3>Complete Your Subscription</h3>
+            <button class="modal-close-btn" onclick="closePaymentModal()">&times;</button>
+        </div>
+        <div class="payment-modal-body">
+            <div class="selected-plan-info">
+                <div class="plan-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="plan-details">
+                    <h4 id="modalPlanName">Stocks Starter</h4>
+                    <p>Billed monthly</p>
+                </div>
+                <div class="plan-price-tag">
+                    <span id="modalPlanPrice">$29</span>/mo
+                </div>
+            </div>
+            
+            <div id="paymentFormContainer">
+                <div id="paymentLoading" class="payment-loading">
+                    <div class="loading-spinner"></div>
+                    <p>Setting up secure payment...</p>
+                </div>
+                
+                <div id="paymentFormWrapper" style="display: none;">
+                    <div class="payment-form-section">
+                        <label class="payment-label">Card Information</label>
+                        <div id="card-element" class="stripe-element-container"></div>
+                        <div id="card-errors" class="stripe-error-message" role="alert"></div>
+                    </div>
+                    
+                    <div class="payment-security-note">
+                        <i class="fas fa-lock"></i>
+                        <span>Your payment information is encrypted and secure</span>
+                    </div>
+                    
+                    <div class="payment-modal-actions">
+                        <button id="submitPaymentBtn" class="btn-primary-checkout" onclick="submitPayment()">
+                            <i class="fas fa-credit-card"></i>
+                            <span id="submitPaymentText">Subscribe Now</span>
+                        </button>
+                        <button class="btn-secondary-skip" onclick="closePaymentModal()">
+                            Maybe Later
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="paymentSuccess" class="payment-success" style="display: none;">
+                    <div class="success-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h4>Payment Successful!</h4>
+                    <p>Your subscription is now active. Enjoy your premium features!</p>
+                    <button class="btn-primary-checkout" onclick="closePaymentModal(); location.reload();">
+                        Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

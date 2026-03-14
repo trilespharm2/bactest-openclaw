@@ -1,0 +1,856 @@
+<!-- Stock Screener Page - Dashboard SPA Compatible -->
+<style>
+    .screener-container {
+        padding: 0;
+    }
+    
+    .tabs-container {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+    }
+    
+    .tab-btn {
+        background: transparent;
+        border: none;
+        color: #666;
+        padding: 12px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+    
+    .tab-btn:hover {
+        background: #e9ecef;
+        color: #333;
+    }
+    
+    .tab-btn.active {
+        background: #1b55e2;
+        color: #fff;
+    }
+    
+    .tab-btn .material-icons,
+    .tab-btn .material-symbols-rounded {
+        font-size: 18px;
+    }
+    
+    .tab-btn .count {
+        background: rgba(0,0,0,0.1);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+    }
+    
+    .tab-btn.active .count {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    /* Search Tab Styles */
+    .search-tab-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        max-width: 280px;
+        margin-right: 8px;
+    }
+    
+    .filter-search-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+        transition: all 0.2s;
+        background: #fff;
+    }
+    
+    .filter-search-input:focus {
+        border-color: #1b55e2;
+        box-shadow: 0 0 0 3px rgba(27, 85, 226, 0.1);
+    }
+    
+    .filter-search-input::placeholder {
+        color: #94a3b8;
+    }
+    
+    .search-clear-btn {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 6px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    
+    .search-clear-btn:hover {
+        color: #64748b;
+        background: #f1f5f9;
+    }
+    
+    .search-clear-btn.visible {
+        display: flex;
+    }
+    
+    .search-input-wrapper {
+        position: relative;
+        flex: 1;
+    }
+    
+    .search-highlight {
+        background: #fef08a;
+        padding: 0 2px;
+        border-radius: 2px;
+    }
+    
+    .screener-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+    
+    @media (max-width: 1024px) {
+        .screener-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* Mobile responsive styles */
+    @media (max-width: 768px) {
+        .tabs-container {
+            padding: 6px;
+            gap: 4px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        .tabs-container::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .tab-btn {
+            padding: 10px 12px;
+            font-size: 12px;
+            gap: 6px;
+            flex-shrink: 0;
+            min-width: auto;
+        }
+        
+        .tab-btn .material-symbols-rounded {
+            font-size: 16px;
+        }
+        
+        .tab-btn .count {
+            padding: 2px 6px;
+            font-size: 10px;
+        }
+        
+        .panel-header {
+            padding: 12px 16px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .panel-header h5 {
+            font-size: 14px;
+            gap: 6px;
+        }
+        
+        .panel-header h5 .material-symbols-rounded {
+            font-size: 18px;
+        }
+        
+        .panel-body {
+            padding: 12px;
+            max-height: 300px;
+        }
+        
+        .filter-list {
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        
+        .filter-item {
+            padding: 12px;
+            font-size: 14px;
+        }
+        
+        .config-card {
+            padding: 12px;
+        }
+        
+        .config-card-header h4 {
+            font-size: 13px;
+        }
+        
+        .config-fields {
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .field-group label {
+            font-size: 10px;
+        }
+        
+        .field-group input,
+        .field-group select {
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+        
+        .action-buttons {
+            padding: 12px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .screener-btn {
+            padding: 10px 14px;
+            font-size: 13px;
+            flex: 1;
+            min-width: 100px;
+            justify-content: center;
+        }
+        
+        .screener-btn .material-symbols-rounded {
+            font-size: 16px;
+        }
+        
+        .results-summary {
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .summary-stat {
+            padding: 10px 14px;
+            flex: 1;
+            min-width: 100px;
+        }
+        
+        .summary-stat .value {
+            font-size: 20px;
+        }
+        
+        .results-table th,
+        .results-table td {
+            padding: 8px 10px;
+            font-size: 12px;
+        }
+        
+        .empty-state {
+            padding: 24px;
+        }
+        
+        .empty-state .material-symbols-rounded {
+            font-size: 36px;
+        }
+        
+        .empty-state p {
+            font-size: 13px;
+        }
+        
+        .checkbox-list {
+            grid-template-columns: 1fr;
+            max-height: 120px;
+        }
+        
+        .page-header h3 {
+            font-size: 20px;
+        }
+    }
+    
+    /* Extra small mobile */
+    @media (max-width: 480px) {
+        .tab-btn {
+            padding: 8px 10px;
+            font-size: 11px;
+        }
+        
+        .tab-btn .material-symbols-rounded {
+            display: none;
+        }
+        
+        .config-fields {
+            grid-template-columns: 1fr;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .screener-btn {
+            width: 100%;
+        }
+    }
+    
+    .screener-panel {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .panel-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .panel-header h5 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #1e293b;
+    }
+    
+    .panel-header h5 .material-icons,
+    .panel-header h5 .material-symbols-rounded {
+        color: #1b55e2;
+        font-size: 20px;
+    }
+    
+    .panel-body {
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .filter-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+    }
+    
+    .filter-item {
+        background: #f8f9fa;
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        border: 1px solid transparent;
+    }
+    
+    .filter-item:hover {
+        background: #e9ecef;
+    }
+    
+    .filter-item.selected {
+        background: rgba(27, 85, 226, 0.1);
+        border-color: #1b55e2;
+    }
+    
+    .filter-item .checkbox {
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ccc;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .filter-item.selected .checkbox {
+        background: #1b55e2;
+        border-color: #1b55e2;
+    }
+    
+    .filter-item.selected .checkbox::after {
+        content: '✓';
+        color: #fff;
+        font-size: 10px;
+    }
+    
+    .selected-filters {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .config-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 16px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .config-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    
+    .config-card-header h6 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1b55e2;
+        margin: 0;
+    }
+    
+    .config-card-header .remove-btn {
+        background: none;
+        border: none;
+        color: #f97066;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .config-card-header .remove-btn:hover {
+        background: rgba(249, 112, 102, 0.1);
+    }
+    
+    .config-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+    
+    .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .field-group label {
+        font-size: 11px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .field-group input,
+    .field-group select {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 8px 12px;
+        color: #1e293b;
+        font-size: 13px;
+    }
+    
+    .field-group input:focus,
+    .field-group select:focus {
+        outline: none;
+        border-color: #1b55e2;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+        padding: 16px 20px;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .screener-btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+        border: none;
+    }
+    
+    .screener-btn-primary {
+        background: #1b55e2;
+        color: #fff;
+    }
+    
+    .screener-btn-primary:hover {
+        background: #1648c7;
+    }
+    
+    .screener-btn-primary:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+    }
+    
+    .screener-btn-secondary {
+        background: #e2e8f0;
+        color: #475569;
+    }
+    
+    .screener-btn-secondary:hover {
+        background: #cbd5e1;
+    }
+    
+    .results-panel {
+        grid-column: 1 / -1;
+        margin-top: 20px;
+    }
+    
+    .results-summary {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 16px;
+    }
+    
+    .summary-stat {
+        background: #f8f9fa;
+        padding: 12px 20px;
+        border-radius: 8px;
+    }
+    
+    .summary-stat .label {
+        font-size: 12px;
+        color: #64748b;
+    }
+    
+    .summary-stat .value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1b55e2;
+    }
+    
+    .results-table-container {
+        overflow-x: auto;
+    }
+    
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    
+    .results-table th {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        position: sticky;
+        top: 0;
+    }
+    
+    .results-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .results-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    .ticker-cell {
+        font-weight: 600;
+        color: #1b55e2;
+    }
+    
+    .positive {
+        color: #31cb9e;
+    }
+    
+    .negative {
+        color: #f97066;
+    }
+    
+    .screener-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        color: #64748b;
+    }
+    
+    .screener-spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #1b55e2;
+        border-radius: 50%;
+        animation: screener-spin 1s linear infinite;
+        margin-right: 12px;
+    }
+    
+    @keyframes screener-spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #94a3b8;
+    }
+    
+    .empty-state .material-icons,
+    .empty-state .material-symbols-rounded {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: #cbd5e1;
+    }
+    
+    .applied-filters-count {
+        background: #f97066;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .checkbox-list {
+        max-height: 150px;
+        overflow-y: auto;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 4px;
+        background: #fff;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .checkbox-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    
+    .checkbox-option:hover {
+        background: #f8f9fa;
+    }
+    
+    .checkbox-option input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        accent-color: #1b55e2;
+    }
+    
+    .error-message {
+        background: rgba(249, 112, 102, 0.1);
+        border: 1px solid #f97066;
+        color: #f97066;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+    
+    .stored-filters-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 250px;
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        margin-top: 4px;
+    }
+    
+    .stored-filters-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .stored-filter-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        cursor: pointer;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s;
+    }
+    
+    .stored-filter-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .stored-filter-item:last-child {
+        border-bottom: none;
+    }
+    
+    .stored-filter-name {
+        font-size: 13px;
+        color: #1e293b;
+        flex: 1;
+    }
+    
+    .stored-filter-delete {
+        background: none;
+        border: none;
+        color: #f97066;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        opacity: 0.7;
+    }
+    
+    .stored-filter-delete:hover {
+        opacity: 1;
+        background: rgba(249, 112, 102, 0.1);
+    }
+    
+    .stored-filter-delete .material-symbols-rounded {
+        font-size: 18px;
+    }
+</style>
+
+<div class="page-inner">
+    <div class="page-header">
+        <h3 class="fw-bold mb-3">Stock Screener</h3>
+        <ul class="breadcrumbs mb-3">
+            <li class="nav-home">
+                <a href="#" data-page="home"><i class="icon-home"></i></a>
+            </li>
+            <li class="separator"><i class="icon-arrow-right"></i></li>
+            <li class="nav-item"><a href="#">Screener</a></li>
+        </ul>
+    </div>
+    
+    <div class="screener-container">
+        <!-- Search Input - Above Category Tabs -->
+        <div class="search-tab-container" style="max-width: 100%; margin-bottom: 12px;">
+            <div class="search-input-wrapper" style="max-width: 400px;">
+                <input type="text" class="filter-search-input" id="filterSearchInput" placeholder="Search all 170 filters..." oninput="handleFilterSearch(this.value)">
+                <button class="search-clear-btn" id="searchClearBtn" onclick="clearFilterSearch()">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">close</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Category Tabs -->
+        <div class="tabs-container" id="categoryTabs">
+            <!-- Category tabs will be generated by JavaScript -->
+        </div>
+        
+        <div class="screener-grid">
+            <!-- Available Filters Panel -->
+            <div class="screener-panel">
+                <div class="panel-header">
+                    <h5>
+                        <span class="material-symbols-rounded">filter_list</span>
+                        <span id="currentCategoryName">Select a Category</span>
+                    </h5>
+                    <span id="filterCount" class="count" style="background: #e9ecef; padding: 4px 10px; border-radius: 10px; font-size: 12px;">0 filters</span>
+                </div>
+                <div class="panel-body">
+                    <div class="filter-list" id="filterList">
+                        <div class="empty-state">
+                            <p>Select a category tab to view available filters</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Selected Filters Configuration Panel -->
+            <div class="screener-panel">
+                <div class="panel-header">
+                    <h5>
+                        <span class="material-symbols-rounded">tune</span>
+                        Filter Configuration
+                    </h5>
+                    <span id="appliedCount" class="applied-filters-count">0</span>
+                </div>
+                <div class="panel-body" id="configPanelBody">
+                    <div id="selectedFilters" class="selected-filters">
+                        <div class="empty-state" id="emptyConfigState">
+                            <p>Click on filters to add them here</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="screener-btn screener-btn-primary" id="scanBtn" disabled>
+                        <span class="material-symbols-rounded">search</span>
+                        Run Scan
+                    </button>
+                    <button class="screener-btn screener-btn-secondary" id="clearBtn">
+                        <span class="material-symbols-rounded">clear_all</span>
+                        Clear All
+                    </button>
+                    <button class="screener-btn screener-btn-secondary" id="saveFilterBtn" disabled title="Login to save filters">
+                        <span class="material-symbols-rounded">bookmark_add</span>
+                        Save Filter
+                    </button>
+                    <div class="stored-filters-wrapper" style="position: relative;">
+                        <button class="screener-btn screener-btn-secondary" id="storedFiltersBtn" onclick="toggleStoredFiltersMenu()">
+                            <span class="material-symbols-rounded">bookmarks</span>
+                            Stored Filters
+                            <span class="material-symbols-rounded" style="font-size: 16px;">expand_more</span>
+                        </button>
+                        <div id="storedFiltersMenu" class="stored-filters-menu" style="display: none;">
+                            <div class="stored-filters-list" id="storedFiltersList">
+                                <div class="empty-state" style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">
+                                    No saved filters yet
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Panel -->
+            <div class="screener-panel results-panel" id="resultsPanel" style="display: none;">
+                <div class="panel-header">
+                    <h5>
+                        <span class="material-symbols-rounded">table_chart</span>
+                        Scan Results
+                    </h5>
+                    <button class="screener-btn screener-btn-secondary" id="exportBtn" disabled style="padding: 8px 14px; font-size: 13px;">
+                        <span class="material-symbols-rounded">download</span>
+                        Export CSV
+                    </button>
+                </div>
+                <div class="panel-body" style="max-height: 500px;">
+                    <div id="errorMessage" class="error-message" style="display: none;"></div>
+                    <div class="results-summary" id="resultsSummary">
+                        <!-- Summary stats will be inserted here -->
+                    </div>
+                    <div class="results-table-container">
+                        <table class="results-table" id="resultsTable">
+                            <thead id="resultsHead"></thead>
+                            <tbody id="resultsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
