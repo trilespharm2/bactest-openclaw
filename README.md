@@ -109,3 +109,14 @@ This repo is improved, but it is not fully production-ready yet. Remaining block
 - Sensitive values such as user Polygon API keys are still stored directly in the `users` table instead of using the encryption helpers.
 - There is still no structured application logging, metrics, or centralized error reporting for production operations.
 - Large generated result sets and assets are already committed in the repository history.
+
+## Admin bootstrap
+
+For first-time setup, you can create an admin user from environment variables:
+
+- `ADMIN_BOOTSTRAP_ENABLED=1`
+- `ADMIN_EMAIL=you@example.com`
+- `ADMIN_PASSWORD=` a strong password (minimum 12 characters)
+- `ADMIN_NAME=Your Name`
+
+On startup, the app will create that admin user if it does not already exist, or promote the existing matching user to admin. After first setup, set `ADMIN_BOOTSTRAP_ENABLED=0`.

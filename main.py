@@ -150,6 +150,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     name = db.Column(db.String(100), nullable=True)
     is_verified = db.Column(db.Boolean, default=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
     verification_token = db.Column(db.String(100), nullable=True)
     verification_token_expires = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -330,11 +331,54 @@ def check_database_connection():
         return {"status": "error", "error": str(exc)}
 
 
+def bootstrap_admin_user():
+    """Create the first admin user from environment variables when enabled."""
+    if not env_bool('ADMIN_BOOTSTRAP_ENABLED', False):
+        return {'created': False, 'reason': 'disabled'}
+
+    admin_email = (os.environ.get('ADMIN_EMAIL') or '').strip().lower()
+    admin_password = os.environ.get('ADMIN_PASSWORD') or ''
+    admin_name = (os.environ.get('ADMIN_NAME') or 'Admin').strip()
+
+    if not admin_email or not admin_password:
+        return {'created': False, 'reason': 'missing_credentials'}
+
+    if len(admin_password) < 12:
+        return {'created': False, 'reason': 'weak_password'}
+
+    with app.app_context():
+        user = User.query.filter_by(email=admin_email).first()
+        if user:
+            changed = False
+            if not user.is_admin:
+                user.is_admin = True
+                changed = True
+            if not user.is_verified:
+                user.is_verified = True
+                changed = True
+            if changed:
+                db.session.commit()
+            return {'created': changed, 'reason': 'updated_existing' if changed else 'already_exists'}
+
+        user = User(
+            email=admin_email,
+            name=admin_name,
+            selected_plan='free',
+            is_verified=True,
+            is_admin=True,
+        )
+        user.set_password(admin_password)
+        db.session.add(user)
+        db.session.commit()
+        return {'created': True, 'reason': 'created'}
+
+
 def initialize_app_runtime(enable_scheduler=False):
     """Run safe startup tasks for local/dev entrypoints."""
     schema_created = ensure_database_schema()
     scheduler_started = False
     scheduler_error = None
+    admin_bootstrap = bootstrap_admin_user()
 
     if enable_scheduler:
         try:
@@ -348,6 +392,7 @@ def initialize_app_runtime(enable_scheduler=False):
         "schema_created": schema_created,
         "scheduler_started": scheduler_started,
         "scheduler_error": scheduler_error,
+        "admin_bootstrap": admin_bootstrap,
     }
 
 
@@ -627,7 +672,8 @@ def api_auth_user():
         return jsonify({
             'name': current_user.name or current_user.email.split('@')[0],
             'email': current_user.email,
-            'plan': current_user.selected_plan or 'free'
+            'plan': current_user.selected_plan or 'free',
+            'is_admin': bool(getattr(current_user, 'is_admin', False))
         }), 200
     return jsonify({'error': 'Not authenticated'}), 401
 
@@ -2599,7 +2645,8 @@ def get_user_info():
         'selected_plan': current_user.selected_plan,
         'stripe_customer_id': current_user.stripe_customer_id,
         'stripe_subscription_id': current_user.stripe_subscription_id,
-        'auth_provider': current_user.auth_provider or 'email'
+        'auth_provider': current_user.auth_provider or 'email',
+        'is_admin': bool(getattr(current_user, 'is_admin', False))
     })
 
 @app.route('/api/user/update-plan', methods=['POST'])
@@ -6037,6 +6084,15 @@ if __name__ == '__main__':
         print("⚠️  Flask-Migrate is not installed; migration commands will be unavailable")
     if startup_state['scheduler_error']:
         print(f"⚠️  Scheduler startup failed: {startup_state['scheduler_error']}")
+    admin_bootstrap = startup_state.get('admin_bootstrap', {})
+    if admin_bootstrap.get('reason') == 'created':
+        print('✅ Admin bootstrap user created from environment variables')
+    elif admin_bootstrap.get('reason') == 'updated_existing':
+        print('✅ Existing admin user verified from environment variables')
+    elif admin_bootstrap.get('reason') == 'weak_password':
+        print('⚠️  ADMIN_PASSWORD must be at least 12 characters; admin bootstrap skipped')
+    elif admin_bootstrap.get('reason') == 'missing_credentials':
+        print('⚠️  ADMIN_BOOTSTRAP_ENABLED is on but ADMIN_EMAIL or ADMIN_PASSWORD is missing')
     print(f"\nAvailable Backtester Endpoints:")
     print(f"  • Options Backtest: POST /api/backtest/run")
     if STOCKS_V3_WRAPPER_AVAILABLE:
