@@ -72,6 +72,11 @@ def get_secret_key():
 def get_database_uri():
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
+        # Convert relative sqlite paths to absolute so they work regardless of CWD
+        if database_url.startswith("sqlite:///") and not database_url.startswith("sqlite:////"):
+            relative_part = database_url[len("sqlite:///"):]
+            abs_path = (BASE_DIR / relative_part).resolve()
+            return f"sqlite:///{abs_path}"
         return database_url
     sqlite_path = INSTANCE_DIR / "backtestpro.db"
     return f"sqlite:///{sqlite_path}"
