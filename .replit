@@ -58,3 +58,17 @@ author = "agent"
 task = "shell.exec"
 args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+DATABASE_URL = "sqlite:///instance/backtestpro.db"
+POLYGON_API_KEY = "fHPGJ8Bc0bg1hCeKgE4fvMQ8ziqc9tAt"
+ENCRYPTION_KEY = "hqX7U_IrM755iZ4l4CanomXLDeUrstd3fYXQtaG1Czg="
+FLASK_DEBUG = "0"
+PORT = "5000"
+AUTO_CREATE_SCHEMA = "1"
+ENABLE_SCHEDULER = "0"
+SESSION_COOKIE_SECURE = "0"
+CORS_ORIGINS = ""
+FLASK_SECRET_KEY = "XN5oAvVj5jNRAgSxR2Q0A6MeIdJGNMEKchqLj_bK8GmePuNZljoQa5GecutmTp7ge2eAk5ECDTx4ca9G4Ks5CQ"
