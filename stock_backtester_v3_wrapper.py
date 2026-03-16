@@ -251,15 +251,15 @@ class StockBacktesterV3Wrapper:
         engine_config['entry_type'] = entry_type
         
         if entry_type == 'preset':
-            engine_config['preset_condition'] = web_config['preset_condition']
-            engine_config['preset_operator'] = web_config['preset_operator']
-            engine_config['preset_threshold'] = float(web_config['preset_threshold'])
+            engine_config['preset_condition'] = web_config.get('preset_condition', '1')
+            engine_config['preset_operator'] = web_config.get('preset_operator', '>')
+            engine_config['preset_threshold'] = float(web_config.get('preset_threshold') or 0)
             
             # Velocity specific
-            if web_config['preset_condition'] == '5':  # Velocity
+            if web_config.get('preset_condition') == '5':  # Velocity
                 engine_config['velocity_lookback'] = int(web_config.get('velocity_lookback', 5))
-                engine_config['velocity_operator'] = web_config['preset_operator']
-                engine_config['velocity_threshold'] = float(web_config['preset_threshold'])
+                engine_config['velocity_operator'] = web_config.get('preset_operator', '>')
+                engine_config['velocity_threshold'] = float(web_config.get('preset_threshold') or 0)
                 
         elif entry_type == 'custom':
             # Custom conditions
@@ -290,9 +290,9 @@ class StockBacktesterV3Wrapper:
         
         # Exit criteria
         engine_config['take_profit_type'] = web_config.get('take_profit_type', 'percent')
-        engine_config['take_profit_value'] = float(web_config['take_profit_value'])
+        engine_config['take_profit_value'] = float(web_config.get('take_profit_value') or 0.5)
         engine_config['stop_loss_type'] = web_config.get('stop_loss_type', 'percent')
-        engine_config['stop_loss_value'] = float(web_config['stop_loss_value'])
+        engine_config['stop_loss_value'] = float(web_config.get('stop_loss_value') or 0.5)
         engine_config['max_days'] = int(web_config.get('max_days', 5))
         
         # Consecutive trades
