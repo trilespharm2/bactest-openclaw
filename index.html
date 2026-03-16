@@ -190,6 +190,8 @@
       .payment-security-note { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #64748b; margin: 16px 0; }
       .payment-modal-actions { display: flex; flex-direction: column; gap: 12px; }
       .btn-primary-checkout { padding: 14px 24px; background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+      .btn-app-primary { background: #3b7cff !important; border-color: #3b7cff !important; color: #fff !important; }
+      .btn-app-primary:hover { background: #2f68f5 !important; border-color: #2f68f5 !important; color: #fff !important; }
       .btn-secondary-skip { padding: 12px 24px; background: none; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; cursor: pointer; }
       .payment-success { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; }
       .success-icon i { font-size: 64px; color: #22c55e; }
@@ -1156,7 +1158,7 @@
 
                     <!-- Submit Buttons -->
                     <div class="d-flex gap-2 mt-4 flex-wrap">
-                      <button type="submit" class="btn btn-primary btn-lg" id="runBacktestBtn">
+                      <button type="submit" class="btn btn-lg btn-app-primary" id="runBacktestBtn">
                         <i class="fas fa-play me-2"></i>Run Backtest
                       </button>
                       <button type="button" class="btn btn-secondary btn-lg" id="resetBacktestBtn">
