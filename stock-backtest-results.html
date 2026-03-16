@@ -98,6 +98,14 @@
         .equity-section .equity-curve-container {
             flex: 1;
             min-height: 400px;
+            width: 100%;
+            position: relative;
+        }
+
+        .equity-curve-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
         }
 
         .stats-section {
@@ -172,7 +180,9 @@
             }
             
             .equity-curve-container {
-                height: 140px;
+                height: 240px;
+                min-height: 240px;
+                width: 100%;
             }
             
             .config-list {

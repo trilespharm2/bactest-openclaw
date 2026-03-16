@@ -339,11 +339,17 @@ function displayEquityCurve(trades) {
     const finalValue = values[values.length - 1];
     const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
     const backgroundColor = finalValue >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+    const isMobile = window.innerWidth <= 480;
     
     const ctx = document.getElementById('equityChart');
+    const container = document.getElementById('equityCurveContainer');
     
     if (equityCurveChart) {
         equityCurveChart.destroy();
+    }
+
+    if (container) {
+        container.style.height = isMobile ? '240px' : '400px';
     }
     
     equityCurveChart = new Chart(ctx, {
@@ -355,11 +361,11 @@ function displayEquityCurve(trades) {
                 data: values,
                 borderColor: lineColor,
                 backgroundColor: backgroundColor,
-                borderWidth: 2,
+                borderWidth: isMobile ? 2.5 : 2,
                 fill: true,
                 tension: 0.1,
-                pointRadius: 3,
-                pointHoverRadius: 5,
+                pointRadius: isMobile ? 0 : 3,
+                pointHoverRadius: isMobile ? 3 : 5,
                 pointBackgroundColor: lineColor,
                 pointBorderColor: '#fff',
                 pointBorderWidth: 1
@@ -388,8 +394,8 @@ function displayEquityCurve(trades) {
                     ticks: { 
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 10,
-                        font: { size: 10 }
+                        maxTicksLimit: isMobile ? 5 : 10,
+                        font: { size: isMobile ? 9 : 10 }
                     }
                 },
                 y: {
@@ -397,7 +403,8 @@ function displayEquityCurve(trades) {
                     title: { display: false },
                     grid: { color: 'rgba(0, 0, 0, 0.05)' },
                     ticks: {
-                        font: { size: 10 },
+                        font: { size: isMobile ? 9 : 10 },
+                        maxTicksLimit: isMobile ? 5 : 8,
                         callback: function(value) {
                             return '$' + value.toFixed(0);
                         }
@@ -602,3 +609,10 @@ function closeChartModal() {
         modalEquityCurveChart = null;
     }
 }
+
+
+window.addEventListener('resize', () => {
+    if (equityCurveChart) {
+        equityCurveChart.resize();
+    }
+});
