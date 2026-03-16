@@ -1665,12 +1665,14 @@ class BacktesterEngine:
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
         
-        # Generate filename
+        # Generate filename — sanitize name to remove path-unsafe characters
+        import re as _re
+        safe_name = _re.sub(r'[/\\:*?"<>|]', '_', self.config.get('name', 'backtest'))
         if backtest_id:
-            base_filename = f"backtest_{self.config['name']}_{backtest_id}"
+            base_filename = f"backtest_{safe_name}_{backtest_id}"
         else:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            base_filename = f"backtest_{self.config['name']}_{timestamp}"
+            base_filename = f"backtest_{safe_name}_{timestamp}"
         
         try:
             # Save CSV (exclude condition_values - it's only for summary)

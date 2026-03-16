@@ -59,7 +59,7 @@ class StockBacktesterV3Wrapper:
             print(f"{'='*60}")
             print(f"Backtest ID: {backtest_id}")
             print(f"Name: {config.get('name', 'Unnamed')}")
-            print(f"Date Range: {config['start_date']} to {config['end_date']}")
+            print(f"Date Range: {config.get('start_date', 'N/A')} to {config.get('end_date', 'N/A')}")
             print(f"{'='*60}\n")
             
             # Initialize backtester engine
@@ -144,7 +144,7 @@ class StockBacktesterV3Wrapper:
             print(f"{'='*60}")
             print(f"Backtest ID: {backtest_id}")
             print(f"Name: {config.get('name', 'Unnamed')}")
-            print(f"Date Range: {config['start_date']} to {config['end_date']}")
+            print(f"Date Range: {config.get('start_date', 'N/A')} to {config.get('end_date', 'N/A')}")
             print(f"{'='*60}\n")
             
             # Initialize backtester engine

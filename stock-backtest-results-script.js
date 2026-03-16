@@ -342,8 +342,7 @@ function displayEquityCurve(trades) {
     const isMobile = window.innerWidth <= 480;
     
     const ctx = document.getElementById('equityChart');
-    const container = document.getElementById('equityCurveContainer');
-    
+
     if (equityCurveChart) {
         equityCurveChart.destroy();
     }
