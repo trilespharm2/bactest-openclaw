@@ -373,6 +373,9 @@ function displayEquityCurve(trades) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+                padding: { top: 4, right: 4, bottom: 0, left: 0 }
+            },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -394,16 +397,20 @@ function displayEquityCurve(trades) {
                         maxRotation: 0,
                         autoSkip: true,
                         maxTicksLimit: isMobile ? 5 : 10,
-                        font: { size: isMobile ? 9 : 10 }
-                    }
+                        font: { size: isMobile ? 9 : 10 },
+                        padding: 4
+                    },
+                    offset: false
                 },
                 y: {
                     display: true,
                     title: { display: false },
+                    grace: 0,
                     grid: { color: 'rgba(0, 0, 0, 0.05)' },
                     ticks: {
                         font: { size: isMobile ? 9 : 10 },
                         maxTicksLimit: isMobile ? 5 : 8,
+                        padding: 4,
                         callback: function(value) {
                             return '$' + value.toFixed(0);
                         }
