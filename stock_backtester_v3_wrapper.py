@@ -84,8 +84,8 @@ class StockBacktesterV3Wrapper:
                 'metadata': {
                     'name': config.get('name'),
                     'date_range': {
-                        'start': config['start_date'],
-                        'end': config['end_date']
+                        'start': config.get('start_date'),
+                        'end': config.get('end_date')
                     },
                     'symbol_count': len(engine.config.get('symbols', [])),
                     'total_trades': len(engine.results) if hasattr(engine, 'results') else 0
@@ -169,8 +169,8 @@ class StockBacktesterV3Wrapper:
                 'metadata': {
                     'name': config.get('name'),
                     'date_range': {
-                        'start': config['start_date'],
-                        'end': config['end_date']
+                        'start': config.get('start_date'),
+                        'end': config.get('end_date')
                     },
                     'symbol_count': len(engine.config.get('symbols', [])),
                     'total_trades': len(engine.results) if hasattr(engine, 'results') else 0
@@ -215,8 +215,8 @@ class StockBacktesterV3Wrapper:
         
         # Basic settings
         engine_config['name'] = web_config.get('name', 'Unnamed Backtest')
-        engine_config['start_date'] = web_config['start_date']
-        engine_config['end_date'] = web_config['end_date']
+        engine_config['start_date'] = web_config.get('start_date')
+        engine_config['end_date'] = web_config.get('end_date')
         
         # Symbol configuration
         symbol_mode = web_config.get('symbol_mode', 'single')
@@ -355,8 +355,11 @@ class StockBacktesterV3Wrapper:
             results['equity_curve_base64'] = None
             print(f"No equity curve found")
         
-        # Add CSV data
-        csv_path = os.path.join(self.output_dir, f'backtest_{results["config"].get("name", "unnamed")}_{backtest_id}.csv')
+        # Add CSV data — sanitize name to match how the file was saved
+        import re as _re
+        _raw_name = results["config"].get("name", "unnamed")
+        _safe_name = _re.sub(r'[/\\:*?"<>|]', '_', _raw_name)
+        csv_path = os.path.join(self.output_dir, f'backtest_{_safe_name}_{backtest_id}.csv')
         print(f"Looking for CSV: {csv_path}")
         if os.path.exists(csv_path):
             with open(csv_path, 'r') as csv_file:
