@@ -348,7 +348,7 @@ function displayEquityCurve(trades) {
     }
 
     if (container) {
-        container.style.height = isMobile ? '220px' : '340px';
+        container.style.height = isMobile ? '220px' : '280px';
     }
     
     equityCurveChart = new Chart(ctx, {
@@ -573,6 +573,9 @@ function expandChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+                padding: { top: 4, right: 8, bottom: 0, left: 0 }
+            },
             plugins: {
                 legend: { display: true, position: 'top' },
                 tooltip: {
