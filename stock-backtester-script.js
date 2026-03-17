@@ -853,6 +853,12 @@ function renderEquityCurve(data) {
     const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
     const backgroundColor = finalValue >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
     
+    // Calculate tight y-axis bounds with 5% padding
+    const minVal = Math.min(...data.values);
+    const maxVal = Math.max(...data.values);
+    const range = maxVal - minVal || 1;
+    const yPadding = range * 0.05;
+    
     equityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -909,6 +915,8 @@ function renderEquityCurve(data) {
                 },
                 y: {
                     display: true,
+                    min: minVal - yPadding,
+                    max: maxVal + yPadding,
                     title: {
                         display: true,
                         text: 'Cumulative P&L ($)'

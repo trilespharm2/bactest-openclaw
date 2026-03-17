@@ -564,6 +564,11 @@ function expandChart() {
     const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
     const backgroundColor = finalValue >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
     
+    const modalMinVal = Math.min(...chartData.values);
+    const modalMaxVal = Math.max(...chartData.values);
+    const modalRange = modalMaxVal - modalMinVal || 1;
+    const modalYPadding = modalRange * 0.05;
+    
     modalEquityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -609,6 +614,8 @@ function expandChart() {
                 },
                 y: {
                     display: true,
+                    min: modalMinVal - modalYPadding,
+                    max: modalMaxVal + modalYPadding,
                     title: { display: true, text: 'Cumulative P&L ($)', font: { size: 14, weight: 'bold' } },
                     grid: { color: 'rgba(0, 0, 0, 0.05)' },
                     ticks: {

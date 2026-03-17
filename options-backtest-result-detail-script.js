@@ -568,6 +568,12 @@ function buildEquityCurve(trades) {
     storedEquityData = equityData;
     storedLabels = labels;
     
+    // Calculate tight y-axis bounds with 5% padding
+    const minVal = Math.min(...equityData);
+    const maxVal = Math.max(...equityData);
+    const range = maxVal - minVal || 1;
+    const yPadding = range * 0.05;
+    
     // Create baseline data (horizontal line at initial capital)
     const baselineData = equityData.map(() => initialCapital);
     
@@ -675,6 +681,8 @@ function buildEquityCurve(trades) {
                 },
                 y: {
                     display: true,
+                    min: minVal - yPadding,
+                    max: maxVal + yPadding,
                     title: {
                         display: true,
                         text: 'Balance ($)',

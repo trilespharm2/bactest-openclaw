@@ -93,13 +93,11 @@
         
         .equity-section.section-card {
             padding: 12px 12px 8px 12px;
-            min-height: 400px;
         }
         
         .equity-section .equity-curve-container {
             flex: 1;
             min-height: 350px;
-            height: auto;
             position: relative;
             width: 100%;
         }
@@ -834,6 +832,12 @@
             const equityData = storedEquityData;
             const labels = storedLabels;
             
+            // Calculate tight y-axis bounds
+            const expMinVal = Math.min(...equityData);
+            const expMaxVal = Math.max(...equityData);
+            const expRange = expMaxVal - expMinVal || 1;
+            const expYPadding = expRange * 0.05;
+            
             expandedChart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -875,7 +879,7 @@
                     },
                     scales: {
                         x: { title: { display: true, text: 'Trade' }, grid: { display: false } },
-                        y: { title: { display: true, text: 'Balance ($)' }, ticks: { callback: v => '$' + v.toLocaleString() } }
+                        y: { min: expMinVal - expYPadding, max: expMaxVal + expYPadding, title: { display: true, text: 'Balance ($)' }, ticks: { callback: v => '$' + v.toLocaleString() } }
                     }
                 }
             });
