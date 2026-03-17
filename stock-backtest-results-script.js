@@ -341,10 +341,10 @@ function displayEquityCurve(trades) {
     const positiveFill = 'rgba(16, 185, 129, 0.12)';
     const negativeFill = 'rgba(239, 68, 68, 0.18)';
     const isMobile = window.innerWidth <= 480;
-    const minValue = Math.min(...values, 0);
-    const maxValue = Math.max(...values, 0);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
     const valueRange = Math.max(maxValue - minValue, 1);
-    const yPadding = Math.max(valueRange * 0.12, 25);
+    const yPadding = valueRange * 0.08;
     const yMin = minValue - yPadding;
     const yMax = maxValue + yPadding;
     
@@ -418,12 +418,11 @@ function displayEquityCurve(trades) {
                     min: yMin,
                     max: yMax,
                     title: { display: false },
-                    grace: 0,
                     grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
                     ticks: {
                         font: { size: isMobile ? 11 : 12, weight: '500' },
                         padding: 4,
-                        maxTicksLimit: isMobile ? 5 : 6,
+                        maxTicksLimit: isMobile ? 8 : 8,
                         callback: function(value) {
                             return '$' + value.toFixed(0);
                         }
