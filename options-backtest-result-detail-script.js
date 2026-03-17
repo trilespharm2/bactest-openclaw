@@ -628,7 +628,8 @@ function buildEquityCurve(trades) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: window.innerWidth <= 480 ? 1.4 : 2,
             layout: {
                 padding: {
                     left: 2,
@@ -694,7 +695,7 @@ function buildEquityCurve(trades) {
                         color: '#6b7280',
                         font: { size: 10 },
                         padding: 3,
-                        maxTicksLimit: 10,
+                        maxTicksLimit: 8,
                         callback: function(value) {
                             return '$' + value.toLocaleString();
                         }
@@ -706,21 +707,7 @@ function buildEquityCurve(trades) {
             }
         }
     });
-    
-    // Force chart to fill container after render
-    setTimeout(() => {
-        if (equityChart) {
-            equityChart.resize();
-        }
-    }, 50);
 }
-
-// Window resize handler for chart
-window.addEventListener('resize', () => {
-    if (equityChart) {
-        equityChart.resize();
-    }
-});
 
 async function displayTradeLog(backtestId) {
     try {

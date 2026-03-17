@@ -353,10 +353,6 @@ function displayEquityCurve(trades) {
     if (equityCurveChart) {
         equityCurveChart.destroy();
     }
-
-    if (container) {
-        container.style.height = isMobile ? '320px' : '380px';
-    }
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -382,7 +378,8 @@ function displayEquityCurve(trades) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: isMobile ? 1.4 : 2,
             layout: {
                 padding: { top: 4, right: 4, bottom: 0, left: 0 }
             },
@@ -408,7 +405,6 @@ function displayEquityCurve(trades) {
                         autoSkip: true,
                         maxTicksLimit: isMobile ? 5 : 8,
                         font: { size: isMobile ? 11 : 12, weight: '500' },
-                        padding: 4,
                         padding: 4
                     },
                     offset: false
@@ -422,7 +418,7 @@ function displayEquityCurve(trades) {
                     ticks: {
                         font: { size: isMobile ? 11 : 12, weight: '500' },
                         padding: 4,
-                        maxTicksLimit: isMobile ? 8 : 8,
+                        maxTicksLimit: 8,
                         callback: function(value) {
                             return '$' + value.toFixed(0);
                         }
@@ -637,10 +633,3 @@ function closeChartModal() {
         modalEquityCurveChart = null;
     }
 }
-
-
-window.addEventListener('resize', () => {
-    if (equityCurveChart) {
-        equityCurveChart.resize();
-    }
-});

@@ -881,7 +881,7 @@ function renderEquityCurve(data) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: 2.5,
+            aspectRatio: window.innerWidth <= 480 ? 1.4 : 2,
             plugins: {
                 legend: {
                     display: true,

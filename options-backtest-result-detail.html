@@ -86,9 +86,6 @@
 
         .equity-section {
             grid-area: equity;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
         }
         
         .equity-section.section-card {
@@ -96,18 +93,12 @@
         }
         
         .equity-section .equity-curve-container {
-            flex: 1;
-            min-height: 350px;
-            position: relative;
             width: 100%;
         }
         
         .equity-section .equity-curve-container canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
             width: 100% !important;
-            height: 100% !important;
+            display: block;
         }
 
         .stats-section {
@@ -186,7 +177,7 @@
             }
             
             .equity-curve-container {
-                height: 140px;
+                width: 100%;
             }
             
             .config-list {
@@ -296,7 +287,7 @@
             }
             
             .equity-curve-container {
-                height: 120px;
+                width: 100%;
             }
             
             .config-list {
@@ -458,14 +449,12 @@
         }
 
         .equity-curve-container {
-            height: 100%;
-            position: relative;
             width: 100%;
         }
         
         .equity-curve-container canvas {
             width: 100% !important;
-            height: 100% !important;
+            display: block;
         }
         
         /* Loading state styles */
