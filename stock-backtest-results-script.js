@@ -348,7 +348,7 @@ function displayEquityCurve(trades) {
     }
 
     if (container) {
-        container.style.height = isMobile ? '240px' : '400px';
+        container.style.height = isMobile ? '220px' : '340px';
     }
     
     equityCurveChart = new Chart(ctx, {

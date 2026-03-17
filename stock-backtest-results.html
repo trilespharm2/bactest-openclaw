@@ -92,13 +92,14 @@
         }
         
         .equity-section.section-card {
-            padding: 12px 12px 8px 12px;
+            padding: 12px;
         }
         
         .equity-section .equity-curve-container {
-            height: 400px;
+            height: clamp(220px, 38vh, 340px);
             width: 100%;
             position: relative;
+            margin-top: 4px;
         }
 
         .equity-curve-container canvas {
@@ -179,8 +180,8 @@
             }
             
             .equity-curve-container {
-                height: 240px;
-                min-height: 240px;
+                height: 220px;
+                min-height: 220px;
                 width: 100%;
             }
             
@@ -291,7 +292,8 @@
             }
             
             .equity-curve-container {
-                height: 120px;
+                height: 180px;
+                min-height: 180px;
             }
             
             .config-list {
