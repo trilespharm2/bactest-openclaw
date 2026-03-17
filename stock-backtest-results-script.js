@@ -349,7 +349,7 @@ function displayEquityCurve(trades) {
     }
 
     if (container) {
-        container.style.height = isMobile ? '240px' : '300px';
+        container.style.height = isMobile ? '280px' : '360px';
     }
     
     equityCurveChart = new Chart(ctx, {
@@ -360,7 +360,7 @@ function displayEquityCurve(trades) {
                 label: 'Balance ($)',
                 data: values,
                 borderColor: lineColor,
-                borderWidth: isMobile ? 2.5 : 2,
+                borderWidth: isMobile ? 3 : 2.5,
                 fill: {
                     target: 'origin',
                     above: positiveFill,
@@ -400,8 +400,9 @@ function displayEquityCurve(trades) {
                     ticks: { 
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: isMobile ? 5 : 10,
-                        font: { size: isMobile ? 10 : 12, weight: '500' },
+                        maxTicksLimit: isMobile ? 5 : 8,
+                        font: { size: isMobile ? 11 : 12, weight: '500' },
+                        padding: 4,
                         padding: 4
                     },
                     offset: false
@@ -412,8 +413,9 @@ function displayEquityCurve(trades) {
                     grace: 0,
                     grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
                     ticks: {
-                        font: { size: isMobile ? 10 : 12, weight: '500' },
-                        maxTicksLimit: isMobile ? 5 : 8,
+                        font: { size: isMobile ? 11 : 12, weight: '500' },
+                        padding: 4,
+                        maxTicksLimit: isMobile ? 5 : 6,
                         padding: 4,
                         callback: function(value) {
                             return '$' + value.toFixed(0);
@@ -578,7 +580,7 @@ function expandChart() {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 0, right: 4, bottom: 0, left: 0 }
+                padding: { top: 0, right: 6, bottom: 0, left: 6 }
             },
             plugins: {
                 legend: { display: true, position: 'top' },
