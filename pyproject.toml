@@ -2,7 +2,7 @@
 name = "backtestpro"
 version = "0.1.0"
 description = "BacktestPro SaaS application for stock and options analysis and backtesting."
-authors = ["BacktestPro <support@backtestpro.com>"]
+authors = [{ name = "BacktestPro", email = "support@backtestpro.com" }]
 requires-python = ">=3.11"
 dependencies = [
     "apscheduler>=3.11.2",
