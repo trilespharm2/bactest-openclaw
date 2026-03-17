@@ -848,16 +848,12 @@ function renderEquityCurve(data) {
         equityCurveChart.destroy();
     }
     
-    // Determine color based on final value
-    const finalValue = data.values[data.values.length - 1];
-    const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
-    const backgroundColor = finalValue >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
-    
     // Calculate tight y-axis bounds with 5% padding
     const minVal = Math.min(...data.values);
     const maxVal = Math.max(...data.values);
     const range = maxVal - minVal || 1;
     const yPadding = range * 0.05;
+    const isMobile = window.innerWidth <= 480;
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -866,38 +862,30 @@ function renderEquityCurve(data) {
             datasets: [{
                 label: 'Cumulative P&L ($)',
                 data: data.values,
-                borderColor: lineColor,
-                backgroundColor: backgroundColor,
+                borderColor: '#3b82f6',
                 borderWidth: 2,
-                fill: true,
-                tension: 0.1,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-                pointBackgroundColor: lineColor,
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2
+                fill: false,
+                tension: 0,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                pointBackgroundColor: '#3b82f6'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: window.innerWidth <= 480 ? 1.4 : 2,
+            aspectRatio: isMobile ? 1.3 : 1.8,
+            layout: {
+                padding: { top: 0, right: 0, bottom: 0, left: 0 }
+            },
             plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
+                legend: { display: false },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
                     callbacks: {
                         label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            label += '$' + context.parsed.y.toFixed(2);
-                            return label;
+                            return 'P&L: $' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
                         }
                     }
                 }
@@ -905,30 +893,40 @@ function renderEquityCurve(data) {
             scales: {
                 x: {
                     display: true,
-                    title: {
-                        display: true,
-                        text: 'Trade Number'
+                    grid: { display: false },
+                    ticks: {
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: isMobile ? 4 : 8,
+                        font: { size: isMobile ? 10 : 11 },
+                        color: '#9ca3af',
+                        padding: 8
                     },
-                    grid: {
-                        display: false
-                    }
+                    border: { display: false }
                 },
                 y: {
                     display: true,
+                    position: 'right',
                     min: minVal - yPadding,
                     max: maxVal + yPadding,
-                    title: {
-                        display: true,
-                        text: 'Cumulative P&L ($)'
-                    },
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(0, 0, 0, 0.08)',
+                        borderDash: [4, 4],
+                        drawBorder: false
                     },
                     ticks: {
+                        font: { size: isMobile ? 10 : 11 },
+                        color: '#9ca3af',
+                        padding: 8,
+                        maxTicksLimit: 6,
                         callback: function(value) {
-                            return '$' + value.toFixed(0);
+                            if (Math.abs(value) >= 1000) {
+                                return '$' + (value / 1000).toFixed(0) + 'k';
+                            }
+                            return '$' + value.toLocaleString();
                         }
-                    }
+                    },
+                    border: { display: false }
                 }
             },
             interaction: {

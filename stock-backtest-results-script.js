@@ -337,14 +337,12 @@ function displayEquityCurve(trades) {
     chartData = { labels, values };
     
     const finalValue = values[values.length - 1];
-    const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
-    const positiveFill = 'rgba(16, 185, 129, 0.12)';
-    const negativeFill = 'rgba(239, 68, 68, 0.18)';
+    const lineColor = '#3b82f6';
     const isMobile = window.innerWidth <= 480;
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const valueRange = Math.max(maxValue - minValue, 1);
-    const yPadding = valueRange * 0.08;
+    const yPadding = valueRange * 0.05;
     const yMin = minValue - yPadding;
     const yMax = maxValue + yPadding;
     
@@ -362,26 +360,20 @@ function displayEquityCurve(trades) {
                 label: 'Balance ($)',
                 data: values,
                 borderColor: lineColor,
-                borderWidth: isMobile ? 3 : 2.5,
-                fill: {
-                    target: 'origin',
-                    above: positiveFill,
-                    below: negativeFill
-                },
-                tension: 0.1,
-                pointRadius: isMobile ? 0 : 3,
-                pointHoverRadius: isMobile ? 3 : 5,
-                pointBackgroundColor: lineColor,
-                pointBorderColor: '#fff',
-                pointBorderWidth: 1
+                borderWidth: 2,
+                fill: false,
+                tension: 0,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                pointBackgroundColor: lineColor
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: isMobile ? 1.4 : 2,
+            aspectRatio: isMobile ? 1.3 : 1.8,
             layout: {
-                padding: { top: 4, right: 4, bottom: 0, left: 0 }
+                padding: { top: 0, right: 0, bottom: 0, left: 0 }
             },
             plugins: {
                 legend: { display: false },
@@ -390,7 +382,7 @@ function displayEquityCurve(trades) {
                     intersect: false,
                     callbacks: {
                         label: function(context) {
-                            return 'Balance: $' + context.parsed.y.toFixed(2);
+                            return 'Balance: $' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
                         }
                     }
                 }
@@ -398,31 +390,40 @@ function displayEquityCurve(trades) {
             scales: {
                 x: {
                     display: true,
-                    title: { display: true, text: 'Trade', padding: { top: 2, bottom: 0 }, font: { size: isMobile ? 11 : 12, weight: '600' } },
-                    grid: { display: false, drawBorder: false },
+                    grid: { display: false },
                     ticks: { 
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: isMobile ? 5 : 8,
-                        font: { size: isMobile ? 11 : 12, weight: '500' },
-                        padding: 4
+                        maxTicksLimit: isMobile ? 4 : 8,
+                        font: { size: isMobile ? 10 : 11 },
+                        color: '#9ca3af',
+                        padding: 8
                     },
-                    offset: false
+                    border: { display: false }
                 },
                 y: {
                     display: true,
+                    position: 'right',
                     min: yMin,
                     max: yMax,
-                    title: { display: false },
-                    grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.08)',
+                        borderDash: [4, 4],
+                        drawBorder: false
+                    },
                     ticks: {
-                        font: { size: isMobile ? 11 : 12, weight: '500' },
-                        padding: 4,
-                        maxTicksLimit: 8,
+                        font: { size: isMobile ? 10 : 11 },
+                        color: '#9ca3af',
+                        padding: 8,
+                        maxTicksLimit: 6,
                         callback: function(value) {
-                            return '$' + value.toFixed(0);
+                            if (Math.abs(value) >= 1000) {
+                                return '$' + (value / 1000).toFixed(0) + 'k';
+                            }
+                            return '$' + value.toLocaleString();
                         }
-                    }
+                    },
+                    border: { display: false }
                 }
             },
             interaction: {

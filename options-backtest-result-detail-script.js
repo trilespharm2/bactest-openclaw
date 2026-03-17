@@ -573,11 +573,11 @@ function buildEquityCurve(trades) {
     const maxVal = Math.max(...equityData);
     const range = maxVal - minVal || 1;
     const yPadding = range * 0.05;
+    const isMobile = window.innerWidth <= 480;
     
     // Create baseline data (horizontal line at initial capital)
     const baselineData = equityData.map(() => initialCapital);
     
-    // Create chart with segment coloring
     equityChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -586,39 +586,19 @@ function buildEquityCurve(trades) {
                 {
                     label: 'Account Balance',
                     data: equityData,
-                    segment: {
-                        borderColor: ctx => {
-                            const p0 = ctx.p0.parsed.y;
-                            const p1 = ctx.p1.parsed.y;
-                            if (p0 < initialCapital || p1 < initialCapital) {
-                                return '#ef4444';
-                            }
-                            return '#10b981';
-                        }
-                    },
-                    borderColor: '#10b981',
-                    fill: {
-                        target: 1,
-                        above: 'rgba(16, 185, 129, 0.2)',
-                        below: 'rgba(239, 68, 68, 0.2)'
-                    },
-                    tension: 0.1,
-                    pointRadius: trades.length > 50 ? 0 : 3,
-                    pointHoverRadius: 5,
+                    borderColor: '#3b82f6',
                     borderWidth: 2,
-                    pointBackgroundColor: ctx => {
-                        const value = ctx.parsed?.y;
-                        if (value !== undefined && value < initialCapital) {
-                            return '#ef4444';
-                        }
-                        return '#10b981';
-                    }
+                    fill: false,
+                    tension: 0,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: '#3b82f6'
                 },
                 {
                     label: 'Initial Capital',
                     data: baselineData,
-                    borderColor: '#9ca3af',
-                    borderDash: [5, 5],
+                    borderColor: 'rgba(0, 0, 0, 0.15)',
+                    borderDash: [6, 4],
                     borderWidth: 1,
                     pointRadius: 0,
                     fill: false,
@@ -629,23 +609,16 @@ function buildEquityCurve(trades) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: window.innerWidth <= 480 ? 1.4 : 2,
+            aspectRatio: isMobile ? 1.3 : 1.8,
             layout: {
-                padding: {
-                    left: 2,
-                    right: 8,
-                    top: 2,
-                    bottom: 2
-                }
+                padding: { top: 0, right: 0, bottom: 0, left: 0 }
             },
             interaction: {
                 intersect: false,
                 mode: 'index'
             },
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     filter: function(tooltipItem) {
                         return tooltipItem.datasetIndex === 0;
@@ -663,46 +636,38 @@ function buildEquityCurve(trades) {
             scales: {
                 x: {
                     display: true,
-                    title: {
-                        display: true,
-                        text: 'Trade',
-                        color: '#6b7280',
-                        font: { size: 11 },
-                        padding: { top: 2 }
-                    },
+                    grid: { display: false },
                     ticks: {
-                        maxTicksLimit: 12,
-                        color: '#6b7280',
-                        font: { size: 10 },
-                        padding: 3
+                        maxTicksLimit: isMobile ? 4 : 10,
+                        color: '#9ca3af',
+                        font: { size: isMobile ? 10 : 11 },
+                        padding: 8
                     },
-                    grid: {
-                        display: false
-                    }
+                    border: { display: false }
                 },
                 y: {
                     display: true,
+                    position: 'right',
                     min: minVal - yPadding,
                     max: maxVal + yPadding,
-                    title: {
-                        display: true,
-                        text: 'Balance ($)',
-                        color: '#6b7280',
-                        font: { size: 11 },
-                        padding: { bottom: 2 }
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.08)',
+                        borderDash: [4, 4],
+                        drawBorder: false
                     },
                     ticks: {
-                        color: '#6b7280',
-                        font: { size: 10 },
-                        padding: 3,
-                        maxTicksLimit: 8,
+                        color: '#9ca3af',
+                        font: { size: isMobile ? 10 : 11 },
+                        padding: 8,
+                        maxTicksLimit: 6,
                         callback: function(value) {
+                            if (Math.abs(value) >= 1000) {
+                                return '$' + (value / 1000).toFixed(0) + 'k';
+                            }
                             return '$' + value.toLocaleString();
                         }
                     },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
+                    border: { display: false }
                 }
             }
         }
