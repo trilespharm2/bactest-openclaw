@@ -338,7 +338,8 @@ function displayEquityCurve(trades) {
     
     const finalValue = values[values.length - 1];
     const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
-    const backgroundColor = finalValue >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+    const positiveFill = 'rgba(16, 185, 129, 0.12)';
+    const negativeFill = 'rgba(239, 68, 68, 0.18)';
     const isMobile = window.innerWidth <= 480;
     
     const ctx = document.getElementById('equityChart');
@@ -348,7 +349,7 @@ function displayEquityCurve(trades) {
     }
 
     if (container) {
-        container.style.height = isMobile ? '220px' : '280px';
+        container.style.height = isMobile ? '220px' : '240px';
     }
     
     equityCurveChart = new Chart(ctx, {
@@ -359,9 +360,12 @@ function displayEquityCurve(trades) {
                 label: 'Balance ($)',
                 data: values,
                 borderColor: lineColor,
-                backgroundColor: backgroundColor,
                 borderWidth: isMobile ? 2.5 : 2,
-                fill: true,
+                fill: {
+                    target: 'origin',
+                    above: positiveFill,
+                    below: negativeFill
+                },
                 tension: 0.1,
                 pointRadius: isMobile ? 0 : 3,
                 pointHoverRadius: isMobile ? 3 : 5,
