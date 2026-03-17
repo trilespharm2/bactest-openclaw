@@ -191,16 +191,18 @@
       .payment-modal-actions { display: flex; flex-direction: column; gap: 12px; }
       .btn-primary-checkout { padding: 14px 24px; background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
 
-      #runBacktestBtn {
-        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
-        border-color: #16a34a !important;
-        color: #ffffff !important;
+      .dashboard-options-backtester #runBacktestBtn {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        border-color: #16a34a;
+        color: #ffffff;
       }
-      #runBacktestBtn:hover {
-        background: linear-gradient(135deg, #16a34a, #15803d) !important;
-        border-color: #15803d !important;
-        color: #ffffff !important;
+      .dashboard-options-backtester #runBacktestBtn:hover,
+      .dashboard-options-backtester #runBacktestBtn:focus {
+        background: linear-gradient(135deg, #16a34a, #15803d);
+        border-color: #15803d;
+        color: #ffffff;
       }
+
       .btn-app-primary { background: #3b7cff !important; border-color: #3b7cff !important; color: #fff !important; }
       .btn-app-primary:hover { background: #2f68f5 !important; border-color: #2f68f5 !important; color: #fff !important; }
       .btn-secondary-skip { padding: 12px 24px; background: none; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; cursor: pointer; }

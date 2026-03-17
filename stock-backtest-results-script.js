@@ -349,7 +349,7 @@ function displayEquityCurve(trades) {
     }
 
     if (container) {
-        container.style.height = isMobile ? '220px' : '240px';
+        container.style.height = isMobile ? '260px' : '320px';
     }
     
     equityCurveChart = new Chart(ctx, {
@@ -395,13 +395,13 @@ function displayEquityCurve(trades) {
             scales: {
                 x: {
                     display: true,
-                    title: { display: true, text: 'Trade', font: { size: 11 } },
+                    title: { display: true, text: 'Trade', font: { size: isMobile ? 11 : 13, weight: '600' } },
                     grid: { display: false },
                     ticks: { 
                         maxRotation: 0,
                         autoSkip: true,
                         maxTicksLimit: isMobile ? 5 : 10,
-                        font: { size: isMobile ? 9 : 10 },
+                        font: { size: isMobile ? 10 : 12, weight: '500' },
                         padding: 4
                     },
                     offset: false
@@ -412,7 +412,7 @@ function displayEquityCurve(trades) {
                     grace: 0,
                     grid: { color: 'rgba(0, 0, 0, 0.05)' },
                     ticks: {
-                        font: { size: isMobile ? 9 : 10 },
+                        font: { size: isMobile ? 10 : 12, weight: '500' },
                         maxTicksLimit: isMobile ? 5 : 8,
                         padding: 4,
                         callback: function(value) {
