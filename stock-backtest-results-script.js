@@ -369,14 +369,14 @@ function displayEquityCurve(trades) {
     const finalValue = values[values.length - 1];
     const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
     const fillColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
-    const isMobile = window.innerWidth <= 480;
+    const isMobile = window.innerWidth <= 680;
     
     // Tight y-axis bounds
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const dataRange = Math.max(maxValue - minValue, 1);
     const pad = dataRange * 0.08;
-    const tickLimit = window.innerWidth <= 720 ? 4 : window.innerWidth <= 1100 ? 6 : 9;
+    const tickLimit = window.innerWidth <= 1720 ? 4 : window.innerWidth <= 1100 ? 6 : 9;
 
     if (summaryChip) {
         summaryChip.textContent = `${trades.length} trades | ${formatCurrency(finalValue)} cumulative P&L`;
@@ -397,7 +397,7 @@ function displayEquityCurve(trades) {
                 data: values,
                 borderColor: lineColor,
                 backgroundColor: fillColor,
-                borderWidth: 3,
+                borderWidth: 1,
                 fill: true,
                 tension: 0.18,
                 pointRadius: 0,
@@ -409,7 +409,7 @@ function displayEquityCurve(trades) {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 8, right: 12, bottom: 0, left: 6 }
+                padding: { top: 1, right: 1, bottom: 0, left: 1 }
             },
             plugins: {
                 legend: { display: false },
@@ -603,7 +603,7 @@ function expandChart() {
     const modalMinVal = Math.min(...chartData.values);
     const modalMaxVal = Math.max(...chartData.values);
     const modalRange = modalMaxVal - modalMinVal || 1;
-    const modalYPadding = modalRange * 0.05;
+    const modalYPadding = modalRange * 0.005;
     
     modalEquityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -614,7 +614,7 @@ function expandChart() {
                 data: chartData.values,
                 borderColor: lineColor,
                 backgroundColor: backgroundColor,
-                borderWidth: 3,
+                borderWidth: 1,
                 fill: true,
                 tension: 0.18,
                 pointRadius: 4,
