@@ -68,45 +68,53 @@
             background: #4b5563;
         }
 
-        /* Desktop Layout - All visible without scrolling */
+        /* Desktop Layout - Stacked vertical */
         .main-layout {
-            display: grid;
-            grid-template-columns: 200px 1fr 200px;
-            grid-template-rows: 1fr auto;
+            display: flex;
+            flex-direction: column;
             gap: 12px;
-            grid-template-areas:
-                "config equity stats"
-                "trades trades trades";
-            align-items: start;
         }
 
-        .config-section {
-            grid-area: config;
-        }
-
+        /* --- Chart Section --- */
         .equity-section {
-            grid-area: equity;
             background: #fff;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
-            overflow: hidden;
         }
 
         .equity-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 12px 0 12px;
+            padding: 12px 16px 0 16px;
         }
 
         .equity-title {
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
             color: #1f2937;
         }
-        
-        .equity-section .equity-curve-container {
+
+        .expand-chart-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #374151;
+            font-size: 13px;
+            padding: 4px 8px;
+        }
+
+        .expand-chart-btn:hover {
+            background: #e5e7eb;
+        }
+
+        .equity-curve-container {
             width: 100%;
+            padding: 0 8px 8px 0;
         }
 
         .equity-curve-container canvas {
@@ -114,23 +122,48 @@
             display: block;
         }
 
-        .stats-section {
-            grid-area: stats;
+        /* --- Stats Row --- */
+        .stats-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
-        .trades-section {
-            grid-area: trades;
+        .stats-row .stat-pill {
+            flex: 1;
+            min-width: 100px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 14px;
+            text-align: center;
+        }
+
+        .stat-pill .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6b7280;
+            margin-bottom: 2px;
+        }
+
+        .stat-pill .stat-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        /* --- Config & Trades --- */
+        .bottom-sections {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 12px;
         }
 
         /* Tablet Layout */
         @media (max-width: 1024px) {
-            .main-layout {
+            .bottom-sections {
                 grid-template-columns: 1fr;
-                grid-template-areas:
-                    "equity"
-                    "config"
-                    "stats"
-                    "trades";
             }
         }
 
@@ -149,7 +182,6 @@
             .results-header {
                 padding: 10px;
                 margin-bottom: 8px;
-                flex-direction: row;
                 gap: 8px;
             }
             
@@ -169,9 +201,38 @@
             .main-layout {
                 gap: 8px;
             }
+
+            .equity-header {
+                padding: 8px 10px 0 10px;
+            }
+
+            .equity-title {
+                font-size: 12px;
+            }
+            
+            .stats-row {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 4px;
+            }
+
+            .stat-pill {
+                min-width: 0;
+                padding: 6px 4px;
+            }
+
+            .stat-pill .stat-label {
+                font-size: 7px;
+            }
+
+            .stat-pill .stat-value {
+                font-size: 10px;
+            }
             
             .section-card {
                 padding: 8px;
+                max-width: 100%;
+                overflow: hidden;
             }
             
             .section-card h3 {
@@ -184,14 +245,11 @@
             .section-card h3 i {
                 font-size: 10px;
             }
-            
-            .equity-curve-container {
-                width: 100%;
-            }
-            
+
             .config-list {
                 grid-template-columns: 1fr 1fr 1fr;
                 gap: 3px;
+                max-width: 100%;
             }
             
             .config-item {
@@ -209,24 +267,6 @@
             
             .config-value {
                 font-size: 9px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: repeat(4, 1fr);
-                gap: 3px;
-            }
-            
-            .stat-card {
-                padding: 4px 2px;
-            }
-            
-            .stat-label {
-                font-size: 6px;
-                margin-bottom: 1px;
-            }
-            
-            .stat-value {
-                font-size: 10px;
             }
             
             .pagination-controls {
@@ -261,31 +301,12 @@
                 white-space: nowrap;
             }
             
-            .section-card {
-                max-width: 100%;
-                overflow: hidden;
-            }
-            
-            .stats-grid {
-                max-width: 100%;
-            }
-            
-            .config-list {
-                max-width: 100%;
-            }
-            
             .collapse-icon {
                 display: inline-block !important;
             }
             
             .section-header {
                 cursor: pointer;
-            }
-            
-            .expand-chart-btn {
-                display: inline-flex !important;
-                align-items: center;
-                justify-content: center;
             }
         }
         
@@ -295,8 +316,8 @@
                 font-size: 13px;
             }
             
-            .equity-curve-container {
-                width: 100%;
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
             }
             
             .config-list {
@@ -307,7 +328,7 @@
                 grid-column: span 2;
             }
             
-            .stat-value {
+            .stat-pill .stat-value {
                 font-size: 9px;
             }
         }
@@ -653,19 +674,11 @@
                 </div>
 
                 <div id="mainLayout" class="main-layout" style="display: none;">
-                    <div class="config-section section-card" id="configSection">
-                        <div class="section-header" onclick="toggleSection('configContent', this)">
-                            <h3><i class="fas fa-cog"></i> Configuration</h3>
-                            <i class="fas fa-chevron-down collapse-icon"></i>
-                        </div>
-                        <div class="section-content" id="configContent">
-                            <div class="stats-grid" id="configList"></div>
-                        </div>
-                    </div>
 
+                    <!-- 1. Full-width Chart -->
                     <div class="equity-section" id="equitySection">
                         <div class="equity-header">
-                            <span class="equity-title">Equity Curve</span>
+                            <span class="equity-title">Results</span>
                             <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
                                 <i class="fas fa-expand"></i>
                             </button>
@@ -675,78 +688,83 @@
                         </div>
                     </div>
 
-                    <div class="stats-section section-card" id="statsSection">
-                        <div class="section-header" onclick="toggleSection('statsContent', this)">
-                            <h3><i class="fas fa-chart-bar"></i> Performance</h3>
-                            <i class="fas fa-chevron-down collapse-icon"></i>
+                    <!-- 2. Stats Row -->
+                    <div class="stats-row" id="statsSection">
+                        <div class="stat-pill">
+                            <div class="stat-label">Total Trades</div>
+                            <div class="stat-value" id="statTotalTrades">-</div>
                         </div>
-                        <div class="section-content" id="statsContent">
-                            <div class="stats-grid">
-                                <div class="stat-card">
-                                    <div class="stat-label">Total Trades</div>
-                                    <div class="stat-value" id="statTotalTrades">-</div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Win Rate</div>
+                            <div class="stat-value" id="statWinRate">-</div>
+                        </div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Total P&L</div>
+                            <div class="stat-value" id="statTotalPL">-</div>
+                        </div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Avg Win</div>
+                            <div class="stat-value" id="statAvgWin">-</div>
+                        </div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Avg Loss</div>
+                            <div class="stat-value" id="statAvgLoss">-</div>
+                        </div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Profit Factor</div>
+                            <div class="stat-value" id="statProfitFactor">-</div>
+                        </div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Max DD</div>
+                            <div class="stat-value" id="statMaxDrawdown">-</div>
+                        </div>
+                        <div class="stat-pill">
+                            <div class="stat-label">Return %</div>
+                            <div class="stat-value" id="statTotalReturn">-</div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Config + Trades side by side -->
+                    <div class="bottom-sections">
+                        <div class="config-section section-card" id="configSection">
+                            <div class="section-header" onclick="toggleSection('configContent', this)">
+                                <h3><i class="fas fa-cog"></i> Configuration</h3>
+                                <i class="fas fa-chevron-down collapse-icon"></i>
+                            </div>
+                            <div class="section-content" id="configContent">
+                                <div class="stats-grid" id="configList"></div>
+                            </div>
+                        </div>
+
+                        <div class="trades-section section-card" id="tradesSection">
+                            <div class="section-header" onclick="toggleSection('tradesContent', this)">
+                                <h3><i class="fas fa-table"></i> Trade Log</h3>
+                                <i class="fas fa-chevron-down collapse-icon"></i>
+                            </div>
+                            <div class="section-content" id="tradesContent">
+                                <div class="pagination-controls">
+                                    <div class="pagination-info">
+                                        Showing <span id="tradesRangeStart">1</span>-<span id="tradesRangeEnd">10</span> of <span id="tradesTotalCount">0</span> trades
+                                    </div>
+                                    <div class="pagination-buttons">
+                                        <button id="tradesPrevBtn" class="btn btn-secondary" disabled>
+                                            <i class="fas fa-chevron-left"></i> Previous
+                                        </button>
+                                        <button id="tradesNextBtn" class="btn btn-secondary" disabled>
+                                            Next <i class="fas fa-chevron-right"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Win Rate</div>
-                                    <div class="stat-value" id="statWinRate">-</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Total P&L</div>
-                                    <div class="stat-value" id="statTotalPL">-</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Avg Win</div>
-                                    <div class="stat-value" id="statAvgWin">-</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Avg Loss</div>
-                                    <div class="stat-value" id="statAvgLoss">-</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Profit Factor</div>
-                                    <div class="stat-value" id="statProfitFactor">-</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Max DD</div>
-                                    <div class="stat-value" id="statMaxDrawdown">-</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-label">Return %</div>
-                                    <div class="stat-value" id="statTotalReturn">-</div>
+                                <div class="table-container">
+                                    <table class="results-table">
+                                        <thead id="tradesTableHead"></thead>
+                                        <tbody id="tradesTableBody"></tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="trades-section section-card" id="tradesSection">
-                        <div class="section-header" onclick="toggleSection('tradesContent', this)">
-                            <h3><i class="fas fa-table"></i> Trade Log</h3>
-                            <i class="fas fa-chevron-down collapse-icon"></i>
-                        </div>
-                        <div class="section-content" id="tradesContent">
-                            
-                            <div class="pagination-controls">
-                                <div class="pagination-info">
-                                    Showing <span id="tradesRangeStart">1</span>-<span id="tradesRangeEnd">10</span> of <span id="tradesTotalCount">0</span> trades
-                                </div>
-                                <div class="pagination-buttons">
-                                    <button id="tradesPrevBtn" class="btn btn-secondary" disabled>
-                                        <i class="fas fa-chevron-left"></i> Previous
-                                    </button>
-                                    <button id="tradesNextBtn" class="btn btn-secondary" disabled>
-                                        Next <i class="fas fa-chevron-right"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="table-container">
-                                <table class="results-table">
-                                    <thead id="tradesTableHead"></thead>
-                                    <tbody id="tradesTableBody"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Chart Modal for expanded view -->

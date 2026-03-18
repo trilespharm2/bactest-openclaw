@@ -346,8 +346,8 @@ function displayEquityCurve(trades) {
         equityCurveChart.destroy();
     }
 
-    // Set container height explicitly
-    container.style.height = isMobile ? '250px' : '300px';
+    // Set container height - taller since chart is full-width now
+    container.style.height = isMobile ? '220px' : '350px';
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
