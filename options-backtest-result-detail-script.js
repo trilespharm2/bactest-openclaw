@@ -570,6 +570,12 @@ function buildEquityCurve(trades) {
     
     const isMobile = window.innerWidth <= 480;
     
+    // Set container height explicitly
+    const equityContainer = document.getElementById('equityCurveContainer');
+    if (equityContainer) {
+        equityContainer.style.height = isMobile ? '250px' : '300px';
+    }
+    
     // Create baseline data (horizontal line at initial capital)
     const baselineData = equityData.map(() => initialCapital);
     
@@ -603,10 +609,9 @@ function buildEquityCurve(trades) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: isMobile ? 1.2 : 1.5,
+            maintainAspectRatio: false,
             layout: {
-                padding: { top: 2, right: 0, bottom: 0, left: 0 }
+                padding: { top: 10, right: 0, bottom: 0, left: 0 }
             },
             interaction: {
                 intersect: false,
@@ -636,9 +641,12 @@ function buildEquityCurve(trades) {
                         maxTicksLimit: isMobile ? 4 : 10,
                         color: '#9ca3af',
                         font: { size: isMobile ? 10 : 11 },
-                        padding: 8
+                        padding: 6
                     },
-                    border: { display: false }
+                    border: { display: false },
+                    afterFit: function(axis) {
+                        axis.paddingTop = 0;
+                    }
                 },
                 y: {
                     display: true,
@@ -661,7 +669,11 @@ function buildEquityCurve(trades) {
                             return '$' + value.toLocaleString();
                         }
                     },
-                    border: { display: false }
+                    border: { display: false },
+                    afterFit: function(axis) {
+                        axis.paddingTop = 0;
+                        axis.paddingBottom = 0;
+                    }
                 }
             }
         }

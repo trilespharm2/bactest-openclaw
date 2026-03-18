@@ -849,6 +849,12 @@ function renderEquityCurve(data) {
     }
     
     const isMobile = window.innerWidth <= 480;
+
+    // Set container height
+    const chartContainer = ctx.parentElement;
+    if (chartContainer) {
+        chartContainer.style.height = isMobile ? '250px' : '300px';
+    }
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -868,10 +874,9 @@ function renderEquityCurve(data) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: isMobile ? 1.2 : 1.5,
+            maintainAspectRatio: false,
             layout: {
-                padding: { top: 2, right: 0, bottom: 0, left: 0 }
+                padding: { top: 10, right: 0, bottom: 0, left: 0 }
             },
             plugins: {
                 legend: { display: false },
@@ -895,9 +900,12 @@ function renderEquityCurve(data) {
                         maxTicksLimit: isMobile ? 4 : 8,
                         font: { size: isMobile ? 10 : 11 },
                         color: '#9ca3af',
-                        padding: 8
+                        padding: 6
                     },
-                    border: { display: false }
+                    border: { display: false },
+                    afterFit: function(axis) {
+                        axis.paddingTop = 0;
+                    }
                 },
                 y: {
                     display: true,
@@ -920,7 +928,11 @@ function renderEquityCurve(data) {
                             return '$' + value.toLocaleString();
                         }
                     },
-                    border: { display: false }
+                    border: { display: false },
+                    afterFit: function(axis) {
+                        axis.paddingTop = 0;
+                        axis.paddingBottom = 0;
+                    }
                 }
             },
             interaction: {
