@@ -856,13 +856,6 @@ function renderEquityCurve(data) {
         chartContainer.style.height = isMobile ? '250px' : '300px';
     }
     
-    const tightPlugin = {
-        id: 'tightLayout',
-        afterLayout: function(chart) {
-            chart.chartArea.top = 8;
-        }
-    };
-    
     equityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -879,13 +872,12 @@ function renderEquityCurve(data) {
                 pointBackgroundColor: '#3b82f6'
             }]
         },
-        plugins: [tightPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
                 autoPadding: false,
-                padding: { top: 0, right: 0, bottom: 0, left: 0 }
+                padding: { top: 8, right: 55, bottom: 25, left: 5 }
             },
             plugins: {
                 legend: { display: false },
@@ -927,6 +919,7 @@ function renderEquityCurve(data) {
                         color: '#9ca3af',
                         padding: 4,
                         count: 5,
+                        mirror: true,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
                                 return '$' + (value / 1000).toFixed(0) + 'k';
