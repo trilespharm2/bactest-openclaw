@@ -43,7 +43,7 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 20px;
+            gap: 24px;
             padding: 24px 28px;
             margin-bottom: 22px;
             border: 1px solid rgba(196, 209, 225, 0.9);
@@ -657,7 +657,7 @@
     
         .report-layout {
             display: grid;
-            grid-template-columns: minmax(0, 1.7fr) minmax(280px, 360px);
+            grid-template-columns: minmax(0, 1fr) 320px;
             gap: 20px;
             align-items: start;
         }
@@ -666,7 +666,12 @@
         }
         .report-sidebar {
             position: static !important;
+            top: auto !important;
+            right: auto !important;
+            left: auto !important;
             transform: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }
         .chart-card, .equity-section, .equity-curve-container {
             overflow: hidden;
@@ -675,6 +680,24 @@
             .report-layout {
                 grid-template-columns: 1fr;
             }
+        }
+
+    
+        .report-layout > * {
+            min-width: 0;
+        }
+        .report-main {
+            grid-column: 1;
+        }
+        .report-sidebar {
+            grid-column: 2;
+            z-index: 1;
+        }
+        .report-main .chart-card,
+        .report-main .equity-curve-wrap,
+        .report-main .equity-curve-container {
+            width: 100%;
+            max-width: 100%;
         }
 
     </style>
