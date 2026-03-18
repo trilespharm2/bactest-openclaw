@@ -18,6 +18,27 @@ let equityCurveChart = null;
 let modalEquityCurveChart = null;
 let chartData = null;
 
+function formatCurrency(value) {
+    return `$${Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
+}
+
+function setMetricValue(elementId, value, state = 'neutral') {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    element.classList.remove('positive', 'negative');
+    element.textContent = value;
+
+    if (state === 'positive') {
+        element.classList.add('positive');
+    } else if (state === 'negative') {
+        element.classList.add('negative');
+    }
+}
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('Stock Backtest Results Page Initialized');
@@ -278,44 +299,53 @@ function displayStatistics(stats) {
     }
     
     // Update stat values
-    document.getElementById('statTotalTrades').textContent = stats.total_trades || 0;
+    setMetricValue('statTotalTrades', stats.total_trades || 0);
     
-    const winRate = document.getElementById('statWinRate');
     const winRateVal = stats.win_rate || 0;
-    winRate.textContent = `${winRateVal.toFixed(1)}%`;
-    if (winRateVal >= 50) winRate.classList.add('positive');
+    setMetricValue('statWinRate', `${winRateVal.toFixed(1)}%`, winRateVal >= 50 ? 'positive' : 'neutral');
     
-    const totalPL = document.getElementById('statTotalPL');
     const totalPLVal = stats.total_pnl || 0;
-    totalPL.textContent = `$${totalPLVal.toFixed(2)}`;
-    if (totalPLVal > 0) totalPL.classList.add('positive');
-    else if (totalPLVal < 0) totalPL.classList.add('negative');
+    setMetricValue(
+        'statTotalPL',
+        formatCurrency(totalPLVal),
+        totalPLVal > 0 ? 'positive' : totalPLVal < 0 ? 'negative' : 'neutral'
+    );
     
-    document.getElementById('statAvgWin').textContent = `$${(stats.avg_win || 0).toFixed(2)}`;
-    document.getElementById('statAvgLoss').textContent = `$${(stats.avg_loss || 0).toFixed(2)}`;
+    setMetricValue('statAvgWin', formatCurrency(stats.avg_win || 0), (stats.avg_win || 0) > 0 ? 'positive' : 'neutral');
+    setMetricValue('statAvgLoss', formatCurrency(stats.avg_loss || 0), (stats.avg_loss || 0) < 0 ? 'negative' : 'neutral');
     
-    const profitFactor = document.getElementById('statProfitFactor');
     const pfVal = stats.profit_factor || 0;
-    profitFactor.textContent = pfVal.toFixed(2);
-    if (pfVal > 1) profitFactor.classList.add('positive');
-    else if (pfVal < 1) profitFactor.classList.add('negative');
+    setMetricValue(
+        'statProfitFactor',
+        pfVal.toFixed(2),
+        pfVal > 1 ? 'positive' : pfVal < 1 ? 'negative' : 'neutral'
+    );
     
-    const maxDD = document.getElementById('statMaxDrawdown');
     const ddVal = stats.max_drawdown || 0;
-    maxDD.textContent = `${ddVal.toFixed(2)}%`;
-    if (ddVal < 0) maxDD.classList.add('negative');
+    setMetricValue('statMaxDrawdown', `${ddVal.toFixed(2)}%`, ddVal < 0 ? 'negative' : 'neutral');
     
-    const totalReturn = document.getElementById('statTotalReturn');
     const returnVal = stats.total_return || 0;
-    totalReturn.textContent = `${returnVal.toFixed(2)}%`;
-    if (returnVal > 0) totalReturn.classList.add('positive');
-    else if (returnVal < 0) totalReturn.classList.add('negative');
+    setMetricValue(
+        'statTotalReturn',
+        `${returnVal.toFixed(2)}%`,
+        returnVal > 0 ? 'positive' : returnVal < 0 ? 'negative' : 'neutral'
+    );
 }
 
 function displayEquityCurve(trades) {
+    const summaryChip = document.getElementById('equitySummaryChip');
+
     if (!trades || trades.length === 0) {
+        if (equityCurveChart) {
+            equityCurveChart.destroy();
+            equityCurveChart = null;
+        }
+        chartData = null;
         const container = document.getElementById('equityCurveContainer');
-        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #9ca3af;">No trades to display</div>';
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #62748a; font-weight: 600;">No trades to display</div>';
+        if (summaryChip) {
+            summaryChip.textContent = 'No trades executed';
+        }
         return;
     }
     
@@ -337,7 +367,8 @@ function displayEquityCurve(trades) {
     chartData = { labels, values };
     
     const finalValue = values[values.length - 1];
-    const lineColor = '#3b82f6';
+    const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
+    const fillColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
     const isMobile = window.innerWidth <= 480;
     
     // Tight y-axis bounds
@@ -345,6 +376,11 @@ function displayEquityCurve(trades) {
     const maxValue = Math.max(...values);
     const dataRange = Math.max(maxValue - minValue, 1);
     const pad = dataRange * 0.08;
+    const tickLimit = window.innerWidth <= 720 ? 4 : window.innerWidth <= 1100 ? 6 : 9;
+
+    if (summaryChip) {
+        summaryChip.textContent = `${trades.length} trades | ${formatCurrency(finalValue)} cumulative P&L`;
+    }
     
     const ctx = document.getElementById('equityChart');
 
@@ -357,12 +393,13 @@ function displayEquityCurve(trades) {
         data: {
             labels: labels,
             datasets: [{
-                label: 'Balance ($)',
+                label: 'Cumulative P&L ($)',
                 data: values,
                 borderColor: lineColor,
-                borderWidth: 2.5,
-                fill: false,
-                tension: 0,
+                backgroundColor: fillColor,
+                borderWidth: 3,
+                fill: true,
+                tension: 0.18,
                 pointRadius: 0,
                 pointHoverRadius: 4,
                 pointBackgroundColor: lineColor
@@ -372,7 +409,7 @@ function displayEquityCurve(trades) {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 10, right: 10, bottom: 5, left: 5 }
+                padding: { top: 8, right: 12, bottom: 0, left: 6 }
             },
             plugins: {
                 legend: { display: false },
@@ -381,7 +418,7 @@ function displayEquityCurve(trades) {
                     intersect: false,
                     callbacks: {
                         label: function(context) {
-                            return 'Balance: $' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            return 'Cumulative P&L: ' + formatCurrency(context.parsed.y);
                         }
                     }
                 }
@@ -389,14 +426,17 @@ function displayEquityCurve(trades) {
             scales: {
                 x: {
                     display: true,
-                    grid: { display: false },
+                    grid: {
+                        display: false,
+                        drawBorder: false
+                    },
                     ticks: { 
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: isMobile ? 4 : 8,
+                        maxTicksLimit: tickLimit,
                         font: { size: isMobile ? 10 : 11 },
-                        color: '#9ca3af',
-                        padding: 4
+                        color: '#7b8ba0',
+                        padding: 10
                     },
                     border: { display: false }
                 },
@@ -406,21 +446,20 @@ function displayEquityCurve(trades) {
                     min: minValue - pad,
                     max: maxValue + pad,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.06)',
+                        color: 'rgba(98, 116, 138, 0.14)',
                         borderDash: [4, 4],
                         drawBorder: false
                     },
                     ticks: {
                         font: { size: isMobile ? 10 : 11 },
-                        color: '#9ca3af',
-                        padding: 4,
-                        mirror: true,
+                        color: '#7b8ba0',
+                        padding: 12,
                         count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
-                                return '  $' + (value / 1000).toFixed(0) + 'k';
+                                return '$' + (value / 1000).toFixed(0) + 'k';
                             }
-                            return '  $' + Math.round(value).toLocaleString();
+                            return '$' + Math.round(value).toLocaleString();
                         }
                     },
                     border: { display: false }
@@ -557,8 +596,8 @@ function expandChart() {
     }
     
     const finalValue = chartData.values[chartData.values.length - 1];
-    const lineColor = finalValue >= 0 ? '#10b981' : '#ef4444';
-    const backgroundColor = finalValue >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+    const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
+    const backgroundColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
     
     const modalMinVal = Math.min(...chartData.values);
     const modalMaxVal = Math.max(...chartData.values);
@@ -570,13 +609,13 @@ function expandChart() {
         data: {
             labels: chartData.labels,
             datasets: [{
-                label: 'Balance ($)',
+                label: 'Cumulative P&L ($)',
                 data: chartData.values,
                 borderColor: lineColor,
                 backgroundColor: backgroundColor,
                 borderWidth: 3,
                 fill: true,
-                tension: 0.1,
+                tension: 0.18,
                 pointRadius: 4,
                 pointHoverRadius: 6,
                 pointBackgroundColor: lineColor,
@@ -597,7 +636,7 @@ function expandChart() {
                     intersect: false,
                     callbacks: {
                         label: function(context) {
-                            return 'Balance: $' + context.parsed.y.toFixed(2);
+                            return 'Cumulative P&L: ' + formatCurrency(context.parsed.y);
                         }
                     }
                 }
@@ -605,7 +644,7 @@ function expandChart() {
             scales: {
                 x: {
                     display: true,
-                    title: { display: true, text: 'Trade', font: { size: 14, weight: 'bold' } },
+                    title: { display: true, text: 'Trade sequence', font: { size: 14, weight: 'bold' } },
                     grid: { display: false }
                 },
                 y: {
@@ -613,10 +652,11 @@ function expandChart() {
                     min: modalMinVal - modalYPadding,
                     max: modalMaxVal + modalYPadding,
                     title: { display: true, text: 'Cumulative P&L ($)', font: { size: 14, weight: 'bold' } },
-                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                    position: 'right',
+                    grid: { color: 'rgba(98, 116, 138, 0.14)' },
                     ticks: {
                         callback: function(value) {
-                            return '$' + value.toFixed(0);
+                            return '$' + Math.round(value).toLocaleString();
                         }
                     }
                 }
