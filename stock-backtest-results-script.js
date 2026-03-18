@@ -588,7 +588,7 @@ function expandChart() {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 0, right: 2, bottom: 0, left: 2 }
+                padding: { top: 0, right: 0, bottom: 0, left: 0 }
             },
             plugins: {
                 legend: { display: true, position: 'top' },
