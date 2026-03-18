@@ -579,6 +579,13 @@ function buildEquityCurve(trades) {
     // Create baseline data (horizontal line at initial capital)
     const baselineData = equityData.map(() => initialCapital);
     
+    const tightPlugin = {
+        id: 'tightLayout',
+        afterLayout: function(chart) {
+            chart.chartArea.top = 8;
+        }
+    };
+    
     equityChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -607,18 +614,13 @@ function buildEquityCurve(trades) {
                 }
             ]
         },
-        plugins: [{
-            id: 'tightLayout',
-            beforeLayout: function(chart) {
-                chart.options.layout.autoPadding = false;
-            }
-        }],
+        plugins: [tightPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
                 autoPadding: false,
-                padding: { top: 15, right: 60, bottom: 30, left: 10 }
+                padding: { top: 0, right: 0, bottom: 0, left: 0 }
             },
             interaction: {
                 intersect: false,

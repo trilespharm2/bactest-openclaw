@@ -346,8 +346,16 @@ function displayEquityCurve(trades) {
         equityCurveChart.destroy();
     }
 
-    // Set container height - taller since chart is full-width now
+    // Set container height
     container.style.height = isMobile ? '220px' : '350px';
+    
+    // Plugin to force chart area to start near the top of the canvas
+    const tightPlugin = {
+        id: 'tightLayout',
+        afterLayout: function(chart) {
+            chart.chartArea.top = 8;
+        }
+    };
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -365,18 +373,13 @@ function displayEquityCurve(trades) {
                 pointBackgroundColor: lineColor
             }]
         },
-        plugins: [{
-            id: 'tightLayout',
-            beforeLayout: function(chart) {
-                chart.options.layout.autoPadding = false;
-            }
-        }],
+        plugins: [tightPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
                 autoPadding: false,
-                padding: { top: 15, right: 60, bottom: 30, left: 10 }
+                padding: { top: 0, right: 0, bottom: 0, left: 0 }
             },
             plugins: {
                 legend: { display: false },
@@ -418,7 +421,6 @@ function displayEquityCurve(trades) {
                         color: '#9ca3af',
                         padding: 4,
                         count: 5,
-                        mirror: false,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
                                 return '$' + (value / 1000).toFixed(0) + 'k';
