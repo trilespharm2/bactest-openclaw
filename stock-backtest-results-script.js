@@ -436,7 +436,7 @@ function displayEquityCurve(trades) {
                         maxTicksLimit: tickLimit,
                         font: { size: isMobile ? 10 : 11 },
                         color: '#7b8ba0',
-                        padding: 10
+                        padding: 8
                     },
                     border: { display: false }
                 },
@@ -446,15 +446,16 @@ function displayEquityCurve(trades) {
                     min: minValue - pad,
                     max: maxValue + pad,
                     grid: {
-                        color: 'rgba(98, 116, 138, 0.14)',
-                        borderDash: [4, 4],
+                        color: (ctx) => (ctx.tick && ctx.tick.value === 0 ? 'rgba(31, 41, 55, 0.7)' : 'rgba(98, 116, 138, 0.16)'),
+                        borderDash: (ctx) => (ctx.tick && ctx.tick.value === 0 ? [] : [4, 4]),
+                        lineWidth: (ctx) => (ctx.tick && ctx.tick.value === 0 ? 2 : 1),
                         drawBorder: false
                     },
                     ticks: {
                         font: { size: isMobile ? 10 : 11 },
                         color: '#7b8ba0',
-                        padding: 12,
-                        count: 5,
+                        padding: 8,
+                        count: 4,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
                                 return '$' + (value / 1000).toFixed(0) + 'k';
