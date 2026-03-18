@@ -342,7 +342,7 @@ function displayEquityCurve(trades) {
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const valueRange = Math.max(maxValue - minValue, 1);
-    const yPadding = valueRange * 0.05;
+    const yPadding = valueRange * 0.12;
     const yMin = minValue - yPadding;
     const yMax = maxValue + yPadding;
     
@@ -360,7 +360,7 @@ function displayEquityCurve(trades) {
                 label: 'Balance ($)',
                 data: values,
                 borderColor: lineColor,
-                borderWidth: 2,
+                borderWidth: 2.5,
                 fill: false,
                 tension: 0,
                 pointRadius: 0,

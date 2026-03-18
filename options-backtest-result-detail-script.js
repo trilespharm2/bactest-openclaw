@@ -572,7 +572,7 @@ function buildEquityCurve(trades) {
     const minVal = Math.min(...equityData);
     const maxVal = Math.max(...equityData);
     const range = maxVal - minVal || 1;
-    const yPadding = range * 0.05;
+    const yPadding = range * 0.12;
     const isMobile = window.innerWidth <= 480;
     
     // Create baseline data (horizontal line at initial capital)
@@ -587,7 +587,7 @@ function buildEquityCurve(trades) {
                     label: 'Account Balance',
                     data: equityData,
                     borderColor: '#3b82f6',
-                    borderWidth: 2,
+                    borderWidth: 2.5,
                     fill: false,
                     tension: 0,
                     pointRadius: 0,

@@ -852,7 +852,7 @@ function renderEquityCurve(data) {
     const minVal = Math.min(...data.values);
     const maxVal = Math.max(...data.values);
     const range = maxVal - minVal || 1;
-    const yPadding = range * 0.05;
+    const yPadding = range * 0.12;
     const isMobile = window.innerWidth <= 480;
     
     equityCurveChart = new Chart(ctx, {
@@ -863,7 +863,7 @@ function renderEquityCurve(data) {
                 label: 'Cumulative P&L ($)',
                 data: data.values,
                 borderColor: '#3b82f6',
-                borderWidth: 2,
+                borderWidth: 2.5,
                 fill: false,
                 tension: 0,
                 pointRadius: 0,
