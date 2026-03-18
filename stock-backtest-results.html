@@ -27,6 +27,7 @@
         body.results-body {
             margin: 0;
             padding: 0;
+            overflow-x: hidden;
             background:
                 radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 28%),
                 linear-gradient(180deg, #f7fafe 0%, var(--report-bg) 100%);
@@ -35,8 +36,11 @@
 
         .results-shell {
             max-width: 1580px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             padding: 28px 24px 40px;
+            overflow-x: hidden;
         }
 
         .results-header {
@@ -264,17 +268,23 @@
 
         .equity-curve-wrap {
             padding: 0 12px 8px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .equity-curve-container {
             position: relative;
             width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
             height: min(52vh, 520px);
             min-height: 280px;
             padding: 0;
             border-radius: 12px;
             background: #fbfdff;
             border: 1px solid rgba(219, 228, 240, 0.95);
+            overflow: hidden;
         }
 
         .equity-curve-container canvas,
@@ -512,13 +522,14 @@
 
         @media (max-width: 720px) {
             .results-shell {
-                padding: 16px 12px 28px;
+                padding: 12px 10px 24px;
             }
 
             .results-header {
-                padding: 20px 18px;
-                border-radius: 20px;
+                padding: 16px 14px;
+                border-radius: 18px;
                 flex-direction: column;
+                gap: 14px;
             }
 
             .results-actions {
@@ -552,20 +563,17 @@
             }
 
             .equity-summary-chip {
-                flex: 0;
-                justify-content: center;
-                font-size: 10px;
-                padding: 4px 8px;
+                display: none;
             }
 
             .equity-curve-wrap {
-                padding: 0 8px 6px;
+                padding: 0 6px 6px;
             }
 
             .equity-curve-container {
-                height: 50vh;
-                min-height: 250px;
-                padding: 0;
+                height: 45vw;
+                min-height: 220px;
+                max-height: 340px;
             }
 
             .card-description,
@@ -575,7 +583,7 @@
 
             .card-eyebrow {
                 margin-bottom: 2px;
-                font-size: 9px;
+                font-size: 10px;
             }
 
             .card-title,
@@ -588,24 +596,31 @@
             }
 
             .stats-grid {
-                grid-template-columns: repeat(4, 1fr);
-                gap: 6px;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
             }
 
             .stat-pill,
             .stat-card {
-                padding: 8px 6px;
-                border-radius: 8px;
-                text-align: center;
+                padding: 10px 10px;
+                border-radius: 12px;
             }
 
             .stat-label {
-                font-size: 8px;
-                margin-bottom: 2px;
+                font-size: 10px;
+                margin-bottom: 4px;
             }
 
             .stat-value {
-                font-size: 13px;
+                font-size: 18px;
+            }
+
+            .config-list {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .summary-intro {
+                font-size: 12px;
             }
 
             .pagination-controls {
@@ -647,45 +662,50 @@
         }
 
         @media (max-width: 480px) {
+            .results-shell {
+                padding: 10px 8px 20px;
+            }
+
             .results-header {
                 padding: 12px;
-                border-radius: 12px;
+                border-radius: 14px;
             }
 
             .results-header h1 {
-                font-size: 15px;
+                font-size: 18px;
             }
 
             .results-subtitle {
-                font-size: 10px;
+                font-size: 11px;
+                margin-top: 4px;
             }
 
             .page-kicker {
-                font-size: 9px;
+                font-size: 10px;
             }
 
             .results-actions .btn {
-                padding: 8px 12px;
-                font-size: 11px;
+                padding: 9px 12px;
+                font-size: 12px;
             }
 
             .stats-grid {
-                grid-template-columns: repeat(4, 1fr);
-                gap: 4px;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
             }
 
             .stat-pill,
             .stat-card {
-                padding: 6px 4px;
-                border-radius: 6px;
+                padding: 8px;
+                border-radius: 10px;
             }
 
             .stat-label {
-                font-size: 7px;
+                font-size: 9px;
             }
 
             .stat-value {
-                font-size: 11px;
+                font-size: 16px;
             }
 
             .equity-actions {
@@ -693,21 +713,22 @@
                 align-items: center;
             }
 
-            .equity-summary-chip {
-                display: none;
-            }
-
             .equity-curve-container {
-                height: 40vh;
+                height: 42vw;
                 min-height: 200px;
+                max-height: 280px;
             }
 
             .equity-curve-wrap {
-                padding: 0 6px 4px;
+                padding: 0 4px 4px;
+            }
+
+            .config-list {
+                grid-template-columns: 1fr;
             }
 
             .results-table {
-                min-width: 760px;
+                min-width: 600px;
             }
 
             .pagination-controls {
@@ -722,6 +743,9 @@
     
         .chart-card, .equity-section, .equity-curve-container {
             overflow: hidden;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
     </style>
