@@ -86,10 +86,23 @@
 
         .equity-section {
             grid-area: equity;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
         }
-        
-        .equity-section.section-card {
-            padding: 8px 10px 4px 10px;
+
+        .equity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px 0 12px;
+        }
+
+        .equity-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
         }
         
         .equity-section .equity-curve-container {
@@ -341,15 +354,16 @@
         }
 
         .expand-chart-btn {
-            display: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             background: #f3f4f6;
             border: 1px solid #d1d5db;
             border-radius: 4px;
             cursor: pointer;
             color: #374151;
-            font-size: 16px;
-            padding: 6px 10px;
-            margin-left: auto;
+            font-size: 14px;
+            padding: 4px 8px;
         }
 
         .expand-chart-btn:hover {
@@ -677,9 +691,9 @@
                 </div>
             </div>
 
-            <div class="equity-section section-card" id="equitySection">
-                <div class="section-header">
-                    <h3><i class="fas fa-chart-area"></i> Equity Curve</h3>
+            <div class="equity-section" id="equitySection">
+                <div class="equity-header">
+                    <span class="equity-title">Equity Curve</span>
                     <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
                         <i class="fas fa-expand"></i>
                     </button>
