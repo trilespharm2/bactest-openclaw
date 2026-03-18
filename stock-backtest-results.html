@@ -12,15 +12,15 @@
         .results-container {
             max-width: 1600px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 12px 20px;
         }
         
         .results-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
-            padding: 20px;
+            margin-bottom: 12px;
+            padding: 12px 20px;
             background: white;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -29,7 +29,7 @@
         .results-header h1 {
             margin: 0;
             color: #1f2937;
-            font-size: 24px;
+            font-size: 20px;
         }
         
         .results-actions {
@@ -38,11 +38,11 @@
         }
         
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             display: inline-flex;
             align-items: center;
@@ -68,28 +68,48 @@
             background: #4b5563;
         }
 
-        /* Desktop Layout - Stacked vertical */
+        /* Main Layout */
         .main-layout {
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
 
-        /* --- Chart Section --- */
+        /* Chart Section - fills viewport */
         .equity-section {
             width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+        }
+
+        .equity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 14px;
+        }
+
+        .equity-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
         }
 
         .equity-curve-container {
             width: 100%;
+            height: calc(100vh - 240px);
+            min-height: 300px;
         }
 
         .equity-curve-container canvas {
             width: 100% !important;
+            height: 100% !important;
             display: block;
         }
 
-        /* --- Stats Row --- */
+        /* Stats Row */
         .stats-row {
             display: flex;
             gap: 8px;
@@ -120,21 +140,24 @@
             color: #1f2937;
         }
 
-        /* --- Config & Trades --- */
+        /* Config & Trades */
         .bottom-sections {
             display: grid;
             grid-template-columns: 280px 1fr;
             gap: 12px;
         }
 
-        /* Tablet Layout */
+        /* Tablet */
         @media (max-width: 1024px) {
             .bottom-sections {
                 grid-template-columns: 1fr;
             }
+            .equity-curve-container {
+                height: calc(100vh - 220px);
+            }
         }
 
-        /* Mobile Layout */
+        /* Mobile */
         @media (max-width: 480px) {
             body {
                 overflow-x: hidden;
@@ -170,11 +193,16 @@
             }
 
             .equity-header {
-                padding: 8px 10px 0 10px;
+                padding: 6px 10px;
             }
 
             .equity-title {
                 font-size: 12px;
+            }
+
+            .equity-curve-container {
+                height: 55vh;
+                min-height: 250px;
             }
             
             .stats-row {
@@ -448,10 +476,13 @@
 
         .equity-curve-container {
             width: 100%;
+            height: calc(100vh - 240px);
+            min-height: 300px;
         }
         
         .equity-curve-container canvas {
             width: 100% !important;
+            height: 100% !important;
             display: block;
         }
         
@@ -644,6 +675,9 @@
 
                     <!-- 1. Full-width Chart -->
                     <div class="equity-section" id="equitySection">
+                        <div class="equity-header">
+                            <span class="equity-title">Results</span>
+                        </div>
                         <div class="equity-curve-container" id="equityCurveContainer">
                             <canvas id="equityChart"></canvas>
                         </div>
