@@ -568,11 +568,6 @@ function buildEquityCurve(trades) {
     storedEquityData = equityData;
     storedLabels = labels;
     
-    // Calculate tight y-axis bounds with 5% padding
-    const minVal = Math.min(...equityData);
-    const maxVal = Math.max(...equityData);
-    const range = maxVal - minVal || 1;
-    const yPadding = range * 0.12;
     const isMobile = window.innerWidth <= 480;
     
     // Create baseline data (horizontal line at initial capital)
@@ -609,9 +604,9 @@ function buildEquityCurve(trades) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: isMobile ? 1.3 : 1.8,
+            aspectRatio: isMobile ? 1.2 : 1.5,
             layout: {
-                padding: { top: 0, right: 0, bottom: 0, left: 0 }
+                padding: { top: 2, right: 0, bottom: 0, left: 0 }
             },
             interaction: {
                 intersect: false,
@@ -648,8 +643,7 @@ function buildEquityCurve(trades) {
                 y: {
                     display: true,
                     position: 'right',
-                    min: minVal - yPadding,
-                    max: maxVal + yPadding,
+                    grace: '2%',
                     grid: {
                         color: 'rgba(0, 0, 0, 0.08)',
                         borderDash: [4, 4],
@@ -659,7 +653,7 @@ function buildEquityCurve(trades) {
                         color: '#9ca3af',
                         font: { size: isMobile ? 10 : 11 },
                         padding: 8,
-                        maxTicksLimit: 6,
+                        count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
                                 return '$' + (value / 1000).toFixed(0) + 'k';

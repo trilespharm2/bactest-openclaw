@@ -339,12 +339,6 @@ function displayEquityCurve(trades) {
     const finalValue = values[values.length - 1];
     const lineColor = '#3b82f6';
     const isMobile = window.innerWidth <= 480;
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const valueRange = Math.max(maxValue - minValue, 1);
-    const yPadding = valueRange * 0.12;
-    const yMin = minValue - yPadding;
-    const yMax = maxValue + yPadding;
     
     const ctx = document.getElementById('equityChart');
 
@@ -371,9 +365,9 @@ function displayEquityCurve(trades) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: isMobile ? 1.3 : 1.8,
+            aspectRatio: isMobile ? 1.2 : 1.5,
             layout: {
-                padding: { top: 0, right: 0, bottom: 0, left: 0 }
+                padding: { top: 2, right: 0, bottom: 0, left: 0 }
             },
             plugins: {
                 legend: { display: false },
@@ -404,8 +398,7 @@ function displayEquityCurve(trades) {
                 y: {
                     display: true,
                     position: 'right',
-                    min: yMin,
-                    max: yMax,
+                    grace: '2%',
                     grid: {
                         color: 'rgba(0, 0, 0, 0.08)',
                         borderDash: [4, 4],
@@ -415,7 +408,7 @@ function displayEquityCurve(trades) {
                         font: { size: isMobile ? 10 : 11 },
                         color: '#9ca3af',
                         padding: 8,
-                        maxTicksLimit: 6,
+                        count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
                                 return '$' + (value / 1000).toFixed(0) + 'k';

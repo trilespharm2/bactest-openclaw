@@ -848,11 +848,6 @@ function renderEquityCurve(data) {
         equityCurveChart.destroy();
     }
     
-    // Calculate tight y-axis bounds with 5% padding
-    const minVal = Math.min(...data.values);
-    const maxVal = Math.max(...data.values);
-    const range = maxVal - minVal || 1;
-    const yPadding = range * 0.12;
     const isMobile = window.innerWidth <= 480;
     
     equityCurveChart = new Chart(ctx, {
@@ -874,9 +869,9 @@ function renderEquityCurve(data) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: isMobile ? 1.3 : 1.8,
+            aspectRatio: isMobile ? 1.2 : 1.5,
             layout: {
-                padding: { top: 0, right: 0, bottom: 0, left: 0 }
+                padding: { top: 2, right: 0, bottom: 0, left: 0 }
             },
             plugins: {
                 legend: { display: false },
@@ -907,8 +902,7 @@ function renderEquityCurve(data) {
                 y: {
                     display: true,
                     position: 'right',
-                    min: minVal - yPadding,
-                    max: maxVal + yPadding,
+                    grace: '2%',
                     grid: {
                         color: 'rgba(0, 0, 0, 0.08)',
                         borderDash: [4, 4],
@@ -918,7 +912,7 @@ function renderEquityCurve(data) {
                         font: { size: isMobile ? 10 : 11 },
                         color: '#9ca3af',
                         padding: 8,
-                        maxTicksLimit: 6,
+                        count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
                                 return '$' + (value / 1000).toFixed(0) + 'k';
