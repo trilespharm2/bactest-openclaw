@@ -397,9 +397,9 @@ function displayEquityCurve(trades) {
                 data: values,
                 borderColor: lineColor,
                 backgroundColor: fillColor,
-                borderWidth: 1,
-                fill: true,
-                tension: 0.18,
+                borderWidth: 2.5,
+                fill: false,
+                tension: 0,
                 pointRadius: 0,
                 pointHoverRadius: 4,
                 pointBackgroundColor: lineColor

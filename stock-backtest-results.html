@@ -154,9 +154,9 @@
         .section-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             gap: 12px;
-            padding: 22px 24px 0;
+            padding: 10px 14px;
         }
 
         .section-header {
@@ -180,9 +180,9 @@
         .chart-modal-header h3 {
             margin: 0;
             color: var(--report-text);
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: -0.02em;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
 
         .card-description,
@@ -265,19 +265,17 @@
         }
 
         .equity-curve-wrap {
-            padding: 18px 18px 20px;
+            padding: 0 12px 8px;
         }
 
         .equity-curve-container {
             position: relative;
             width: 100%;
             height: min(52vh, 520px);
-            min-height: 320px;
-            padding: 12px 12px 4px;
-            border-radius: 20px;
-            background:
-                linear-gradient(180deg, rgba(37, 99, 235, 0.05), rgba(255, 255, 255, 0)),
-                #fbfdff;
+            min-height: 280px;
+            padding: 0;
+            border-radius: 12px;
+            background: #fbfdff;
             border: 1px solid rgba(219, 228, 240, 0.95);
         }
 
@@ -546,36 +544,38 @@
             .card-header,
             .equity-header,
             .section-header {
-                padding: 18px 18px 0;
+                padding: 8px 12px;
             }
 
             .section-content,
             .trades-section .section-content {
-                padding: 14px 18px 18px;
+                padding: 10px 12px 14px;
             }
 
             .equity-header {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
             }
 
             .equity-actions {
-                justify-content: space-between;
+                justify-content: flex-end;
             }
 
             .equity-summary-chip {
-                flex: 1;
+                flex: 0;
                 justify-content: center;
+                font-size: 10px;
+                padding: 4px 8px;
             }
 
             .equity-curve-wrap {
-                padding: 14px;
+                padding: 0 8px 6px;
             }
 
             .equity-curve-container {
-                height: 48vh;
-                min-height: 300px;
-                padding: 12px 8px 4px;
+                height: 50vh;
+                min-height: 250px;
+                padding: 0;
             }
 
             .stats-grid {
@@ -734,14 +734,12 @@
                 <div class="equity-section" id="equitySection">
                     <div class="equity-header">
                         <div>
-                            <span class="card-eyebrow">Equity Curve</span>
-                            <h2 class="equity-title">Portfolio performance over time</h2>
-                            <p class="equity-description">Cumulative P&amp;L across completed trades.</p>
+                            <span class="equity-title">Equity Curve</span>
                         </div>
                         <div class="equity-actions">
                             <span class="equity-summary-chip" id="equitySummaryChip">Awaiting results</span>
                             <button class="expand-chart-btn" type="button" onclick="expandChart()">
-                                <i class="fas fa-expand"></i> Expand chart
+                                <i class="fas fa-expand"></i>
                             </button>
                         </div>
                     </div>
