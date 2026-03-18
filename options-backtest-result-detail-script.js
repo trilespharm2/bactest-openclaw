@@ -576,12 +576,6 @@ function buildEquityCurve(trades) {
     const dataRange = Math.max(maxVal - minVal, 1);
     const pad = dataRange * 0.08;
     
-    // Set container height explicitly
-    const equityContainer = document.getElementById('equityCurveContainer');
-    if (equityContainer) {
-        equityContainer.style.height = isMobile ? '300px' : '500px';
-    }
-    
     // Create baseline data (horizontal line at initial capital)
     const baselineData = equityData.map(() => initialCapital);
     
@@ -617,8 +611,7 @@ function buildEquityCurve(trades) {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                autoPadding: false,
-                padding: { top: 5, right: 55, bottom: 25, left: 5 }
+                padding: { top: 10, right: 10, bottom: 5, left: 5 }
             },
             interaction: {
                 intersect: false,

@@ -856,12 +856,6 @@ function renderEquityCurve(data) {
     const dataRange = Math.max(maxVal - minVal, 1);
     const pad = dataRange * 0.08;
 
-    // Set container height
-    const chartContainer = ctx.parentElement;
-    if (chartContainer) {
-        chartContainer.style.height = isMobile ? '300px' : '500px';
-    }
-    
     equityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -882,8 +876,7 @@ function renderEquityCurve(data) {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                autoPadding: false,
-                padding: { top: 5, right: 55, bottom: 25, left: 5 }
+                padding: { top: 10, right: 10, bottom: 5, left: 5 }
             },
             plugins: {
                 legend: { display: false },

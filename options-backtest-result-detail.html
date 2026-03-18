@@ -11,15 +11,15 @@
         .results-container {
             max-width: 1600px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 12px 20px;
         }
         
         .results-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
-            padding: 20px;
+            margin-bottom: 12px;
+            padding: 12px 20px;
             background: white;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -28,7 +28,7 @@
         .results-header h1 {
             margin: 0;
             color: #1f2937;
-            font-size: 24px;
+            font-size: 20px;
         }
         
         .results-actions {
@@ -37,11 +37,11 @@
         }
         
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             display: inline-flex;
             align-items: center;
@@ -67,62 +67,76 @@
             background: #4b5563;
         }
 
-        /* Desktop Layout - Equity full width, config/stats below side by side */
+        /* Main Layout - vertical stack */
         .main-layout {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto;
+            display: flex;
+            flex-direction: column;
             gap: 12px;
-            grid-template-areas:
-                "equity equity"
-                "config stats"
-                "trades trades";
-            align-items: stretch;
         }
 
         .config-section {
-            grid-area: config;
+            /* no grid area needed */
         }
 
         .equity-section {
-            grid-area: equity;
             width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+        }
+
+        .equity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 14px;
+        }
+
+        .equity-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
         }
         
         .equity-section .equity-curve-container {
             width: 100%;
+            height: calc(100vh - 240px);
+            min-height: 300px;
         }
         
         .equity-section .equity-curve-container canvas {
             width: 100% !important;
+            height: 100% !important;
             display: block;
         }
 
         .stats-section {
-            grid-area: stats;
+            /* no grid area needed */
         }
 
         .trades-section {
-            grid-area: trades;
+            /* no grid area needed */
         }
 
-        /* Tablet Layout */
+        /* Bottom row: config + stats side by side */
+        .bottom-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* Tablet */
         @media (max-width: 1024px) {
-            .main-layout {
+            .bottom-sections {
                 grid-template-columns: 1fr;
-                grid-template-areas:
-                    "equity"
-                    "config"
-                    "stats"
-                    "trades";
             }
-            
-            .config-list {
-                grid-template-columns: repeat(2, 1fr);
+            .equity-section .equity-curve-container {
+                height: calc(100vh - 220px);
             }
         }
 
-        /* Mobile Layout - iPhone 12 (390px) and iPhone SE (375px) */
+        /* Mobile */
         @media (max-width: 480px) {
             body {
                 overflow-x: hidden;
@@ -173,8 +187,9 @@
                 font-size: 10px;
             }
             
-            .equity-curve-container {
-                width: 100%;
+            .equity-section .equity-curve-container {
+                height: 55vh;
+                min-height: 250px;
             }
             
             .config-list {
@@ -269,22 +284,12 @@
             .section-header {
                 cursor: pointer;
             }
-            
-            .expand-chart-btn {
-                display: inline-flex !important;
-                align-items: center;
-                justify-content: center;
-            }
         }
         
-        /* Extra small screens - iPhone SE landscape or very compact view */
+        /* Extra small screens */
         @media (max-width: 375px) {
             .results-header h1 {
                 font-size: 13px;
-            }
-            
-            .equity-curve-container {
-                width: 100%;
             }
             
             .config-list {
@@ -448,10 +453,13 @@
 
         .equity-curve-container {
             width: 100%;
+            height: calc(100vh - 240px);
+            min-height: 300px;
         }
         
         .equity-curve-container canvas {
             width: 100% !important;
+            height: 100% !important;
             display: block;
         }
         
@@ -665,65 +673,76 @@
         </div>
 
         <div id="mainLayout" class="main-layout" style="display: none;">
-            <div class="config-section section-card" id="configSection">
-                <div class="section-header" onclick="toggleSection('configContent', this)">
-                    <h3><i class="fas fa-cog"></i> Configuration</h3>
-                    <i class="fas fa-chevron-down collapse-icon"></i>
-                </div>
-                <div class="section-content" id="configContent">
-                    <div class="config-list" id="configList"></div>
-                </div>
-            </div>
-
+            <!-- 1. Full-width Chart -->
             <div class="equity-section" id="equitySection">
+                <div class="equity-header">
+                    <span class="equity-title">Results</span>
+                    <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
                 <div class="equity-curve-container" id="equityCurveContainer">
                     <canvas id="equityChart"></canvas>
                 </div>
             </div>
 
-            <div class="stats-section section-card" id="statsSection">
-                <div class="section-header" onclick="toggleSection('statsContent', this)">
-                    <h3><i class="fas fa-chart-bar"></i> Performance</h3>
-                    <i class="fas fa-chevron-down collapse-icon"></i>
+            <!-- 2. Config + Stats side by side -->
+            <div class="bottom-sections">
+                <div class="config-section section-card" id="configSection">
+                    <div class="section-header" onclick="toggleSection('configContent', this)">
+                        <h3><i class="fas fa-cog"></i> Configuration</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
+                    </div>
+                    <div class="section-content" id="configContent">
+                        <div class="config-list" id="configList"></div>
+                    </div>
                 </div>
-                <div class="section-content" id="statsContent">
-                    <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Total Trades</div>
-                        <div class="stat-value" id="statTotalTrades">-</div>
+
+                <div class="stats-section section-card" id="statsSection">
+                    <div class="section-header" onclick="toggleSection('statsContent', this)">
+                        <h3><i class="fas fa-chart-bar"></i> Performance</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Win Rate</div>
-                        <div class="stat-value" id="statWinRate">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Total P&L</div>
-                        <div class="stat-value" id="statTotalPL">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Avg Trade</div>
-                        <div class="stat-value" id="statAvgTrade">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Max DD</div>
-                        <div class="stat-value" id="statMaxDrawdown">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Profit Factor</div>
-                        <div class="stat-value" id="statSharpeRatio">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Final Capital</div>
-                        <div class="stat-value" id="statFinalCapital">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Return %</div>
-                        <div class="stat-value" id="statReturnPct">-</div>
-                    </div>
+                    <div class="section-content" id="statsContent">
+                        <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Trades</div>
+                            <div class="stat-value" id="statTotalTrades">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Win Rate</div>
+                            <div class="stat-value" id="statWinRate">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total P&L</div>
+                            <div class="stat-value" id="statTotalPL">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Avg Trade</div>
+                            <div class="stat-value" id="statAvgTrade">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Max DD</div>
+                            <div class="stat-value" id="statMaxDrawdown">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Profit Factor</div>
+                            <div class="stat-value" id="statSharpeRatio">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Final Capital</div>
+                            <div class="stat-value" id="statFinalCapital">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Return %</div>
+                            <div class="stat-value" id="statReturnPct">-</div>
+                        </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            <!-- 3. Trade Log -->
             <div class="trades-section section-card" id="tradesSection">
                 <div class="section-header" onclick="toggleSection('tradesContent', this)">
                     <h3><i class="fas fa-table"></i> Trade Log</h3>
