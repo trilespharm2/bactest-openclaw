@@ -578,33 +578,61 @@
                 padding: 0;
             }
 
+            .card-description,
+            .equity-description {
+                display: none;
+            }
+
+            .card-eyebrow {
+                margin-bottom: 2px;
+                font-size: 9px;
+            }
+
+            .card-title,
+            .equity-title {
+                font-size: 13px;
+            }
+
+            .section-content {
+                padding: 8px 12px 12px;
+            }
+
             .stats-grid {
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 6px;
             }
 
             .stat-pill,
             .stat-card {
-                padding: 14px;
-                border-radius: 16px;
+                padding: 8px 6px;
+                border-radius: 8px;
+                text-align: center;
+            }
+
+            .stat-label {
+                font-size: 8px;
+                margin-bottom: 2px;
             }
 
             .stat-value {
-                font-size: 20px;
+                font-size: 13px;
             }
 
             .pagination-controls {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
             }
 
             .pagination-buttons {
-                width: 100%;
+                width: auto;
             }
 
             .pagination-buttons .btn {
-                flex: 1;
+                flex: 0;
                 justify-content: center;
+                padding: 6px 10px;
+                font-size: 11px;
             }
 
             .collapse-icon {
@@ -629,20 +657,45 @@
         }
 
         @media (max-width: 480px) {
+            .results-header {
+                padding: 12px;
+                border-radius: 12px;
+            }
+
             .results-header h1 {
-                font-size: 16px;
+                font-size: 15px;
             }
 
             .results-subtitle {
-                font-size: 11px;
-            }
-
-            .page-kicker {
                 font-size: 10px;
             }
 
+            .page-kicker {
+                font-size: 9px;
+            }
+
+            .results-actions .btn {
+                padding: 8px 12px;
+                font-size: 11px;
+            }
+
             .stats-grid {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 4px;
+            }
+
+            .stat-pill,
+            .stat-card {
+                padding: 6px 4px;
+                border-radius: 6px;
+            }
+
+            .stat-label {
+                font-size: 7px;
+            }
+
+            .stat-value {
+                font-size: 11px;
             }
 
             .equity-actions {
@@ -650,13 +703,30 @@
                 align-items: center;
             }
 
+            .equity-summary-chip {
+                display: none;
+            }
+
             .equity-curve-container {
-                height: 45vh;
-                min-height: 220px;
+                height: 40vh;
+                min-height: 200px;
+            }
+
+            .equity-curve-wrap {
+                padding: 0 6px 4px;
             }
 
             .results-table {
                 min-width: 760px;
+            }
+
+            .pagination-controls {
+                padding: 4px 0;
+            }
+
+            .pagination-buttons .btn {
+                padding: 6px 10px;
+                font-size: 10px;
             }
         }
     
