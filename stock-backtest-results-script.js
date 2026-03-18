@@ -74,6 +74,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     await checkStatusAndLoad();
 });
 
+// Resize chart on window resize (orientation change, zoom, etc.)
+window.addEventListener('resize', () => {
+    if (equityCurveChart) {
+        clearTimeout(window._chartResizeTimer);
+        window._chartResizeTimer = setTimeout(() => {
+            equityCurveChart.resize();
+        }, 80);
+    }
+});
+
 function setupButtons() {
     // Download CSV button
     const downloadBtn = document.getElementById('downloadCSV');
@@ -483,7 +493,20 @@ function displayEquityCurve(trades) {
     });
     setTimeout(() => {
         if (equityCurveChart) equityCurveChart.resize();
-    }, 100);
+    }, 50);
+    setTimeout(() => {
+        if (equityCurveChart) equityCurveChart.resize();
+    }, 300);
+
+    // Watch container for size changes and keep chart in sync
+    const chartContainer = document.getElementById('equityCurveContainer');
+    if (chartContainer && window.ResizeObserver) {
+        if (window._chartResizeObserver) window._chartResizeObserver.disconnect();
+        window._chartResizeObserver = new ResizeObserver(() => {
+            if (equityCurveChart) equityCurveChart.resize();
+        });
+        window._chartResizeObserver.observe(chartContainer);
+    }
 }
 
 function displayTrades(trades) {
