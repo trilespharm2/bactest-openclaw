@@ -520,14 +520,14 @@
 
         @media (max-width: 1180px) {
             .stats-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: repeat(4, minmax(0, 1fr));
             }
         }
 
+        /* ── Mobile layout (media query) ────────────────────────────── */
         @media (max-width: 720px) {
-            .results-shell {
-                padding: 10px 8px 20px;
-            }
+            .results-shell     { padding: 10px 8px 20px; }
+            .main-layout       { gap: 12px; }
 
             .results-header {
                 padding: 14px 12px;
@@ -536,27 +536,11 @@
                 gap: 12px;
                 margin-bottom: 14px;
             }
+            .results-header h1   { font-size: clamp(15px, 5vw, 22px); }
+            .results-subtitle    { font-size: 11px; margin-top: 4px; }
+            .page-kicker         { font-size: 9px; padding: 4px 8px; margin-bottom: 6px; }
 
-            .results-header h1 {
-                font-size: clamp(16px, 5vw, 24px);
-            }
-
-            .results-subtitle {
-                font-size: 11px;
-                margin-top: 4px;
-            }
-
-            .page-kicker {
-                font-size: 9px;
-                padding: 4px 8px;
-                margin-bottom: 6px;
-            }
-
-            .results-actions {
-                width: 100%;
-                justify-content: stretch;
-            }
-
+            .results-actions     { width: 100%; }
             .results-actions .btn {
                 flex: 1;
                 justify-content: center;
@@ -564,251 +548,134 @@
                 font-size: 12px;
             }
 
-            .main-layout {
-                gap: 12px;
-            }
-
             .report-card,
             .section-card,
-            .equity-section {
-                border-radius: 14px;
-            }
+            .equity-section      { border-radius: 14px; }
 
             .card-header,
             .equity-header,
-            .section-header {
-                padding: 8px 10px;
-            }
-
-            .section-content,
-            .trades-section .section-content {
-                padding: 8px 10px 12px;
-            }
-
-            .equity-header {
-                flex-direction: row;
-                align-items: center;
-            }
-
-            .equity-actions {
-                justify-content: flex-end;
-            }
-
-            .equity-summary-chip {
-                display: none;
-            }
-
-            .expand-chart-btn {
-                padding: 6px 10px;
-                font-size: 11px;
-            }
-
-            .equity-curve-wrap {
-                padding: 0 4px 4px;
-            }
-
-            .equity-curve-container {
-                height: 50vw;
-                min-height: 180px;
-                max-height: 300px;
-            }
+            .section-header      { padding: 8px 10px; }
 
             .card-description,
-            .equity-description {
-                display: none;
-            }
-
-            .card-eyebrow {
-                margin-bottom: 2px;
-                font-size: 9px;
-            }
-
+            .equity-description  { display: none; }
+            .card-eyebrow        { font-size: 9px; margin-bottom: 2px; }
             .card-title,
-            .equity-title {
-                font-size: 12px;
-            }
+            .equity-title        { font-size: 12px; }
+            .section-card h3     { font-size: 14px; }
 
-            .section-card h3 {
-                font-size: 14px;
-            }
+            .equity-summary-chip { display: none; }
+            .expand-chart-btn    { padding: 6px 10px; font-size: 11px; }
 
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 6px;
-            }
+            .collapse-icon       { display: inline-block; }
+            .section-header      { cursor: pointer; }
 
-            .stat-pill,
-            .stat-card {
-                padding: 8px;
-                border-radius: 10px;
-                text-align: center;
-            }
-
-            .stat-label {
-                font-size: 8px;
-                margin-bottom: 3px;
-                letter-spacing: 0.04em;
-            }
-
-            .stat-value {
-                font-size: 15px;
-                letter-spacing: -0.02em;
-            }
-
-            .config-list {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
-
-            .config-list .stat-card {
-                padding: 8px 10px;
-            }
-
-            .config-list .stat-label {
-                font-size: 8px;
-            }
-
-            .config-list .stat-value {
-                font-size: 13px;
-            }
-
-            .summary-intro {
-                font-size: 11px;
-                margin-bottom: 10px;
-            }
+            .chart-modal         { padding: 8px; }
+            .chart-modal-header  { padding: 12px 14px; }
+            .chart-modal-content { padding: 10px; }
 
             .pagination-controls {
-                flex-direction: row;
-                align-items: center;
                 gap: 8px;
                 margin-bottom: 10px;
                 padding-bottom: 10px;
             }
-
-            .pagination-info {
-                font-size: 11px;
-            }
-
-            .pagination-buttons .btn {
-                padding: 5px 8px;
-                font-size: 10px;
-            }
-
-            .collapse-icon {
-                display: inline-block;
-            }
-
-            .section-header {
-                cursor: pointer;
-            }
-
-            .chart-modal {
-                padding: 8px;
-            }
-
-            .chart-modal-header {
-                padding: 12px 14px;
-            }
-
-            .chart-modal-content {
-                padding: 10px;
-            }
+            .pagination-info           { font-size: 11px; }
+            .pagination-buttons .btn   { padding: 5px 8px; font-size: 10px; }
         }
 
         @media (max-width: 430px) {
-            .results-shell {
-                padding: 8px 6px 16px;
-            }
-
-            .results-header {
-                padding: 10px;
-                border-radius: 12px;
-                gap: 10px;
-            }
-
-            .results-header h1 {
-                font-size: 15px;
-            }
-
-            .results-subtitle {
-                font-size: 10px;
-            }
-
-            .page-kicker {
-                font-size: 8px;
-            }
-
-            .results-actions .btn {
-                padding: 7px 8px;
-                font-size: 11px;
-                gap: 5px;
-            }
-
-            .equity-curve-container {
-                height: 48vw;
-                min-height: 160px;
-                max-height: 260px;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 5px;
-            }
-
-            .stat-pill,
-            .stat-card {
-                padding: 6px 5px;
-                border-radius: 8px;
-            }
-
-            .stat-label {
-                font-size: 7px;
-                margin-bottom: 2px;
-            }
-
-            .stat-value {
-                font-size: 13px;
-            }
-
-            .config-list {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 6px;
-            }
-
-            .config-list .stat-card {
-                padding: 6px 8px;
-            }
-
-            .config-list .stat-value {
-                font-size: 12px;
-            }
-
-            .section-card h3 {
-                font-size: 13px;
-            }
-
-            .results-table {
-                min-width: 540px;
-                font-size: 11px;
-            }
-
-            .results-table th,
-            .results-table td {
-                padding: 10px 10px;
-            }
-
-            .pagination-controls {
-                padding: 3px 0;
-            }
-
-            .pagination-buttons .btn {
-                padding: 4px 7px;
-                font-size: 10px;
-            }
+            .results-shell    { padding: 8px 6px 16px; }
+            .results-header   { padding: 10px; border-radius: 12px; gap: 10px; }
+            .results-header h1 { font-size: 15px; }
+            .results-subtitle  { font-size: 10px; }
+            .page-kicker       { font-size: 8px; }
+            .results-actions .btn { padding: 7px 8px; font-size: 11px; gap: 5px; }
+            .section-card h3  { font-size: 13px; }
+            .pagination-buttons .btn { padding: 4px 7px; font-size: 10px; }
         }
-    
+
+        /* ── is-mobile: JS-driven per-card horizontal scroll ────────── */
+        /* Applied by JS when window.innerWidth <= 720                   */
+
+        /* Each card clips at screen width; inner wrappers scroll       */
+        body.is-mobile .equity-section,
+        body.is-mobile .report-card,
+        body.is-mobile .section-card    { overflow: hidden; }
+
+        /* Equity curve — scrollable wrap */
+        body.is-mobile .equity-curve-wrap {
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 4px 6px;
+        }
+        body.is-mobile .equity-curve-container {
+            min-width: 300px;
+            width: max(300px, 100%);
+            height: 200px;
+            min-height: unset;
+            max-height: unset;
+        }
+
+        /* Stats card — scrollable section-content */
+        body.is-mobile .stats-card .section-content {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 10px 12px;
+        }
+        body.is-mobile .stats-grid {
+            grid-template-columns: repeat(4, minmax(82px, 1fr));
+            min-width: 340px;
+            gap: 6px;
+        }
+        body.is-mobile .stat-pill,
+        body.is-mobile .stat-card {
+            padding: 10px 8px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        body.is-mobile .stat-label {
+            font-size: 9px;
+            margin-bottom: 3px;
+        }
+        body.is-mobile .stat-value { font-size: 15px; }
+
+        /* Config card — scrollable section-content */
+        body.is-mobile .summary-panel .section-content {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 10px 12px;
+        }
+        body.is-mobile .config-list {
+            grid-template-columns: repeat(3, minmax(110px, 1fr));
+            min-width: 340px;
+            gap: 8px;
+        }
+        body.is-mobile .config-list .stat-card  { padding: 8px 10px; }
+        body.is-mobile .config-list .stat-label { font-size: 9px; }
+        body.is-mobile .config-list .stat-value { font-size: 13px; }
+        body.is-mobile .summary-intro            { font-size: 11px; margin-bottom: 10px; }
+
+        /* Trades card — already scrollable via table-container; tighten */
+        body.is-mobile .trades-section .section-content { padding: 8px 10px 12px; }
+        body.is-mobile .results-table   { font-size: 12px; }
+        body.is-mobile .results-table th,
+        body.is-mobile .results-table td { padding: 10px 12px; }
+
+        /* is-small-mobile (<= 430px) overrides */
+        body.is-small-mobile .equity-curve-container { height: 180px; }
+        body.is-small-mobile .stats-grid {
+            grid-template-columns: repeat(4, minmax(72px, 1fr));
+            min-width: 300px;
+        }
+        body.is-small-mobile .stat-label { font-size: 8px; }
+        body.is-small-mobile .stat-value { font-size: 13px; }
+        body.is-small-mobile .config-list {
+            grid-template-columns: repeat(2, minmax(110px, 1fr));
+            min-width: 240px;
+        }
+
+        /* Base constraints */
         .chart-card, .equity-section, .equity-curve-container {
-            overflow: hidden;
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;

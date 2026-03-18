@@ -1,6 +1,26 @@
 // Stock Backtest Results V3.0 - Results Display Script
 // Loads and displays detailed backtest results with polling support
 
+// ── Screen width detection ───────────────────────────────────────────────────
+const MOBILE_BREAKPOINT = 720;
+const SMALL_BREAKPOINT  = 430;
+
+function updateScreenClass() {
+    const w = window.innerWidth;
+    document.body.classList.toggle('is-mobile',       w <= MOBILE_BREAKPOINT);
+    document.body.classList.toggle('is-small-mobile', w <= SMALL_BREAKPOINT);
+}
+
+updateScreenClass();
+window.addEventListener('resize', () => {
+    updateScreenClass();
+    if (equityCurveChart) {
+        clearTimeout(window._chartResizeTimer);
+        window._chartResizeTimer = setTimeout(() => equityCurveChart.resize(), 80);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 let backtestId = null;
 let originPage = null;
 
@@ -72,16 +92,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Check status and load results
     await checkStatusAndLoad();
-});
-
-// Resize chart on window resize (orientation change, zoom, etc.)
-window.addEventListener('resize', () => {
-    if (equityCurveChart) {
-        clearTimeout(window._chartResizeTimer);
-        window._chartResizeTimer = setTimeout(() => {
-            equityCurveChart.resize();
-        }, 80);
-    }
 });
 
 function setupButtons() {
