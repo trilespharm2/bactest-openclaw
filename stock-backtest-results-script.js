@@ -353,7 +353,7 @@ function displayEquityCurve(trades) {
     }
 
     // Tall container
-    container.style.height = isMobile ? '260px' : '360px';
+    container.style.height = isMobile ? '300px' : '500px';
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -376,7 +376,7 @@ function displayEquityCurve(trades) {
             maintainAspectRatio: false,
             layout: {
                 autoPadding: false,
-                padding: { top: 15, right: 60, bottom: 30, left: 10 }
+                padding: { top: 5, right: 55, bottom: 25, left: 5 }
             },
             plugins: {
                 legend: { display: false },
