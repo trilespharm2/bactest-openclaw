@@ -607,11 +607,18 @@ function buildEquityCurve(trades) {
                 }
             ]
         },
+        plugins: [{
+            id: 'tightLayout',
+            beforeLayout: function(chart) {
+                chart.options.layout.autoPadding = false;
+            }
+        }],
         options: {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 10, right: 0, bottom: 0, left: 0 }
+                autoPadding: false,
+                padding: { top: 15, right: 60, bottom: 30, left: 10 }
             },
             interaction: {
                 intersect: false,
@@ -641,12 +648,9 @@ function buildEquityCurve(trades) {
                         maxTicksLimit: isMobile ? 4 : 10,
                         color: '#9ca3af',
                         font: { size: isMobile ? 10 : 11 },
-                        padding: 6
+                        padding: 4
                     },
-                    border: { display: false },
-                    afterFit: function(axis) {
-                        axis.paddingTop = 0;
-                    }
+                    border: { display: false }
                 },
                 y: {
                     display: true,
@@ -660,7 +664,7 @@ function buildEquityCurve(trades) {
                     ticks: {
                         color: '#9ca3af',
                         font: { size: isMobile ? 10 : 11 },
-                        padding: 8,
+                        padding: 4,
                         count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
@@ -669,11 +673,7 @@ function buildEquityCurve(trades) {
                             return '$' + value.toLocaleString();
                         }
                     },
-                    border: { display: false },
-                    afterFit: function(axis) {
-                        axis.paddingTop = 0;
-                        axis.paddingBottom = 0;
-                    }
+                    border: { display: false }
                 }
             }
         }

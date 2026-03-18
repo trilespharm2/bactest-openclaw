@@ -872,11 +872,18 @@ function renderEquityCurve(data) {
                 pointBackgroundColor: '#3b82f6'
             }]
         },
+        plugins: [{
+            id: 'tightLayout',
+            beforeLayout: function(chart) {
+                chart.options.layout.autoPadding = false;
+            }
+        }],
         options: {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 10, right: 0, bottom: 0, left: 0 }
+                autoPadding: false,
+                padding: { top: 15, right: 60, bottom: 30, left: 10 }
             },
             plugins: {
                 legend: { display: false },
@@ -900,12 +907,9 @@ function renderEquityCurve(data) {
                         maxTicksLimit: isMobile ? 4 : 8,
                         font: { size: isMobile ? 10 : 11 },
                         color: '#9ca3af',
-                        padding: 6
+                        padding: 4
                     },
-                    border: { display: false },
-                    afterFit: function(axis) {
-                        axis.paddingTop = 0;
-                    }
+                    border: { display: false }
                 },
                 y: {
                     display: true,
@@ -919,7 +923,7 @@ function renderEquityCurve(data) {
                     ticks: {
                         font: { size: isMobile ? 10 : 11 },
                         color: '#9ca3af',
-                        padding: 8,
+                        padding: 4,
                         count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
@@ -928,11 +932,7 @@ function renderEquityCurve(data) {
                             return '$' + value.toLocaleString();
                         }
                     },
-                    border: { display: false },
-                    afterFit: function(axis) {
-                        axis.paddingTop = 0;
-                        axis.paddingBottom = 0;
-                    }
+                    border: { display: false }
                 }
             },
             interaction: {
