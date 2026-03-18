@@ -388,6 +388,9 @@ function displayEquityCurve(trades) {
         equityCurveChart.destroy();
     }
     
+    ctx.style.width = '100%';
+    ctx.style.maxWidth = '100%';
+
     equityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -473,6 +476,14 @@ function displayEquityCurve(trades) {
             }
         }
     });
+
+    // Force chart to recalculate dimensions after layout settles (fixes iframe/mobile overflow)
+    requestAnimationFrame(() => {
+        if (equityCurveChart) equityCurveChart.resize();
+    });
+    setTimeout(() => {
+        if (equityCurveChart) equityCurveChart.resize();
+    }, 100);
 }
 
 function displayTrades(trades) {
