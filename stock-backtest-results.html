@@ -630,24 +630,29 @@
 
         @media (max-width: 480px) {
             .results-header h1 {
-                font-size: 24px;
+                font-size: 16px;
             }
 
             .results-subtitle {
-                font-size: 14px;
-            }
-
-            .page-kicker {
                 font-size: 11px;
             }
 
+            .page-kicker {
+                font-size: 10px;
+            }
+
             .stats-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
             }
 
             .equity-actions {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
+            }
+
+            .equity-curve-container {
+                height: 45vh;
+                min-height: 220px;
             }
 
             .results-table {
