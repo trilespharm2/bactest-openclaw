@@ -129,13 +129,11 @@
 
         .main-layout {
             display: grid;
-            grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.8fr);
+            grid-template-columns: 1fr;
             gap: 22px;
-            align-items: start;
         }
 
-        .content-column,
-        .sidebar-column {
+        .content-column {
             display: grid;
             gap: 22px;
         }
@@ -344,7 +342,7 @@
 
         .config-list {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 12px;
         }
 
@@ -507,14 +505,6 @@
         }
 
         @media (max-width: 1180px) {
-            .main-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .summary-panel {
-                position: static;
-            }
-
             .stats-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -730,49 +720,8 @@
             }
         }
     
-        .report-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 320px;
-            gap: 20px;
-            align-items: start;
-        }
-        .report-main, .report-sidebar {
-            min-width: 0;
-        }
-        .report-sidebar {
-            position: static !important;
-            top: auto !important;
-            right: auto !important;
-            left: auto !important;
-            transform: none !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
         .chart-card, .equity-section, .equity-curve-container {
             overflow: hidden;
-        }
-        @media (max-width: 1024px) {
-            .report-layout {
-                grid-template-columns: 1fr;
-            }
-        }
-
-    
-        .report-layout > * {
-            min-width: 0;
-        }
-        .report-main {
-            grid-column: 1;
-        }
-        .report-sidebar {
-            grid-column: 2;
-            z-index: 1;
-        }
-        .report-main .chart-card,
-        .report-main .equity-curve-wrap,
-        .report-main .equity-curve-container {
-            width: 100%;
-            max-width: 100%;
         }
 
     </style>
@@ -822,6 +771,17 @@
                         <div class="equity-curve-container" id="equityCurveContainer">
                             <canvas id="equityChart"></canvas>
                         </div>
+                    </div>
+                </div>
+
+                <div class="summary-panel section-card" id="configSection">
+                    <div class="section-header" onclick="toggleSection('configContent', this)">
+                        <h3><i class="fas fa-sliders"></i> Configuration</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
+                    </div>
+                    <div class="section-content" id="configContent">
+                        <p class="summary-intro">Backtest settings, date range, sizing, and exit rules for this report.</p>
+                        <div class="config-list" id="configList"></div>
                     </div>
                 </div>
 
@@ -900,18 +860,6 @@
                 </div>
             </div>
 
-            <div class="sidebar-column">
-                <div class="summary-panel section-card" id="configSection">
-                    <div class="section-header" onclick="toggleSection('configContent', this)">
-                        <h3><i class="fas fa-sliders"></i> Configuration</h3>
-                        <i class="fas fa-chevron-down collapse-icon"></i>
-                    </div>
-                    <div class="section-content" id="configContent">
-                        <p class="summary-intro">Backtest settings, date range, sizing, and exit rules for this report.</p>
-                        <div class="config-list" id="configList"></div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <div class="chart-modal" id="chartModal">
