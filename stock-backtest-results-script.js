@@ -174,7 +174,7 @@ async function loadResults() {
         // Display results
         displayConfiguration(resultsData.config || {}, resultsData.metadata || {});
         displayStatistics(resultsData.stats || {});
-        displayEquityCurve(resultsData.trades || []);
+        displayEquityCurve(resultsData.trades || [], resultsData.equity_curve_base64 || null);
         displayTrades(resultsData.trades || []);
         
     } catch (error) {
@@ -332,69 +332,66 @@ function displayStatistics(stats) {
     );
 }
 
-function displayEquityCurve(trades) {
+function displayEquityCurve(trades, equityCurveBase64) {
     const summaryChip = document.getElementById('equitySummaryChip');
+    const container = document.getElementById('equityCurveContainer');
+
+    // Destroy any existing Chart.js instance
+    if (equityCurveChart) {
+        equityCurveChart.destroy();
+        equityCurveChart = null;
+    }
+    chartData = null;
 
     if (!trades || trades.length === 0) {
-        if (equityCurveChart) {
-            equityCurveChart.destroy();
-            equityCurveChart = null;
-        }
-        chartData = null;
-        const container = document.getElementById('equityCurveContainer');
-        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #62748a; font-weight: 600;">No trades to display</div>';
-        if (summaryChip) {
-            summaryChip.textContent = 'No trades executed';
-        }
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#62748a;font-weight:600;">No trades to display</div>';
+        if (summaryChip) summaryChip.textContent = 'No trades executed';
         return;
     }
-    
-    const container = document.getElementById('equityCurveContainer');
-    container.innerHTML = '<canvas id="equityChart"></canvas>';
-    
-    // Build equity curve from trades
+
+    // Compute summary info from trades
+    let runningTotal = 0;
     const labels = ['Start'];
     const values = [0];
-    let runningTotal = 0;
-    
-    trades.forEach((trade, index) => {
+    trades.forEach((trade, i) => {
         runningTotal += (trade.pnl || 0);
-        labels.push(trade.exit_date || trade.exit_timestamp || `Trade ${index + 1}`);
+        labels.push(trade.exit_date || trade.exit_timestamp || `Trade ${i + 1}`);
         values.push(runningTotal);
     });
-    
-    // Store chart data for modal
     chartData = { labels, values };
-    
     const finalValue = values[values.length - 1];
-    const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
-    const fillColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
-    const isMobile = window.innerWidth <= 680;
-    
-    // Tight y-axis bounds
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const dataRange = Math.max(maxValue - minValue, 1);
-    const pad = dataRange * 0.08;
-    const tickLimit = window.innerWidth <= 1720 ? 4 : window.innerWidth <= 1100 ? 6 : 9;
 
     if (summaryChip) {
         summaryChip.textContent = `${trades.length} trades | ${formatCurrency(finalValue)} cumulative P&L`;
     }
-    
-    const ctx = document.getElementById('equityChart');
 
-    if (equityCurveChart) {
-        equityCurveChart.destroy();
+    // --- Approach 1: Server-generated PNG image (mobile-safe, no canvas sizing issues) ---
+    if (equityCurveBase64) {
+        container.innerHTML = `<img
+            src="data:image/png;base64,${equityCurveBase64}"
+            alt="Equity Curve"
+            style="display:block;width:100%;height:100%;object-fit:contain;border-radius:12px;"
+        />`;
+        return;
     }
-    
-    ctx.style.width = '100%';
-    ctx.style.maxWidth = '100%';
 
+    // --- Approach 2: Chart.js fallback (when server PNG is unavailable) ---
+    container.innerHTML = '<canvas id="equityChart"></canvas>';
+
+    const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
+    const fillColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
+    const isMobile = window.innerWidth <= 680;
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const dataRange = Math.max(maxValue - minValue, 1);
+    const pad = dataRange * 0.08;
+    const tickLimit = window.innerWidth <= 1100 ? 4 : 9;
+
+    const ctx = document.getElementById('equityChart');
     equityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels,
             datasets: [{
                 label: 'Cumulative P&L ($)',
                 data: values,
@@ -411,36 +408,22 @@ function displayEquityCurve(trades) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: {
-                padding: { top: 1, right: 1, bottom: 0, left: 1 }
-            },
+            layout: { padding: { top: 1, right: 1, bottom: 0, left: 1 } },
             plugins: {
                 legend: { display: false },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
                     callbacks: {
-                        label: function(context) {
-                            return 'Cumulative P&L: ' + formatCurrency(context.parsed.y);
-                        }
+                        label: (context) => 'Cumulative P&L: ' + formatCurrency(context.parsed.y)
                     }
                 }
             },
             scales: {
                 x: {
                     display: true,
-                    grid: {
-                        display: false,
-                        drawBorder: false
-                    },
-                    ticks: { 
-                        maxRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: tickLimit,
-                        font: { size: isMobile ? 10 : 11 },
-                        color: '#7b8ba0',
-                        padding: 8
-                    },
+                    grid: { display: false, drawBorder: false },
+                    ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: tickLimit, font: { size: isMobile ? 10 : 11 }, color: '#7b8ba0', padding: 8 },
                     border: { display: false }
                 },
                 y: {
@@ -449,41 +432,21 @@ function displayEquityCurve(trades) {
                     min: minValue - pad,
                     max: maxValue + pad,
                     grid: {
-                        color: (ctx) => (ctx.tick && ctx.tick.value === 0 ? 'rgba(31, 41, 55, 0.7)' : 'rgba(98, 116, 138, 0.16)'),
-                        borderDash: (ctx) => (ctx.tick && ctx.tick.value === 0 ? [] : [4, 4]),
-                        lineWidth: (ctx) => (ctx.tick && ctx.tick.value === 0 ? 2 : 1),
+                        color: (c) => (c.tick && c.tick.value === 0 ? 'rgba(31,41,55,0.7)' : 'rgba(98,116,138,0.16)'),
+                        borderDash: (c) => (c.tick && c.tick.value === 0 ? [] : [4, 4]),
+                        lineWidth: (c) => (c.tick && c.tick.value === 0 ? 2 : 1),
                         drawBorder: false
                     },
                     ticks: {
-                        font: { size: isMobile ? 10 : 11 },
-                        color: '#7b8ba0',
-                        padding: 8,
-                        count: 4,
-                        callback: function(value) {
-                            if (Math.abs(value) >= 1000) {
-                                return '$' + (value / 1000).toFixed(0) + 'k';
-                            }
-                            return '$' + Math.round(value).toLocaleString();
-                        }
+                        font: { size: isMobile ? 10 : 11 }, color: '#7b8ba0', padding: 8, count: 4,
+                        callback: (v) => Math.abs(v) >= 1000 ? '$' + (v / 1000).toFixed(0) + 'k' : '$' + Math.round(v).toLocaleString()
                     },
                     border: { display: false }
                 }
             },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
-            }
+            interaction: { mode: 'nearest', axis: 'x', intersect: false }
         }
     });
-
-    // Force chart to recalculate dimensions after layout settles (fixes iframe/mobile overflow)
-    requestAnimationFrame(() => {
-        if (equityCurveChart) equityCurveChart.resize();
-    });
-    setTimeout(() => {
-        if (equityCurveChart) equityCurveChart.resize();
-    }, 100);
 }
 
 function displayTrades(trades) {

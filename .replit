@@ -50,7 +50,7 @@ waitForPort = 5000
 
 [userenv.shared]
 DATABASE_URL = "sqlite:///instance/backtestpro.db"
-POLYGON_API_KEY = "fHPGJ8Bc0bg1hCeKgE4fvMQ8ziqc9tAt"
+POLYGON_API_KEY = " pO76DmjXBIyPBhkSEWWxr_iJBDziGMp8"
 ENCRYPTION_KEY = "hqX7U_IrM755iZ4l4CanomXLDeUrstd3fYXQtaG1Czg="
 FLASK_DEBUG = "0"
 PORT = "5000"
