@@ -570,10 +570,16 @@ function buildEquityCurve(trades) {
     
     const isMobile = window.innerWidth <= 480;
     
+    // Tight y-axis bounds
+    const minVal = Math.min(...equityData);
+    const maxVal = Math.max(...equityData);
+    const dataRange = Math.max(maxVal - minVal, 1);
+    const pad = dataRange * 0.08;
+    
     // Set container height explicitly
     const equityContainer = document.getElementById('equityCurveContainer');
     if (equityContainer) {
-        equityContainer.style.height = isMobile ? '250px' : '300px';
+        equityContainer.style.height = isMobile ? '260px' : '360px';
     }
     
     // Create baseline data (horizontal line at initial capital)
@@ -612,7 +618,7 @@ function buildEquityCurve(trades) {
             maintainAspectRatio: false,
             layout: {
                 autoPadding: false,
-                padding: { top: 8, right: 55, bottom: 25, left: 5 }
+                padding: { top: 15, right: 60, bottom: 30, left: 10 }
             },
             interaction: {
                 intersect: false,
@@ -649,9 +655,10 @@ function buildEquityCurve(trades) {
                 y: {
                     display: true,
                     position: 'right',
-                    grace: '2%',
+                    min: minVal - pad,
+                    max: maxVal + pad,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.08)',
+                        color: 'rgba(0, 0, 0, 0.06)',
                         borderDash: [4, 4],
                         drawBorder: false
                     },
@@ -663,9 +670,9 @@ function buildEquityCurve(trades) {
                         mirror: true,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
-                                return '$' + (value / 1000).toFixed(0) + 'k';
+                                return '  $' + (value / 1000).toFixed(0) + 'k';
                             }
-                            return '$' + value.toLocaleString();
+                            return '  $' + Math.round(value).toLocaleString();
                         }
                     },
                     border: { display: false }

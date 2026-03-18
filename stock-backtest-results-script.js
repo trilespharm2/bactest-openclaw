@@ -340,14 +340,20 @@ function displayEquityCurve(trades) {
     const lineColor = '#3b82f6';
     const isMobile = window.innerWidth <= 480;
     
+    // Tight y-axis bounds
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const dataRange = Math.max(maxValue - minValue, 1);
+    const pad = dataRange * 0.08;
+    
     const ctx = document.getElementById('equityChart');
 
     if (equityCurveChart) {
         equityCurveChart.destroy();
     }
 
-    // Set container height
-    container.style.height = isMobile ? '220px' : '300px';
+    // Tall container
+    container.style.height = isMobile ? '260px' : '360px';
     
     equityCurveChart = new Chart(ctx, {
         type: 'line',
@@ -370,7 +376,7 @@ function displayEquityCurve(trades) {
             maintainAspectRatio: false,
             layout: {
                 autoPadding: false,
-                padding: { top: 8, right: 55, bottom: 25, left: 5 }
+                padding: { top: 15, right: 60, bottom: 30, left: 10 }
             },
             plugins: {
                 legend: { display: false },
@@ -401,9 +407,10 @@ function displayEquityCurve(trades) {
                 y: {
                     display: true,
                     position: 'right',
-                    grace: '2%',
+                    min: minValue - pad,
+                    max: maxValue + pad,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.08)',
+                        color: 'rgba(0, 0, 0, 0.06)',
                         borderDash: [4, 4],
                         drawBorder: false
                     },
@@ -411,13 +418,13 @@ function displayEquityCurve(trades) {
                         font: { size: isMobile ? 10 : 11 },
                         color: '#9ca3af',
                         padding: 4,
-                        count: 5,
                         mirror: true,
+                        count: 5,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
-                                return '$' + (value / 1000).toFixed(0) + 'k';
+                                return '  $' + (value / 1000).toFixed(0) + 'k';
                             }
-                            return '$' + value.toLocaleString();
+                            return '  $' + Math.round(value).toLocaleString();
                         }
                     },
                     border: { display: false }

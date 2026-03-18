@@ -80,41 +80,12 @@
             background: #fff;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
-        }
-
-        .equity-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px 0 12px;
-        }
-
-        .equity-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1f2937;
-        }
-
-        .expand-chart-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            cursor: pointer;
-            color: #374151;
-            font-size: 13px;
-            padding: 4px 8px;
-        }
-
-        .expand-chart-btn:hover {
-            background: #e5e7eb;
+            padding: 0;
+            overflow: hidden;
         }
 
         .equity-curve-container {
             width: 100%;
-            padding: 0 8px 8px 0;
         }
 
         .equity-curve-container canvas {
@@ -677,12 +648,6 @@
 
                     <!-- 1. Full-width Chart -->
                     <div class="equity-section" id="equitySection">
-                        <div class="equity-header">
-                            <span class="equity-title">Results</span>
-                            <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
-                                <i class="fas fa-expand"></i>
-                            </button>
-                        </div>
                         <div class="equity-curve-container" id="equityCurveContainer">
                             <canvas id="equityChart"></canvas>
                         </div>

@@ -89,20 +89,8 @@
             background: #fff;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
+            padding: 0;
             overflow: hidden;
-        }
-
-        .equity-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px 0 12px;
-        }
-
-        .equity-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #1f2937;
         }
         
         .equity-section .equity-curve-container {
@@ -692,12 +680,6 @@
             </div>
 
             <div class="equity-section" id="equitySection">
-                <div class="equity-header">
-                    <span class="equity-title">Equity Curve</span>
-                    <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
-                        <i class="fas fa-expand"></i>
-                    </button>
-                </div>
                 <div class="equity-curve-container" id="equityCurveContainer">
                     <canvas id="equityChart"></canvas>
                 </div>
