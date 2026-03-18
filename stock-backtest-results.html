@@ -333,7 +333,7 @@
         }
 
         .summary-panel {
-            position: sticky;
+            position: static;
             top: 24px;
         }
 
@@ -355,7 +355,7 @@
         }
 
         .trades-section .section-content {
-            padding-top: 16px;
+            padding-top: auto;
         }
 
         .pagination-controls {
@@ -654,6 +654,29 @@
                 min-width: 760px;
             }
         }
+    
+        .report-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.7fr) minmax(280px, 360px);
+            gap: 20px;
+            align-items: start;
+        }
+        .report-main, .report-sidebar {
+            min-width: 0;
+        }
+        .report-sidebar {
+            position: static !important;
+            transform: none !important;
+        }
+        .chart-card, .equity-section, .equity-curve-container {
+            overflow: hidden;
+        }
+        @media (max-width: 1024px) {
+            .report-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
     </style>
 </head>
 <body class="results-body">
