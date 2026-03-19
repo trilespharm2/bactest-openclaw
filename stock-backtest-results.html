@@ -274,8 +274,7 @@
         }
 
         .equity-curve-container {
-            display: flex;
-            flex-direction: column;
+            position: relative;
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
@@ -288,13 +287,23 @@
             overflow: hidden;
         }
 
-        .equity-curve-container canvas,
+        /* Chart.js canvas must be absolutely-positioned inside a
+           position:relative container with an explicit height so that
+           responsive:true + maintainAspectRatio:false fills the box. */
+        .equity-curve-container > canvas {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Modal canvas: the modal-content is the scroll-flex child;
+           give it an inner wrapper to anchor the canvas. */
         .chart-modal-content canvas {
             display: block !important;
-            flex: 1 1 0 !important;
             width: 100% !important;
-            max-width: 100% !important;
-            min-height: 0 !important;
+            height: 100% !important;
         }
 
         .stats-card .section-content {
@@ -509,8 +518,7 @@
             flex: 1;
             min-height: 0;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
+            position: relative;
         }
 
         @keyframes spin {
