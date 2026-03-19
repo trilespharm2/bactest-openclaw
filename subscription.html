@@ -1,3 +1,228 @@
+<style>
+.subscription-page,
+.pricing-page {
+    padding: 8px 0 24px;
+}
+
+.page-title-section {
+    margin-bottom: 24px;
+}
+
+.page-main-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 8px;
+}
+
+.page-subtitle {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.98rem;
+}
+
+.pricing-toggle-container-page,
+.pricing-toggle-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    margin: 0 auto 24px;
+}
+
+.pricing-grid-page,
+.pricing-grid-modal {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    align-items: stretch;
+}
+
+.pricing-card-page,
+.pricing-card-modal {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: 28px 24px;
+    border-radius: 20px;
+    border: 1px solid #dbe4f0;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.pricing-card-page:hover,
+.pricing-card-modal:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 22px 50px rgba(15, 23, 42, 0.12);
+    border-color: #bfd3ea;
+}
+
+.pricing-card-page.popular,
+.pricing-card-modal.popular {
+    border-color: #14b8a6;
+    box-shadow: 0 24px 55px rgba(20, 184, 166, 0.16);
+}
+
+.pricing-card-page h5,
+.pricing-card-modal h5 {
+    margin: 0 0 6px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.pricing-card-page .plan-desc,
+.pricing-card-modal .plan-desc {
+    margin: 0 0 18px;
+    color: #64748b;
+    min-height: 40px;
+}
+
+.pricing-card-page .plan-price-display,
+.pricing-card-modal .plan-price-display {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 20px;
+}
+
+.pricing-card-page .price,
+.pricing-card-modal .price {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.pricing-card-page .period,
+.pricing-card-modal .period {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.pricing-card-page .plan-features,
+.pricing-card-modal .plan-features {
+    margin: 0 0 22px;
+    display: grid;
+    gap: 10px;
+}
+
+.pricing-card-page .plan-features li,
+.pricing-card-modal .plan-features li {
+    align-items: flex-start;
+    padding: 0;
+    line-height: 1.45;
+}
+
+.btn-plan-select-page,
+.btn-plan-select {
+    margin-top: auto;
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px 16px;
+    border-radius: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: #fff;
+    border: none;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+}
+
+.pricing-card-page.popular .btn-plan-select-page,
+.pricing-card-modal.popular .btn-plan-select {
+    background: linear-gradient(135deg, #1a9988, #14b8a6);
+    box-shadow: 0 14px 30px rgba(20, 184, 166, 0.24);
+}
+
+.pricing-cta-section {
+    margin-top: 28px;
+    padding: 28px;
+    text-align: center;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: white;
+}
+
+.pricing-cta-section h4 {
+    margin: 0 0 10px;
+    font-size: 1.5rem;
+}
+
+.pricing-cta-section p {
+    margin: 0 0 18px;
+    color: rgba(255,255,255,0.8);
+}
+
+.btn-cta-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 13px 18px;
+    border-radius: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    background: #ffffff;
+    color: #0f172a;
+}
+
+.subscription-hero-card {
+    border-radius: 22px;
+    padding: 36px;
+    box-shadow: 0 22px 55px rgba(20, 184, 166, 0.2);
+}
+
+.billing-stats-row,
+.subscription-bottom-row {
+    gap: 20px;
+}
+
+.billing-card,
+.billing-stat-card {
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, 0.06);
+}
+
+@media (max-width: 768px) {
+    .pricing-grid-page,
+    .pricing-grid-modal,
+    .subscription-bottom-row {
+        grid-template-columns: 1fr;
+    }
+
+    .subscription-page,
+    .pricing-page {
+        padding-top: 0;
+    }
+
+    .subscription-hero-card {
+        padding: 24px;
+    }
+
+    .pricing-card-page,
+    .pricing-card-modal {
+        padding: 22px 18px;
+    }
+
+    .pricing-toggle-container-page,
+    .pricing-toggle-container {
+        display: flex;
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+}
+</style>
+
 <!-- Subscription/Pricing Page Content -->
 
 <!-- Pricing Content (for logged-out users) -->
