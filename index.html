@@ -610,116 +610,9 @@
               <div class="page-header">
                 <h3 class="fw-bold mb-3">Dashboard</h3>
               </div>
-              <div class="row">
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-primary bubble-shadow-small">
-                            <i class="fas fa-chart-line"></i>
-                          </div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">Total Backtests</p>
-                            <h4 class="card-title" id="totalBacktests">0</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-success bubble-shadow-small">
-                            <i class="fas fa-trophy"></i>
-                          </div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">Profitable</p>
-                            <h4 class="card-title" id="profitableBacktests">0</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-info bubble-shadow-small">
-                            <i class="fas fa-clock"></i>
-                          </div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">This Month</p>
-                            <h4 class="card-title" id="monthBacktests">0</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-secondary bubble-shadow-small">
-                            <i class="fas fa-plug"></i>
-                          </div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">API Status</p>
-                            <h4 class="card-title"><span class="api-status-badge online" id="apiStatusBadge">Online</span></h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="card">
-                    <div class="card-header">
-                      <div class="card-title"><i class="fas fa-arrow-trend-up text-success me-2"></i>Top Gainers</div>
-                      <span class="badge bg-secondary" id="marketSession">Loading...</span>
-                    </div>
-                    <div class="card-body">
-                      <div id="gainersTable" class="movers-table">
-                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <div class="card">
-                    <div class="card-header">
-                      <div class="card-title"><i class="fas fa-arrow-trend-down text-danger me-2"></i>Top Losers</div>
-                      <span class="text-muted" id="refreshTime"></span>
-                    </div>
-                    <div class="card-body">
-                      <div id="losersTable" class="movers-table">
-                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="row mt-3">
-                <div class="col-md-8">
+              <div class="row mb-3">
+                <div class="col-12">
                   <div class="card">
                     <div class="card-header">
                       <div class="card-title"><i class="fas fa-bolt text-warning me-2"></i>Quick Actions</div>
@@ -754,24 +647,64 @@
                     </div>
                   </div>
                 </div>
-                <div class="col-md-4">
+              </div>
+
+              <div class="row">
+                <div class="col-md-6">
                   <div class="card">
                     <div class="card-header">
-                      <div class="card-title"><i class="fas fa-plug text-secondary me-2"></i>API Status</div>
+                      <div class="card-title"><i class="fas fa-arrow-trend-up text-success me-2"></i><span id="gainersTitle">Top Gainers</span></div>
+                      <span class="badge bg-secondary" id="marketSession">Loading...</span>
                     </div>
                     <div class="card-body">
-                      <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span>Polygon.io</span>
-                        <span class="api-status-badge" id="polygonStatus">Checking...</span>
+                      <div id="gainersTable" class="movers-table">
+                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
                       </div>
-                      <div class="d-flex justify-content-between align-items-center">
-                        <span>Market Data</span>
-                        <span class="api-status-badge" id="marketDataStatus">Checking...</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header">
+                      <div class="card-title"><i class="fas fa-arrow-trend-down text-danger me-2"></i><span id="losersTitle">Top Losers</span></div>
+                      <span class="text-muted" id="refreshTime"></span>
+                    </div>
+                    <div class="card-body">
+                      <div id="losersTable" class="movers-table">
+                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+
+              <script>
+              (function updateMarketSessionTitles() {
+                  function setTitles() {
+                      var now = new Date();
+                      var et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+                      var h = et.getHours(), m = et.getMinutes(), t = h * 60 + m;
+                      var gEl = document.getElementById('gainersTitle');
+                      var lEl = document.getElementById('losersTitle');
+                      if (!gEl || !lEl) return;
+                      if (t >= 240 && t < 570) {
+                          gEl.textContent = 'Pre-Market Top Gainers';
+                          lEl.textContent = 'Pre-Market Top Losers';
+                      } else if (t >= 570 && t < 960) {
+                          gEl.textContent = 'Top Gainers';
+                          lEl.textContent = 'Top Losers';
+                      } else if (t >= 960 && t < 1200) {
+                          gEl.textContent = 'After Hours Top Gainers';
+                          lEl.textContent = 'After Hours Top Losers';
+                      } else {
+                          gEl.textContent = 'Top Gainers';
+                          lEl.textContent = 'Top Losers';
+                      }
+                  }
+                  setTitles();
+                  setInterval(setTitles, 60000);
+              })();
+              </script>
             </section>
 
             <!-- Stocks Page -->
