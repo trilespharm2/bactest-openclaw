@@ -408,9 +408,6 @@ function displayEquityCurve(trades) {
         equityCurveChart.destroy();
     }
     
-    ctx.style.width = '100%';
-    ctx.style.maxWidth = '100%';
-
     equityCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
