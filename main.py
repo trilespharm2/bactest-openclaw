@@ -712,60 +712,13 @@ def api_user_api_key():
 
 @app.route('/api/market-movers')
 def api_market_movers():
-    """Get market movers (gainers and losers)"""
-    try:
-        # Try to use the dashboard gainers/losers endpoint
-        if WEBULL_AVAILABLE:
-            from datetime import time as dt_time
-            import pytz
-            
-            wb = wb_module()
-            eastern = pytz.timezone('America/New_York')
-            now = datetime.now(eastern).time()
-            
-            if dt_time(4, 0) <= now < dt_time(9, 30):
-                rank_type = "preMarket"
-            elif dt_time(9, 30) <= now < dt_time(16, 0):
-                rank_type = "1d"
-            elif dt_time(16, 0) <= now < dt_time(20, 0):
-                rank_type = "afterMarket"
-            else:
-                rank_type = "1d"
-            
-            gainers = []
-            losers = []
-            
-            try:
-                gainers_data = wb.active_gainer_loser(direction='gainer', rank_type=rank_type, count=5)
-                if gainers_data and 'data' in gainers_data:
-                    for item in gainers_data['data'][:5]:
-                        ticker = item.get('ticker', {})
-                        values = item.get('values', {})
-                        gainers.append({
-                            'ticker': ticker.get('symbol', 'N/A'),
-                            'todaysChangePerc': float(values.get('changeRatio', 0)) * 100
-                        })
-            except Exception as e:
-                print(f"Error fetching gainers: {e}")
-            
-            try:
-                losers_data = wb.active_gainer_loser(direction='loser', rank_type=rank_type, count=5)
-                if losers_data and 'data' in losers_data:
-                    for item in losers_data['data'][:5]:
-                        ticker = item.get('ticker', {})
-                        values = item.get('values', {})
-                        losers.append({
-                            'ticker': ticker.get('symbol', 'N/A'),
-                            'todaysChangePerc': float(values.get('changeRatio', 0)) * 100
-                        })
-            except Exception as e:
-                print(f"Error fetching losers: {e}")
-            
-            return jsonify({'gainers': gainers, 'losers': losers})
-        else:
-            return jsonify({'gainers': [], 'losers': [], 'message': 'Webull not available'})
-    except Exception as e:
-        return jsonify({'gainers': [], 'losers': [], 'error': str(e)})
+    """Get market movers (gainers and losers) — reads from centralized cache"""
+    with _cache_lock:
+        cached = _dashboard_cache['gainers_losers']
+    # Remap for backward compatibility (old format used 'ticker' and 'todaysChangePerc')
+    gainers = [{'ticker': g.get('symbol', 'N/A'), 'todaysChangePerc': g.get('change_pct', 0)} for g in cached.get('gainers', [])[:5]]
+    losers = [{'ticker': l.get('symbol', 'N/A'), 'todaysChangePerc': l.get('change_pct', 0)} for l in cached.get('losers', [])[:5]]
+    return jsonify({'gainers': gainers, 'losers': losers})
 
 @app.route('/logout')
 def logout():
@@ -4613,7 +4566,13 @@ def get_economic_calendar():
     return jsonify({'events': events, 'date': today.strftime('%Y-%m-%d')})
 
 
-# Import webull for gainers/losers
+# =============================================================================
+# DASHBOARD DATA FEEDS — CENTRALIZED CACHE
+# All Webull data is fetched once on a background timer and cached in memory.
+# Every user request reads from the same cache. Zero duplicate API calls.
+# =============================================================================
+import threading
+
 try:
     from webull import webull as wb_module
     WEBULL_AVAILABLE = True
@@ -4621,278 +4580,287 @@ except ImportError:
     WEBULL_AVAILABLE = False
     print("⚠️  WARNING: webull package not found. Gainers/Losers widget will not be available.")
 
-@app.route('/api/dashboard/gainers-losers')
-def get_gainers_losers():
-    """Fetch top gainers and losers from Webull API"""
+# Shared cache — all users read from this dict
+_dashboard_cache = {
+    'gainers_losers': {'gainers': [], 'losers': [], 'session': 'closed', 'timestamp': ''},
+    'indices': {'indices': [], 'timestamp': ''},
+    'sectors': {'sectors': [], 'timestamp': ''},
+    'most_active': {'active': [], 'timestamp': ''},
+    'trending': {'trending': [], 'timestamp': ''},
+    'earnings': {'earnings': [], 'timestamp': ''},
+}
+_cache_lock = threading.Lock()
+_cache_timers = {}
+
+
+def _get_market_session():
+    """Determine current market session based on Eastern Time"""
+    from datetime import time as dt_time
+    import pytz
+    eastern = pytz.timezone('America/New_York')
+    now = datetime.now(eastern).time()
+    if dt_time(4, 0) <= now < dt_time(9, 30):
+        return 'premarket', 'preMarket'
+    elif dt_time(9, 30) <= now < dt_time(16, 0):
+        return 'regular', '1d'
+    elif dt_time(16, 0) <= now < dt_time(20, 0):
+        return 'afterhours', 'afterMarket'
+    else:
+        return 'closed', '1d'
+
+
+def _refresh_gainers_losers():
+    """Background task: fetch gainers/losers from Webull"""
     if not WEBULL_AVAILABLE:
-        return jsonify({'error': 'Webull module not available'}), 500
-    
+        return
     try:
-        from datetime import time as dt_time
-        import pytz
-        
         wb = wb_module()
-        eastern = pytz.timezone('America/New_York')
-        now = datetime.now(eastern).time()
-        
-        # Determine session based on Eastern Time
-        if dt_time(4, 0) <= now < dt_time(9, 30):
-            session = "premarket"
-            rank_type = "preMarket"
-        elif dt_time(9, 30) <= now < dt_time(16, 0):
-            session = "regular"
-            rank_type = "1d"
-        elif dt_time(16, 0) <= now < dt_time(20, 0):
-            session = "afterhours"
-            rank_type = "afterMarket"
-        else:
-            session = "closed"
-            rank_type = "1d"
-        
-        gainers = []
-        losers = []
-        
+        session, rank_type = _get_market_session()
+        gainers, losers = [], []
+
         try:
-            gainers_data = wb.active_gainer_loser(direction='gainer', rank_type=rank_type, count=10)
-            if gainers_data and 'data' in gainers_data:
-                for item in gainers_data['data']:
-                    ticker = item.get('ticker', {})
-                    values = item.get('values', {})
+            gd = wb.active_gainer_loser(direction='gainer', rank_type=rank_type, count=10)
+            if gd and 'data' in gd:
+                for item in gd['data']:
+                    t = item.get('ticker', {})
+                    v = item.get('values', {})
                     gainers.append({
-                        'symbol': ticker.get('symbol', 'N/A'),
-                        'price': float(values.get('price', 0)),
-                        'change_pct': float(values.get('changeRatio', 0)) * 100,
-                        'volume': int(float(ticker.get('volume', 0) or 0))
+                        'symbol': t.get('symbol', 'N/A'),
+                        'price': float(v.get('price', 0) or 0),
+                        'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
+                        'volume': int(float(t.get('volume', 0) or 0))
                     })
         except Exception as e:
-            print(f"Error fetching gainers: {e}")
-        
+            print(f"Cache: Error fetching gainers: {e}")
+
         try:
-            losers_data = wb.active_gainer_loser(direction='loser', rank_type=rank_type, count=10)
-            if losers_data and 'data' in losers_data:
-                for item in losers_data['data']:
-                    ticker = item.get('ticker', {})
-                    values = item.get('values', {})
+            ld = wb.active_gainer_loser(direction='loser', rank_type=rank_type, count=10)
+            if ld and 'data' in ld:
+                for item in ld['data']:
+                    t = item.get('ticker', {})
+                    v = item.get('values', {})
                     losers.append({
-                        'symbol': ticker.get('symbol', 'N/A'),
-                        'price': float(values.get('price', 0)),
-                        'change_pct': float(values.get('changeRatio', 0)) * 100,
-                        'volume': int(float(ticker.get('volume', 0) or 0))
+                        'symbol': t.get('symbol', 'N/A'),
+                        'price': float(v.get('price', 0) or 0),
+                        'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
+                        'volume': int(float(t.get('volume', 0) or 0))
                     })
         except Exception as e:
-            print(f"Error fetching losers: {e}")
-        
-        return jsonify({
-            'gainers': gainers,
-            'losers': losers,
-            'session': session,
-            'timestamp': datetime.now().strftime('%H:%M:%S')
-        })
-        
+            print(f"Cache: Error fetching losers: {e}")
+
+        with _cache_lock:
+            _dashboard_cache['gainers_losers'] = {
+                'gainers': gainers, 'losers': losers,
+                'session': session, 'timestamp': datetime.now().strftime('%H:%M:%S')
+            }
     except Exception as e:
-        print(f"Error in gainers/losers API: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Cache: gainers/losers refresh failed: {e}")
 
 
-@app.route('/api/dashboard/indices')
-def get_indices():
-    """Fetch index ETF quotes (SPY, QQQ, DIA, IWM, VIX) via Webull"""
+def _refresh_indices():
+    """Background task: fetch index quotes from Webull"""
     if not WEBULL_AVAILABLE:
-        return jsonify({'error': 'Webull module not available'}), 500
-
+        return
     try:
         wb = wb_module()
-        tickers = ['SPY', 'QQQ', 'DIA', 'IWM']
         indices = []
-
-        for symbol in tickers:
+        for symbol in ['SPY', 'QQQ', 'DIA', 'IWM', 'UVXY']:
             try:
-                quote = wb.get_quote(stock=symbol)
-                if quote:
-                    price = float(quote.get('close', 0) or quote.get('pPrice', 0) or 0)
-                    prev_close = float(quote.get('preClose', price) or price)
-                    change = price - prev_close if price and prev_close else 0
-                    change_pct = (change / prev_close * 100) if prev_close else 0
-                    indices.append({
-                        'symbol': symbol,
-                        'price': round(price, 2),
-                        'change': round(change, 2),
-                        'change_pct': round(change_pct, 2)
-                    })
+                q = wb.get_quote(stock=symbol)
+                if q:
+                    price = float(q.get('close', 0) or q.get('pPrice', 0) or 0)
+                    prev = float(q.get('preClose', price) or price)
+                    chg = price - prev if price and prev else 0
+                    pct = (chg / prev * 100) if prev else 0
+                    indices.append({'symbol': symbol, 'price': round(price, 2), 'change': round(chg, 2), 'change_pct': round(pct, 2)})
                 else:
                     indices.append({'symbol': symbol, 'price': 0, 'change': 0, 'change_pct': 0})
             except Exception as e:
-                print(f"Error fetching {symbol}: {e}")
+                print(f"Cache: Error fetching {symbol}: {e}")
                 indices.append({'symbol': symbol, 'price': 0, 'change': 0, 'change_pct': 0})
 
-        # VIX
-        try:
-            vix_quote = wb.get_quote(stock='UVXY')
-            if vix_quote:
-                vix_price = float(vix_quote.get('close', 0) or vix_quote.get('pPrice', 0) or 0)
-                vix_prev = float(vix_quote.get('preClose', vix_price) or vix_price)
-                vix_change = vix_price - vix_prev if vix_price and vix_prev else 0
-                vix_pct = (vix_change / vix_prev * 100) if vix_prev else 0
-                indices.append({
-                    'symbol': 'UVXY',
-                    'price': round(vix_price, 2),
-                    'change': round(vix_change, 2),
-                    'change_pct': round(vix_pct, 2)
-                })
-            else:
-                indices.append({'symbol': 'UVXY', 'price': 0, 'change': 0, 'change_pct': 0})
-        except Exception as e:
-            print(f"Error fetching UVXY: {e}")
-            indices.append({'symbol': 'UVXY', 'price': 0, 'change': 0, 'change_pct': 0})
-
-        return jsonify({'indices': indices, 'timestamp': datetime.now().strftime('%H:%M:%S')})
-
+        with _cache_lock:
+            _dashboard_cache['indices'] = {'indices': indices, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Cache: indices refresh failed: {e}")
 
 
-@app.route('/api/dashboard/sectors')
-def get_sectors():
-    """Fetch sector ETF performance via Webull quotes"""
+def _refresh_sectors():
+    """Background task: fetch sector ETF quotes from Webull"""
     if not WEBULL_AVAILABLE:
-        return jsonify({'error': 'Webull module not available'}), 500
-
+        return
     try:
         wb = wb_module()
-        sector_etfs = {
-            'XLK': 'Technology', 'XLF': 'Financials', 'XLE': 'Energy',
-            'XLV': 'Healthcare', 'XLC': 'Comm Svcs', 'XLI': 'Industrials',
-            'XLP': 'Staples', 'XLU': 'Utilities', 'XLRE': 'Real Estate',
-            'XLB': 'Materials', 'XLY': 'Discretionary'
-        }
-
+        etfs = {'XLK': 'Technology', 'XLF': 'Financials', 'XLE': 'Energy', 'XLV': 'Healthcare',
+                'XLC': 'Comm Svcs', 'XLI': 'Industrials', 'XLP': 'Staples', 'XLU': 'Utilities',
+                'XLRE': 'Real Estate', 'XLB': 'Materials', 'XLY': 'Discretionary'}
         sectors = []
-        for ticker, name in sector_etfs.items():
+        for ticker, name in etfs.items():
             try:
-                quote = wb.get_quote(stock=ticker)
-                if quote:
-                    price = float(quote.get('close', 0) or quote.get('pPrice', 0) or 0)
-                    prev_close = float(quote.get('preClose', price) or price)
-                    change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0
-                    sectors.append({
-                        'symbol': ticker,
-                        'name': name,
-                        'change_pct': round(change_pct, 2),
-                        'price': round(price, 2)
-                    })
+                q = wb.get_quote(stock=ticker)
+                if q:
+                    price = float(q.get('close', 0) or q.get('pPrice', 0) or 0)
+                    prev = float(q.get('preClose', price) or price)
+                    pct = ((price - prev) / prev * 100) if prev else 0
+                    sectors.append({'symbol': ticker, 'name': name, 'change_pct': round(pct, 2), 'price': round(price, 2)})
                 else:
                     sectors.append({'symbol': ticker, 'name': name, 'change_pct': 0, 'price': 0})
             except Exception as e:
-                print(f"Error fetching sector {ticker}: {e}")
+                print(f"Cache: Error fetching sector {ticker}: {e}")
                 sectors.append({'symbol': ticker, 'name': name, 'change_pct': 0, 'price': 0})
 
         sectors.sort(key=lambda x: x['change_pct'], reverse=True)
-        return jsonify({'sectors': sectors, 'timestamp': datetime.now().strftime('%H:%M:%S')})
-
+        with _cache_lock:
+            _dashboard_cache['sectors'] = {'sectors': sectors, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Cache: sectors refresh failed: {e}")
 
 
-@app.route('/api/dashboard/most-active')
-def get_most_active():
-    """Fetch most active stocks by volume via Webull"""
+def _refresh_most_active():
+    """Background task: fetch most active by volume from Webull"""
     if not WEBULL_AVAILABLE:
-        return jsonify({'error': 'Webull module not available'}), 500
-
+        return
     try:
         wb = wb_module()
         active = []
-
-        active_data = wb.active_gainer_loser(direction='active', rank_type='volume', count=10)
-        if active_data and 'data' in active_data:
-            for item in active_data['data'][:10]:
-                ticker = item.get('ticker', {})
-                values = item.get('values', {})
-                vol = float(ticker.get('volume', 0) or values.get('volume', 0) or 0)
+        ad = wb.active_gainer_loser(direction='active', rank_type='volume', count=10)
+        if ad and 'data' in ad:
+            for item in ad['data'][:10]:
+                t = item.get('ticker', {})
+                v = item.get('values', {})
+                vol = float(t.get('volume', 0) or v.get('volume', 0) or 0)
                 active.append({
-                    'symbol': ticker.get('symbol', 'N/A'),
-                    'price': float(values.get('price', 0) or 0),
-                    'change_pct': round(float(values.get('changeRatio', 0) or 0) * 100, 2),
+                    'symbol': t.get('symbol', 'N/A'),
+                    'price': float(v.get('price', 0) or 0),
+                    'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
                     'volume': int(vol)
                 })
-
-        return jsonify({'active': active, 'timestamp': datetime.now().strftime('%H:%M:%S')})
-
+        with _cache_lock:
+            _dashboard_cache['most_active'] = {'active': active, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
-        print(f"Error in most-active API: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Cache: most-active refresh failed: {e}")
 
 
-@app.route('/api/dashboard/trending')
-def get_trending():
-    """Fetch 5-minute trending stocks via Webull"""
+def _refresh_trending():
+    """Background task: fetch 5-min trending from Webull"""
     if not WEBULL_AVAILABLE:
-        return jsonify({'error': 'Webull module not available'}), 500
-
+        return
     try:
         from datetime import time as dt_time
         import pytz
-
         wb = wb_module()
         eastern = pytz.timezone('America/New_York')
         now = datetime.now(eastern).time()
-
-        # Use extended trading ranking if outside market hours
         extend = 1 if (now < dt_time(9, 30) or now >= dt_time(16, 0)) else 0
-
         trending = []
-        rank_data = wb.get_five_min_ranking(extendTrading=extend)
-        if rank_data:
-            for item in rank_data[:10]:
-                ticker = item.get('ticker', {})
-                values = item.get('values', {})
+        rd = wb.get_five_min_ranking(extendTrading=extend)
+        if rd:
+            for item in rd[:10]:
+                t = item.get('ticker', {})
+                v = item.get('values', {})
                 trending.append({
-                    'symbol': ticker.get('symbol', 'N/A'),
-                    'price': float(values.get('price', 0) or 0),
-                    'change_pct': round(float(values.get('changeRatio', 0) or 0) * 100, 2)
+                    'symbol': t.get('symbol', 'N/A'),
+                    'price': float(v.get('price', 0) or 0),
+                    'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2)
                 })
-
-        return jsonify({'trending': trending, 'timestamp': datetime.now().strftime('%H:%M:%S')})
-
+        with _cache_lock:
+            _dashboard_cache['trending'] = {'trending': trending, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
-        print(f"Error in trending API: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Cache: trending refresh failed: {e}")
 
 
-@app.route('/api/dashboard/earnings')
-def get_earnings_calendar():
-    """Fetch upcoming earnings via Webull calendar"""
+def _refresh_earnings():
+    """Background task: fetch upcoming earnings from Webull"""
     if not WEBULL_AVAILABLE:
-        return jsonify({'error': 'Webull module not available'}), 500
-
+        return
     try:
         wb = wb_module()
         earnings = []
-
-        earnings_data = wb.get_calendar_events('earnings', num=20)
-        if earnings_data and isinstance(earnings_data, list):
-            for item in earnings_data[:20]:
+        ed = wb.get_calendar_events('earnings', num=20)
+        if ed and isinstance(ed, list):
+            for item in ed[:20]:
                 earnings.append({
                     'symbol': item.get('ticker', {}).get('symbol', 'N/A'),
                     'name': item.get('ticker', {}).get('tinyName', ''),
                     'date': item.get('eventDate', ''),
                     'time': item.get('beforeAfterMarket', 'N/A')
                 })
-        elif earnings_data and isinstance(earnings_data, dict):
-            items = earnings_data.get('data', [])
-            for item in items[:20]:
+        elif ed and isinstance(ed, dict):
+            for item in ed.get('data', [])[:20]:
                 earnings.append({
                     'symbol': item.get('ticker', {}).get('symbol', item.get('symbol', 'N/A')),
                     'name': item.get('ticker', {}).get('tinyName', item.get('name', '')),
                     'date': item.get('eventDate', item.get('date', '')),
                     'time': item.get('beforeAfterMarket', 'N/A')
                 })
-
-        return jsonify({'earnings': earnings, 'timestamp': datetime.now().strftime('%H:%M:%S')})
-
+        with _cache_lock:
+            _dashboard_cache['earnings'] = {'earnings': earnings, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
-        print(f"Error in earnings API: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Cache: earnings refresh failed: {e}")
+
+
+def _run_periodic(func, interval_sec, name):
+    """Run a function immediately then repeat on interval"""
+    def _loop():
+        func()
+        timer = threading.Timer(interval_sec, _loop)
+        timer.daemon = True
+        timer.start()
+        _cache_timers[name] = timer
+    _loop()
+
+
+_dashboard_cache_started = False
+
+def start_dashboard_cache():
+    """Start all background refresh timers. Call once at app startup."""
+    global _dashboard_cache_started
+    if _dashboard_cache_started:
+        return
+    _dashboard_cache_started = True
+    if not WEBULL_AVAILABLE:
+        print("⚠️  Dashboard cache not started — Webull not available")
+        return
+    print("🚀 Starting dashboard data cache (Webull feeds)...")
+    _run_periodic(_refresh_gainers_losers, 30, 'gainers_losers')
+    _run_periodic(_refresh_indices, 30, 'indices')
+    _run_periodic(_refresh_most_active, 60, 'most_active')
+    _run_periodic(_refresh_trending, 60, 'trending')
+    _run_periodic(_refresh_sectors, 60, 'sectors')
+    _run_periodic(_refresh_earnings, 300, 'earnings')
+
+
+# ── Thin API endpoints — just serve from cache, no Webull calls ──
+
+@app.route('/api/dashboard/gainers-losers')
+def get_gainers_losers():
+    with _cache_lock:
+        return jsonify(_dashboard_cache['gainers_losers'])
+
+@app.route('/api/dashboard/indices')
+def get_indices():
+    with _cache_lock:
+        return jsonify(_dashboard_cache['indices'])
+
+@app.route('/api/dashboard/sectors')
+def get_sectors():
+    with _cache_lock:
+        return jsonify(_dashboard_cache['sectors'])
+
+@app.route('/api/dashboard/most-active')
+def get_most_active():
+    with _cache_lock:
+        return jsonify(_dashboard_cache['most_active'])
+
+@app.route('/api/dashboard/trending')
+def get_trending():
+    with _cache_lock:
+        return jsonify(_dashboard_cache['trending'])
+
+@app.route('/api/dashboard/earnings')
+def get_earnings_calendar():
+    with _cache_lock:
+        return jsonify(_dashboard_cache['earnings'])
 
 
 # =============================================================================
@@ -6261,6 +6229,11 @@ def test_notification_channel(channel_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# Start dashboard cache for gunicorn/wsgi (won't hit __main__ block)
+# Safe to call multiple times — timers are daemon threads
+start_dashboard_cache()
+
+
 if __name__ == '__main__':
     startup_state = initialize_app_runtime(
         enable_scheduler=env_bool('ENABLE_SCHEDULER', True),
@@ -6304,6 +6277,9 @@ if __name__ == '__main__':
     if STOCKS_V3_WRAPPER_AVAILABLE:
         print(f"  • Stocks V3 Backtest: POST /api/stocks-backtest-v3/run")
     print(f"\nPress CTRL+C to stop the server\n")
+    
+    # Start centralized dashboard data cache
+    start_dashboard_cache()
     
     app.run(
         debug=env_bool('FLASK_DEBUG', False),
