@@ -13,6 +13,7 @@ async function initDashboard() {
         loadIndices(),
         loadGainersLosers(),
         loadMostActive(),
+        loadTrending(),
         loadSectors(),
         loadEarnings()
     ]);
@@ -24,6 +25,7 @@ async function initDashboard() {
     dashboardIntervals.push(setInterval(loadIndices, 30000));
     dashboardIntervals.push(setInterval(loadGainersLosers, 30000));
     dashboardIntervals.push(setInterval(loadMostActive, 60000));
+    dashboardIntervals.push(setInterval(loadTrending, 60000));
     dashboardIntervals.push(setInterval(loadSectors, 60000));
     dashboardIntervals.push(setInterval(loadEarnings, 300000));
 }
@@ -48,8 +50,8 @@ function renderIndices(indices) {
 
     el.innerHTML = indices.map(idx => {
         const isUp = idx.change >= 0;
-        const color = idx.symbol === 'VIX'
-            ? (idx.price > 25 ? '#d94452' : idx.price > 15 ? '#e5873a' : '#0fad6e')
+        const color = idx.symbol === 'UVXY'
+            ? (idx.change_pct > 10 ? '#d94452' : idx.change_pct > 3 ? '#e5873a' : '#0fad6e')
             : (isUp ? '#0fad6e' : '#d94452');
         const arrow = isUp ? '▲' : '▼';
         const sign = isUp ? '+' : '';
@@ -143,6 +145,37 @@ function renderMostActive(items) {
     }).join('');
 }
 
+// ─── TRENDING NOW (5-MIN) ────────────────────────────────────
+async function loadTrending() {
+    try {
+        const response = await authFetch(`${API_BASE_URL}/api/dashboard/trending`);
+        if (!response.ok) throw new Error('Failed');
+        const data = await response.json();
+        renderTrending(data.trending || []);
+    } catch (e) {
+        console.error('Trending error:', e);
+        const el = document.getElementById('trendingTable');
+        if (el) el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">Unable to load</div>';
+    }
+}
+
+function renderTrending(items) {
+    const el = document.getElementById('trendingTable');
+    if (!el) return;
+    if (!items.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data</div>'; return; }
+
+    el.innerHTML = items.slice(0, 8).map((item, i) => {
+        const pct = item.change_pct || 0;
+        const color = pct >= 0 ? '#0fad6e' : '#d94452';
+        const arrow = pct >= 0 ? '▲' : '▼';
+        return `<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">
+            <span style="color:#6b7689;font-size:11px;width:18px;">${i + 1}</span>
+            <span style="font-weight:600;color:#3b6df0;flex:1;">${item.symbol}</span>
+            <span style="font-weight:600;color:${color};">${arrow} ${Math.abs(pct).toFixed(2)}%</span>
+        </div>`;
+    }).join('');
+}
+
 // ─── SECTOR PERFORMANCE ──────────────────────────────────────
 async function loadSectors() {
     try {
@@ -153,32 +186,24 @@ async function loadSectors() {
     } catch (e) {
         console.error('Sectors error:', e);
         const el = document.getElementById('sectorGrid');
-        if (el) el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">Unable to load</div>';
+        if (el) el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 4;font-size:12px;">Unable to load</div>';
     }
 }
 
 function renderSectors(sectors) {
     const el = document.getElementById('sectorGrid');
     if (!el) return;
-    if (!sectors.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
-
-    const maxAbs = Math.max(...sectors.map(s => Math.abs(s.change_pct)), 1);
+    if (!sectors.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 4;font-size:12px;">No data</div>'; return; }
 
     el.innerHTML = sectors.map(s => {
         const pct = s.change_pct || 0;
         const isUp = pct >= 0;
         const color = isUp ? '#0fad6e' : '#d94452';
         const bg = isUp ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)';
-        const intensity = Math.min(Math.abs(pct) / maxAbs, 1);
-        const barW = Math.max(intensity * 100, 8);
-        return `<div style="padding:6px 8px;border-radius:8px;background:${bg};display:flex;justify-content:space-between;align-items:center;">
-            <div>
-                <div style="font-size:11px;font-weight:600;color:#1a1e2e;">${s.name}</div>
-                <div style="font-size:9px;color:#6b7689;">${s.symbol}</div>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-size:13px;font-weight:700;color:${color};">${isUp ? '+' : ''}${pct.toFixed(2)}%</div>
-            </div>
+        return `<div style="padding:8px 10px;border-radius:8px;background:${bg};text-align:center;">
+            <div style="font-size:12px;font-weight:600;color:#1a1e2e;">${s.name}</div>
+            <div style="font-size:15px;font-weight:700;color:${color};margin-top:2px;">${isUp ? '+' : ''}${pct.toFixed(2)}%</div>
+            <div style="font-size:9px;color:#6b7689;">${s.symbol}</div>
         </div>`;
     }).join('');
 }
