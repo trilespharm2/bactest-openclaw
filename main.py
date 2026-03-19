@@ -4694,6 +4694,179 @@ def get_gainers_losers():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/dashboard/indices')
+def get_indices():
+    """Fetch index ETF snapshots (SPY, QQQ, DIA, IWM) + VIX via Polygon"""
+    try:
+        api_key = API_KEY
+        if not api_key:
+            return jsonify({'error': 'Polygon API key not configured'}), 401
+
+        tickers = ['SPY', 'QQQ', 'DIA', 'IWM']
+        indices = []
+
+        for ticker in tickers:
+            try:
+                url = f"{POLYGON_BASE_URL}/v2/snapshot/locale/us/markets/stocks/tickers/{ticker}"
+                resp = requests.get(url, params={'apiKey': api_key}, timeout=10)
+                if resp.status_code == 200:
+                    snap = resp.json().get('ticker', {})
+                    day = snap.get('day', {})
+                    prev = snap.get('prevDay', {})
+                    price = day.get('c') or snap.get('lastTrade', {}).get('p', 0)
+                    prev_close = prev.get('c', price)
+                    change = price - prev_close if price and prev_close else 0
+                    change_pct = (change / prev_close * 100) if prev_close else 0
+                    indices.append({
+                        'symbol': ticker,
+                        'price': round(price, 2) if price else 0,
+                        'change': round(change, 2),
+                        'change_pct': round(change_pct, 2)
+                    })
+            except Exception as e:
+                print(f"Error fetching {ticker}: {e}")
+                indices.append({'symbol': ticker, 'price': 0, 'change': 0, 'change_pct': 0})
+
+        # VIX via Polygon indices snapshot
+        try:
+            vix_url = f"{POLYGON_BASE_URL}/v3/snapshot?ticker.any_of=I:VIX&apiKey={api_key}"
+            vix_resp = requests.get(vix_url, timeout=10)
+            if vix_resp.status_code == 200:
+                vix_results = vix_resp.json().get('results', [])
+                if vix_results:
+                    vix_data = vix_results[0]
+                    vix_session = vix_data.get('session', {})
+                    vix_price = vix_session.get('close', 0) or vix_session.get('price', 0)
+                    vix_prev = vix_session.get('previous_close', vix_price)
+                    vix_change = vix_price - vix_prev if vix_price and vix_prev else 0
+                    vix_change_pct = (vix_change / vix_prev * 100) if vix_prev else 0
+                    indices.append({
+                        'symbol': 'VIX',
+                        'price': round(vix_price, 2) if vix_price else 0,
+                        'change': round(vix_change, 2),
+                        'change_pct': round(vix_change_pct, 2)
+                    })
+                else:
+                    indices.append({'symbol': 'VIX', 'price': 0, 'change': 0, 'change_pct': 0})
+            else:
+                indices.append({'symbol': 'VIX', 'price': 0, 'change': 0, 'change_pct': 0})
+        except Exception as e:
+            print(f"Error fetching VIX: {e}")
+            indices.append({'symbol': 'VIX', 'price': 0, 'change': 0, 'change_pct': 0})
+
+        return jsonify({'indices': indices, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/sectors')
+def get_sectors():
+    """Fetch sector ETF performance via Polygon snapshots"""
+    try:
+        api_key = API_KEY
+        if not api_key:
+            return jsonify({'error': 'Polygon API key not configured'}), 401
+
+        sector_etfs = {
+            'XLK': 'Technology', 'XLF': 'Financials', 'XLE': 'Energy',
+            'XLV': 'Healthcare', 'XLC': 'Communication', 'XLI': 'Industrials',
+            'XLP': 'Staples', 'XLU': 'Utilities', 'XLRE': 'Real Estate',
+            'XLB': 'Materials', 'XLY': 'Discretionary'
+        }
+
+        sectors = []
+        for ticker, name in sector_etfs.items():
+            try:
+                url = f"{POLYGON_BASE_URL}/v2/snapshot/locale/us/markets/stocks/tickers/{ticker}"
+                resp = requests.get(url, params={'apiKey': api_key}, timeout=10)
+                if resp.status_code == 200:
+                    snap = resp.json().get('ticker', {})
+                    change_pct = snap.get('todaysChangePerc', 0)
+                    day = snap.get('day', {})
+                    sectors.append({
+                        'symbol': ticker,
+                        'name': name,
+                        'change_pct': round(float(change_pct), 2) if change_pct else 0,
+                        'price': round(float(day.get('c', 0) or 0), 2)
+                    })
+            except Exception as e:
+                print(f"Error fetching sector {ticker}: {e}")
+                sectors.append({'symbol': ticker, 'name': name, 'change_pct': 0, 'price': 0})
+
+        sectors.sort(key=lambda x: x['change_pct'], reverse=True)
+        return jsonify({'sectors': sectors, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/most-active')
+def get_most_active():
+    """Fetch most active stocks by volume via Webull"""
+    if not WEBULL_AVAILABLE:
+        return jsonify({'error': 'Webull module not available'}), 500
+
+    try:
+        wb = wb_module()
+        active = []
+
+        active_data = wb.active_gainer_loser(direction='active', rank_type='volume', count=10)
+        if active_data and 'data' in active_data:
+            for item in active_data['data'][:10]:
+                ticker = item.get('ticker', {})
+                values = item.get('values', {})
+                vol = float(ticker.get('volume', 0) or values.get('volume', 0) or 0)
+                active.append({
+                    'symbol': ticker.get('symbol', 'N/A'),
+                    'price': float(values.get('price', 0) or 0),
+                    'change_pct': round(float(values.get('changeRatio', 0) or 0) * 100, 2),
+                    'volume': int(vol)
+                })
+
+        return jsonify({'active': active, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+
+    except Exception as e:
+        print(f"Error in most-active API: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/earnings')
+def get_earnings_calendar():
+    """Fetch upcoming earnings via Webull calendar"""
+    if not WEBULL_AVAILABLE:
+        return jsonify({'error': 'Webull module not available'}), 500
+
+    try:
+        wb = wb_module()
+        earnings = []
+
+        earnings_data = wb.get_calendar_events('earnings', num=20)
+        if earnings_data and isinstance(earnings_data, list):
+            for item in earnings_data[:20]:
+                earnings.append({
+                    'symbol': item.get('ticker', {}).get('symbol', 'N/A'),
+                    'name': item.get('ticker', {}).get('tinyName', ''),
+                    'date': item.get('eventDate', ''),
+                    'time': item.get('beforeAfterMarket', 'N/A')
+                })
+        elif earnings_data and isinstance(earnings_data, dict):
+            items = earnings_data.get('data', [])
+            for item in items[:20]:
+                earnings.append({
+                    'symbol': item.get('ticker', {}).get('symbol', item.get('symbol', 'N/A')),
+                    'name': item.get('ticker', {}).get('tinyName', item.get('name', '')),
+                    'date': item.get('eventDate', item.get('date', '')),
+                    'time': item.get('beforeAfterMarket', 'N/A')
+                })
+
+        return jsonify({'earnings': earnings, 'timestamp': datetime.now().strftime('%H:%M:%S')})
+
+    except Exception as e:
+        print(f"Error in earnings API: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # =============================================================================
 # SCREENER API ROUTES
 # =============================================================================

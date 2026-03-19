@@ -611,36 +611,46 @@
                 <h3 class="fw-bold mb-3">Dashboard</h3>
               </div>
 
+              <!-- Indices Ticker Bar -->
+              <div class="card mb-3" id="indicesCard">
+                <div class="card-body py-2 px-3">
+                  <div id="indicesBar" class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="min-height:36px;">
+                    <div class="text-muted text-center w-100" style="font-size:13px;">Loading indices...</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Actions -->
               <div class="row mb-3">
                 <div class="col-12">
                   <div class="card">
-                    <div class="card-header">
-                      <div class="card-title"><i class="fas fa-bolt text-warning me-2"></i>Quick Actions</div>
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-bolt text-warning me-2"></i>Quick Actions</div>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body py-2">
                       <div class="row">
-                        <div class="col-md-3 col-6 mb-3">
-                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="backtester">
-                            <i class="fas fa-play fa-2x text-primary mb-2"></i>
-                            <p class="mb-0">Options Backtest</p>
+                        <div class="col-md-3 col-6 mb-2">
+                          <a href="#" class="card quick-action-card text-center p-2 text-decoration-none" data-page="backtester">
+                            <i class="fas fa-play fa-lg text-primary mb-1"></i>
+                            <p class="mb-0" style="font-size:12px;">Options Backtest</p>
                           </a>
                         </div>
-                        <div class="col-md-3 col-6 mb-3">
-                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="stockBacktester">
-                            <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
-                            <p class="mb-0">Stock Backtest</p>
+                        <div class="col-md-3 col-6 mb-2">
+                          <a href="#" class="card quick-action-card text-center p-2 text-decoration-none" data-page="stockBacktester">
+                            <i class="fas fa-chart-line fa-lg text-success mb-1"></i>
+                            <p class="mb-0" style="font-size:12px;">Stock Backtest</p>
                           </a>
                         </div>
-                        <div class="col-md-3 col-6 mb-3">
-                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="optionsResults">
-                            <i class="fas fa-history fa-2x text-info mb-2"></i>
-                            <p class="mb-0">View Results</p>
+                        <div class="col-md-3 col-6 mb-2">
+                          <a href="#" class="card quick-action-card text-center p-2 text-decoration-none" data-page="optionsResults">
+                            <i class="fas fa-history fa-lg text-info mb-1"></i>
+                            <p class="mb-0" style="font-size:12px;">View Results</p>
                           </a>
                         </div>
-                        <div class="col-md-3 col-6 mb-3">
-                          <a href="#" class="card quick-action-card text-center p-3 text-decoration-none" data-page="screener">
-                            <i class="fas fa-filter fa-2x text-warning mb-2"></i>
-                            <p class="mb-0">Screener</p>
+                        <div class="col-md-3 col-6 mb-2">
+                          <a href="#" class="card quick-action-card text-center p-2 text-decoration-none" data-page="screener">
+                            <i class="fas fa-filter fa-lg text-warning mb-1"></i>
+                            <p class="mb-0" style="font-size:12px;">Screener</p>
                           </a>
                         </div>
                       </div>
@@ -649,29 +659,74 @@
                 </div>
               </div>
 
-              <div class="row">
+              <!-- Top Gainers + Top Losers -->
+              <div class="row mb-3">
                 <div class="col-md-6">
                   <div class="card">
-                    <div class="card-header">
-                      <div class="card-title"><i class="fas fa-arrow-trend-up text-success me-2"></i><span id="gainersTitle">Top Gainers</span></div>
-                      <span class="badge bg-secondary" id="marketSession">Loading...</span>
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-arrow-trend-up text-success me-2"></i><span id="gainersTitle">Top Gainers</span></div>
+                      <span class="badge bg-secondary" style="font-size:10px;" id="marketSession">Loading...</span>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body py-2">
                       <div id="gainersTable" class="movers-table">
-                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="card">
-                    <div class="card-header">
-                      <div class="card-title"><i class="fas fa-arrow-trend-down text-danger me-2"></i><span id="losersTitle">Top Losers</span></div>
-                      <span class="text-muted" id="refreshTime"></span>
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-arrow-trend-down text-danger me-2"></i><span id="losersTitle">Top Losers</span></div>
+                      <span class="text-muted" style="font-size:10px;" id="refreshTime"></span>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body py-2">
                       <div id="losersTable" class="movers-table">
-                        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Most Active + Sector Performance -->
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-fire text-orange me-2" style="color:#e5873a;"></i>Most Active</div>
+                    </div>
+                    <div class="card-body py-2">
+                      <div id="mostActiveTable" class="movers-table">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-th-large text-primary me-2"></i>Sector Performance</div>
+                    </div>
+                    <div class="card-body py-2">
+                      <div id="sectorGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        <div class="text-center py-3" style="grid-column:span 2;"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Earnings Calendar -->
+              <div class="row mb-3">
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-calendar-alt text-info me-2"></i>Upcoming Earnings</div>
+                    </div>
+                    <div class="card-body py-2">
+                      <div id="earningsTable">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
                       </div>
                     </div>
                   </div>
