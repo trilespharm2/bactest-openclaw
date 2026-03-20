@@ -2616,8 +2616,7 @@
             const marketDataStatus = document.getElementById('marketDataStatus');
             
             if (data.status === 'ok') {
-              badge.textContent = 'Online';
-              badge.className = 'api-status-badge online';
+              if (badge) { badge.textContent = 'Online'; badge.className = 'api-status-badge online'; }
               if (polygonStatus) {
                 polygonStatus.textContent = 'Online';
                 polygonStatus.className = 'api-status-badge online';
@@ -2627,13 +2626,12 @@
                 marketDataStatus.className = 'api-status-badge online';
               }
             } else {
-              badge.textContent = 'Offline';
-              badge.className = 'api-status-badge offline';
+              if (badge) { badge.textContent = 'Offline'; badge.className = 'api-status-badge offline'; }
             }
           })
           .catch(() => {
-            document.getElementById('apiStatusBadge').textContent = 'Offline';
-            document.getElementById('apiStatusBadge').className = 'api-status-badge offline';
+            const b = document.getElementById('apiStatusBadge');
+            if (b) { b.textContent = 'Offline'; b.className = 'api-status-badge offline'; }
           });
 
         // Update market session

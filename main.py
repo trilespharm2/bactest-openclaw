@@ -4800,14 +4800,16 @@ def _refresh_earnings():
 
 
 def _run_periodic(func, interval_sec, name):
-    """Run a function immediately then repeat on interval"""
+    """Run a function in a background thread immediately, then repeat on interval.
+    The first call is non-blocking so app.run() starts right away."""
     def _loop():
         func()
         timer = threading.Timer(interval_sec, _loop)
         timer.daemon = True
         timer.start()
         _cache_timers[name] = timer
-    _loop()
+    t = threading.Thread(target=_loop, daemon=True, name=f'cache-{name}')
+    t.start()
 
 
 _dashboard_cache_started = False
@@ -4831,36 +4833,37 @@ def start_dashboard_cache():
 
 
 # ── Thin API endpoints — just serve from cache, no Webull calls ──
+# loading=True means the background thread hasn't finished its first fetch yet.
+
+def _cache_response(key):
+    with _cache_lock:
+        data = dict(_dashboard_cache[key])
+    data['loading'] = not bool(data.get('timestamp'))
+    return jsonify(data)
 
 @app.route('/api/dashboard/gainers-losers')
 def get_gainers_losers():
-    with _cache_lock:
-        return jsonify(_dashboard_cache['gainers_losers'])
+    return _cache_response('gainers_losers')
 
 @app.route('/api/dashboard/indices')
 def get_indices():
-    with _cache_lock:
-        return jsonify(_dashboard_cache['indices'])
+    return _cache_response('indices')
 
 @app.route('/api/dashboard/sectors')
 def get_sectors():
-    with _cache_lock:
-        return jsonify(_dashboard_cache['sectors'])
+    return _cache_response('sectors')
 
 @app.route('/api/dashboard/most-active')
 def get_most_active():
-    with _cache_lock:
-        return jsonify(_dashboard_cache['most_active'])
+    return _cache_response('most_active')
 
 @app.route('/api/dashboard/trending')
 def get_trending():
-    with _cache_lock:
-        return jsonify(_dashboard_cache['trending'])
+    return _cache_response('trending')
 
 @app.route('/api/dashboard/earnings')
 def get_earnings_calendar():
-    with _cache_lock:
-        return jsonify(_dashboard_cache['earnings'])
+    return _cache_response('earnings')
 
 
 # =============================================================================

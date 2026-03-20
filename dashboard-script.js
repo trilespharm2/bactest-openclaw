@@ -1,6 +1,20 @@
 const API_BASE_URL = '';
 let dashboardIntervals = [];
 
+// ─── RETRY HELPER ────────────────────────────────────────────
+// When the server just started the background Webull fetch may not have
+// finished yet (loading:true). Poll up to maxRetries times (3-second gap).
+async function fetchCached(path, maxRetries = 6) {
+    for (let i = 0; i <= maxRetries; i++) {
+        const response = await authFetch(`${API_BASE_URL}${path}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!data.loading) return data;          // cache is warm — use it
+        if (i < maxRetries) await new Promise(r => setTimeout(r, 3000));
+    }
+    return {};  // gave up — caller will show empty state
+}
+
 async function initDashboard() {
     console.log('Initializing dashboard...');
 
@@ -33,9 +47,7 @@ async function initDashboard() {
 // ─── INDICES TICKER BAR ─────────────────────────────────────
 async function loadIndices() {
     try {
-        const response = await authFetch(`${API_BASE_URL}/api/dashboard/indices`);
-        if (!response.ok) throw new Error('Failed');
-        const data = await response.json();
+        const data = await fetchCached('/api/dashboard/indices');
         renderIndices(data.indices || []);
     } catch (e) {
         console.error('Indices error:', e);
@@ -66,9 +78,7 @@ function renderIndices(indices) {
 // ─── GAINERS / LOSERS ────────────────────────────────────────
 async function loadGainersLosers() {
     try {
-        const response = await authFetch(`${API_BASE_URL}/api/dashboard/gainers-losers`);
-        if (!response.ok) throw new Error('Failed to fetch market data');
-        const data = await response.json();
+        const data = await fetchCached('/api/dashboard/gainers-losers');
 
         const sessionBadge = document.getElementById('marketSession');
         if (sessionBadge) {
@@ -116,9 +126,7 @@ function renderMoversTable(elementId, items, isGainers) {
 // ─── MOST ACTIVE ─────────────────────────────────────────────
 async function loadMostActive() {
     try {
-        const response = await authFetch(`${API_BASE_URL}/api/dashboard/most-active`);
-        if (!response.ok) throw new Error('Failed');
-        const data = await response.json();
+        const data = await fetchCached('/api/dashboard/most-active');
         renderMostActive(data.active || []);
     } catch (e) {
         console.error('Most active error:', e);
@@ -148,9 +156,7 @@ function renderMostActive(items) {
 // ─── TRENDING NOW (5-MIN) ────────────────────────────────────
 async function loadTrending() {
     try {
-        const response = await authFetch(`${API_BASE_URL}/api/dashboard/trending`);
-        if (!response.ok) throw new Error('Failed');
-        const data = await response.json();
+        const data = await fetchCached('/api/dashboard/trending');
         renderTrending(data.trending || []);
     } catch (e) {
         console.error('Trending error:', e);
@@ -179,9 +185,7 @@ function renderTrending(items) {
 // ─── SECTOR PERFORMANCE ──────────────────────────────────────
 async function loadSectors() {
     try {
-        const response = await authFetch(`${API_BASE_URL}/api/dashboard/sectors`);
-        if (!response.ok) throw new Error('Failed');
-        const data = await response.json();
+        const data = await fetchCached('/api/dashboard/sectors');
         renderSectors(data.sectors || []);
     } catch (e) {
         console.error('Sectors error:', e);
@@ -211,9 +215,7 @@ function renderSectors(sectors) {
 // ─── EARNINGS CALENDAR ───────────────────────────────────────
 async function loadEarnings() {
     try {
-        const response = await authFetch(`${API_BASE_URL}/api/dashboard/earnings`);
-        if (!response.ok) throw new Error('Failed');
-        const data = await response.json();
+        const data = await fetchCached('/api/dashboard/earnings');
         renderEarnings(data.earnings || []);
     } catch (e) {
         console.error('Earnings error:', e);
