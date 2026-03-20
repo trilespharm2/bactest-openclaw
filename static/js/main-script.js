@@ -472,7 +472,7 @@ async function loadPageContent(pageName) {
                         
                         // Load dashboard script
                         if (!loadedScripts.has('dashboard')) {
-                            await loadScript('dashboard-script.js', 'dashboard');
+                            await loadScript('dashboard-script.js?v=3', 'dashboard');
                         } else {
                             initializePage('dashboard');
                         }

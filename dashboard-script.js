@@ -1,18 +1,14 @@
-const API_BASE_URL = '';
-let dashboardIntervals = [];
+var dashboardIntervals = dashboardIntervals || [];
 
-// ─── RETRY HELPER ────────────────────────────────────────────
-// When the server just started the background Webull fetch may not have
-// finished yet (loading:true). Poll up to maxRetries times (3-second gap).
 async function fetchCached(path, maxRetries = 6) {
     for (let i = 0; i <= maxRetries; i++) {
-        const response = await authFetch(`${API_BASE_URL}${path}`);
+        const response = await authFetch(path);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        if (!data.loading) return data;          // cache is warm — use it
+        if (!data.loading) return data;
         if (i < maxRetries) await new Promise(r => setTimeout(r, 3000));
     }
-    return {};  // gave up — caller will show empty state
+    return {};
 }
 
 async function initDashboard() {
