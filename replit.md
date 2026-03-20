@@ -40,6 +40,7 @@ The architecture utilizes a Wrapper Pattern for API-to-engine communication, Laz
 ### Feature Specifications
 - **Authentication**: Supports email/password and Google OAuth, including password reset and email change flows.
 - **Top Gainers/Losers Widget**: Displays real-time market movers data from Webull, refreshing automatically and adapting to market sessions.
+- **Dashboard Data Feeds**: Most Active, Trending, Sector Performance, Indices, and Upcoming Earnings cards are powered by `yfinance` (free, no API key). Gainers/Losers remain on Webull. All feeds use background thread caching with configurable refresh intervals (30-300s).
 - **Public Pages**: Includes landing, terms, privacy, FAQ, and contact pages.
 - **Subscription Management**: Integrates with Stripe for billing, plan upgrades/downgrades with proration logic, and customer portal access.
 - **Settings Page**: Allows account management, API key configuration, and notification preferences.

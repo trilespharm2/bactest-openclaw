@@ -4657,144 +4657,149 @@ def _refresh_gainers_losers():
         print(f"Cache: gainers/losers refresh failed: {e}")
 
 
+def _yf_get_close(df):
+    """Get the close column from a yfinance dataframe, handling naming variants."""
+    for col in ['Close', 'close', 'Adj Close', 'adj close']:
+        if col in df.columns:
+            return df[col]
+    return df.iloc[:, 0]
+
 def _refresh_indices():
-    """Background task: fetch index quotes from Webull"""
-    if not WEBULL_AVAILABLE:
-        return
+    """Background task: fetch index quotes via yfinance"""
     try:
-        wb = wb_module()
+        import yfinance as yf
+        symbols = ['SPY', 'QQQ', 'DIA', 'IWM', 'UVXY']
         indices = []
-        for symbol in ['SPY', 'QQQ', 'DIA', 'IWM', 'UVXY']:
+        for symbol in symbols:
             try:
-                q = wb.get_quote(stock=symbol)
-                if q:
-                    price = float(q.get('close', 0) or q.get('pPrice', 0) or 0)
-                    prev = float(q.get('preClose', price) or price)
-                    chg = price - prev if price and prev else 0
-                    pct = (chg / prev * 100) if prev else 0
-                    indices.append({'symbol': symbol, 'price': round(price, 2), 'change': round(chg, 2), 'change_pct': round(pct, 2)})
+                t = yf.Ticker(symbol)
+                hist = t.history(period='2d')
+                if hist is not None and len(hist) >= 1:
+                    closes = _yf_get_close(hist)
+                    price = round(float(closes.iloc[-1]), 2)
+                    prev = round(float(closes.iloc[-2]), 2) if len(hist) >= 2 else price
+                    chg = round(price - prev, 2)
+                    pct = round((chg / prev * 100), 2) if prev else 0
+                    indices.append({'symbol': symbol, 'price': price, 'change': chg, 'change_pct': pct})
                 else:
                     indices.append({'symbol': symbol, 'price': 0, 'change': 0, 'change_pct': 0})
             except Exception as e:
-                print(f"Cache: Error fetching {symbol}: {e}")
+                print(f"Cache: Error fetching index {symbol}: {e}")
                 indices.append({'symbol': symbol, 'price': 0, 'change': 0, 'change_pct': 0})
-
         with _cache_lock:
             _dashboard_cache['indices'] = {'indices': indices, 'timestamp': datetime.now().strftime('%H:%M:%S')}
+        print("Cache: indices refreshed OK (yfinance)")
     except Exception as e:
         print(f"Cache: indices refresh failed: {e}")
 
 
 def _refresh_sectors():
-    """Background task: fetch sector ETF quotes from Webull"""
-    if not WEBULL_AVAILABLE:
-        return
+    """Background task: fetch sector ETF quotes via yfinance"""
     try:
-        wb = wb_module()
+        import yfinance as yf
         etfs = {'XLK': 'Technology', 'XLF': 'Financials', 'XLE': 'Energy', 'XLV': 'Healthcare',
                 'XLC': 'Comm Svcs', 'XLI': 'Industrials', 'XLP': 'Staples', 'XLU': 'Utilities',
                 'XLRE': 'Real Estate', 'XLB': 'Materials', 'XLY': 'Discretionary'}
         sectors = []
         for ticker, name in etfs.items():
             try:
-                q = wb.get_quote(stock=ticker)
-                if q:
-                    price = float(q.get('close', 0) or q.get('pPrice', 0) or 0)
-                    prev = float(q.get('preClose', price) or price)
-                    pct = ((price - prev) / prev * 100) if prev else 0
-                    sectors.append({'symbol': ticker, 'name': name, 'change_pct': round(pct, 2), 'price': round(price, 2)})
+                t = yf.Ticker(ticker)
+                hist = t.history(period='2d')
+                if hist is not None and len(hist) >= 1:
+                    closes = _yf_get_close(hist)
+                    price = round(float(closes.iloc[-1]), 2)
+                    prev = round(float(closes.iloc[-2]), 2) if len(hist) >= 2 else price
+                    pct = round(((price - prev) / prev * 100), 2) if prev else 0
+                    sectors.append({'symbol': ticker, 'name': name, 'change_pct': pct, 'price': price})
                 else:
                     sectors.append({'symbol': ticker, 'name': name, 'change_pct': 0, 'price': 0})
             except Exception as e:
                 print(f"Cache: Error fetching sector {ticker}: {e}")
                 sectors.append({'symbol': ticker, 'name': name, 'change_pct': 0, 'price': 0})
-
         sectors.sort(key=lambda x: x['change_pct'], reverse=True)
         with _cache_lock:
             _dashboard_cache['sectors'] = {'sectors': sectors, 'timestamp': datetime.now().strftime('%H:%M:%S')}
+        print("Cache: sectors refreshed OK (yfinance)")
     except Exception as e:
         print(f"Cache: sectors refresh failed: {e}")
 
 
 def _refresh_most_active():
-    """Background task: fetch most active by volume from Webull"""
-    if not WEBULL_AVAILABLE:
-        return
+    """Background task: fetch most active by volume via yfinance screener"""
     try:
-        wb = wb_module()
+        import yfinance as yf
         active = []
-        ad = wb.active_gainer_loser(direction='active', rank_type='volume', count=10)
-        if ad and 'data' in ad:
-            for item in ad['data'][:10]:
-                t = item.get('ticker', {})
-                v = item.get('values', {})
-                vol = float(t.get('volume', 0) or v.get('volume', 0) or 0)
+        result = yf.screen('most_actives')
+        if result and 'quotes' in result:
+            for item in result['quotes'][:10]:
                 active.append({
-                    'symbol': t.get('symbol', 'N/A'),
-                    'price': float(v.get('price', 0) or 0),
-                    'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
-                    'volume': int(vol)
+                    'symbol': item.get('symbol', 'N/A'),
+                    'price': round(float(item.get('regularMarketPrice', 0) or 0), 2),
+                    'change_pct': round(float(item.get('regularMarketChangePercent', 0) or 0), 2),
+                    'volume': int(item.get('regularMarketVolume', 0) or 0)
                 })
         with _cache_lock:
             _dashboard_cache['most_active'] = {'active': active, 'timestamp': datetime.now().strftime('%H:%M:%S')}
+        print("Cache: most-active refreshed OK (yfinance)")
     except Exception as e:
         print(f"Cache: most-active refresh failed: {e}")
 
 
 def _refresh_trending():
-    """Background task: fetch 5-min trending from Webull"""
-    if not WEBULL_AVAILABLE:
-        return
+    """Background task: fetch trending tickers via yfinance screener"""
     try:
-        from datetime import time as dt_time
-        import pytz
-        wb = wb_module()
-        eastern = pytz.timezone('America/New_York')
-        now = datetime.now(eastern).time()
-        extend = 1 if (now < dt_time(9, 30) or now >= dt_time(16, 0)) else 0
+        import yfinance as yf
         trending = []
-        rd = wb.get_five_min_ranking(extendTrading=extend)
-        if rd:
-            for item in rd[:10]:
-                t = item.get('ticker', {})
-                v = item.get('values', {})
+        result = yf.screen('day_gainers')
+        if result and 'quotes' in result:
+            for item in result['quotes'][:10]:
                 trending.append({
-                    'symbol': t.get('symbol', 'N/A'),
-                    'price': float(v.get('price', 0) or 0),
-                    'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2)
+                    'symbol': item.get('symbol', 'N/A'),
+                    'price': round(float(item.get('regularMarketPrice', 0) or 0), 2),
+                    'change_pct': round(float(item.get('regularMarketChangePercent', 0) or 0), 2)
                 })
         with _cache_lock:
             _dashboard_cache['trending'] = {'trending': trending, 'timestamp': datetime.now().strftime('%H:%M:%S')}
+        print("Cache: trending refreshed OK (yfinance)")
     except Exception as e:
         print(f"Cache: trending refresh failed: {e}")
 
 
 def _refresh_earnings():
-    """Background task: fetch upcoming earnings from Webull"""
-    if not WEBULL_AVAILABLE:
-        return
+    """Background task: fetch upcoming earnings via yfinance ticker calendars"""
     try:
-        wb = wb_module()
+        import yfinance as yf
         earnings = []
-        ed = wb.get_calendar_events('earnings', num=20)
-        if ed and isinstance(ed, list):
-            for item in ed[:20]:
-                earnings.append({
-                    'symbol': item.get('ticker', {}).get('symbol', 'N/A'),
-                    'name': item.get('ticker', {}).get('tinyName', ''),
-                    'date': item.get('eventDate', ''),
-                    'time': item.get('beforeAfterMarket', 'N/A')
-                })
-        elif ed and isinstance(ed, dict):
-            for item in ed.get('data', [])[:20]:
-                earnings.append({
-                    'symbol': item.get('ticker', {}).get('symbol', item.get('symbol', 'N/A')),
-                    'name': item.get('ticker', {}).get('tinyName', item.get('name', '')),
-                    'date': item.get('eventDate', item.get('date', '')),
-                    'time': item.get('beforeAfterMarket', 'N/A')
-                })
+        tickers_to_check = [
+            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA', 'JPM', 'V', 'WMT',
+            'JNJ', 'PG', 'UNH', 'HD', 'DIS', 'BA', 'NFLX', 'COST', 'AMD', 'INTC',
+            'CRM', 'ORCL', 'ADBE', 'PYPL', 'MA', 'KO', 'PEP', 'MCD', 'NKE', 'T',
+            'UBER', 'SQ', 'SNAP', 'ROKU', 'ZM', 'SHOP', 'ABNB', 'COIN', 'PLTR', 'SOFI'
+        ]
+        today = datetime.now().date()
+        for sym in tickers_to_check:
+            try:
+                t = yf.Ticker(sym)
+                cal_data = t.calendar
+                if cal_data is not None and isinstance(cal_data, dict):
+                    ed = cal_data.get('Earnings Date', [])
+                    if ed:
+                        date_val = ed[0] if isinstance(ed, list) else ed
+                        date_str = str(date_val)[:10]
+                        earnings.append({
+                            'symbol': sym,
+                            'name': cal_data.get('Company Name', sym),
+                            'date': date_str,
+                            'time': 'N/A'
+                        })
+            except:
+                continue
+            if len(earnings) >= 15:
+                break
+        earnings.sort(key=lambda x: x.get('date', '9999'))
         with _cache_lock:
             _dashboard_cache['earnings'] = {'earnings': earnings, 'timestamp': datetime.now().strftime('%H:%M:%S')}
+        print(f"Cache: earnings refreshed OK (yfinance) — {len(earnings)} items")
     except Exception as e:
         print(f"Cache: earnings refresh failed: {e}")
 
@@ -4820,11 +4825,11 @@ def start_dashboard_cache():
     if _dashboard_cache_started:
         return
     _dashboard_cache_started = True
-    if not WEBULL_AVAILABLE:
-        print("⚠️  Dashboard cache not started — Webull not available")
-        return
-    print("🚀 Starting dashboard data cache (Webull feeds)...")
-    _run_periodic(_refresh_gainers_losers, 30, 'gainers_losers')
+    print("🚀 Starting dashboard data cache...")
+    if WEBULL_AVAILABLE:
+        _run_periodic(_refresh_gainers_losers, 30, 'gainers_losers')
+    else:
+        print("⚠️  Webull not available — gainers/losers feed disabled")
     _run_periodic(_refresh_indices, 30, 'indices')
     _run_periodic(_refresh_most_active, 60, 'most_active')
     _run_periodic(_refresh_trending, 60, 'trending')
