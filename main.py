@@ -4592,28 +4592,6 @@ _dashboard_cache = {
 _cache_lock = threading.Lock()
 _cache_timers = {}
 
-# Pre-resolved Webull ticker IDs for our fixed symbol list.
-# Populated once at startup so refresh loops skip the extra ticker-lookup HTTP call.
-_ticker_ids = {}
-
-
-def _init_ticker_ids():
-    """Resolve Webull internal ticker IDs for our fixed ETF/index list once at startup."""
-    if not WEBULL_AVAILABLE:
-        return
-    symbols = ['SPY', 'QQQ', 'DIA', 'IWM', 'UVXY',
-               'XLK', 'XLF', 'XLE', 'XLV', 'XLC', 'XLI', 'XLP', 'XLU', 'XLRE', 'XLB', 'XLY']
-    try:
-        wb = wb_module()
-        for sym in symbols:
-            try:
-                _ticker_ids[sym] = str(wb.get_ticker(sym))
-            except Exception as e:
-                print(f"Cache: ticker ID lookup failed for {sym}: {e}")
-        print(f"Cache: resolved {len(_ticker_ids)}/{len(symbols)} ticker IDs")
-    except Exception as e:
-        print(f"Cache: ticker ID init failed: {e}")
-
 
 def _get_market_session():
     """Determine current market session based on Eastern Time"""
@@ -4644,7 +4622,14 @@ def _refresh_gainers_losers():
             gd = wb.active_gainer_loser(direction='gainer', rank_type=rank_type, count=10)
             if gd and 'data' in gd:
                 for item in gd['data']:
-                    gainers.append(_extract_ticker_row(item))
+                    t = item.get('ticker', {})
+                    v = item.get('values', {})
+                    gainers.append({
+                        'symbol': t.get('symbol', 'N/A'),
+                        'price': float(v.get('price', 0) or 0),
+                        'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
+                        'volume': int(float(t.get('volume', 0) or 0))
+                    })
         except Exception as e:
             print(f"Cache: Error fetching gainers: {e}")
 
@@ -4652,7 +4637,14 @@ def _refresh_gainers_losers():
             ld = wb.active_gainer_loser(direction='loser', rank_type=rank_type, count=10)
             if ld and 'data' in ld:
                 for item in ld['data']:
-                    losers.append(_extract_ticker_row(item))
+                    t = item.get('ticker', {})
+                    v = item.get('values', {})
+                    losers.append({
+                        'symbol': t.get('symbol', 'N/A'),
+                        'price': float(v.get('price', 0) or 0),
+                        'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
+                        'volume': int(float(t.get('volume', 0) or 0))
+                    })
         except Exception as e:
             print(f"Cache: Error fetching losers: {e}")
 
@@ -4665,23 +4657,6 @@ def _refresh_gainers_losers():
         print(f"Cache: gainers/losers refresh failed: {e}")
 
 
-def _wb_quote(wb, symbol):
-    """Get a quote using pre-resolved ticker ID when available, falling back to symbol lookup."""
-    tId = _ticker_ids.get(symbol)
-    if tId:
-        return wb.get_quote(tId=tId)
-    return wb.get_quote(stock=symbol)
-
-
-def _parse_quote(q):
-    """Extract (price, prev_close) from a Webull quote dict."""
-    price = float(q.get('close', 0) or q.get('pPrice', 0) or q.get('price', 0) or 0)
-    prev = float(q.get('preClose', 0) or q.get('pChase', 0) or price or 0)
-    if not prev:
-        prev = price
-    return price, prev
-
-
 def _refresh_indices():
     """Background task: fetch index quotes from Webull"""
     if not WEBULL_AVAILABLE:
@@ -4691,9 +4666,10 @@ def _refresh_indices():
         indices = []
         for symbol in ['SPY', 'QQQ', 'DIA', 'IWM', 'UVXY']:
             try:
-                q = _wb_quote(wb, symbol)
+                q = wb.get_quote(stock=symbol)
                 if q:
-                    price, prev = _parse_quote(q)
+                    price = float(q.get('close', 0) or q.get('pPrice', 0) or 0)
+                    prev = float(q.get('preClose', price) or price)
                     chg = price - prev if price and prev else 0
                     pct = (chg / prev * 100) if prev else 0
                     indices.append({'symbol': symbol, 'price': round(price, 2), 'change': round(chg, 2), 'change_pct': round(pct, 2)})
@@ -4721,9 +4697,10 @@ def _refresh_sectors():
         sectors = []
         for ticker, name in etfs.items():
             try:
-                q = _wb_quote(wb, ticker)
+                q = wb.get_quote(stock=ticker)
                 if q:
-                    price, prev = _parse_quote(q)
+                    price = float(q.get('close', 0) or q.get('pPrice', 0) or 0)
+                    prev = float(q.get('preClose', price) or price)
                     pct = ((price - prev) / prev * 100) if prev else 0
                     sectors.append({'symbol': ticker, 'name': name, 'change_pct': round(pct, 2), 'price': round(price, 2)})
                 else:
@@ -4739,21 +4716,6 @@ def _refresh_sectors():
         print(f"Cache: sectors refresh failed: {e}")
 
 
-def _extract_ticker_row(item):
-    """Extract symbol, price, change_pct from an active_gainer_loser item.
-    Price and change data live in 'ticker'; 'values' only has rank metadata."""
-    t = item.get('ticker', {})
-    price = float(t.get('close', 0) or t.get('pPrice', 0) or 0)
-    change_ratio = float(t.get('changeRatio', 0) or 0)
-    volume = int(float(t.get('volume', 0) or 0))
-    return {
-        'symbol': t.get('symbol', 'N/A'),
-        'price': round(price, 2),
-        'change_pct': round(change_ratio * 100, 2),
-        'volume': volume
-    }
-
-
 def _refresh_most_active():
     """Background task: fetch most active by volume from Webull"""
     if not WEBULL_AVAILABLE:
@@ -4764,7 +4726,15 @@ def _refresh_most_active():
         ad = wb.active_gainer_loser(direction='active', rank_type='volume', count=10)
         if ad and 'data' in ad:
             for item in ad['data'][:10]:
-                active.append(_extract_ticker_row(item))
+                t = item.get('ticker', {})
+                v = item.get('values', {})
+                vol = float(t.get('volume', 0) or v.get('volume', 0) or 0)
+                active.append({
+                    'symbol': t.get('symbol', 'N/A'),
+                    'price': float(v.get('price', 0) or 0),
+                    'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2),
+                    'volume': int(vol)
+                })
         with _cache_lock:
             _dashboard_cache['most_active'] = {'active': active, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
@@ -4772,44 +4742,31 @@ def _refresh_most_active():
 
 
 def _refresh_trending():
-    """Background task: fetch trending stocks (5-min top gainers) from Webull.
-    Note: get_five_min_ranking() is broken on Webull's side; using active_gainer_loser
-    with rank_type='5min' which returns the same data via a working endpoint."""
+    """Background task: fetch 5-min trending from Webull"""
     if not WEBULL_AVAILABLE:
         return
     try:
+        from datetime import time as dt_time
+        import pytz
         wb = wb_module()
+        eastern = pytz.timezone('America/New_York')
+        now = datetime.now(eastern).time()
+        extend = 1 if (now < dt_time(9, 30) or now >= dt_time(16, 0)) else 0
         trending = []
-        rd = wb.active_gainer_loser(direction='gainer', rank_type='5min', count=10)
-        if rd and 'data' in rd:
-            for item in rd['data'][:10]:
-                row = _extract_ticker_row(item)
-                trending.append({'symbol': row['symbol'], 'price': row['price'], 'change_pct': row['change_pct']})
+        rd = wb.get_five_min_ranking(extendTrading=extend)
+        if rd:
+            for item in rd[:10]:
+                t = item.get('ticker', {})
+                v = item.get('values', {})
+                trending.append({
+                    'symbol': t.get('symbol', 'N/A'),
+                    'price': float(v.get('price', 0) or 0),
+                    'change_pct': round(float(v.get('changeRatio', 0) or 0) * 100, 2)
+                })
         with _cache_lock:
             _dashboard_cache['trending'] = {'trending': trending, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
         print(f"Cache: trending refresh failed: {e}")
-
-
-_EARNINGS_TIMING = {
-    'before_market': 'before', 'BMO': 'before', 'before': 'before',
-    'after_market': 'after', 'AMC': 'after', 'after': 'after',
-}
-
-
-def _norm_earnings_time(raw):
-    return _EARNINGS_TIMING.get(str(raw).strip(), raw or '')
-
-
-def _parse_earnings_item(item):
-    ticker = item.get('ticker', {})
-    values = item.get('values', {})
-    return {
-        'symbol': ticker.get('symbol', item.get('symbol', 'N/A')),
-        'name': ticker.get('name', ticker.get('tinyName', item.get('name', ''))),
-        'date': values.get('releaseDate', item.get('eventDate', item.get('date', ''))),
-        'time': _norm_earnings_time(values.get('qualifier', item.get('beforeAfterMarket', '')))
-    }
 
 
 def _refresh_earnings():
@@ -4820,14 +4777,22 @@ def _refresh_earnings():
         wb = wb_module()
         earnings = []
         ed = wb.get_calendar_events('earnings', num=20)
-        if isinstance(ed, list):
-            rows = ed
-        elif isinstance(ed, dict):
-            rows = ed.get('data', [])
-        else:
-            rows = []
-        for item in rows[:20]:
-            earnings.append(_parse_earnings_item(item))
+        if ed and isinstance(ed, list):
+            for item in ed[:20]:
+                earnings.append({
+                    'symbol': item.get('ticker', {}).get('symbol', 'N/A'),
+                    'name': item.get('ticker', {}).get('tinyName', ''),
+                    'date': item.get('eventDate', ''),
+                    'time': item.get('beforeAfterMarket', 'N/A')
+                })
+        elif ed and isinstance(ed, dict):
+            for item in ed.get('data', [])[:20]:
+                earnings.append({
+                    'symbol': item.get('ticker', {}).get('symbol', item.get('symbol', 'N/A')),
+                    'name': item.get('ticker', {}).get('tinyName', item.get('name', '')),
+                    'date': item.get('eventDate', item.get('date', '')),
+                    'time': item.get('beforeAfterMarket', 'N/A')
+                })
         with _cache_lock:
             _dashboard_cache['earnings'] = {'earnings': earnings, 'timestamp': datetime.now().strftime('%H:%M:%S')}
     except Exception as e:
@@ -4859,8 +4824,6 @@ def start_dashboard_cache():
         print("⚠️  Dashboard cache not started — Webull not available")
         return
     print("🚀 Starting dashboard data cache (Webull feeds)...")
-    # Pre-resolve ticker IDs once so refresh loops skip the extra lookup call
-    threading.Thread(target=_init_ticker_ids, daemon=True, name='cache-ticker-ids').start()
     _run_periodic(_refresh_gainers_losers, 30, 'gainers_losers')
     _run_periodic(_refresh_indices, 30, 'indices')
     _run_periodic(_refresh_most_active, 60, 'most_active')
