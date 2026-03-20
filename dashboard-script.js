@@ -1,4 +1,3 @@
-var API_BASE_URL = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
 var dashboardIntervals = typeof dashboardIntervals !== 'undefined' ? dashboardIntervals : [];
 
 // ─── RETRY HELPER ────────────────────────────────────────────
@@ -6,7 +5,7 @@ var dashboardIntervals = typeof dashboardIntervals !== 'undefined' ? dashboardIn
 // finished yet (loading:true). Poll up to maxRetries times (3-second gap).
 async function fetchCached(path, maxRetries = 6) {
     for (let i = 0; i <= maxRetries; i++) {
-        const response = await authFetch(`${API_BASE_URL}${path}`);
+        const response = await authFetch(path);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (!data.loading) return data;          // cache is warm — use it
