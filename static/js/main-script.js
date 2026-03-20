@@ -490,6 +490,7 @@ async function loadPageContent(pageName) {
             if (typeof initDashboard === 'function') {
                 initDashboard();
             }
+            initDashboardCharts();
             return;
         }
     }
@@ -893,12 +894,145 @@ let bestOptionsBacktest = null;
 let bestStockBacktest = null;
 
 // Initialize Dashboard Charts
+var _dashCardIntervals = [];
+
+async function _fetchCached(path, maxRetries = 6) {
+    for (let i = 0; i <= maxRetries; i++) {
+        const response = await authFetch(path);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (!data.loading) return data;
+        if (i < maxRetries) await new Promise(r => setTimeout(r, 3000));
+    }
+    return {};
+}
+
 function initDashboardCharts() {
     loadBestBacktests();
     loadWatchlist();
     loadEconomicCalendar();
     startGainersLosersRefresh();
     setupClickableCharts();
+
+    _dashCardIntervals.forEach(i => clearInterval(i));
+    _dashCardIntervals = [];
+
+    Promise.allSettled([
+        _loadIndices(),
+        _loadMostActive(),
+        _loadTrending(),
+        _loadSectors(),
+        _loadEarnings()
+    ]);
+
+    _dashCardIntervals.push(setInterval(_loadIndices, 30000));
+    _dashCardIntervals.push(setInterval(_loadMostActive, 60000));
+    _dashCardIntervals.push(setInterval(_loadTrending, 60000));
+    _dashCardIntervals.push(setInterval(_loadSectors, 60000));
+    _dashCardIntervals.push(setInterval(_loadEarnings, 300000));
+}
+
+async function _loadIndices() {
+    try {
+        const data = await _fetchCached('/api/dashboard/indices');
+        const el = document.getElementById('indicesBar');
+        if (!el) return;
+        const indices = data.indices || [];
+        if (!indices.length) return;
+        el.innerHTML = indices.map(idx => {
+            const isUp = idx.change >= 0;
+            const color = idx.symbol === 'UVXY'
+                ? (idx.change_pct > 10 ? '#d94452' : idx.change_pct > 3 ? '#e5873a' : '#0fad6e')
+                : (isUp ? '#0fad6e' : '#d94452');
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            const sign = isUp ? '+' : '';
+            return '<div class="text-center" style="flex:1;min-width:90px;">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + idx.symbol + '</div>' +
+                '<div style="font-size:15px;font-weight:700;color:#1a1e2e;">' + (idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '\u2014') + '</div>' +
+                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + idx.change_pct.toFixed(2) + '%</div></div>';
+        }).join('');
+    } catch (e) { console.error('Indices error:', e); }
+}
+
+async function _loadMostActive() {
+    try {
+        const data = await _fetchCached('/api/dashboard/most-active');
+        const el = document.getElementById('mostActiveTable');
+        if (!el) return;
+        const items = data.active || [];
+        if (!items.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data</div>'; return; }
+        el.innerHTML = items.slice(0, 8).map(item => {
+            const pct = item.change_pct || 0;
+            const color = pct >= 0 ? '#0fad6e' : '#d94452';
+            const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
+            const vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
+            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+                '<span style="font-weight:600;color:#3b6df0;">' + item.symbol + '</span>' +
+                '<span style="color:#6b7689;font-size:11px;">' + vol + '</span>' +
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+        }).join('');
+    } catch (e) { console.error('Most active error:', e); }
+}
+
+async function _loadTrending() {
+    try {
+        const data = await _fetchCached('/api/dashboard/trending');
+        const el = document.getElementById('trendingTable');
+        if (!el) return;
+        const items = data.trending || [];
+        if (!items.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data</div>'; return; }
+        el.innerHTML = items.slice(0, 8).map((item, i) => {
+            const pct = item.change_pct || 0;
+            const color = pct >= 0 ? '#0fad6e' : '#d94452';
+            const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
+            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+                '<span style="color:#6b7689;font-size:11px;width:18px;">' + (i + 1) + '</span>' +
+                '<span style="font-weight:600;color:#3b6df0;flex:1;">' + item.symbol + '</span>' +
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+        }).join('');
+    } catch (e) { console.error('Trending error:', e); }
+}
+
+async function _loadSectors() {
+    try {
+        const data = await _fetchCached('/api/dashboard/sectors');
+        const el = document.getElementById('sectorGrid');
+        if (!el) return;
+        const sectors = data.sectors || [];
+        if (!sectors.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 4;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = sectors.map(s => {
+            const pct = s.change_pct || 0;
+            const isUp = pct >= 0;
+            const color = isUp ? '#0fad6e' : '#d94452';
+            const bg = isUp ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)';
+            return '<div style="padding:8px 10px;border-radius:8px;background:' + bg + ';text-align:center;">' +
+                '<div style="font-size:12px;font-weight:600;color:#1a1e2e;">' + s.name + '</div>' +
+                '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + pct.toFixed(2) + '%</div>' +
+                '<div style="font-size:9px;color:#6b7689;">' + s.symbol + '</div></div>';
+        }).join('');
+    } catch (e) { console.error('Sectors error:', e); }
+}
+
+async function _loadEarnings() {
+    try {
+        const data = await _fetchCached('/api/dashboard/earnings');
+        const el = document.getElementById('earningsTable');
+        if (!el) return;
+        const earnings = data.earnings || [];
+        if (!earnings.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No upcoming earnings</div>'; return; }
+        el.innerHTML = '<div class="d-flex flex-wrap gap-2">' + earnings.slice(0, 12).map(e => {
+            const timing = e.time === 'before' ? 'BMO' : e.time === 'after' ? 'AMC' : e.time || '';
+            const timingBg = timing === 'BMO' ? '#fff7ed' : timing === 'AMC' ? '#eff6ff' : '#f8f9fc';
+            const timingColor = timing === 'BMO' ? '#e5873a' : timing === 'AMC' ? '#3b6df0' : '#6b7689';
+            return '<div style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;">' +
+                '<div style="font-size:13px;font-weight:700;color:#3b6df0;">' + e.symbol + '</div>' +
+                '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + (e.name || '') + '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<span style="font-size:10px;color:#6b7689;">' + (e.date || '') + '</span>' +
+                (timing ? '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:' + timingBg + ';color:' + timingColor + ';">' + timing + '</span>' : '') +
+                '</div></div>';
+        }).join('') + '</div>';
+    } catch (e) { console.error('Earnings error:', e); }
 }
 
 // Setup clickable chart cards

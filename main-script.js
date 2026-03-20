@@ -3,9 +3,27 @@
 // API Configuration - Dynamic to work with any port
 const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('authToken');
+    const headers = {};
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+function authFetch(url, options = {}) {
+    const tokenHeaders = getAuthHeaders();
+    options.credentials = 'include';
+    options.headers = { ...(options.headers || {}), ...tokenHeaders };
+    return fetch(url, options);
+}
+
 // State
 let currentPage = 'home';
 let apiKeyConfigured = false;
+let isAuthenticated = false;
+let currentUser = null;
 
 // DOM Elements
 const sidebar = document.querySelector('.sidebar');
@@ -21,8 +39,11 @@ const apiStatusText = document.getElementById('apiStatusText');
 const loadedScripts = new Set();
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('Dashboard initializing...');
+    
+    // Check authentication status first
+    await checkAuthStatus();
     
     // Load saved API key
     const savedApiKey = localStorage.getItem('polygonApiKey');
@@ -52,11 +73,223 @@ document.addEventListener('DOMContentLoaded', () => {
     const section = urlParams.get('section');
     
     if (section) {
-        navigateToPage(section);
+        await navigateToPage(section);
     } else {
-        loadPageContent('home');
+        await loadPageContent('home');
     }
+    
+    // Remove initializing class to reveal content after navigation completes
+    document.body.classList.remove('initializing');
 });
+
+// Check authentication status
+async function checkAuthStatus() {
+    try {
+        const response = await authFetch('/api/auth/status');
+        const data = await response.json();
+        isAuthenticated = data.authenticated;
+        currentUser = data.user || null;
+        console.log('Auth status:', isAuthenticated ? 'Logged in as' : 'Guest', currentUser?.name || '');
+        
+        // Load API key from user profile if authenticated
+        if (isAuthenticated && data.polygon_api_key) {
+            localStorage.setItem('polygonApiKey', data.polygon_api_key);
+            console.log('API key loaded from user profile');
+        }
+        
+        // Apply UI state after auth check
+        applyAuthUIState();
+    } catch (error) {
+        console.log('Auth check failed:', error);
+        isAuthenticated = false;
+        currentUser = null;
+    }
+}
+
+// Apply auth-aware UI state - call this after any DOM updates
+function applyAuthUIState() {
+    console.log('Applying auth UI state, authenticated:', isAuthenticated);
+    
+    // Update header based on auth status
+    const userProfileNav = document.getElementById('userProfileNav');
+    const guestNav = document.getElementById('guestNav');
+    
+    console.log('Header elements found:', { userProfileNav: !!userProfileNav, guestNav: !!guestNav });
+    
+    if (isAuthenticated && currentUser) {
+        // Show user profile, hide guest nav
+        if (userProfileNav) {
+            userProfileNav.style.display = 'block';
+            console.log('Showing userProfileNav');
+        }
+        if (guestNav) {
+            // Remove d-flex class to allow hiding (Bootstrap's d-flex uses !important)
+            guestNav.classList.remove('d-flex');
+            guestNav.style.display = 'none';
+            console.log('Hiding guestNav');
+        }
+        
+        const userName = document.getElementById('userName');
+        const userNameDisplay = document.getElementById('userNameDisplay');
+        const userEmailDisplay = document.getElementById('userEmailDisplay');
+        const profileBtn = document.getElementById('profileBtn');
+        const userMenuItems = document.getElementById('userMenuItems');
+        
+        if (userName) userName.textContent = currentUser.name;
+        if (userNameDisplay) userNameDisplay.textContent = currentUser.name;
+        if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email;
+        if (profileBtn) {
+            profileBtn.href = '/?section=settings';
+            profileBtn.textContent = 'View Profile';
+        }
+        if (userMenuItems) {
+            userMenuItems.innerHTML = `
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="/?section=settings">My Profile</a>
+                <a class="dropdown-item" href="/?section=subscription">Subscription</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" onclick="localStorage.removeItem('authToken'); window.location.href='/logout';">Logout</a>
+            `;
+        }
+    } else {
+        // Show guest nav, hide user profile
+        if (userProfileNav) userProfileNav.style.display = 'none';
+        if (guestNav) {
+            guestNav.classList.add('d-flex');
+            guestNav.style.display = '';
+        }
+    }
+    
+    // Update subscription/pricing text and settings visibility
+    const subscriptionNavText = document.getElementById('subscriptionNavText');
+    const pricingContent = document.getElementById('pricingContent');
+    const subscriptionContent = document.getElementById('subscriptionContent');
+    const settingsNavItem = document.getElementById('nav-settings');
+    
+    console.log('Updating sidebar UI:', {
+        subscriptionNavText: !!subscriptionNavText,
+        settingsNavItem: !!settingsNavItem,
+        isAuthenticated
+    });
+    
+    if (isAuthenticated) {
+        // Show subscription, hide pricing
+        if (subscriptionNavText) subscriptionNavText.textContent = 'Subscription';
+        if (pricingContent) pricingContent.style.display = 'none';
+        if (subscriptionContent) subscriptionContent.style.display = '';
+        // Show settings for logged-in users
+        if (settingsNavItem) settingsNavItem.style.display = '';
+    } else {
+        // Show pricing, hide subscription
+        if (subscriptionNavText) subscriptionNavText.textContent = 'Pricing';
+        if (pricingContent) pricingContent.style.display = '';
+        if (subscriptionContent) subscriptionContent.style.display = 'none';
+        // Hide settings for guests
+        if (settingsNavItem) settingsNavItem.style.display = 'none';
+    }
+}
+
+// Setup login required overlay for backtester fields
+function setupLoginRequiredFields(containerSelector) {
+    if (isAuthenticated) return; // No need if logged in
+    
+    const container = document.querySelector(containerSelector);
+    if (!container) {
+        console.log('Login overlay: Container not found:', containerSelector);
+        return;
+    }
+    
+    console.log('Applying login required overlay to:', containerSelector);
+    
+    // Add login banner at top of the page header or card
+    const pageHeader = container.querySelector('.page-header');
+    const existingBanner = container.querySelector('.login-banner');
+    if (!existingBanner) {
+        const banner = document.createElement('div');
+        banner.className = 'login-banner';
+        banner.innerHTML = `
+            <div class="login-banner-text">
+                <i class="fas fa-lock"></i>
+                <span>Sign in to run backtests and access all features</span>
+            </div>
+            <div class="login-banner-actions">
+                <a href="/login" class="btn-login">Sign In</a>
+                <a href="/register" class="btn-signup">Sign Up Free</a>
+            </div>
+        `;
+        if (pageHeader) {
+            pageHeader.after(banner);
+        } else {
+            container.insertBefore(banner, container.firstChild);
+        }
+    }
+    
+    // Actually disable all form inputs, selects, textareas, and buttons
+    const formElements = container.querySelectorAll('input, select, textarea, button[type="submit"], .btn-primary');
+    formElements.forEach(el => {
+        el.disabled = true;
+        el.classList.add('disabled-field');
+        el.style.opacity = '0.5';
+        el.style.cursor = 'not-allowed';
+        el.style.backgroundColor = '#f5f5f5';
+    });
+    
+    // Add overlay to form sections for visual feedback
+    const formSections = container.querySelectorAll('.backtester-section, .card-body form');
+    formSections.forEach(section => {
+        section.classList.add('login-required-overlay');
+    });
+    
+    // Add click handler to show tooltip when clicking disabled fields
+    container.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target.classList.contains('disabled-field') || target.disabled) {
+            e.preventDefault();
+            e.stopPropagation();
+            showLoginTooltip(target);
+        }
+    });
+}
+
+// Show tooltip near the clicked element
+function showLoginTooltip(element) {
+    // Remove any existing tooltips
+    document.querySelectorAll('.login-field-tooltip').forEach(t => t.remove());
+    
+    const tooltip = document.createElement('div');
+    tooltip.className = 'login-field-tooltip';
+    tooltip.innerHTML = '<a href="/login">Sign in</a> or <a href="/register">sign up for free</a> to use this feature';
+    tooltip.style.cssText = `
+        position: absolute;
+        background: #1a2332;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        white-space: nowrap;
+    `;
+    
+    document.body.appendChild(tooltip);
+    
+    const rect = element.getBoundingClientRect();
+    tooltip.style.left = `${rect.left + window.scrollX}px`;
+    tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
+    
+    // Style the links
+    tooltip.querySelectorAll('a').forEach(a => {
+        a.style.color = '#3b7cff';
+        a.style.textDecoration = 'none';
+    });
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => tooltip.remove(), 3000);
+}
+
+// Make function globally available
+window.setupLoginRequiredFields = setupLoginRequiredFields;
+window.isAuthenticated = () => isAuthenticated;
 
 // Setup Profile Dropdown
 function setupProfileDropdown() {
@@ -102,52 +335,37 @@ function setupMobileMenu() {
 
 // Setup Navigation
 function setupNavigation() {
-    // Sidebar navigation
-    navItems.forEach(item => {
-        const link = item.querySelector('.nav-link');
-        
-        // Handle dropdown toggle
-        if (item.classList.contains('has-dropdown') && !item.classList.contains('disabled')) {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                item.classList.toggle('active');
-            });
-        }
-        
-        // Handle direct page links
-        const pageAttr = item.getAttribute('data-page');
-        if (pageAttr) {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                navigateToPage(pageAttr);
-            });
-        }
-    });
-    
-    // Dropdown menu items
-    document.querySelectorAll('.dropdown-menu li').forEach(item => {
-        const pageAttr = item.getAttribute('data-page');
-        if (pageAttr) {
-            item.querySelector('a').addEventListener('click', (e) => {
-                e.preventDefault();
-                navigateToPage(pageAttr);
-            });
-        }
-    });
-    
-    // Header icon navigation
-    document.querySelectorAll('.header-icon-btn[data-page]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    // Handle all links with data-page attribute
+    document.querySelectorAll('[data-page]').forEach(element => {
+        element.addEventListener('click', (e) => {
             e.preventDefault();
-            navigateToPage(btn.getAttribute('data-page'));
+            const pageName = element.getAttribute('data-page');
+            console.log('Navigating to:', pageName);
+            navigateToPage(pageName);
         });
     });
+    
 }
 
 // Navigate to Page
-function navigateToPage(pageName, skipPushState = false) {
+async function navigateToPage(pageName, skipPushState = false) {
     console.log('Navigating to:', pageName);
-    
+
+    // Close the mobile sidebar whenever the user navigates.
+    // KaiAdmin uses jQuery handlers, so we must use jQuery .trigger() to properly
+    // close the sidebar and keep its internal state (h counter) in sync.
+    if (typeof jQuery !== 'undefined' && jQuery('html').hasClass('nav_open')) {
+        jQuery('.sidenav-toggler').first().trigger('click');
+    }
+    // Direct fallback in case jQuery path didn't fire.
+    document.documentElement.classList.remove('nav_open');
+    document.querySelectorAll('.sidenav-toggler').forEach(function(el) { el.classList.remove('toggled'); });
+    // Also cover the secondary custom mechanism.
+    var _msb = document.querySelector('.sidebar');
+    var _mov = document.getElementById('mobileOverlay');
+    if (_msb) _msb.classList.remove('mobile-open');
+    if (_mov) _mov.classList.remove('active');
+
     if (pageName === currentPage && !skipPushState) return;
     
     // Update current page
@@ -161,23 +379,37 @@ function navigateToPage(pageName, skipPushState = false) {
         history.pushState({ page: pageName }, '', newUrl);
     }
     
-    // Update nav active states
+    // Clear all active states and KaiAdmin's submenu class
+    const activeItems = document.querySelectorAll('.nav-item.active, .nav-item.submenu, .dropdown-menu li.active');
+    console.log('Clearing active/submenu from:', activeItems.length, 'items');
+    activeItems.forEach(item => {
+        item.classList.remove('active', 'submenu');
+    });
+    
+    // Update nav active states - check for data-page on child anchor
+    let foundMatch = false;
     navItems.forEach(item => {
-        item.classList.remove('active');
-        if (item.getAttribute('data-page') === pageName) {
+        const anchor = item.querySelector('[data-page]');
+        if (anchor && anchor.getAttribute('data-page') === pageName) {
             item.classList.add('active');
+            console.log('Setting active on:', item.id || anchor.getAttribute('data-page'));
+            foundMatch = true;
         }
     });
+    console.log('Found matching nav item:', foundMatch);
     
     // Update dropdown menu active states
     document.querySelectorAll('.dropdown-menu li').forEach(item => {
-        item.classList.remove('active');
-        if (item.getAttribute('data-page') === pageName) {
+        const anchor = item.querySelector('[data-page]');
+        if (anchor && anchor.getAttribute('data-page') === pageName) {
             item.classList.add('active');
-            // Expand parent dropdown
-            const parentDropdown = item.closest('.has-dropdown');
+            // Expand parent dropdown and mark it active
+            const parentDropdown = item.closest('.nav-item');
             if (parentDropdown) {
                 parentDropdown.classList.add('active');
+                // Also expand the collapse
+                const collapse = parentDropdown.querySelector('.collapse');
+                if (collapse) collapse.classList.add('show');
             }
         }
     });
@@ -206,7 +438,7 @@ function navigateToPage(pageName, skipPushState = false) {
     }
     
     // Load page content
-    loadPageContent(pageName);
+    await loadPageContent(pageName);
 }
 
 // Handle browser back/forward buttons
@@ -222,6 +454,47 @@ async function loadPageContent(pageName) {
     // Hide all pages
     pages.forEach(page => page.classList.remove('active'));
     
+    // If authenticated and on home page, load dashboard content into home page
+    if (pageName === 'home' && isAuthenticated) {
+        const homePage = document.getElementById('homePage');
+        const dashboardPage = document.getElementById('dashboardPage');
+        
+        if (homePage && dashboardPage) {
+            // Check if dashboard content is loaded
+            let dashboardContent = dashboardPage.innerHTML.trim();
+            if (!dashboardContent || dashboardContent.includes('error-message')) {
+                // Need to load dashboard content
+                try {
+                    const response = await fetch('dashboard.html');
+                    if (response.ok) {
+                        dashboardContent = await response.text();
+                        dashboardPage.innerHTML = dashboardContent;
+                        
+                        // Load dashboard script
+                        if (!loadedScripts.has('dashboard')) {
+                            await loadScript('dashboard-script.js?v=3', 'dashboard');
+                        } else {
+                            initializePage('dashboard');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading dashboard:', error);
+                }
+            }
+            
+            // Replace home page with dashboard content
+            homePage.innerHTML = dashboardPage.innerHTML;
+            homePage.classList.add('active');
+            
+            // Initialize dashboard widgets
+            if (typeof initDashboard === 'function') {
+                initDashboard();
+            }
+            initDashboardCharts();
+            return;
+        }
+    }
+    
     // Get target page element
     const targetPage = document.getElementById(`${pageName}Page`);
     if (!targetPage) {
@@ -229,11 +502,14 @@ async function loadPageContent(pageName) {
         return;
     }
     
-    // If page content needs to be loaded (not home page)
+    // If page content needs to be loaded (not home page when unauthenticated)
     if (pageName !== 'home') {
-        // Check if content is already loaded
-        const hasContent = targetPage.innerHTML.trim() !== '' && 
-                          !targetPage.innerHTML.includes('error-message');
+        // Check if content is already loaded (must have actual elements, not just comments)
+        const contentText = targetPage.innerHTML.trim();
+        const hasContent = contentText !== '' && 
+                          !contentText.includes('error-message') &&
+                          !contentText.startsWith('<!--') &&
+                          targetPage.children.length > 0;
         
         if (!hasContent) {
             console.log('Fetching content for:', pageName);
@@ -245,9 +521,16 @@ async function loadPageContent(pageName) {
                 if (pageName === 'stockBacktester') {
                     fileName = 'stock-backtester';
                     scriptName = 'stock-backtester-script.js';
-                } else if (pageName === 'simulatedTrading') {
+                }
+                if (pageName === 'simulatedTrading') {
                     fileName = 'simulated-trading';
                     scriptName = 'simulated-trading-script.js';
+                }
+                if (pageName === 'screener') {
+                    scriptName = 'static/js/screener-script.js';
+                }
+                if (pageName === 'notifications') {
+                    scriptName = 'static/js/notifications-script.js';
                 }
                 
                 const response = await fetch(`${fileName}.html`);
@@ -282,19 +565,31 @@ async function loadPageContent(pageName) {
             }
         } else {
             console.log('Content already loaded for:', pageName);
-            // Content is already there, check if it needs script loading
-            const inlinePages = ['backtester', 'stockBacktester', 'simulatedTrading'];
-            if (inlinePages.includes(pageName) && !loadedScripts.has(pageName)) {
-                // Load script for inline page
+            // Pages with inline scripts (no separate script file needed)
+            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings'];
+            
+            if (inlineScriptPages.includes(pageName)) {
+                // These pages have their init functions defined inline or in pre-loaded scripts
+                console.log('Using inline script for:', pageName);
+                loadedScripts.add(pageName);
+                initializePage(pageName);
+            } else if (!loadedScripts.has(pageName)) {
+                console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
                 if (pageName === 'stockBacktester') {
                     scriptName = 'stock-backtester-script.js';
-                } else if (pageName === 'simulatedTrading') {
+                }
+                if (pageName === 'simulatedTrading') {
                     scriptName = 'simulated-trading-script.js';
                 }
-                console.log('Loading script for inline content:', pageName);
+                if (pageName === 'screener') {
+                    scriptName = 'static/js/screener-script.js';
+                }
+                if (pageName === 'notifications') {
+                    scriptName = 'static/js/notifications-script.js';
+                }
                 await loadScript(scriptName, pageName);
-            } else if (loadedScripts.has(pageName)) {
+            } else {
                 initializePage(pageName);
             }
         }
@@ -308,6 +603,9 @@ async function loadPageContent(pageName) {
     if (pageName === 'home') {
         initDashboardCharts();
     }
+    
+    // Re-apply auth UI state after DOM updates
+    applyAuthUIState();
 }
 
 // Load Script Helper
@@ -341,16 +639,30 @@ function initializePage(pageName) {
             initializeOptionsPage();
         } else if (pageName === 'backtester' && typeof initializeBacktesterPage === 'function') {
             initializeBacktesterPage();
+            setTimeout(() => setupLoginRequiredFields('#backtesterPage'), 100);
         } else if (pageName === 'stockBacktester' && typeof initializeStockBacktesterPage === 'function') {
             initializeStockBacktesterPage();
+            setTimeout(() => setupLoginRequiredFields('#stockBacktesterPage'), 100);
         } else if (pageName === 'my-backtests' && typeof initializeMyBacktestsPage === 'function') {
             initializeMyBacktestsPage();
         } else if (pageName === 'results' && typeof initializeResultsPage === 'function') {
             initializeResultsPage();
+        } else if (pageName === 'optionsResults' && typeof initOptionsResultsPage === 'function') {
+            initOptionsResultsPage();
+        } else if (pageName === 'stockResults' && typeof initStockResultsPage === 'function') {
+            initStockResultsPage();
         } else if (pageName === 'billing' && typeof initBillingPage === 'function') {
             initBillingPage();
         } else if (pageName === 'subscription' && typeof initSubscriptionPage === 'function') {
             initSubscriptionPage();
+        } else if (pageName === 'settings' && typeof initSettingsPage === 'function') {
+            initSettingsPage();
+        } else if (pageName === 'screener' && typeof initScreenerPage === 'function') {
+            initScreenerPage();
+            setTimeout(() => setupLoginRequiredFields('#screenerPage'), 100);
+        } else if (pageName === 'notifications' && typeof initNotificationsPage === 'function') {
+            initNotificationsPage();
+            setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
         }
@@ -363,25 +675,55 @@ function initializePage(pageName) {
 function setupAPIKey() {
     if (!saveApiKeyBtn || !apiKeyInput) return;
     
-    saveApiKeyBtn.addEventListener('click', () => {
+    saveApiKeyBtn.addEventListener('click', async () => {
         const apiKey = apiKeyInput.value.trim();
         if (apiKey) {
             localStorage.setItem('polygonApiKey', apiKey);
             apiKeyConfigured = true;
             updateAPIStatus(true);
-            showNotification('API key saved successfully', 'success');
+            
+            // Save to user profile if authenticated
+            if (isAuthenticated) {
+                try {
+                    const response = await authFetch('/api/user/api-key', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+                    if (response.ok) {
+                        showNotification('API key saved to your profile', 'success');
+                    } else {
+                        showNotification('API key saved locally', 'success');
+                    }
+                } catch (e) {
+                    showNotification('API key saved locally', 'success');
+                }
+            } else {
+                showNotification('API key saved successfully', 'success');
+            }
         } else {
             showNotification('Please enter a valid API key', 'error');
         }
     });
     
     // Auto-save on change
-    apiKeyInput.addEventListener('change', () => {
+    apiKeyInput.addEventListener('change', async () => {
         const apiKey = apiKeyInput.value.trim();
         if (apiKey) {
             localStorage.setItem('polygonApiKey', apiKey);
             apiKeyConfigured = true;
             updateAPIStatus(true);
+            
+            // Save to user profile if authenticated
+            if (isAuthenticated) {
+                try {
+                    await authFetch('/api/user/api-key', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+                } catch (e) { }
+            }
         }
     });
 }
@@ -552,12 +894,145 @@ let bestOptionsBacktest = null;
 let bestStockBacktest = null;
 
 // Initialize Dashboard Charts
+var _dashCardIntervals = [];
+
+async function _fetchCached(path, maxRetries = 6) {
+    for (let i = 0; i <= maxRetries; i++) {
+        const response = await authFetch(path);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (!data.loading) return data;
+        if (i < maxRetries) await new Promise(r => setTimeout(r, 3000));
+    }
+    return {};
+}
+
 function initDashboardCharts() {
     loadBestBacktests();
     loadWatchlist();
     loadEconomicCalendar();
     startGainersLosersRefresh();
     setupClickableCharts();
+
+    _dashCardIntervals.forEach(i => clearInterval(i));
+    _dashCardIntervals = [];
+
+    Promise.allSettled([
+        _loadIndices(),
+        _loadMostActive(),
+        _loadTrending(),
+        _loadSectors(),
+        _loadEarnings()
+    ]);
+
+    _dashCardIntervals.push(setInterval(_loadIndices, 30000));
+    _dashCardIntervals.push(setInterval(_loadMostActive, 60000));
+    _dashCardIntervals.push(setInterval(_loadTrending, 60000));
+    _dashCardIntervals.push(setInterval(_loadSectors, 60000));
+    _dashCardIntervals.push(setInterval(_loadEarnings, 300000));
+}
+
+async function _loadIndices() {
+    try {
+        const data = await _fetchCached('/api/dashboard/indices');
+        const el = document.getElementById('indicesBar');
+        if (!el) return;
+        const indices = data.indices || [];
+        if (!indices.length) return;
+        el.innerHTML = indices.map(idx => {
+            const isUp = idx.change >= 0;
+            const color = idx.symbol === 'UVXY'
+                ? (idx.change_pct > 10 ? '#d94452' : idx.change_pct > 3 ? '#e5873a' : '#0fad6e')
+                : (isUp ? '#0fad6e' : '#d94452');
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            const sign = isUp ? '+' : '';
+            return '<div class="text-center" style="flex:1;min-width:90px;">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + idx.symbol + '</div>' +
+                '<div style="font-size:15px;font-weight:700;color:#1a1e2e;">' + (idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '\u2014') + '</div>' +
+                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + idx.change_pct.toFixed(2) + '%</div></div>';
+        }).join('');
+    } catch (e) { console.error('Indices error:', e); }
+}
+
+async function _loadMostActive() {
+    try {
+        const data = await _fetchCached('/api/dashboard/most-active');
+        const el = document.getElementById('mostActiveTable');
+        if (!el) return;
+        const items = data.active || [];
+        if (!items.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data</div>'; return; }
+        el.innerHTML = items.slice(0, 8).map(item => {
+            const pct = item.change_pct || 0;
+            const color = pct >= 0 ? '#0fad6e' : '#d94452';
+            const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
+            const vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
+            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+                '<span style="font-weight:600;color:#3b6df0;">' + item.symbol + '</span>' +
+                '<span style="color:#6b7689;font-size:11px;">' + vol + '</span>' +
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+        }).join('');
+    } catch (e) { console.error('Most active error:', e); }
+}
+
+async function _loadTrending() {
+    try {
+        const data = await _fetchCached('/api/dashboard/trending');
+        const el = document.getElementById('trendingTable');
+        if (!el) return;
+        const items = data.trending || [];
+        if (!items.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data</div>'; return; }
+        el.innerHTML = items.slice(0, 8).map((item, i) => {
+            const pct = item.change_pct || 0;
+            const color = pct >= 0 ? '#0fad6e' : '#d94452';
+            const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
+            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+                '<span style="color:#6b7689;font-size:11px;width:18px;">' + (i + 1) + '</span>' +
+                '<span style="font-weight:600;color:#3b6df0;flex:1;">' + item.symbol + '</span>' +
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+        }).join('');
+    } catch (e) { console.error('Trending error:', e); }
+}
+
+async function _loadSectors() {
+    try {
+        const data = await _fetchCached('/api/dashboard/sectors');
+        const el = document.getElementById('sectorGrid');
+        if (!el) return;
+        const sectors = data.sectors || [];
+        if (!sectors.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 4;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = sectors.map(s => {
+            const pct = s.change_pct || 0;
+            const isUp = pct >= 0;
+            const color = isUp ? '#0fad6e' : '#d94452';
+            const bg = isUp ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)';
+            return '<div style="padding:8px 10px;border-radius:8px;background:' + bg + ';text-align:center;">' +
+                '<div style="font-size:12px;font-weight:600;color:#1a1e2e;">' + s.name + '</div>' +
+                '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + pct.toFixed(2) + '%</div>' +
+                '<div style="font-size:9px;color:#6b7689;">' + s.symbol + '</div></div>';
+        }).join('');
+    } catch (e) { console.error('Sectors error:', e); }
+}
+
+async function _loadEarnings() {
+    try {
+        const data = await _fetchCached('/api/dashboard/earnings');
+        const el = document.getElementById('earningsTable');
+        if (!el) return;
+        const earnings = data.earnings || [];
+        if (!earnings.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No upcoming earnings</div>'; return; }
+        el.innerHTML = '<div class="d-flex flex-wrap gap-2">' + earnings.slice(0, 12).map(e => {
+            const timing = e.time === 'before' ? 'BMO' : e.time === 'after' ? 'AMC' : e.time || '';
+            const timingBg = timing === 'BMO' ? '#fff7ed' : timing === 'AMC' ? '#eff6ff' : '#f8f9fc';
+            const timingColor = timing === 'BMO' ? '#e5873a' : timing === 'AMC' ? '#3b6df0' : '#6b7689';
+            return '<div style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;">' +
+                '<div style="font-size:13px;font-weight:700;color:#3b6df0;">' + e.symbol + '</div>' +
+                '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + (e.name || '') + '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<span style="font-size:10px;color:#6b7689;">' + (e.date || '') + '</span>' +
+                (timing ? '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:' + timingBg + ';color:' + timingColor + ';">' + timing + '</span>' : '') +
+                '</div></div>';
+        }).join('') + '</div>';
+    } catch (e) { console.error('Earnings error:', e); }
 }
 
 // Setup clickable chart cards
@@ -599,7 +1074,7 @@ function setupClickableCharts() {
 // Load Best Backtest Data for Equity Curves
 async function loadBestBacktests() {
     try {
-        const response = await fetch(`${API_BASE_URL}/dashboard/best-backtest`);
+        const response = await authFetch(`${API_BASE_URL}/dashboard/best-backtest`);
         const data = await response.json();
         
         bestOptionsBacktest = data.options_best;
@@ -720,7 +1195,7 @@ function renderEmptyEquityCurve(containerId, message) {
 // Load Economic Calendar
 async function loadEconomicCalendar() {
     try {
-        const response = await fetch(`${API_BASE_URL}/dashboard/economic-calendar`);
+        const response = await authFetch(`${API_BASE_URL}/dashboard/economic-calendar`);
         const data = await response.json();
         
         renderEconomicCalendar(data.events || [], data.date);
@@ -869,7 +1344,7 @@ async function loadGainersLosers() {
     if (!gainersContainer || !losersContainer) return;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/dashboard/gainers-losers`);
+        const response = await authFetch(`${API_BASE_URL}/dashboard/gainers-losers`);
         const data = await response.json();
         
         if (data.error) {
@@ -955,7 +1430,7 @@ async function loadWatchlist() {
     if (!container) return;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/dashboard/watchlist`);
+        const response = await authFetch(`${API_BASE_URL}/dashboard/watchlist`);
         const data = await response.json();
         
         if (!data.watchlist || !data.watchlist.length) {
