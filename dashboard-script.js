@@ -1,5 +1,5 @@
-const API_BASE_URL = '';
-let dashboardIntervals = [];
+var API_BASE_URL = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+var dashboardIntervals = typeof dashboardIntervals !== 'undefined' ? dashboardIntervals : [];
 
 // ─── RETRY HELPER ────────────────────────────────────────────
 // When the server just started the background Webull fetch may not have

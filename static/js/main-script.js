@@ -456,16 +456,16 @@ async function loadPageContent(pageName) {
 
             // Ensure dashboard-script.js is loaded (defines initDashboard)
             if (!loadedScripts.has('dashboard')) {
-                // Use a manual load that does NOT auto-call initializePage,
-                // so we control when initDashboard() fires.
+                // Mark immediately so concurrent navigations don't double-load
+                loadedScripts.add('dashboard');
                 await new Promise((resolve, reject) => {
                     const script = document.createElement('script');
                     script.src = 'dashboard-script.js';
-                    script.onload = () => {
-                        loadedScripts.add('dashboard');
-                        resolve();
+                    script.onload = () => resolve();
+                    script.onerror = () => {
+                        loadedScripts.delete('dashboard');
+                        reject(new Error('Failed to load dashboard-script.js'));
                     };
-                    script.onerror = () => reject(new Error('Failed to load dashboard-script.js'));
                     document.body.appendChild(script);
                 });
             }
