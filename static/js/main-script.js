@@ -350,7 +350,13 @@ function setupNavigation() {
 // Navigate to Page
 async function navigateToPage(pageName, skipPushState = false) {
     console.log('Navigating to:', pageName);
-    
+
+    // Close the mobile sidebar whenever the user navigates
+    const _msb = document.querySelector('.sidebar');
+    const _mov = document.getElementById('mobileOverlay');
+    if (_msb) _msb.classList.remove('mobile-open');
+    if (_mov) _mov.classList.remove('active');
+
     if (pageName === currentPage && !skipPushState) return;
     
     // Update current page
