@@ -352,12 +352,17 @@ async function navigateToPage(pageName, skipPushState = false) {
     console.log('Navigating to:', pageName);
 
     // Close the mobile sidebar whenever the user navigates.
-    // Let KaiAdmin close it through its own handler (keeps its internal h counter correct).
-    const _openToggler = document.querySelector('.sidenav-toggler.toggled');
-    if (_openToggler) _openToggler.click();
+    // KaiAdmin uses jQuery handlers, so we must use jQuery .trigger() to properly
+    // close the sidebar and keep its internal state (h counter) in sync.
+    if (typeof jQuery !== 'undefined' && jQuery('html').hasClass('nav_open')) {
+        jQuery('.sidenav-toggler').first().trigger('click');
+    }
+    // Direct fallback in case jQuery path didn't fire.
+    document.documentElement.classList.remove('nav_open');
+    document.querySelectorAll('.sidenav-toggler').forEach(function(el) { el.classList.remove('toggled'); });
     // Also cover the secondary custom mechanism.
-    const _msb = document.querySelector('.sidebar');
-    const _mov = document.getElementById('mobileOverlay');
+    var _msb = document.querySelector('.sidebar');
+    var _mov = document.getElementById('mobileOverlay');
     if (_msb) _msb.classList.remove('mobile-open');
     if (_mov) _mov.classList.remove('active');
 
