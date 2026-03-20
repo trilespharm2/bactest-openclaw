@@ -445,32 +445,33 @@ async function loadPageContent(pageName) {
         const dashboardPage = document.getElementById('dashboardPage');
         
         if (homePage && dashboardPage) {
-            // Move the market card content from dashboardPage into homePage
-            // if homePage is empty/stale, seed it from dashboardPage first
-            if (!homePage.querySelector('#mostActiveTable') && dashboardPage.querySelector('#mostActiveTable')) {
-                homePage.innerHTML = dashboardPage.innerHTML;
+            // Check if dashboard content is loaded
+            let dashboardContent = dashboardPage.innerHTML.trim();
+            if (!dashboardContent || dashboardContent.includes('error-message')) {
+                // Need to load dashboard content
+                try {
+                    const response = await fetch('dashboard.html');
+                    if (response.ok) {
+                        dashboardContent = await response.text();
+                        dashboardPage.innerHTML = dashboardContent;
+                        
+                        // Load dashboard script
+                        if (!loadedScripts.has('dashboard')) {
+                            await loadScript('dashboard-script.js', 'dashboard');
+                        } else {
+                            initializePage('dashboard');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading dashboard:', error);
+                }
             }
-            dashboardPage.innerHTML = '';  // clear to avoid duplicate IDs
-
+            
+            // Replace home page with dashboard content
+            homePage.innerHTML = dashboardPage.innerHTML;
             homePage.classList.add('active');
-
-            // Ensure dashboard-script.js is loaded (defines initDashboard)
-            if (!loadedScripts.has('dashboard')) {
-                // Mark immediately so concurrent navigations don't double-load
-                loadedScripts.add('dashboard');
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'dashboard-script.js';
-                    script.onload = () => resolve();
-                    script.onerror = () => {
-                        loadedScripts.delete('dashboard');
-                        reject(new Error('Failed to load dashboard-script.js'));
-                    };
-                    document.body.appendChild(script);
-                });
-            }
-
-            // Initialize dashboard widgets against the homePage DOM
+            
+            // Initialize dashboard widgets
             if (typeof initDashboard === 'function') {
                 initDashboard();
             }
