@@ -351,7 +351,11 @@ function setupNavigation() {
 async function navigateToPage(pageName, skipPushState = false) {
     console.log('Navigating to:', pageName);
 
-    // Close the mobile sidebar whenever the user navigates
+    // Close the mobile sidebar whenever the user navigates.
+    // Let KaiAdmin close it through its own handler (keeps its internal h counter correct).
+    const _openToggler = document.querySelector('.sidenav-toggler.toggled');
+    if (_openToggler) _openToggler.click();
+    // Also cover the secondary custom mechanism.
     const _msb = document.querySelector('.sidebar');
     const _mov = document.getElementById('mobileOverlay');
     if (_msb) _msb.classList.remove('mobile-open');
