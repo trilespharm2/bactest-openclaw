@@ -81,6 +81,7 @@ class StockBacktesterV3Wrapper:
                 'timestamp': timestamp,
                 'config': config,
                 'trades': engine.results if hasattr(engine, 'results') else [],
+                'decision_log': engine.decision_log if hasattr(engine, 'decision_log') else [],
                 'metadata': {
                     'name': config.get('name'),
                     'date_range': {
@@ -92,7 +93,6 @@ class StockBacktesterV3Wrapper:
                 }
             }
             
-            # Save to file
             with open(result_file, 'w') as f:
                 json.dump(results, f, indent=2, default=str)
             
@@ -100,6 +100,7 @@ class StockBacktesterV3Wrapper:
             print(f"BACKTEST COMPLETE")
             print(f"Results saved to: {result_file}")
             print(f"Total trades: {results['metadata']['total_trades']}")
+            print(f"Decision log days: {len(results['decision_log'])}")
             print(f"{'='*60}\n")
             
             return results
@@ -127,7 +128,6 @@ class StockBacktesterV3Wrapper:
         Returns:
             Dictionary with backtest results and metadata
         """
-        # Lazy import of engine when actually running
         try:
             from backtester_engine_v3_0__6_ import BacktesterEngine
         except ImportError as e:
@@ -147,17 +147,12 @@ class StockBacktesterV3Wrapper:
             print(f"Date Range: {config.get('start_date', 'N/A')} to {config.get('end_date', 'N/A')}")
             print(f"{'='*60}\n")
             
-            # Initialize backtester engine
             engine = BacktesterEngine(self.api_key)
-            
-            # Set configuration directly (bypass interactive prompts)
             engine.config = self._convert_config(config)
             
-            # Run the backtest
             print("\nExecuting backtest...")
             engine.run_backtest(output_dir=self.output_dir, backtest_id=backtest_id)
             
-            # Save results with simpler filename (just backtest_id)
             result_file = os.path.join(self.output_dir, f'{backtest_id}.json')
             
             results = {
@@ -166,6 +161,7 @@ class StockBacktesterV3Wrapper:
                 'timestamp': timestamp,
                 'config': config,
                 'trades': engine.results if hasattr(engine, 'results') else [],
+                'decision_log': engine.decision_log if hasattr(engine, 'decision_log') else [],
                 'metadata': {
                     'name': config.get('name'),
                     'date_range': {
@@ -177,7 +173,6 @@ class StockBacktesterV3Wrapper:
                 }
             }
             
-            # Save to file
             with open(result_file, 'w') as f:
                 json.dump(results, f, indent=2, default=str)
             
@@ -185,6 +180,7 @@ class StockBacktesterV3Wrapper:
             print(f"BACKTEST COMPLETE")
             print(f"Results saved to: {result_file}")
             print(f"Total trades: {results['metadata']['total_trades']}")
+            print(f"Decision log days: {len(results['decision_log'])}")
             print(f"{'='*60}\n")
             
             return results

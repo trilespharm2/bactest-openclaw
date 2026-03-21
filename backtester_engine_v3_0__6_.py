@@ -1025,6 +1025,7 @@ class BacktesterEngine:
             symbols = self._apply_ticker_filters(symbols, self.config['start_date'])
         
         all_trades = []
+        all_decision_log = []
         
         for symbol in symbols:
             print(f"\nProcessing {symbol}...")
@@ -1040,16 +1041,70 @@ class BacktesterEngine:
             if df.empty:
                 continue
             
-            trades = self._backtest_symbol_intraday(symbol, df)
+            trades, decision_log = self._backtest_symbol_intraday(symbol, df)
             all_trades.extend(trades)
+            all_decision_log.extend(decision_log)
         
         self.results = all_trades
+        self.decision_log = all_decision_log
         self._save_results(output_dir=output_dir, backtest_id=backtest_id)
         self._display_summary()
     
-    def _backtest_symbol_intraday(self, symbol: str, df: pd.DataFrame) -> List[Dict]:
+    def _get_condition_description(self) -> str:
+        entry_type = self.config.get('entry_type', 'preset')
+        if entry_type == 'preset':
+            preset = self.config.get('preset_condition', '1')
+            op = self.config.get('preset_operator', '>')
+            thresh = self.config.get('preset_threshold', 0)
+            names = {'1': 'Premarket Change %', '2': 'Change %', '3': 'Gap %', '4': 'Change-Open %', '5': 'Velocity'}
+            return f"{names.get(preset, 'Preset')} {op} {thresh}"
+        elif entry_type == 'velocity':
+            op = self.config.get('velocity_operator', '>')
+            thresh = self.config.get('velocity_threshold', 0)
+            lookback = self.config.get('velocity_lookback', 5)
+            return f"Velocity ({lookback} bars) {op} {thresh}"
+        elif entry_type == 'custom':
+            conds = self.config.get('custom_conditions', [])
+            if conds:
+                parts = []
+                for c in conds:
+                    day_label = lambda d: 'D0' if d == 0 else f'D{d}'
+                    candle_label = lambda v: '1m' if v == 'min' else '1h' if v == 'hr' else 'D'
+                    parts.append(f"{day_label(c.get('left_day',0))}{candle_label(c.get('left_candle','min'))} {c.get('left_type','close')} {c.get('operation','>')} {day_label(c.get('right_day',0))}{candle_label(c.get('right_candle','min'))} {c.get('right_type','close')}")
+                return ' AND '.join(parts)
+        return 'Unknown'
+
+    def _get_exit_criteria_description(self) -> str:
+        tp_type = self.config.get('take_profit_type', 'percent')
+        tp_val = self.config.get('take_profit_value', 0.5)
+        sl_type = self.config.get('stop_loss_type', 'percent')
+        sl_val = self.config.get('stop_loss_value', 0.5)
+        max_d = self.config.get('max_days', 5)
+        tp_str = f"+{tp_val}%" if tp_type == 'percent' else f"+${tp_val}"
+        sl_str = f"-{sl_val}%" if sl_type == 'percent' else f"-${sl_val}"
+        return f"TP: {tp_str} | SL: {sl_str} | Max Days: {max_d}"
+
+    def _compute_condition_value_for_candle(self, candle, prev_close, open_930_price):
+        entry_type = self.config.get('entry_type', 'preset')
+        if entry_type == 'preset':
+            preset = self.config.get('preset_condition', '1')
+            price = candle.get('vwap') if pd.notna(candle.get('vwap')) else candle['close']
+            if preset in ('1', '2'):
+                if prev_close and prev_close > 0:
+                    return round(((price / prev_close) - 1) * 100, 4)
+            elif preset == '3':
+                if prev_close and prev_close > 0:
+                    return round(((candle['open'] / prev_close) - 1) * 100, 4)
+            elif preset == '4':
+                if open_930_price and open_930_price > 0:
+                    return round(((price / open_930_price) - 1) * 100, 4)
+        return None
+
+    def _backtest_symbol_intraday(self, symbol: str, df: pd.DataFrame) -> Tuple[List[Dict], List[Dict]]:
         trades = []
+        decision_log = []
         position = None
+        trade_num = 0
         
         df['date'] = df['timestamp'].dt.date
         grouped = df.groupby('date')
@@ -1058,11 +1113,16 @@ class BacktesterEngine:
         start_date = datetime.strptime(self.config['start_date'], '%Y-%m-%d').date()
         end_date = datetime.strptime(self.config['end_date'], '%Y-%m-%d').date()
         
+        condition_desc = self._get_condition_description()
+        exit_criteria_desc = self._get_exit_criteria_description()
+        
         print(f"Analyzing {len(dates)} days of data...")
         print(f"Trade window: {start_date} to {end_date}")
         
         for i, current_date in enumerate(dates):
             if current_date < start_date or i == 0:
+                continue
+            if current_date > end_date and position is None:
                 continue
             
             current_data = grouped.get_group(current_date)
@@ -1072,21 +1132,30 @@ class BacktesterEngine:
             prev_close, prev_close_time = self.get_regular_hours_close(prev_data)
             open_930_price, open_930_candle = self.get_open_930(current_data)
             
+            day_entry = {
+                'date': str(current_date),
+                'symbol': symbol,
+                'prev_close': round(prev_close, 2) if prev_close else None,
+                'prev_close_time': str(prev_close_time) if prev_close_time else None,
+                'condition': condition_desc,
+                'exit_criteria': exit_criteria_desc,
+                'events': [],
+                'status': 'SKIPPED'
+            }
+            
             exited_this_day = False
             exit_time = None
             
-            # Check prior conditions first (if custom)
             prior_conditions_met = True
             if self.config['entry_type'] == 'custom' and len(self.config['custom_conditions']) > 1:
-                # Check all prior conditions (index 1+)
                 for cond_idx in range(1, len(self.config['custom_conditions'])):
                     condition = self.config['custom_conditions'][cond_idx]
                     if not self.check_custom_condition(condition, grouped, dates, i, None):
                         prior_conditions_met = False
                         break
             
-            # Only check for entry if prior conditions met
             if position is None and current_date <= end_date and prior_conditions_met:
+                entry_found = False
                 for idx, candle in current_data.iterrows():
                     entry_signal, price_point, entry_price = (False, None, None)
                     
@@ -1095,7 +1164,6 @@ class BacktesterEngine:
                             symbol, candle, prev_close, open_930_price
                         )
                     elif self.config['entry_type'] == 'velocity':
-                        # NEW v3.0: Velocity preset
                         velocity_condition = {
                             'type': 'velocity',
                             'lookback': self.config['velocity_lookback'],
@@ -1110,7 +1178,6 @@ class BacktesterEngine:
                                 entry_price = candle['close']
                                 price_point = 'close'
                     elif self.config['entry_type'] == 'custom':
-                        # Check entry condition (index 0)
                         entry_condition = self.config['custom_conditions'][0]
                         if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
                             entry_signal = True
@@ -1127,11 +1194,9 @@ class BacktesterEngine:
                             self.config.get('starting_capital', 100000)
                         )
                         
-                        # NEW v3.0: Store condition values for trade summary
                         condition_values = []
                         if self.config['entry_type'] == 'custom':
                             for cond_idx, condition in enumerate(self.config['custom_conditions']):
-                                # Get left value and date
                                 if condition['left_day'] == 0 and condition['left_candle'] == 'min':
                                     left_val = candle[condition['left_type']]
                                     left_date = current_date
@@ -1146,7 +1211,6 @@ class BacktesterEngine:
                                     left_date = dates[left_idx] if 0 <= left_idx < len(dates) else None
                                     left_time = None
                                 
-                                # Get right value and date
                                 if condition['right_day'] == 0 and condition['right_candle'] == 'min':
                                     right_val = candle[condition['right_type']]
                                     right_date = current_date
@@ -1172,6 +1236,9 @@ class BacktesterEngine:
                                     'is_entry': (cond_idx == 0)
                                 })
                         
+                        computed_val = self._compute_condition_value_for_candle(candle, prev_close, open_930_price)
+                        
+                        trade_num += 1
                         position = {
                             'symbol': symbol,
                             'entry_date': current_date,
@@ -1184,18 +1251,67 @@ class BacktesterEngine:
                             'entry_idx': idx,
                             'prev_close': prev_close,
                             'prev_close_time': prev_close_time,
-                            'condition_values': condition_values  # Store for trade summary
+                            'condition_values': condition_values,
+                            'trade_num': trade_num
                         }
+                        
+                        day_entry['events'].append({
+                            'type': 'condition_met',
+                            'price': round(entry_price, 2),
+                            'price_point': price_point,
+                            'time': str(entry_time),
+                            'computed_value': computed_val
+                        })
+                        day_entry['events'].append({
+                            'type': 'entry',
+                            'trade_num': trade_num,
+                            'direction': self.config['direction'],
+                            'shares': shares,
+                            'price': round(entry_price, 2),
+                            'time': str(entry_time),
+                            'exit_criteria': exit_criteria_desc
+                        })
+                        day_entry['status'] = 'ENTRY'
+                        entry_found = True
                         
                         print(f"  ENTRY: {symbol} {position['direction'].upper()} "
                               f"{shares} shares @ ${entry_price:.2f} ({price_point}) on {entry_time}")
                         print(f"         Prev close: ${prev_close:.2f} at {prev_close_time}")
                         break
+                
+                if not entry_found:
+                    if not prior_conditions_met:
+                        day_entry['events'].append({
+                            'type': 'no_signal',
+                            'reason': f'Prior conditions not met for: {condition_desc}'
+                        })
+                    else:
+                        day_entry['events'].append({
+                            'type': 'no_signal',
+                            'reason': f'No instance of {condition_desc}'
+                        })
+                    day_entry['status'] = 'SKIPPED'
             
-            # EXIT LOGIC
+            elif position is None and current_date <= end_date and not prior_conditions_met:
+                day_entry['events'].append({
+                    'type': 'no_signal',
+                    'reason': f'Prior conditions not met for: {condition_desc}'
+                })
+                day_entry['status'] = 'SKIPPED'
+            
             elif position is not None:
                 position['days_in_trade'] += 1
                 max_exit_time = position['entry_time'] + timedelta(days=self.config['max_days'])
+                
+                day_entry['events'].append({
+                    'type': 'holding',
+                    'trade_num': position.get('trade_num', 0),
+                    'entry_date': str(position['entry_date']),
+                    'entry_price': round(position['entry_price'], 2),
+                    'direction': position['direction'],
+                    'days_held': position['days_in_trade']
+                })
+                day_entry['status'] = 'HOLDING'
                 
                 for idx, candle in current_data.iterrows():
                     candle_high = candle['high']
@@ -1223,7 +1339,6 @@ class BacktesterEngine:
                             position['direction']
                         )
                         
-                        # UPDATED v3.0: Simplified trade dict with condition values
                         trade = {
                             'symbol': symbol,
                             'direction': position['direction'],
@@ -1238,10 +1353,22 @@ class BacktesterEngine:
                             'exit_reason': exit_reason,
                             'pnl': pnl,
                             'pnl_pct': pnl_pct,
-                            'condition_values': position.get('condition_values', [])  # For summary only
+                            'condition_values': position.get('condition_values', [])
                         }
                         
                         trades.append(trade)
+                        
+                        day_entry['events'].append({
+                            'type': 'exit',
+                            'trade_num': position.get('trade_num', 0),
+                            'reason': exit_reason,
+                            'price': round(exit_price, 2),
+                            'time': str(current_time),
+                            'entry_price': round(position['entry_price'], 2),
+                            'pnl': round(pnl, 2),
+                            'pnl_pct': round(pnl_pct, 2)
+                        })
+                        day_entry['status'] = 'EXIT'
                         
                         print(f"  EXIT: {symbol} {exit_reason.upper()} @ ${exit_price:.2f} on {current_time} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
                         
@@ -1250,7 +1377,13 @@ class BacktesterEngine:
                         exit_time = current_time
                         break
             
-            # Same-day re-entry check
+            elif current_date > end_date:
+                day_entry['events'].append({
+                    'type': 'no_signal',
+                    'reason': 'Outside trading window'
+                })
+                day_entry['status'] = 'SKIPPED'
+            
             if exited_this_day and current_date <= end_date and prior_conditions_met:
                 remaining_candles = current_data[current_data['timestamp'] > exit_time]
                 
@@ -1262,292 +1395,20 @@ class BacktesterEngine:
                             entry_signal, price_point, entry_price = self.check_preset_condition_intraday(
                                 symbol, candle, prev_close, open_930_price
                             )
-                        elif self.config['entry_type'] == 'custom':
-                            entry_condition = self.config['custom_conditions'][0]
-                            if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
-                                entry_signal = True
-                                price_point = 'vwap'
-                                entry_price = candle.get('vwap')
-                                if pd.isna(entry_price):
-                                    entry_price = candle['close']
-                                    price_point = 'close'
-                        
-                        if entry_signal:
-                            entry_time = candle['timestamp']
-                            shares = self.calculate_position_size(
-                                entry_price, 
-                                self.config.get('starting_capital', 100000)
-                            )
-                            
-                            position = {
-                                'symbol': symbol,
-                                'entry_date': current_date,
-                                'entry_time': entry_time,
-                                'entry_price': entry_price,
-                                'entry_price_point': price_point,
-                                'shares': shares,
-                                'direction': self.config['direction'],
-                                'days_in_trade': 0,
-                                'entry_idx': idx,
-                                'prev_close': prev_close,
-                                'prev_close_time': prev_close_time
+                        elif self.config['entry_type'] == 'velocity':
+                            velocity_condition = {
+                                'type': 'velocity',
+                                'lookback': self.config['velocity_lookback'],
+                                'operation': self.config['velocity_operator'],
+                                'threshold_value': self.config['velocity_threshold']
                             }
-                            
-                            print(f"  RE-ENTRY: {symbol} {position['direction'].upper()} "
-                                  f"{shares} shares @ ${entry_price:.2f} ({price_point}) on {entry_time}")
-                            break
-                else:
-                    for idx, candle in remaining_candles.iterrows():
-                        entry_signal = False
-                        
-                        if self.config['entry_type'] == 'preset':
-                            entry_signal, _, _ = self.check_preset_condition_intraday(
-                                symbol, candle, prev_close, open_930_price
-                            )
-                        elif self.config['entry_type'] == 'custom':
-                            entry_condition = self.config['custom_conditions'][0]
-                            entry_signal = self.check_custom_condition(entry_condition, grouped, dates, i, candle)
-                        
-                        if entry_signal:
-                            print(f"  ⚠️  SKIPPED: Entry signal for {symbol} at {candle['timestamp']}")
-                            print(f"              Just exited position at {exit_time}")
-                            print(f"              Consecutive trades are DISABLED")
-                            break
-        
-        # Close any open position at end of backtest
-        if position is not None:
-            # Get last candle
-            last_date = dates[-1]
-            last_data = grouped.get_group(last_date)
-            last_candle = last_data.iloc[-1]
-            
-            exit_price = last_candle['close']
-            exit_time = last_candle['timestamp']
-            
-            position['days_in_trade'] += 1
-            
-            pnl, pnl_pct = self.calculate_pnl(
-                position['entry_price'],
-                exit_price,
-                position['shares'],
-                position['direction']
-            )
-            
-            # UPDATED v3.0: Simplified trade dict with condition values
-            trade = {
-                'symbol': symbol,
-                'direction': position['direction'],
-                'prev_close': position['prev_close'],
-                'prev_close_timestamp': position['prev_close_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                'entry_timestamp': position['entry_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                'entry_price': position['entry_price'],
-                'exit_timestamp': exit_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'exit_price': exit_price,
-                'shares': position['shares'],
-                'days_in_trade': position['days_in_trade'],
-                'exit_reason': 'end_of_backtest',
-                'pnl': pnl,
-                'pnl_pct': pnl_pct,
-                'condition_values': position.get('condition_values', [])  # For summary only
-            }
-            
-            trades.append(trade)
-            
-            print(f"  EXIT: {symbol} END_OF_BACKTEST @ ${exit_price:.2f} on {exit_time} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
-            print(f"        (Position still open at end of backtest period)")
-        
-        return trades
-        trades = []
-        position = None
-        
-        df['date'] = df['timestamp'].dt.date
-        grouped = df.groupby('date')
-        dates = sorted(df['date'].unique())
-        
-        start_date = datetime.strptime(self.config['start_date'], '%Y-%m-%d').date()
-        end_date = datetime.strptime(self.config['end_date'], '%Y-%m-%d').date()
-        
-        print(f"Analyzing {len(dates)} days of data...")
-        print(f"Trade window: {start_date} to {end_date}")
-        
-        for i, current_date in enumerate(dates):
-            if current_date < start_date or i == 0:
-                continue
-            
-            current_data = grouped.get_group(current_date)
-            prev_date = dates[i-1]
-            prev_data = grouped.get_group(prev_date)
-            
-            prev_close, prev_close_time = self.get_regular_hours_close(prev_data)
-            open_930_price, open_930_candle = self.get_open_930(current_data)
-            
-            exited_this_day = False
-            exit_time = None
-            
-            # NEW v3.0: Check prior conditions and store their values
-            prior_conditions_met = True
-            prior_condition_values = {}  # Store for CSV output
-            
-            if self.config['entry_type'] == 'custom' and len(self.config['custom_conditions']) > 1:
-                # Check all prior conditions (index 1+)
-                for cond_idx in range(1, len(self.config['custom_conditions'])):
-                    condition = self.config['custom_conditions'][cond_idx]
-                    
-                    # Get left and right values for CSV
-                    left_val = self.get_candle_value(grouped, dates, i, 
-                                                     condition['left_day'], 
-                                                     condition['left_candle'],
-                                                     condition['left_multiplier'], 
-                                                     condition['left_type'])
-                    right_val = self.get_candle_value(grouped, dates, i,
-                                                      condition['right_day'],
-                                                      condition['right_candle'],
-                                                      condition['right_multiplier'],
-                                                      condition['right_type'])
-                    
-                    # Store values for CSV
-                    prior_condition_values[f'prior_cond_{cond_idx}_left'] = left_val
-                    prior_condition_values[f'prior_cond_{cond_idx}_right'] = right_val
-                    
-                    # Get timestamps
-                    left_date_idx = i + condition['left_day']
-                    right_date_idx = i + condition['right_day']
-                    
-                    if left_date_idx >= 0 and left_date_idx < len(dates):
-                        left_date = dates[left_date_idx]
-                        prior_condition_values[f'prior_cond_{cond_idx}_left_date'] = str(left_date)
-                    
-                    if right_date_idx >= 0 and right_date_idx < len(dates):
-                        right_date = dates[right_date_idx]
-                        prior_condition_values[f'prior_cond_{cond_idx}_right_date'] = str(right_date)
-                    
-                    # Check condition
-                    if not self.check_custom_condition(condition, grouped, dates, i, None):
-                        prior_conditions_met = False
-                        break
-            
-            # Only check for entry if prior conditions met
-            if position is None and current_date <= end_date and prior_conditions_met:
-                for idx, candle in current_data.iterrows():
-                    entry_signal, price_point, entry_price = (False, None, None)
-                    
-                    if self.config['entry_type'] == 'preset':
-                        entry_signal, price_point, entry_price = self.check_preset_condition_intraday(
-                            symbol, candle, prev_close, open_930_price
-                        )
-                    elif self.config['entry_type'] == 'custom':
-                        # Check entry condition (index 0)
-                        entry_condition = self.config['custom_conditions'][0]
-                        if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
-                            entry_signal = True
-                            price_point = 'vwap'
-                            entry_price = candle.get('vwap')
-                            if pd.isna(entry_price):
-                                entry_price = candle['close']
-                                price_point = 'close'
-                    
-                    if entry_signal:
-                        entry_time = candle['timestamp']
-                        shares = self.calculate_position_size(
-                            entry_price, 
-                            self.config.get('starting_capital', 100000)
-                        )
-                        
-                        position = {
-                            'symbol': symbol,
-                            'entry_date': current_date,
-                            'entry_time': entry_time,
-                            'entry_price': entry_price,
-                            'entry_price_point': price_point,
-                            'shares': shares,
-                            'direction': self.config['direction'],
-                            'days_in_trade': 0,
-                            'entry_idx': idx,
-                            'prev_close': prev_close,
-                            'prev_close_time': prev_close_time,
-                            'prior_condition_values': prior_condition_values  # Store for trade
-                        }
-                        
-                        print(f"  ENTRY: {symbol} {position['direction'].upper()} "
-                              f"{shares} shares @ ${entry_price:.2f} ({price_point}) on {entry_time}")
-                        print(f"         Prev close: ${prev_close:.2f} at {prev_close_time}")
-                        break
-            
-            # EXIT LOGIC
-            elif position is not None:
-                position['days_in_trade'] += 1
-                max_exit_time = position['entry_time'] + timedelta(days=self.config['max_days'])
-                
-                for idx, candle in current_data.iterrows():
-                    candle_high = candle['high']
-                    candle_low = candle['low']
-                    candle_close = candle['close']
-                    current_time = candle['timestamp']
-                    
-                    exit_signal, exit_reason, exit_price = self.check_exit_conditions_intraday(
-                        position['entry_price'],
-                        candle_high,
-                        candle_low,
-                        position['direction']
-                    )
-                    
-                    if current_time >= max_exit_time and not exit_signal:
-                        exit_signal = True
-                        exit_reason = 'max_days'
-                        exit_price = candle_close
-                    
-                    if exit_signal:
-                        pnl, pnl_pct = self.calculate_pnl(
-                            position['entry_price'],
-                            exit_price,
-                            position['shares'],
-                            position['direction']
-                        )
-                        
-                        trade = {
-                            'symbol': symbol,
-                            'direction': position['direction'],
-                            'prev_close': position['prev_close'],
-                            'prev_close_timestamp': position['prev_close_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                            'entry_date': str(position['entry_date']),
-                            'entry_timestamp': position['entry_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                            'entry_price': position['entry_price'],
-                            'entry_price_point': position['entry_price_point'],
-                            'exit_date': str(current_date),
-                            'exit_timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
-                            'exit_price': exit_price,
-                            'shares': position['shares'],
-                            'days_in_trade': position['days_in_trade'],
-                            'exit_reason': exit_reason,
-                            'pnl': pnl,
-                            'pnl_pct': pnl_pct,
-                            'max_exit_time': max_exit_time.strftime('%Y-%m-%d %H:%M:%S')
-                        }
-                        
-                        # Add prior condition values to trade
-                        trade.update(position.get('prior_condition_values', {}))
-                        
-                        trades.append(trade)
-                        
-                        print(f"  EXIT: {symbol} {exit_reason.upper()} @ ${exit_price:.2f} on {current_time} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
-                        
-                        position = None
-                        exited_this_day = True
-                        exit_time = current_time
-                        break
-            
-            # Same-day re-entry check
-            if exited_this_day and current_date <= end_date and prior_conditions_met:
-                remaining_candles = current_data[current_data['timestamp'] > exit_time]
-                
-                if self.config['allow_consecutive_trades']:
-                    for idx, candle in remaining_candles.iterrows():
-                        entry_signal, price_point, entry_price = (False, None, None)
-                        
-                        if self.config['entry_type'] == 'preset':
-                            entry_signal, price_point, entry_price = self.check_preset_condition_intraday(
-                                symbol, candle, prev_close, open_930_price
-                            )
+                            if self.check_velocity_condition(velocity_condition, grouped, dates, i, candle):
+                                entry_signal = True
+                                price_point = 'vwap'
+                                entry_price = candle.get('vwap')
+                                if pd.isna(entry_price):
+                                    entry_price = candle['close']
+                                    price_point = 'close'
                         elif self.config['entry_type'] == 'custom':
                             entry_condition = self.config['custom_conditions'][0]
                             if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
@@ -1565,6 +1426,7 @@ class BacktesterEngine:
                                 self.config.get('starting_capital', 100000)
                             )
                             
+                            trade_num += 1
                             position = {
                                 'symbol': symbol,
                                 'entry_date': current_date,
@@ -1577,13 +1439,33 @@ class BacktesterEngine:
                                 'entry_idx': idx,
                                 'prev_close': prev_close,
                                 'prev_close_time': prev_close_time,
-                                'prior_condition_values': prior_condition_values
+                                'trade_num': trade_num
                             }
+                            
+                            computed_val = self._compute_condition_value_for_candle(candle, prev_close, open_930_price)
+                            day_entry['events'].append({
+                                'type': 'condition_met',
+                                'price': round(entry_price, 2),
+                                'price_point': price_point,
+                                'time': str(entry_time),
+                                'computed_value': computed_val
+                            })
+                            day_entry['events'].append({
+                                'type': 're_entry',
+                                'trade_num': trade_num,
+                                'direction': self.config['direction'],
+                                'shares': shares,
+                                'price': round(entry_price, 2),
+                                'time': str(entry_time),
+                                'exit_criteria': exit_criteria_desc
+                            })
+                            day_entry['status'] = 'EXIT_AND_ENTRY'
                             
                             print(f"  RE-ENTRY: {symbol} {position['direction'].upper()} "
                                   f"{shares} shares @ ${entry_price:.2f} ({price_point}) on {entry_time}")
                             break
                 else:
+                    skipped_signal = False
                     for idx, candle in remaining_candles.iterrows():
                         entry_signal = False
                         
@@ -1591,25 +1473,39 @@ class BacktesterEngine:
                             entry_signal, _, _ = self.check_preset_condition_intraday(
                                 symbol, candle, prev_close, open_930_price
                             )
+                        elif self.config['entry_type'] == 'velocity':
+                            velocity_condition = {
+                                'type': 'velocity',
+                                'lookback': self.config['velocity_lookback'],
+                                'operation': self.config['velocity_operator'],
+                                'threshold_value': self.config['velocity_threshold']
+                            }
+                            entry_signal = self.check_velocity_condition(velocity_condition, grouped, dates, i, candle)
                         elif self.config['entry_type'] == 'custom':
                             entry_condition = self.config['custom_conditions'][0]
                             entry_signal = self.check_custom_condition(entry_condition, grouped, dates, i, candle)
                         
                         if entry_signal:
-                            print(f"  ⚠️  SKIPPED: Entry signal for {symbol} at {candle['timestamp']}")
+                            day_entry['events'].append({
+                                'type': 'skip_consecutive',
+                                'time': str(candle['timestamp']),
+                                'reason': 'Consecutive trades DISABLED - signal found after exit but blocked'
+                            })
+                            skipped_signal = True
+                            print(f"  SKIPPED: Entry signal for {symbol} at {candle['timestamp']}")
                             print(f"              Just exited position at {exit_time}")
                             print(f"              Consecutive trades are DISABLED")
                             break
+            
+            decision_log.append(day_entry)
         
-        # NEW v3.0: Close any open position at end of backtest
         if position is not None:
-            # Get last candle
             last_date = dates[-1]
             last_data = grouped.get_group(last_date)
             last_candle = last_data.iloc[-1]
             
             exit_price = last_candle['close']
-            exit_time = last_candle['timestamp']
+            exit_time_val = last_candle['timestamp']
             
             position['days_in_trade'] += 1
             
@@ -1625,30 +1521,37 @@ class BacktesterEngine:
                 'direction': position['direction'],
                 'prev_close': position['prev_close'],
                 'prev_close_timestamp': position['prev_close_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                'entry_date': str(position['entry_date']),
                 'entry_timestamp': position['entry_time'].strftime('%Y-%m-%d %H:%M:%S'),
                 'entry_price': position['entry_price'],
-                'entry_price_point': position['entry_price_point'],
-                'exit_date': str(last_date),
-                'exit_timestamp': exit_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'exit_timestamp': exit_time_val.strftime('%Y-%m-%d %H:%M:%S'),
                 'exit_price': exit_price,
                 'shares': position['shares'],
                 'days_in_trade': position['days_in_trade'],
                 'exit_reason': 'end_of_backtest',
                 'pnl': pnl,
                 'pnl_pct': pnl_pct,
-                'max_exit_time': (position['entry_time'] + timedelta(days=self.config['max_days'])).strftime('%Y-%m-%d %H:%M:%S')
+                'condition_values': position.get('condition_values', [])
             }
-            
-            # Add prior condition values
-            trade.update(position.get('prior_condition_values', {}))
             
             trades.append(trade)
             
-            print(f"  EXIT: {symbol} END_OF_BACKTEST @ ${exit_price:.2f} on {exit_time} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
+            if decision_log and decision_log[-1]['date'] == str(last_date):
+                decision_log[-1]['events'].append({
+                    'type': 'exit',
+                    'trade_num': position.get('trade_num', 0),
+                    'reason': 'end_of_backtest',
+                    'price': round(exit_price, 2),
+                    'time': str(exit_time_val),
+                    'entry_price': round(position['entry_price'], 2),
+                    'pnl': round(pnl, 2),
+                    'pnl_pct': round(pnl_pct, 2)
+                })
+                decision_log[-1]['status'] = 'EXIT'
+            
+            print(f"  EXIT: {symbol} END_OF_BACKTEST @ ${exit_price:.2f} on {exit_time_val} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
             print(f"        (Position still open at end of backtest period)")
         
-        return trades
+        return trades, decision_log
     
     def _save_results(self, output_dir='backtest_results', backtest_id=None):
         """
