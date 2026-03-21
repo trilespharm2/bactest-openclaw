@@ -431,7 +431,9 @@ async function navigateToPage(pageName, skipPushState = false) {
         'terms': 'Terms of Service',
         'privacy': 'Privacy Policy',
         'faq': 'FAQ',
-        'contact': 'Contact Us'
+        'contact': 'Contact Us',
+        'simResults': 'Simulated Trading Results',
+        'simResultDetail': 'Simulated Trading Analysis'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -588,7 +590,15 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
                 }
-                await loadScript(scriptName, pageName);
+                if (pageName === 'simResults' || pageName === 'simResultDetail') {
+                    scriptName = 'simulated-results-script.js';
+                    if (loadedScripts.has('simResults') || loadedScripts.has('simResultDetail')) {
+                        loadedScripts.add(pageName);
+                        initializePage(pageName);
+                        scriptName = null;
+                    }
+                }
+                if (scriptName) await loadScript(scriptName, pageName);
             } else {
                 initializePage(pageName);
             }
@@ -665,6 +675,10 @@ function initializePage(pageName) {
             setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
+        } else if (pageName === 'simResults' && typeof initSimResultsPage === 'function') {
+            initSimResultsPage();
+        } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
+            initSimResultDetailPage();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);

@@ -96,6 +96,12 @@ function parseETDateTime(dateStr, timeStr) {
 function initSimulatedTrading() {
     console.log('Initializing Simulated Trading Page');
     
+    if (document.getElementById('simLoadChartBtn').dataset.initialized) {
+        console.log('Simulated Trading already initialized, skipping');
+        return;
+    }
+    document.getElementById('simLoadChartBtn').dataset.initialized = 'true';
+    
     const today = new Date();
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -117,6 +123,7 @@ function initSimulatedTrading() {
     document.getElementById('simOptionTradeBtn').addEventListener('click', executeOptionTrade);
     document.getElementById('simResetViewBtn').addEventListener('click', resetViewToCurrentCandle);
     document.getElementById('simPlayPauseBtn').addEventListener('click', toggleAutoplay);
+    document.getElementById('simRunAnalysisBtn').addEventListener('click', handleRunAnalysis);
     
     document.getElementById('simAutoplaySpeed').addEventListener('change', () => {
         if (simIsPlaying) {
@@ -163,6 +170,195 @@ function applyTradingMode() {
     const optionsSection = document.getElementById('simOptionsTradingSection');
     if (stockSection) stockSection.style.display = mode === 'stock' ? '' : 'none';
     if (optionsSection) optionsSection.style.display = mode === 'options' ? '' : 'none';
+}
+
+function generateSessionId() {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const mode = document.getElementById('simTradingMode').value;
+    const suffix = mode === 'options' ? 'O' : 'S';
+    return `${dd}${mm}${yy}${hh}${min}${suffix}`;
+}
+
+function buildSessionData() {
+    const mode = document.getElementById('simTradingMode').value;
+    const symbol = document.getElementById('simSymbol').value.toUpperCase().trim();
+    const sessionId = generateSessionId();
+    const trades = mode === 'stock' ? simClosedTrades : simClosedOptionTrades;
+    const realizedPnl = mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl;
+    const initialBalance = simInitialBalance;
+
+    let enrichedTrades = [];
+    if (mode === 'stock') {
+        enrichedTrades = simClosedTrades.map((t, i) => {
+            const entryBar = simAllBars[t.entryBarIndex];
+            const exitBar = simAllBars[t.exitBarIndex];
+            return {
+                id: i + 1,
+                side: t.side,
+                quantity: t.quantity,
+                entryPrice: t.entryPrice,
+                exitPrice: t.exitPrice,
+                entryTime: entryBar ? entryBar.timestamp : t.entryTimestamp || '',
+                exitTime: exitBar ? exitBar.timestamp : '',
+                entryBarIndex: t.entryBarIndex,
+                exitBarIndex: t.exitBarIndex,
+                barsInTrade: (t.exitBarIndex || 0) - (t.entryBarIndex || 0),
+                pnl: t.pnl
+            };
+        });
+    } else {
+        enrichedTrades = simClosedOptionTrades.map((t, i) => ({
+            id: i + 1,
+            strategy: t.strategy,
+            legs: t.legs ? t.legs.map(l => l.name || `${l.type} ${l.strike}`).join(' / ') : '',
+            quantity: t.quantity,
+            entryPremium: t.totalEntryPremium,
+            entryTime: t.entryTimestamp || '',
+            exitTime: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].exitTimestamp : '',
+            expiration: t.expiration || '',
+            pnl: t.realizedPnl || 0,
+            exitReason: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].reason : 'manual'
+        }));
+    }
+
+    const openPos = mode === 'stock' ? simOpenPosition : null;
+    const openOptionPos = mode === 'options' ? simOpenOptionPositions : [];
+
+    let unrealizedPnl = 0;
+    if (openPos && simVisibleBars.length > 0) {
+        const lastBar = simVisibleBars[simVisibleBars.length - 1];
+        unrealizedPnl = calculatePositionPnl(openPos, lastBar.close);
+    }
+
+    const wins = enrichedTrades.filter(t => t.pnl > 0);
+    const losses = enrichedTrades.filter(t => t.pnl <= 0);
+    const totalTrades = enrichedTrades.length;
+    const winRate = totalTrades > 0 ? (wins.length / totalTrades * 100) : 0;
+    const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
+    const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.pnl, 0) / losses.length) : 0;
+    const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
+    const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    const maxWin = wins.length > 0 ? Math.max(...wins.map(t => t.pnl)) : 0;
+    const maxLoss = losses.length > 0 ? Math.min(...losses.map(t => t.pnl)) : 0;
+
+    let avgBarsInTrade = 0;
+    if (mode === 'stock' && enrichedTrades.length > 0) {
+        avgBarsInTrade = enrichedTrades.reduce((s, t) => s + (t.barsInTrade || 0), 0) / enrichedTrades.length;
+    }
+
+    const tradeReturns = enrichedTrades.map(t => t.pnl / initialBalance);
+    const meanReturn = tradeReturns.length > 0 ? tradeReturns.reduce((s, r) => s + r, 0) / tradeReturns.length : 0;
+    const variance = tradeReturns.length > 1
+        ? tradeReturns.reduce((s, r) => s + Math.pow(r - meanReturn, 2), 0) / (tradeReturns.length - 1)
+        : 0;
+    const stdDev = Math.sqrt(variance);
+    const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0;
+
+    const riskPerTrade = initialBalance > 0 && totalTrades > 0
+        ? (avgLoss / initialBalance * 100)
+        : 0;
+    const returnOnRisk = avgLoss > 0 ? (avgWin / avgLoss) : avgWin > 0 ? Infinity : 0;
+
+    let maxDrawdown = 0;
+    let peak = initialBalance;
+    let runningBalance = initialBalance;
+    const equityCurve = [{ balance: initialBalance, trade: 0 }];
+    enrichedTrades.forEach((t, i) => {
+        runningBalance += t.pnl;
+        equityCurve.push({ balance: runningBalance, trade: i + 1 });
+        if (runningBalance > peak) peak = runningBalance;
+        const dd = (peak - runningBalance) / peak * 100;
+        if (dd > maxDrawdown) maxDrawdown = dd;
+    });
+
+    let consecutiveWins = 0, consecutiveLosses = 0, maxConsecWins = 0, maxConsecLosses = 0;
+    enrichedTrades.forEach(t => {
+        if (t.pnl > 0) { consecutiveWins++; consecutiveLosses = 0; }
+        else { consecutiveLosses++; consecutiveWins = 0; }
+        if (consecutiveWins > maxConsecWins) maxConsecWins = consecutiveWins;
+        if (consecutiveLosses > maxConsecLosses) maxConsecLosses = consecutiveLosses;
+    });
+
+    const netReturn = initialBalance > 0 ? ((runningBalance - initialBalance) / initialBalance * 100) : 0;
+
+    return {
+        sessionId,
+        symbol,
+        mode,
+        initialBalance,
+        finalBalance: runningBalance,
+        netPnl: realizedPnl,
+        unrealizedPnl,
+        timestamp: new Date().toISOString(),
+        trades: enrichedTrades,
+        equityCurve,
+        stats: {
+            totalTrades,
+            winRate,
+            wins: wins.length,
+            losses: losses.length,
+            avgWin,
+            avgLoss,
+            avgBarsInTrade,
+            grossProfit,
+            grossLoss,
+            profitFactor,
+            sharpeRatio,
+            maxWin,
+            maxLoss,
+            maxDrawdown,
+            riskPerTrade,
+            returnOnRisk,
+            maxConsecWins,
+            maxConsecLosses,
+            netReturn
+        }
+    };
+}
+
+function handleRunAnalysis() {
+    const mode = document.getElementById('simTradingMode').value;
+    const trades = mode === 'stock' ? simClosedTrades : simClosedOptionTrades;
+    const hasOpenStock = mode === 'stock' && simOpenPosition;
+    const hasOpenOptions = mode === 'options' && simOpenOptionPositions.length > 0;
+
+    if (trades.length === 0 && !hasOpenStock && !hasOpenOptions) {
+        alert('No trades to analyze. Execute some trades first.');
+        return;
+    }
+
+    if (hasOpenStock || hasOpenOptions) {
+        alert('Please close all open positions before running analysis.');
+        return;
+    }
+
+    if (!confirm('Complete Backtest?')) return;
+
+    if (simIsPlaying) {
+        toggleAutoplay();
+    }
+
+    const sessionData = buildSessionData();
+
+    let savedSessions = [];
+    try {
+        savedSessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]');
+    } catch(e) { savedSessions = []; }
+    savedSessions.unshift(sessionData);
+    if (savedSessions.length > 50) savedSessions = savedSessions.slice(0, 50);
+    localStorage.setItem('simTradingSessions', JSON.stringify(savedSessions));
+
+    window._pendingSimResultDetail = sessionData;
+
+    if (typeof navigateToPage === 'function') {
+        navigateToPage('simResultDetail');
+    }
 }
 
 function showLoader(show, text = 'Loading chart data...', progress = '') {
