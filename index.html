@@ -1189,6 +1189,20 @@
                     </div>
                   </form>
 
+                  <div id="optConfigSummaryOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
+                      <div style="background:#fff; border-radius:16px; max-width:700px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                          <div style="padding:20px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; background:#fff; z-index:10; border-radius:16px 16px 0 0;">
+                              <h3 style="margin:0; font-size:1.25rem; font-weight:600;"><i class="fas fa-clipboard-check" style="color:#7c3aed; margin-right:8px;"></i>Configuration Summary</h3>
+                              <button onclick="closeOptConfigSummary()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#64748b; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:50%;">&times;</button>
+                          </div>
+                          <div id="optConfigSummaryBody" style="padding:24px;"></div>
+                          <div style="padding:16px 24px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:12px; position:sticky; bottom:0; background:#fff; border-radius:0 0 16px 16px;">
+                              <button onclick="closeOptConfigSummary()" style="padding:10px 24px; border:1px solid #d0d3da; background:#fff; border-radius:8px; cursor:pointer; font-weight:500;">Cancel</button>
+                              <button id="optConfirmRunBacktestBtn" style="padding:10px 24px; background:#7c3aed; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600;"><i class="fas fa-play me-1"></i>Run Backtest</button>
+                          </div>
+                      </div>
+                  </div>
+
                   <!-- Loading -->
                   <div id="backtestLoading" class="text-center py-4" style="display: none;">
                     <div class="spinner-border text-primary" role="status"></div>
@@ -1599,6 +1613,20 @@
                       </button>
                     </div>
                   </form>
+
+                  <div id="configSummaryOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
+                      <div style="background:#fff; border-radius:16px; max-width:700px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                          <div style="padding:20px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; background:#fff; z-index:10; border-radius:16px 16px 0 0;">
+                              <h3 style="margin:0; font-size:1.25rem; font-weight:600;"><i class="fas fa-clipboard-check" style="color:#3b7cff; margin-right:8px;"></i>Configuration Summary</h3>
+                              <button onclick="closeConfigSummary()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#64748b; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:50%;">&times;</button>
+                          </div>
+                          <div id="configSummaryBody" style="padding:24px;"></div>
+                          <div style="padding:16px 24px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:12px; position:sticky; bottom:0; background:#fff; border-radius:0 0 16px 16px;">
+                              <button onclick="closeConfigSummary()" style="padding:10px 24px; border:1px solid #d0d3da; background:#fff; border-radius:8px; cursor:pointer; font-weight:500;">Cancel</button>
+                              <button id="confirmRunBacktestBtn" style="padding:10px 24px; background:#3b7cff; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600;"><i class="fas fa-play me-1"></i>Run Backtest</button>
+                          </div>
+                      </div>
+                  </div>
 
                   <!-- Loading -->
                   <div id="stockLoadingMessage" class="text-center py-4" style="display: none;">
