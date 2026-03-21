@@ -128,6 +128,12 @@ function initSimulatedTrading() {
     document.getElementById('simOptionStrategy').addEventListener('change', buildSimLegConfiguration);
     buildSimLegConfiguration();
     
+    const tradingModeSelect = document.getElementById('simTradingMode');
+    if (tradingModeSelect) {
+        tradingModeSelect.addEventListener('change', applyTradingMode);
+        applyTradingMode();
+    }
+    
     document.querySelectorAll('.timeframe-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const tf = e.target.dataset.timeframe;
@@ -149,6 +155,14 @@ function initSimulatedTrading() {
     canvas.addEventListener('touchend', handleChartTouchEnd);
     
     console.log('Simulated Trading Page initialized successfully!');
+}
+
+function applyTradingMode() {
+    const mode = document.getElementById('simTradingMode').value;
+    const stockSection = document.getElementById('simStockTradingSection');
+    const optionsSection = document.getElementById('simOptionsTradingSection');
+    if (stockSection) stockSection.style.display = mode === 'stock' ? '' : 'none';
+    if (optionsSection) optionsSection.style.display = mode === 'options' ? '' : 'none';
 }
 
 function showLoader(show, text = 'Loading chart data...', progress = '') {
