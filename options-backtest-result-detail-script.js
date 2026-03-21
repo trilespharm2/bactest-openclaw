@@ -721,11 +721,9 @@ async function displayTradeLog(backtestId) {
         
         // Build equity curve from trade data
         buildEquityCurve(allTrades);
+        buildOptDecisionTree(allTrades);
         
-        // Reset to first page
         currentPage = 1;
-        
-        // Display first page
         displayTradesPage();
         
     } catch (error) {
@@ -807,8 +805,161 @@ function parseCSVLine(line) {
     return result;
 }
 
+let optDtDays = [];
+let optDtPage = 1;
+const optDtPerPage = 10;
+
+function buildOptDecisionTree(trades) {
+    if (!trades || trades.length === 0) return;
+
+    const headers = trades[0].headers.map(h => h.toLowerCase().trim());
+    const col = name => {
+        for (let i = 0; i < headers.length; i++) {
+            if (headers[i] === name || headers[i].includes(name)) return i;
+        }
+        return -1;
+    };
+
+    const entryDateIdx = col('entry_date') >= 0 ? col('entry_date') : col('date');
+    const exitDateIdx = col('exit_date');
+    const pnlIdx = col('pnl');
+    const strategyIdx = col('strategy');
+    const symbolIdx = col('symbol');
+    const exitReasonIdx = col('exit_reason') >= 0 ? col('exit_reason') : col('reason');
+    const entryPriceIdx = col('entry_price') >= 0 ? col('entry_price') : col('net_premium_entry') >= 0 ? col('net_premium_entry') : col('premium');
+    const exitPriceIdx = col('exit_price') >= 0 ? col('exit_price') : col('net_premium_exit');
+    const dteIdx = col('dte');
+    const strikeIdx = col('strike');
+
+    const dayMap = {};
+    trades.forEach((t, idx) => {
+        const v = t.values;
+        const entryDate = entryDateIdx >= 0 ? (v[entryDateIdx] || '').split(' ')[0].split('T')[0] : '';
+        const exitDate = exitDateIdx >= 0 ? (v[exitDateIdx] || '').split(' ')[0].split('T')[0] : '';
+        if (!entryDate) return;
+
+        const tradeObj = {
+            tradeNum: idx + 1,
+            symbol: symbolIdx >= 0 ? v[symbolIdx] : '—',
+            strategy: strategyIdx >= 0 ? v[strategyIdx] : '—',
+            entryPrice: entryPriceIdx >= 0 ? v[entryPriceIdx] : '—',
+            exitPrice: exitPriceIdx >= 0 ? v[exitPriceIdx] : '—',
+            pnl: pnlIdx >= 0 ? parseFloat((v[pnlIdx] || '0').replace(/[^0-9.-]/g, '')) : 0,
+            exitReason: exitReasonIdx >= 0 ? v[exitReasonIdx] : '—',
+            dte: dteIdx >= 0 ? v[dteIdx] : '—',
+            strike: strikeIdx >= 0 ? v[strikeIdx] : '—',
+            entryDate,
+            exitDate
+        };
+
+        if (!dayMap[entryDate]) dayMap[entryDate] = { entries: [], exits: [] };
+        dayMap[entryDate].entries.push(tradeObj);
+
+        if (exitDate && exitDate !== entryDate) {
+            if (!dayMap[exitDate]) dayMap[exitDate] = { entries: [], exits: [] };
+            dayMap[exitDate].exits.push(tradeObj);
+        } else if (exitDate === entryDate) {
+            dayMap[entryDate].exits.push(tradeObj);
+        }
+    });
+
+    optDtDays = Object.keys(dayMap).sort().map(date => ({ date, ...dayMap[date] }));
+    if (optDtDays.length === 0) return;
+
+    document.getElementById('decisionTreeSection').style.display = '';
+    document.getElementById('dtTotalCount').textContent = optDtDays.length;
+
+    const prevBtn = document.getElementById('dtPrevBtn');
+    const nextBtn = document.getElementById('dtNextBtn');
+    if (prevBtn) prevBtn.onclick = () => { if (optDtPage > 1) { optDtPage--; renderOptDtPage(); } };
+    if (nextBtn) nextBtn.onclick = () => { if (optDtPage < Math.ceil(optDtDays.length / optDtPerPage)) { optDtPage++; renderOptDtPage(); } };
+
+    optDtPage = 1;
+    renderOptDtPage();
+}
+
+function renderOptDtPage() {
+    const body = document.getElementById('decisionTreeBody');
+    const totalPages = Math.ceil(optDtDays.length / optDtPerPage);
+    const start = (optDtPage - 1) * optDtPerPage;
+    const end = Math.min(start + optDtPerPage, optDtDays.length);
+
+    document.getElementById('dtRangeStart').textContent = optDtDays.length > 0 ? start + 1 : 0;
+    document.getElementById('dtRangeEnd').textContent = end;
+
+    const prevBtn = document.getElementById('dtPrevBtn');
+    const nextBtn = document.getElementById('dtNextBtn');
+    if (prevBtn) prevBtn.disabled = optDtPage <= 1;
+    if (nextBtn) nextBtn.disabled = optDtPage >= totalPages;
+
+    body.innerHTML = optDtDays.slice(start, end).map(day => {
+        const hasEntries = day.entries.length > 0;
+        const hasExits = day.exits.length > 0;
+        const dayPnl = day.exits.reduce((s, t) => s + (t.pnl || 0), 0);
+        const badgeColor = hasEntries && hasExits ? '#7c3aed' : hasEntries ? '#10b981' : '#f59e0b';
+        const badgeText = hasEntries && hasExits ? 'Entry + Exit' : hasEntries ? 'Entry' : 'Exit';
+
+        let entriesHtml = '';
+        if (hasEntries) {
+            entriesHtml = day.entries.map(t => `
+                <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f5f3ff; border-radius:8px; margin-bottom:6px;">
+                    <i class="fas fa-sign-in-alt" style="color:#10b981; margin-top:3px;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#1e293b; font-size:14px;">Trade #${t.tradeNum} — ${t.strategy} Entry</div>
+                        <div style="color:#64748b; font-size:12px; margin-top:2px;">
+                            <i class="fas fa-chart-bar" style="margin-right:4px;"></i>${t.symbol}
+                            &nbsp;|&nbsp; Premium: ${t.entryPrice}
+                            ${t.dte !== '—' ? `&nbsp;|&nbsp; DTE: ${t.dte}` : ''}
+                            ${t.strike !== '—' ? `&nbsp;|&nbsp; Strike: ${t.strike}` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        let exitsHtml = '';
+        if (hasExits) {
+            exitsHtml = day.exits.map(t => {
+                const pnl = t.pnl || 0;
+                const pColor = pnl >= 0 ? '#10b981' : '#ef4444';
+                const exitIcon = (t.exitReason || '').toLowerCase().includes('stop') ? 'fa-shield-alt' :
+                                 (t.exitReason || '').toLowerCase().includes('profit') ? 'fa-bullseye' :
+                                 (t.exitReason || '').toLowerCase().includes('expir') ? 'fa-hourglass-end' : 'fa-sign-out-alt';
+                return `
+                <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${pnl >= 0 ? '#f0fdf4' : '#fef2f2'}; border-radius:8px; margin-bottom:6px;">
+                    <i class="fas ${exitIcon}" style="color:${pColor}; margin-top:3px;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#1e293b; font-size:14px;">Trade #${t.tradeNum} — Exit</div>
+                        <div style="color:#64748b; font-size:12px; margin-top:2px;">
+                            Reason: <span style="font-weight:600;">${t.exitReason}</span>
+                            &nbsp;|&nbsp; Exit Premium: ${t.exitPrice}
+                            &nbsp;|&nbsp; P&L: <span style="color:${pColor}; font-weight:600;">$${pnl.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        return `
+            <div style="border:1px solid #e2e8f0; border-radius:12px; margin-bottom:12px; overflow:hidden;">
+                <div onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.dt-chevron').classList.toggle('collapsed')" style="padding:12px 16px; background:#faf5ff; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <i class="fas fa-calendar-day" style="color:#7c3aed;"></i>
+                        <span style="font-weight:600; font-size:15px;">${day.date}</span>
+                        <span style="background:${badgeColor}; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600;">${badgeText}</span>
+                        ${hasExits ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:600; font-size:13px;">Day P&L: $${dayPnl.toFixed(2)}</span>` : ''}
+                    </div>
+                    <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                </div>
+                <div style="padding:12px 16px; display:none;">
+                    ${entriesHtml}${exitsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 function downloadCSV() {
-    // Redirect to trade log download
     window.location.href = `/api/files/trade-log/${backtestId}`;
 }
 

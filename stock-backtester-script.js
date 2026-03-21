@@ -352,93 +352,153 @@ async function readCSV(file) {
 }
 
 // Handle form submission
+let _pendingStockConfig = null;
+
+function buildStockConfigSummaryHtml(config) {
+    const sectionStyle = 'margin-bottom:16px; padding:14px 16px; background:#f8fafc; border-radius:10px; border-left:4px solid #3b7cff;';
+    const labelStyle = 'font-weight:600; color:#334155; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;';
+    const valueStyle = 'color:#1e293b; font-size:15px; line-height:1.6;';
+    const arrowIcon = '<i class="fas fa-arrow-right" style="color:#3b7cff; margin:0 6px; font-size:11px;"></i>';
+
+    const symbols = config.symbol || (config.symbols ? config.symbols.join(', ') : 'N/A');
+
+    let entryHtml = '';
+    if (config.entry_type === 'preset') {
+        const presetNames = {'1':'Gap %','2':'Gap $','3':'Change %','4':'Change $','5':'Velocity'};
+        const condName = presetNames[config.preset_condition] || `Preset #${config.preset_condition}`;
+        entryHtml = `${condName} ${config.preset_operator} ${config.preset_threshold}`;
+        if (config.preset_condition === '5' && config.velocity_lookback) {
+            entryHtml += ` (${config.velocity_lookback} min lookback)`;
+        }
+    } else if (config.custom_conditions && config.custom_conditions.length > 0) {
+        entryHtml = config.custom_conditions.map((c, i) => {
+            const dayLabel = (d) => d === 0 ? 'Day (0)' : `Day (${d})`;
+            const candleLabel = (c) => c === 'min' ? '1min' : c === 'hr' ? '1hr' : 'day';
+            const left = `${dayLabel(c.left_day)} ${candleLabel(c.left_candle)} ${c.left_type}`;
+            const right = `${dayLabel(c.right_day)} ${candleLabel(c.right_candle)} ${c.right_type}`;
+            const threshold = c.threshold_value ? ` by ${c.threshold_value}${c.threshold_unit}` : '';
+            const prefix = i === 0 ? '<span style="color:#3b7cff; font-weight:600;">Entry:</span>' : '<span style="color:#64748b; font-weight:600;">Prior:</span>';
+            return `<div style="margin-bottom:4px;">${prefix} ${left} ${c.operation} ${right}${threshold}</div>`;
+        }).join('');
+    }
+
+    const sizingMap = {'shares':'Shares','dollars':'Dollars','percent':'% of Capital'};
+    const sizingLabel = sizingMap[config.sizing_type] || config.sizing_type;
+
+    const tpLabel = config.take_profit_type === 'percent' ? `${config.take_profit_value}%` : `$${config.take_profit_value}`;
+    const slLabel = config.stop_loss_type === 'percent' ? `${config.stop_loss_value}%` : `$${config.stop_loss_value}`;
+
+    return `
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i>Period</div>
+            <div style="${valueStyle}">${config.start_date} ${arrowIcon} ${config.end_date}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-chart-bar" style="margin-right:6px;"></i>Symbol</div>
+            <div style="${valueStyle}">${symbols}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-sign-in-alt" style="margin-right:6px;"></i>Entry Criteria</div>
+            <div style="${valueStyle}">${config.direction ? config.direction.charAt(0).toUpperCase() + config.direction.slice(1) : 'Long'}, ${config.sizing_value} ${sizingLabel} per position</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-filter" style="margin-right:6px;"></i>Instance Conditions</div>
+            <div style="${valueStyle}">${entryHtml || '<span style="color:#94a3b8;">None configured</span>'}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Exit Criteria</div>
+            <div style="${valueStyle}">Take Profit: ${tpLabel} &nbsp;|&nbsp; Stop Loss: ${slLabel}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-clock" style="margin-right:6px;"></i>Max Days in Trade</div>
+            <div style="${valueStyle}">${config.max_days || 'Unlimited'}</div>
+        </div>
+        ${config.allow_consecutive_trades ? '<div style="' + sectionStyle + '"><div style="' + labelStyle + '"><i class="fas fa-layer-group" style="margin-right:6px;"></i>Consecutive Trades</div><div style="' + valueStyle + '">Allowed</div></div>' : ''}
+    `;
+}
+
+function showConfigSummary(config) {
+    _pendingStockConfig = config;
+    const body = document.getElementById('configSummaryBody');
+    body.innerHTML = buildStockConfigSummaryHtml(config);
+    const overlay = document.getElementById('configSummaryOverlay');
+    overlay.style.display = 'flex';
+}
+
+function closeConfigSummary() {
+    document.getElementById('configSummaryOverlay').style.display = 'none';
+    _pendingStockConfig = null;
+}
+
 async function handleSubmit(e) {
-    // CRITICAL: Prevent default IMMEDIATELY
     e.preventDefault();
     e.stopPropagation();
     
     console.log('=== FORM SUBMIT STARTED ===');
     
     try {
-        // Show loading message
-        const loadingEl = document.getElementById('loadingMessage');
         const errorEl = document.getElementById('errorMessage');
-        
-        if (loadingEl) loadingEl.style.display = 'block';
         if (errorEl) errorEl.style.display = 'none';
         
         console.log('Collecting form data...');
-        
-        // Collect form data
         const config = await collectFormData();
-        
         console.log('Config collected:', config);
         
-        // Validate
         console.log('Validating config...');
         if (!validateConfig(config)) {
             throw new Error('Please fill in all required fields');
         }
-        
         console.log('Validation passed');
         
-        // Get API key
         const apiKey = localStorage.getItem('polygonApiKey');
         if (!apiKey) {
             throw new Error('API key not found. Please configure it in settings.');
         }
-        
-        console.log('Submitting to API...');
-        
-        // Submit backtest to async start endpoint
-        const response = await authFetch('/api/stocks-backtest-v3/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': apiKey
-            },
-            body: JSON.stringify(config)
-        });
-        
-        console.log('API response status:', response.status);
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Backtest failed to start');
-        }
-        
-        const result = await response.json();
-        
-        console.log('Backtest started! ID:', result.backtest_id);
-        console.log('Status:', result.status);
-        
-        // Store config in sessionStorage for results page
-        sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
-        
-        // Redirect to results page immediately
-        window.location.href = `/stock-backtest-results.html?id=${result.backtest_id}`;
-        
+
+        showConfigSummary(config);
+
+        document.getElementById('confirmRunBacktestBtn').onclick = async function() {
+            closeConfigSummary();
+            const loadingEl = document.getElementById('loadingMessage');
+            if (loadingEl) loadingEl.style.display = 'block';
+
+            try {
+                const response = await authFetch('/api/stocks-backtest-v3/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Backtest failed to start');
+                }
+
+                const result = await response.json();
+                console.log('Backtest started! ID:', result.backtest_id);
+                sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
+                window.location.href = `/stock-backtest-results.html?id=${result.backtest_id}`;
+            } catch (err) {
+                console.error('Error running backtest:', err);
+                const errorEl = document.getElementById('errorMessage');
+                const loadingEl = document.getElementById('loadingMessage');
+                if (errorEl) { errorEl.textContent = `Error: ${err.message}`; errorEl.style.display = 'block'; }
+                if (loadingEl) loadingEl.style.display = 'none';
+                alert(`Error: ${err.message}`);
+            }
+        };
+
     } catch (error) {
         console.error('=== ERROR IN FORM SUBMISSION ===');
         console.error('Error:', error);
-        console.error('Stack:', error.stack);
-        
         const errorEl = document.getElementById('errorMessage');
-        const loadingEl = document.getElementById('loadingMessage');
-        
-        if (errorEl) {
-            errorEl.textContent = `Error: ${error.message}`;
-            errorEl.style.display = 'block';
-        }
-        if (loadingEl) {
-            loadingEl.style.display = 'none';
-        }
-        
-        // Alert as fallback
+        if (errorEl) { errorEl.textContent = `Error: ${error.message}`; errorEl.style.display = 'block'; }
         alert(`Error: ${error.message}`);
     }
     
-    // Ensure we never let default behavior through
     return false;
 }
 

@@ -368,6 +368,10 @@
             transform: rotate(-90deg);
         }
 
+        .dt-chevron.collapsed {
+            transform: rotate(-90deg);
+        }
+
         /* Full screen chart modal */
         .chart-modal {
             display: none;
@@ -772,6 +776,25 @@
                     </div>
                 </div>
             </div>
+
+                <div class="section-card" id="decisionTreeSection" style="display:none;">
+                    <div class="section-header" onclick="toggleSection('decisionTreeContent', this)">
+                        <h3><i class="fas fa-project-diagram"></i> Decision Tree Log Book</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
+                    </div>
+                    <div class="section-content" id="decisionTreeContent">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                            <div class="pagination-info">
+                                Showing <span id="dtRangeStart">1</span>-<span id="dtRangeEnd">10</span> of <span id="dtTotalCount">0</span> trading days
+                            </div>
+                            <div class="pagination-buttons">
+                                <button id="dtPrevBtn" class="btn btn-secondary" disabled><i class="fas fa-chevron-left"></i> Previous</button>
+                                <button id="dtNextBtn" class="btn btn-secondary" disabled>Next <i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        <div id="decisionTreeBody"></div>
+                    </div>
+                </div>
         </div>
 
         <!-- Chart Modal for expanded view -->

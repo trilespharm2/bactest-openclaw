@@ -196,6 +196,7 @@ async function loadResults() {
         displayStatistics(resultsData.stats || {});
         displayEquityCurve(resultsData.trades || []);
         displayTrades(resultsData.trades || []);
+        buildDecisionTree(resultsData.trades || [], resultsData.config || null);
         
     } catch (error) {
         console.error('Error loading results:', error);
@@ -715,4 +716,140 @@ function closeChartModal() {
         modalEquityCurveChart.destroy();
         modalEquityCurveChart = null;
     }
+}
+
+let dtDays = [];
+let dtPage = 1;
+const dtPerPage = 10;
+
+function buildDecisionTree(trades, config) {
+    if (!trades || trades.length === 0) return;
+
+    const dayMap = {};
+    trades.forEach((t, idx) => {
+        const entryDate = (t.entry_date || t.entry_timestamp || '').split(' ')[0].split('T')[0];
+        const exitDate = (t.exit_date || t.exit_timestamp || '').split(' ')[0].split('T')[0];
+        if (!entryDate) return;
+        if (!dayMap[entryDate]) dayMap[entryDate] = { entries: [], exits: [] };
+        dayMap[entryDate].entries.push({ ...t, tradeNum: idx + 1 });
+        if (exitDate && exitDate !== entryDate) {
+            if (!dayMap[exitDate]) dayMap[exitDate] = { entries: [], exits: [] };
+            dayMap[exitDate].exits.push({ ...t, tradeNum: idx + 1 });
+        } else if (exitDate === entryDate) {
+            dayMap[entryDate].exits.push({ ...t, tradeNum: idx + 1 });
+        }
+    });
+
+    dtDays = Object.keys(dayMap).sort().map(date => ({ date, ...dayMap[date] }));
+
+    if (dtDays.length === 0) return;
+
+    document.getElementById('decisionTreeSection').style.display = '';
+    document.getElementById('dtTotalCount').textContent = dtDays.length;
+
+    const prevBtn = document.getElementById('dtPrevBtn');
+    const nextBtn = document.getElementById('dtNextBtn');
+    if (prevBtn) prevBtn.onclick = () => { if (dtPage > 1) { dtPage--; renderDtPage(config); } };
+    if (nextBtn) nextBtn.onclick = () => { if (dtPage < Math.ceil(dtDays.length / dtPerPage)) { dtPage++; renderDtPage(config); } };
+
+    dtPage = 1;
+    renderDtPage(config);
+}
+
+function renderDtPage(config) {
+    const body = document.getElementById('decisionTreeBody');
+    const totalPages = Math.ceil(dtDays.length / dtPerPage);
+    const start = (dtPage - 1) * dtPerPage;
+    const end = Math.min(start + dtPerPage, dtDays.length);
+
+    document.getElementById('dtRangeStart').textContent = dtDays.length > 0 ? start + 1 : 0;
+    document.getElementById('dtRangeEnd').textContent = end;
+
+    const prevBtn = document.getElementById('dtPrevBtn');
+    const nextBtn = document.getElementById('dtNextBtn');
+    if (prevBtn) prevBtn.disabled = dtPage <= 1;
+    if (nextBtn) nextBtn.disabled = dtPage >= totalPages;
+
+    let condDesc = '';
+    if (config) {
+        if (config.entry_type === 'preset') {
+            const names = {'1':'Gap %','2':'Gap $','3':'Change %','4':'Change $','5':'Velocity'};
+            condDesc = `${names[config.preset_condition] || 'Preset'} ${config.preset_operator || ''} ${config.preset_threshold || ''}`;
+        } else if (config.custom_conditions && config.custom_conditions.length > 0) {
+            condDesc = config.custom_conditions.map((c, i) => {
+                const dayLabel = d => d === 0 ? 'D0' : `D${d}`;
+                const candleLabel = v => v === 'min' ? '1m' : v === 'hr' ? '1h' : 'D';
+                return `${dayLabel(c.left_day)}${candleLabel(c.left_candle)} ${c.left_type} ${c.operation} ${dayLabel(c.right_day)}${candleLabel(c.right_candle)} ${c.right_type}`;
+            }).join(' AND ');
+        }
+    }
+
+    const dir = config?.direction ? config.direction.charAt(0).toUpperCase() + config.direction.slice(1) : 'Long';
+    const tpLabel = config ? (config.take_profit_type === 'percent' ? `${config.take_profit_value}%` : `$${config.take_profit_value}`) : '—';
+    const slLabel = config ? (config.stop_loss_type === 'percent' ? `${config.stop_loss_value}%` : `$${config.stop_loss_value}`) : '—';
+
+    body.innerHTML = dtDays.slice(start, end).map(day => {
+        const hasEntries = day.entries.length > 0;
+        const hasExits = day.exits.length > 0;
+        const dayPnl = day.exits.reduce((s, t) => s + (t.pnl || 0), 0);
+        const dayPnlClass = dayPnl >= 0 ? 'positive' : 'negative';
+        const badgeColor = hasEntries && hasExits ? '#3b7cff' : hasEntries ? '#10b981' : '#f59e0b';
+        const badgeText = hasEntries && hasExits ? 'Entry + Exit' : hasEntries ? 'Entry' : 'Exit';
+
+        let entriesHtml = '';
+        if (hasEntries) {
+            entriesHtml = day.entries.map(t => `
+                <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f0fdf4; border-radius:8px; margin-bottom:6px;">
+                    <i class="fas fa-sign-in-alt" style="color:#10b981; margin-top:3px;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#1e293b; font-size:14px;">Trade #${t.tradeNum} — ${dir} Entry @ $${(t.entry_price || 0).toFixed(2)}</div>
+                        <div style="color:#64748b; font-size:12px; margin-top:2px;">
+                            <i class="fas fa-chart-bar" style="margin-right:4px;"></i>${t.symbol || config?.symbol || '—'}
+                            &nbsp;|&nbsp; ${t.shares || '—'} shares
+                            ${condDesc ? `&nbsp;|&nbsp; <span style="color:#3b7cff;">Condition met:</span> ${condDesc}` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        let exitsHtml = '';
+        if (hasExits) {
+            exitsHtml = day.exits.map(t => {
+                const pnl = t.pnl || 0;
+                const pClass = pnl >= 0 ? '#10b981' : '#ef4444';
+                const exitIcon = (t.exit_reason || '').toLowerCase().includes('stop') ? 'fa-shield-alt' : 
+                                 (t.exit_reason || '').toLowerCase().includes('profit') ? 'fa-bullseye' : 'fa-sign-out-alt';
+                return `
+                <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${pnl >= 0 ? '#f0fdf4' : '#fef2f2'}; border-radius:8px; margin-bottom:6px;">
+                    <i class="fas ${exitIcon}" style="color:${pClass}; margin-top:3px;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#1e293b; font-size:14px;">Trade #${t.tradeNum} — Exit @ $${(t.exit_price || 0).toFixed(2)}</div>
+                        <div style="color:#64748b; font-size:12px; margin-top:2px;">
+                            Reason: <span style="font-weight:600;">${t.exit_reason || 'N/A'}</span>
+                            &nbsp;|&nbsp; P&L: <span style="color:${pClass}; font-weight:600;">$${pnl.toFixed(2)} (${(t.pnl_pct || 0).toFixed(2)}%)</span>
+                            &nbsp;|&nbsp; TP: ${tpLabel} / SL: ${slLabel}
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        return `
+            <div style="border:1px solid #e2e8f0; border-radius:12px; margin-bottom:12px; overflow:hidden;">
+                <div onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.dt-chevron').classList.toggle('collapsed')" style="padding:12px 16px; background:#f8fafc; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <i class="fas fa-calendar-day" style="color:#3b7cff;"></i>
+                        <span style="font-weight:600; font-size:15px;">${day.date}</span>
+                        <span style="background:${badgeColor}; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600;">${badgeText}</span>
+                        ${hasExits ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:600; font-size:13px;">Day P&L: $${dayPnl.toFixed(2)}</span>` : ''}
+                    </div>
+                    <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                </div>
+                <div style="padding:12px 16px; display:none;">
+                    ${entriesHtml}${exitsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
 }

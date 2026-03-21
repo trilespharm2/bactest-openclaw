@@ -1471,10 +1471,107 @@ function validateStrikeConfiguration(strategy, legs) {
     return {valid: true}; // No specific validation for this strategy
 }
 
+let _pendingOptConfig = null;
+
+function buildOptConfigSummaryHtml(config) {
+    const sectionStyle = 'margin-bottom:16px; padding:14px 16px; background:#f8fafc; border-radius:10px; border-left:4px solid #7c3aed;';
+    const labelStyle = 'font-weight:600; color:#334155; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;';
+    const valueStyle = 'color:#1e293b; font-size:15px; line-height:1.6;';
+    const arrowIcon = '<i class="fas fa-arrow-right" style="color:#7c3aed; margin:0 6px; font-size:11px;"></i>';
+
+    let tpText = 'None';
+    if (config.take_profit_pct) tpText = `${config.take_profit_pct}%`;
+    else if (config.take_profit_dollar) tpText = `$${config.take_profit_dollar}`;
+
+    let slText = 'None';
+    if (config.stop_loss_pct) slText = `${config.stop_loss_pct}%`;
+    else if (config.stop_loss_dollar) slText = `$${config.stop_loss_dollar}`;
+
+    const allocMap = {'pct':'% of Capital','contracts':'Contracts','fixed':'Fixed $'};
+    const allocLabel = allocMap[config.allocation_type] || config.allocation_type;
+
+    const detBarMap = {0.25:'15s',1:'1min',5:'5min',15:'15min',60:'1hr'};
+    const detBarLabel = detBarMap[config.detection_bar_size] || `${config.detection_bar_size}min`;
+
+    let legsHtml = '';
+    if (config.legs && config.legs.length > 0) {
+        legsHtml = config.legs.map(leg => {
+            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg'};
+            const method = methodMap[leg.config_type] || leg.config_type;
+            let paramStr = '';
+            if (leg.params) {
+                const p = leg.params;
+                if (leg.config_type === 'delta') paramStr = `Delta: ${p.target_delta} (${p.method || 'closest'})`;
+                else if (leg.config_type === 'mid_price') paramStr = `Range: $${p.min_price || 0} - $${p.max_price || '∞'}`;
+                else if (leg.config_type === 'pct_underlying') paramStr = `${p.direction || ''} ${p.pct || 0}%`;
+                else if (leg.config_type === 'dollar_underlying') paramStr = `${p.direction || ''} $${p.amount || 0}`;
+                else if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') paramStr = `From ${p.reference_leg || 'Leg'}: ${p.pct || p.amount || 0}${leg.config_type === 'pct_leg' ? '%' : '$'}`;
+            }
+            return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}</div>`;
+        }).join('');
+    }
+
+    let conditionsHtml = '<span style="color:#94a3b8;">None</span>';
+    if (config.price_conditions && config.price_conditions.length > 0) {
+        conditionsHtml = config.price_conditions.map(pc => {
+            return `<div style="margin-bottom:4px;">${pc.left_metric || pc.metric || 'Price'} ${pc.operator || ''} ${pc.right_metric || pc.value || ''}</div>`;
+        }).join('');
+    }
+
+    return `
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i>Period</div>
+            <div style="${valueStyle}">${config.start_date} ${arrowIcon} ${config.end_date}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-chart-bar" style="margin-right:6px;"></i>Symbol</div>
+            <div style="${valueStyle}">${config.symbol}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-chess" style="margin-right:6px;"></i>Strategy</div>
+            <div style="${valueStyle}">${config.strategy} &nbsp;|&nbsp; DTE: ${config.dte} &nbsp;|&nbsp; Entry: ${config.entry_time}${config.entry_time_max ? ' - ' + config.entry_time_max : ''}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-layer-group" style="margin-right:6px;"></i>Legs</div>
+            <div style="${valueStyle}">${legsHtml || '<span style="color:#94a3b8;">None configured</span>'}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Exit Criteria</div>
+            <div style="${valueStyle}">Take Profit: ${tpText} &nbsp;|&nbsp; Stop Loss: ${slText}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-coins" style="margin-right:6px;"></i>Position Sizing</div>
+            <div style="${valueStyle}">${config.allocation_value} ${allocLabel} &nbsp;|&nbsp; Capital: $${config.starting_capital?.toLocaleString() || '—'}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-tachometer-alt" style="margin-right:6px;"></i>Detection Bar</div>
+            <div style="${valueStyle}">${detBarLabel}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-filter" style="margin-right:6px;"></i>Price Conditions</div>
+            <div style="${valueStyle}">${conditionsHtml}</div>
+        </div>
+    `;
+}
+
+function showOptConfigSummary(config) {
+    _pendingOptConfig = config;
+    const body = document.getElementById('optConfigSummaryBody');
+    body.innerHTML = buildOptConfigSummaryHtml(config);
+    const overlay = document.getElementById('optConfigSummaryOverlay');
+    overlay.style.display = 'flex';
+}
+
+function closeOptConfigSummary() {
+    document.getElementById('optConfigSummaryOverlay').style.display = 'none';
+    _pendingOptConfig = null;
+    const form = document.getElementById('backtestForm');
+    if (form) form.dataset.isSubmitting = 'false';
+}
+
 async function handleBacktestSubmit(e) {
     e.preventDefault();
     
-    // Prevent duplicate form submissions
     const form = e.target;
     if (form.dataset.isSubmitting === 'true') {
         console.log('Form already submitting, ignoring duplicate');
@@ -1484,79 +1581,79 @@ async function handleBacktestSubmit(e) {
     
     console.log('Form submitted');
     
-    // Collect all form data
     const config = collectFormData();
     
     if (!config) {
         showError('Please complete all required fields');
+        form.dataset.isSubmitting = 'false';
         return;
     }
     
-    // Validate strike configuration BEFORE running backtest
     const validation = validateStrikeConfiguration(config.strategy, config.legs);
     if (!validation.valid) {
         showError(`Invalid Strike Configuration: ${validation.error}`);
+        form.dataset.isSubmitting = 'false';
         return;
     }
     
     console.log('Config collected and validated:', config);
-    
-    // Clear any previously cached result since we're running a new backtest
-    localStorage.removeItem('lastBacktestResult');
-    
-    // Show loading (with null checks)
-    const resultsDiv = document.getElementById('backtestResults');
-    const errorDiv = document.getElementById('backtestError');
-    const loadingDiv = document.getElementById('backtestLoading');
-    const progressDiv = document.getElementById('backtestProgress');
-    
-    if (resultsDiv) resultsDiv.style.display = 'none';
-    if (errorDiv) errorDiv.style.display = 'none';
-    if (loadingDiv) loadingDiv.style.display = 'block';
-    if (progressDiv) progressDiv.textContent = 'Starting backtest...';
-    
-    try {
-        const apiKey = getAPIKey();
+
+    showOptConfigSummary(config);
+
+    document.getElementById('optConfirmRunBacktestBtn').onclick = async function() {
+        closeOptConfigSummary();
+        form.dataset.isSubmitting = 'true';
         
-        // Use async start endpoint - returns immediately with backtest_id
-        const response = await authFetch(`${API_BASE_URL}/backtest/start`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': apiKey
-            },
-            body: JSON.stringify(config)
-        });
+        localStorage.removeItem('lastBacktestResult');
         
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Server error: ${response.status}`);
+        const resultsDiv = document.getElementById('backtestResults');
+        const errorDiv = document.getElementById('backtestError');
+        const loadingDiv = document.getElementById('backtestLoading');
+        const progressDiv = document.getElementById('backtestProgress');
+        
+        if (resultsDiv) resultsDiv.style.display = 'none';
+        if (errorDiv) errorDiv.style.display = 'none';
+        if (loadingDiv) loadingDiv.style.display = 'block';
+        if (progressDiv) progressDiv.textContent = 'Starting backtest...';
+        
+        try {
+            const apiKey = getAPIKey();
+            
+            const response = await authFetch(`${API_BASE_URL}/backtest/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': apiKey
+                },
+                body: JSON.stringify(config)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            console.log('Backtest started:', result.backtest_id);
+            
+            if (result.backtest_id) {
+                localStorage.setItem('lastBacktestId', result.backtest_id);
+            }
+            
+            window.location.href = `/options-backtest-result-detail.html?id=${result.backtest_id}`;
+            
+        } catch (error) {
+            console.error('Backtest error:', error);
+            showError(`Error starting backtest: ${error.message}`);
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            form.dataset.isSubmitting = 'false';
         }
-        
-        const result = await response.json();
-        
-        if (result.error) {
-            throw new Error(result.error);
-        }
-        
-        console.log('Backtest started:', result.backtest_id);
-        
-        // Save backtest ID to localStorage
-        if (result.backtest_id) {
-            localStorage.setItem('lastBacktestId', result.backtest_id);
-        }
-        
-        // Immediately redirect to results detail page
-        window.location.href = `/options-backtest-result-detail.html?id=${result.backtest_id}`;
-        
-    } catch (error) {
-        console.error('Backtest error:', error);
-        showError(`Error starting backtest: ${error.message}`);
-        if (loadingDiv) loadingDiv.style.display = 'none';
-        // Reset submission flag on error
-        const form = document.getElementById('backtestForm');
-        if (form) form.dataset.isSubmitting = 'false';
-    }
+    };
 }
 
 function collectFormData() {
