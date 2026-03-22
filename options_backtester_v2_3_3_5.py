@@ -2939,7 +2939,7 @@ def run_backtest(config: Dict, client: RESTClient):
     if not trading_days or latest_exp is None:
         print(f"\nNo trading days found in date range {config['start_date']} to {config['end_date']}")
         print("This may be a weekend/holiday or invalid date range.")
-        return [], [config['starting_capital']]
+        return [], [config['starting_capital']], []
     
     # Fetch underlying data
     underlying_sym = f"I:{config['symbol']}" if config['symbol'] == "SPX" else config['symbol']
@@ -2996,10 +2996,21 @@ def run_backtest(config: Dict, client: RESTClient):
     
     print("\nProcessing trades...\n" + "-"*80)
     
+    decision_log = []
+    
     # Main loop
     for idx, trade_date in enumerate(trading_days):
         try:
             date_str = trade_date.strftime("%Y-%m-%d")
+            
+            day_entry = {
+                'date': date_str,
+                'symbol': config['symbol'],
+                'strategy': config['strategy'],
+                'entry_time_range': f"{config['entry_time']}" + (f" - {config.get('entry_time_end') or config.get('entry_time_max', '')}" if (config.get('entry_time_end') or config.get('entry_time_max')) and (config.get('entry_time_end') or config.get('entry_time_max')) != config['entry_time'] else ''),
+                'events': [],
+                'status': 'SKIPPED'
+            }
         
             # Get underlying bars for today
             bars_1min_today = underlying_bars_1min.get(date_str, [])
@@ -3026,6 +3037,8 @@ def run_backtest(config: Dict, client: RESTClient):
                             break
             
             if not candidate_bars:
+                day_entry['events'].append({'type': 'no_data', 'reason': 'No market bars available in entry time range'})
+                decision_log.append(day_entry)
                 continue
             
             # Use pre-fetched indicator cache (already loaded at backtest start)
@@ -3033,12 +3046,15 @@ def run_backtest(config: Dict, client: RESTClient):
             
             # Scan through candidate bars to find first one where conditions are met
             entry_bar = None
+            last_condition_reason = None
             for bar in candidate_bars:
                 underlying_price = bar['open']
                 bar_time = bar['time']
                 bar_timestamp = bar['timestamp']
                 
                 print(f"\n[{date_str} {bar_time}] {config['symbol']}: {underlying_price:.2f}", flush=True)
+                
+                day_entry['underlying_price'] = underlying_price
                 
                 # Check price conditions at this bar using cached indicator data
                 if price_conditions:
@@ -3047,9 +3063,16 @@ def run_backtest(config: Dict, client: RESTClient):
                     )
                     if not conditions_met:
                         print(f"  Conditions not met: {condition_reason}", flush=True)
+                        last_condition_reason = condition_reason
                         continue
                     else:
                         print(f"  Conditions met - entering trade", flush=True)
+                        day_entry['events'].append({
+                            'type': 'condition_met',
+                            'time': bar_time,
+                            'price': underlying_price,
+                            'reason': 'All price conditions met'
+                        })
                 
                 # Conditions met (or no conditions), use this bar for entry
                 entry_bar = bar
@@ -3057,6 +3080,11 @@ def run_backtest(config: Dict, client: RESTClient):
             
             if not entry_bar:
                 print(f"  [{date_str}] No entry - conditions not met in time range {entry_time_start}-{entry_time_end}")
+                day_entry['events'].append({
+                    'type': 'no_signal',
+                    'reason': last_condition_reason or f'Conditions not met in range {entry_time_start}-{entry_time_end}'
+                })
+                decision_log.append(day_entry)
                 continue
             
             underlying_price = entry_bar['open']
@@ -3071,6 +3099,8 @@ def run_backtest(config: Dict, client: RESTClient):
         
             if not success:
                 print(f"  Skipping - unable to fetch valid option data")
+                day_entry['events'].append({'type': 'skip', 'reason': 'Unable to fetch valid option data for strikes'})
+                decision_log.append(day_entry)
                 continue
         
             # Cache the fetched data for monitoring
@@ -3148,6 +3178,8 @@ def run_backtest(config: Dict, client: RESTClient):
         
             if len(all_leg_bars) != len(legs_info):
                 print(f"  Skipping - missing bars for some legs")
+                day_entry['events'].append({'type': 'skip', 'reason': 'Missing option bars for some legs on entry date'})
+                decision_log.append(day_entry)
                 continue
         
             # Find common timestamps across ALL legs
@@ -3156,6 +3188,8 @@ def run_backtest(config: Dict, client: RESTClient):
         
             if not common_timestamps:
                 print(f"  Skipping - no common timestamps across all legs")
+                day_entry['events'].append({'type': 'skip', 'reason': 'No common timestamps across all option legs'})
+                decision_log.append(day_entry)
                 continue
         
             # Filter for timestamps >= entry time (in US/Eastern)
@@ -3166,6 +3200,8 @@ def run_backtest(config: Dict, client: RESTClient):
         
             if len(valid_timestamps) < 1:
                 print(f"  Skipping - need at least 1 common timestamp >= entry time")
+                day_entry['events'].append({'type': 'skip', 'reason': 'No common timestamps at or after entry time'})
+                decision_log.append(day_entry)
                 continue
         
             # For 0-DTE, use first timestamp (market closes soon)
@@ -3175,6 +3211,8 @@ def run_backtest(config: Dict, client: RESTClient):
             else:
                 if len(valid_timestamps) < 2:
                     print(f"  Skipping - need 2 consecutive timestamps for DTE > 0")
+                    day_entry['events'].append({'type': 'skip', 'reason': 'Need 2 consecutive timestamps for DTE > 0'})
+                    decision_log.append(day_entry)
                     continue
                 entry_timestamp = valid_timestamps[1]
         
@@ -3266,6 +3304,8 @@ def run_backtest(config: Dict, client: RESTClient):
             # Check if all legs priced successfully
             if any(leg['entry_price'] is None for leg in legs_info):
                 print(f"  Skipping - could not price all legs")
+                day_entry['events'].append({'type': 'skip', 'reason': 'Could not price all option legs'})
+                decision_log.append(day_entry)
                 continue
         
             # Calculate position metrics
@@ -3279,6 +3319,8 @@ def run_backtest(config: Dict, client: RESTClient):
             if min_premium is not None:
                 if net_credit < min_premium:
                     print(f"  ❌ SKIPPING - Net premium ${net_credit:.4f} < minimum ${min_premium:.2f}")
+                    day_entry['events'].append({'type': 'skip', 'reason': f'Net premium ${net_credit:.4f} below minimum ${min_premium:.2f}'})
+                    decision_log.append(day_entry)
                     continue
                 else:
                     print(f"  ✓ Net premium ${net_credit:.4f} >= minimum ${min_premium:.2f}")
@@ -3286,6 +3328,8 @@ def run_backtest(config: Dict, client: RESTClient):
             if max_premium is not None:
                 if net_credit > max_premium:
                     print(f"  ❌ SKIPPING - Net premium ${net_credit:.4f} > maximum ${max_premium:.2f}")
+                    day_entry['events'].append({'type': 'skip', 'reason': f'Net premium ${net_credit:.4f} above maximum ${max_premium:.2f}'})
+                    decision_log.append(day_entry)
                     continue
                 else:
                     print(f"  ✓ Net premium ${net_credit:.4f} <= maximum ${max_premium:.2f}")
@@ -3295,6 +3339,8 @@ def run_backtest(config: Dict, client: RESTClient):
         
             if num_contracts <= 0:
                 print(f"  Skipping - insufficient capital")
+                day_entry['events'].append({'type': 'skip', 'reason': f'Insufficient capital (${capital:,.2f}) for position sizing'})
+                decision_log.append(day_entry)
                 continue
         
             # Check PDT - Set flag for 0-DTE + avoid_pdt mode
@@ -3309,6 +3355,18 @@ def run_backtest(config: Dict, client: RESTClient):
             leg_summary = ", ".join([f"{leg['name']}@{leg['strike']}" for leg in legs_info])
             print(f"  ENTRY: {num_contracts} contracts | Premium: {net_credit:.2f} | Max Risk: {max_risk:.2f}")
             print(f"  Legs: {leg_summary}")
+            
+            day_entry['status'] = 'ENTRY'
+            day_entry['events'].append({
+                'type': 'entry',
+                'time': entry_time,
+                'underlying_price': underlying_price,
+                'num_contracts': num_contracts,
+                'net_premium': round(net_credit, 4),
+                'max_risk': round(max_risk, 2),
+                'legs': [{'name': l['name'], 'strike': l['strike'], 'type': l['type'], 'position': l['position'], 'entry_price': round(l['entry_price'], 4)} for l in legs_info],
+                'expiration': exp_date.strftime("%Y-%m-%d")
+            })
         
             # Monitor position using DETECTION bars
             trading_range = get_business_days_between(trade_date, exp_date)
@@ -3431,6 +3489,20 @@ def run_backtest(config: Dict, client: RESTClient):
         
             pnl = (net_credit - final_premium) * num_contracts * 100
             capital += pnl
+            
+            exit_date_str = mon_date_str if exit_hit else exp_date.strftime("%Y-%m-%d")
+            day_entry['events'].append({
+                'type': 'exit',
+                'exit_date': exit_date_str,
+                'exit_time': exit_time,
+                'exit_reason': exit_reason,
+                'net_premium_exit': round(final_premium, 4),
+                'pnl': round(pnl, 2),
+                'capital_after': round(capital, 2),
+                'trade_num': len(trades) + 1
+            })
+            if exit_date_str == date_str:
+                day_entry['status'] = 'EXIT'
         
             # Calculate DTE (Days to Expiration at entry)
             dte_days = config['dte']
@@ -3521,6 +3593,8 @@ def run_backtest(config: Dict, client: RESTClient):
             equity_history.append(capital)
         
             print(f"  EXIT: {exit_reason} @ {exit_time} | P&L: ${pnl:+,.2f} | Capital: ${capital:,.2f}")
+            
+            decision_log.append(day_entry)
         
         except Exception as e:
             print(f"\n❌ ERROR processing trade on {date_str}:")
@@ -3529,9 +3603,11 @@ def run_backtest(config: Dict, client: RESTClient):
             traceback.print_exc()
             print(f"   Trade index: {idx + 1}/{len(trading_days)}")
             print(f"   Continuing to next trade...\n")
+            day_entry['events'].append({'type': 'error', 'reason': str(e)})
+            decision_log.append(day_entry)
             continue
     
-    return trades, equity_history
+    return trades, equity_history, decision_log
 
 def calculate_expiration_values(legs_info: List[Dict], underlying_price: float) -> Tuple[float, List[float]]:
     """
@@ -3914,7 +3990,7 @@ def main():
         config = get_user_config()
         client = RESTClient(API_KEY)
         
-        trades, equity = run_backtest(config, client)
+        trades, equity, decision_log = run_backtest(config, client)
         
         plot_results(equity, config)
         calculate_stats(trades, config)

@@ -3829,6 +3829,19 @@ def run_backtester_script(config, api_key):
                 print(f"  {key}: {value}")
         print(f"{'='*60}\n")
         
+        # Load decision log if it exists
+        dl_path = os.path.join(output_dir, f'decision_log_{backtest_id}.json')
+        decision_log_data = []
+        if os.path.exists(dl_path):
+            try:
+                with open(dl_path, 'r') as f:
+                    decision_log_data = json.load(f)
+                print(f"  ✅ Decision log loaded: {len(decision_log_data)} days")
+            except Exception as e:
+                print(f"  ⚠️ Error loading decision log: {e}")
+        
+        metadata['decision_log'] = decision_log_data
+        
         metadata_path = os.path.join(output_dir, f'metadata_{backtest_id}.json')
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
@@ -3917,12 +3930,21 @@ def run_backtester_script_with_id(config, api_key, backtest_id):
             error_context = '\n'.join(output_lines[-20:]) if output_lines else 'No output captured'
             raise Exception(f"Backtest script failed: {error_context}")
         
-        # Update metadata to completed status
+        # Update metadata to completed status and add decision log
         metadata_path = os_module.path.join(output_dir, f'metadata_{backtest_id}.json')
         if os_module.path.exists(metadata_path):
             with open(metadata_path, 'r') as f:
                 metadata = json_module.load(f)
             metadata['status'] = 'completed'
+            
+            dl_path = os_module.path.join(output_dir, f'decision_log_{backtest_id}.json')
+            if os_module.path.exists(dl_path):
+                try:
+                    with open(dl_path, 'r') as f:
+                        metadata['decision_log'] = json_module.load(f)
+                except Exception:
+                    metadata['decision_log'] = []
+            
             with open(metadata_path, 'w') as f:
                 json_module.dump(metadata, f, indent=2)
         

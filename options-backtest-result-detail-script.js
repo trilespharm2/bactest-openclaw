@@ -138,6 +138,11 @@ async function loadResults() {
             // Completed - display full results
             displayStatistics(metadata);
             await displayTradeLog(backtestId);
+            
+            // Build decision tree from metadata (independent of trade log CSV)
+            if (metadata.decision_log && metadata.decision_log.length > 0) {
+                buildOptDecisionTreeFromLog(metadata.decision_log);
+            }
         }
         
     } catch (error) {
@@ -223,6 +228,11 @@ async function loadCompletedResults() {
         
         // Load and display trade log (this also builds the equity curve)
         await displayTradeLog(backtestId);
+        
+        // Build decision tree from metadata (independent of trade log CSV)
+        if (metadata.decision_log && metadata.decision_log.length > 0) {
+            buildOptDecisionTreeFromLog(metadata.decision_log);
+        }
         
         console.log('Results loaded successfully');
         
@@ -732,7 +742,6 @@ async function displayTradeLog(backtestId) {
         
         // Build equity curve from trade data
         buildEquityCurve(allTrades);
-        buildOptDecisionTree(allTrades);
         
         currentPage = 1;
         displayTradesPage();
@@ -819,6 +828,179 @@ function parseCSVLine(line) {
 let optDtDays = [];
 let optDtPage = 1;
 const optDtPerPage = 10;
+
+function buildOptDecisionTreeFromLog(decisionLog) {
+    if (!decisionLog || decisionLog.length === 0) return;
+
+    optDtDays = decisionLog;
+    document.getElementById('decisionTreeSection').style.display = '';
+    document.getElementById('dtTotalCount').textContent = optDtDays.length;
+
+    const prevBtn = document.getElementById('dtPrevBtn');
+    const nextBtn = document.getElementById('dtNextBtn');
+    if (prevBtn) prevBtn.onclick = () => { if (optDtPage > 1) { optDtPage--; renderOptDtPageFromLog(); } };
+    if (nextBtn) nextBtn.onclick = () => { if (optDtPage < Math.ceil(optDtDays.length / optDtPerPage)) { optDtPage++; renderOptDtPageFromLog(); } };
+
+    optDtPage = 1;
+    renderOptDtPageFromLog();
+}
+
+function formatExitReasonOpt(reason) {
+    if (!reason) return 'N/A';
+    const map = {
+        'TAKE_PROFIT': 'Take Profit',
+        'STOP_LOSS': 'Stop Loss',
+        'EXPIRATION': 'Expiration',
+        'EOD': 'End of Day'
+    };
+    return map[reason] || reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function renderOptDtPageFromLog() {
+    const body = document.getElementById('decisionTreeBody');
+    const totalPages = Math.ceil(optDtDays.length / optDtPerPage);
+    const start = (optDtPage - 1) * optDtPerPage;
+    const end = Math.min(start + optDtPerPage, optDtDays.length);
+
+    document.getElementById('dtRangeStart').textContent = optDtDays.length > 0 ? start + 1 : 0;
+    document.getElementById('dtRangeEnd').textContent = end;
+
+    const prevBtn = document.getElementById('dtPrevBtn');
+    const nextBtn = document.getElementById('dtNextBtn');
+    if (prevBtn) prevBtn.disabled = optDtPage <= 1;
+    if (nextBtn) nextBtn.disabled = optDtPage >= totalPages;
+
+    body.innerHTML = optDtDays.slice(start, end).map(day => {
+        const status = day.status || 'SKIPPED';
+        let badgeColor, badgeText, headerBg;
+        switch (status) {
+            case 'ENTRY':
+                badgeColor = '#10b981'; badgeText = 'Entry'; headerBg = '#f0fdf4'; break;
+            case 'EXIT':
+                badgeColor = '#f59e0b'; badgeText = 'Exit (Same Day)'; headerBg = '#fffbeb'; break;
+            case 'SKIPPED':
+            default:
+                badgeColor = '#94a3b8'; badgeText = 'Skipped'; headerBg = '#f8fafc'; break;
+        }
+
+        const exitEvents = (day.events || []).filter(e => e.type === 'exit');
+        const dayPnl = exitEvents.reduce((s, e) => s + (e.pnl || 0), 0);
+        const hasPnl = exitEvents.length > 0;
+
+        let flowHtml = '';
+
+        if (day.underlying_price != null) {
+            flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f1f5f9; border-radius:8px; margin-bottom:8px;">
+                <i class="fas fa-chart-line" style="color:#64748b;"></i>
+                <span style="color:#475569; font-size:13px;"><strong>${day.symbol || 'Underlying'}:</strong> $${day.underlying_price.toFixed(2)} @ ${day.entry_time_range || ''}</span>
+            </div>`;
+        }
+
+        if (day.strategy) {
+            flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f1f5f9; border-radius:8px; margin-bottom:8px;">
+                <i class="fas fa-cogs" style="color:#64748b;"></i>
+                <span style="color:#475569; font-size:13px;"><strong>Strategy:</strong> ${day.strategy}</span>
+            </div>`;
+        }
+
+        flowHtml += '<div style="border-left:2px solid #e2e8f0; margin-left:20px; padding-left:16px;">';
+
+        (day.events || []).forEach(evt => {
+            if (evt.type === 'no_data') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border-left:3px solid #94a3b8;">
+                    <i class="fas fa-database" style="color:#94a3b8; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#64748b; font-size:13px;">NO DATA</div>
+                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'No market data available'}</div>
+                    </div>
+                </div>`;
+            } else if (evt.type === 'no_signal') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border-left:3px solid #94a3b8;">
+                    <i class="fas fa-ban" style="color:#94a3b8; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#64748b; font-size:13px;">CONDITIONS NOT MET</div>
+                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'Entry conditions not met'}</div>
+                    </div>
+                </div>`;
+            } else if (evt.type === 'condition_met') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#ecfdf5; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">
+                    <i class="fas fa-check-circle" style="color:#10b981; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#065f46; font-size:13px;">CONDITIONS MET</div>
+                        <div style="color:#475569; font-size:12px;">Price $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} @ ${evt.time || ''}</div>
+                    </div>
+                </div>`;
+            } else if (evt.type === 'skip') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fffbeb; border-radius:8px; margin-bottom:6px; border-left:3px solid #f59e0b;">
+                    <i class="fas fa-exclamation-triangle" style="color:#f59e0b; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#92400e; font-size:13px;">TRADE SKIPPED</div>
+                        <div style="color:#78716c; font-size:12px;">${evt.reason || 'Unable to execute'}</div>
+                    </div>
+                </div>`;
+            } else if (evt.type === 'entry') {
+                let legsHtml = '';
+                if (evt.legs && evt.legs.length > 0) {
+                    legsHtml = '<div style="margin-top:4px;">' + evt.legs.map(l => 
+                        `<span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-size:11px; margin:2px 4px 2px 0;">${l.position} ${l.type === 'C' ? 'Call' : 'Put'} ${l.name} @ $${l.strike} (${l.entry_price.toFixed(4)})</span>`
+                    ).join('') + '</div>';
+                }
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f0fdf4; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">
+                    <i class="fas fa-sign-in-alt" style="color:#10b981; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#1e293b; font-size:13px;">ENTRY @ ${evt.time || ''}</div>
+                        <div style="color:#475569; font-size:12px;">${evt.num_contracts} contract${evt.num_contracts > 1 ? 's' : ''} | Net Premium: $${evt.net_premium.toFixed(4)} | Max Risk: $${evt.max_risk.toFixed(2)}</div>
+                        <div style="color:#64748b; font-size:11px; margin-top:2px;">Exp: ${evt.expiration || 'N/A'}</div>
+                        ${legsHtml}
+                    </div>
+                </div>`;
+            } else if (evt.type === 'exit') {
+                const pnl = evt.pnl || 0;
+                const pnlColor = pnl >= 0 ? '#10b981' : '#ef4444';
+                const bgColor = pnl >= 0 ? '#f0fdf4' : '#fef2f2';
+                const borderColor = pnl >= 0 ? '#10b981' : '#ef4444';
+                const exitIcon = (evt.exit_reason || '').includes('STOP') ? 'fa-shield-alt' :
+                                 (evt.exit_reason || '').includes('PROFIT') ? 'fa-bullseye' :
+                                 (evt.exit_reason || '').includes('EXPIR') ? 'fa-hourglass-end' : 'fa-sign-out-alt';
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${bgColor}; border-radius:8px; margin-bottom:6px; border-left:3px solid ${borderColor};">
+                    <i class="fas ${exitIcon}" style="color:${pnlColor}; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#1e293b; font-size:13px;">EXIT - Trade #${evt.trade_num || '?'} (${formatExitReasonOpt(evt.exit_reason)})</div>
+                        <div style="color:#475569; font-size:12px;">${evt.exit_date || ''} @ ${evt.exit_time || ''} | Exit Premium: $${(evt.net_premium_exit || 0).toFixed(4)}</div>
+                        <div style="font-weight:600; font-size:13px; margin-top:2px; color:${pnlColor};">P&L: $${pnl.toFixed(2)}</div>
+                    </div>
+                </div>`;
+            } else if (evt.type === 'error') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fef2f2; border-radius:8px; margin-bottom:6px; border-left:3px solid #ef4444;">
+                    <i class="fas fa-exclamation-circle" style="color:#ef4444; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#991b1b; font-size:13px;">ERROR</div>
+                        <div style="color:#78716c; font-size:12px;">${evt.reason || 'Unknown error'}</div>
+                    </div>
+                </div>`;
+            }
+        });
+
+        flowHtml += '</div>';
+
+        return `
+            <div style="border:1px solid #e2e8f0; border-radius:12px; margin-bottom:12px; overflow:hidden;">
+                <div onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.dt-chevron').classList.toggle('collapsed')" style="padding:12px 16px; background:${headerBg}; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <i class="fas fa-calendar-day" style="color:#3b7cff;"></i>
+                        <span style="font-weight:600; font-size:15px;">${day.date}</span>
+                        <span style="background:${badgeColor}; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600;">${badgeText}</span>
+                        ${hasPnl ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:600; font-size:13px;">P&L: $${dayPnl.toFixed(2)}</span>` : ''}
+                    </div>
+                    <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                </div>
+                <div style="padding:12px 16px; display:none;">
+                    ${flowHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
 
 function buildOptDecisionTree(trades) {
     if (!trades || trades.length === 0) return;

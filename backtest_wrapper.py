@@ -109,12 +109,21 @@ def main():
         print(f"\nRunning backtest...")
         print(f"{'='*80}\n")
         
-        trades, equity = run_backtest(config, client)
+        trades, equity, decision_log = run_backtest(config, client)
         
         # Save results with backtest_id suffix if provided
         plot_results(equity, config, backtest_id=backtest_id)
         calculate_stats(trades, config)
         save_trade_log(trades, backtest_id=backtest_id)
+        
+        # Save decision log as JSON (always write, even if empty)
+        output_dir = 'backtest_results'
+        os.makedirs(output_dir, exist_ok=True)
+        dl_suffix = f'_{backtest_id}' if backtest_id else ''
+        dl_path = os.path.join(output_dir, f'decision_log{dl_suffix}.json')
+        with open(dl_path, 'w') as f:
+            json.dump(decision_log if decision_log else [], f)
+        print(f"  Decision log saved: {dl_path} ({len(decision_log) if decision_log else 0} days)")
         
         print(f"\n{'='*80}")
         print("BACKTEST COMPLETE")
