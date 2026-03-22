@@ -4610,6 +4610,9 @@ _dashboard_cache = {
     'most_active': {'active': [], 'timestamp': ''},
     'trending': {'trending': [], 'timestamp': ''},
     'earnings': {'earnings': [], 'timestamp': ''},
+    'news': {'articles': [], 'timestamp': ''},
+    'treasury': {'rates': [], 'timestamp': ''},
+    'economic': {'indicators': [], 'timestamp': ''},
 }
 _cache_lock = threading.Lock()
 _cache_timers = {}
@@ -4826,6 +4829,152 @@ def _refresh_earnings():
         print(f"Cache: earnings refresh failed: {e}")
 
 
+def _refresh_news():
+    """Background task: fetch headline news via yfinance"""
+    try:
+        import yfinance as yf
+        articles = []
+        for sym in ['SPY', 'QQQ', '^GSPC']:
+            try:
+                t = yf.Ticker(sym)
+                news = t.news
+                if news:
+                    for item in news[:8]:
+                        content = item.get('content', {})
+                        title = content.get('title', '') or item.get('title', '')
+                        if not title:
+                            continue
+                        provider = content.get('provider', {})
+                        publisher = provider.get('displayName', '') or item.get('publisher', '')
+                        thumbnail = content.get('thumbnail', {})
+                        resolutions = thumbnail.get('resolutions', [])
+                        thumb_url = resolutions[0]['url'] if resolutions else ''
+                        click_url = content.get('clickThroughUrl', {}).get('url', '')
+                        canonical_url = content.get('canonicalUrl', {}).get('url', '')
+                        link = click_url or canonical_url or item.get('link', '')
+                        pub_date = content.get('pubDate', '') or item.get('providerPublishTime', '')
+                        if isinstance(pub_date, (int, float)):
+                            pub_date = datetime.utcfromtimestamp(pub_date).strftime('%Y-%m-%dT%H:%M:%SZ')
+                        articles.append({
+                            'title': title,
+                            'publisher': publisher,
+                            'link': link,
+                            'thumbnail': thumb_url,
+                            'published': pub_date,
+                            'source_symbol': sym,
+                        })
+            except Exception as e:
+                print(f"Cache: Error fetching news for {sym}: {e}")
+
+        seen_titles = set()
+        unique = []
+        for a in articles:
+            if a['title'] not in seen_titles:
+                seen_titles.add(a['title'])
+                unique.append(a)
+        unique.sort(key=lambda x: x.get('published', ''), reverse=True)
+
+        with _cache_lock:
+            _dashboard_cache['news'] = {
+                'articles': unique[:12],
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }
+        print(f"Cache: news refreshed OK — {len(unique[:12])} articles")
+    except Exception as e:
+        print(f"Cache: news refresh failed: {e}")
+
+
+def _refresh_treasury():
+    """Background task: fetch treasury rates via yfinance"""
+    try:
+        import yfinance as yf
+        treasury_symbols = {
+            '^IRX': {'name': '13-Week', 'maturity': '13W'},
+            '^FVX': {'name': '5-Year', 'maturity': '5Y'},
+            '^TNX': {'name': '10-Year', 'maturity': '10Y'},
+            '^TYX': {'name': '30-Year', 'maturity': '30Y'},
+        }
+        rates = []
+        for sym, info in treasury_symbols.items():
+            try:
+                t = yf.Ticker(sym)
+                fi = t.fast_info
+                rate = round(float(fi.last_price), 3)
+                prev = round(float(fi.previous_close), 3)
+                change = round(rate - prev, 3)
+                rates.append({
+                    'symbol': sym,
+                    'name': info['name'],
+                    'maturity': info['maturity'],
+                    'rate': rate,
+                    'prev_rate': prev,
+                    'change': change,
+                })
+            except Exception as e:
+                print(f"Cache: Error fetching treasury {sym}: {e}")
+                rates.append({
+                    'symbol': sym, 'name': info['name'],
+                    'maturity': info['maturity'],
+                    'rate': 0, 'prev_rate': 0, 'change': 0,
+                })
+        with _cache_lock:
+            _dashboard_cache['treasury'] = {
+                'rates': rates,
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }
+        print("Cache: treasury rates refreshed OK")
+    except Exception as e:
+        print(f"Cache: treasury refresh failed: {e}")
+
+
+def _refresh_economic():
+    """Background task: fetch economic indicators via yfinance"""
+    try:
+        import yfinance as yf
+        indicators_config = {
+            '^VIX': {'name': 'VIX', 'category': 'volatility', 'format': 'number'},
+            'DX-Y.NYB': {'name': 'US Dollar (DXY)', 'category': 'currency', 'format': 'number'},
+            'GC=F': {'name': 'Gold', 'category': 'commodity', 'format': 'currency'},
+            'CL=F': {'name': 'Crude Oil', 'category': 'commodity', 'format': 'currency'},
+            'BTC-USD': {'name': 'Bitcoin', 'category': 'crypto', 'format': 'currency'},
+            'SI=F': {'name': 'Silver', 'category': 'commodity', 'format': 'currency'},
+        }
+        indicators = []
+        for sym, info in indicators_config.items():
+            try:
+                t = yf.Ticker(sym)
+                fi = t.fast_info
+                price = round(float(fi.last_price), 2)
+                prev = round(float(fi.previous_close), 2)
+                change = round(price - prev, 2)
+                change_pct = round((change / prev * 100), 2) if prev else 0
+                indicators.append({
+                    'symbol': sym,
+                    'name': info['name'],
+                    'category': info['category'],
+                    'format': info['format'],
+                    'price': price,
+                    'prev_price': prev,
+                    'change': change,
+                    'change_pct': change_pct,
+                })
+            except Exception as e:
+                print(f"Cache: Error fetching indicator {sym}: {e}")
+                indicators.append({
+                    'symbol': sym, 'name': info['name'],
+                    'category': info['category'], 'format': info['format'],
+                    'price': 0, 'prev_price': 0, 'change': 0, 'change_pct': 0,
+                })
+        with _cache_lock:
+            _dashboard_cache['economic'] = {
+                'indicators': indicators,
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }
+        print("Cache: economic indicators refreshed OK")
+    except Exception as e:
+        print(f"Cache: economic indicators refresh failed: {e}")
+
+
 def _run_periodic(func, interval_sec, name):
     """Run a function in a background thread immediately, then repeat on interval.
     The first call is non-blocking so app.run() starts right away."""
@@ -4857,6 +5006,9 @@ def start_dashboard_cache():
     _run_periodic(_refresh_trending, 60, 'trending')
     _run_periodic(_refresh_sectors, 60, 'sectors')
     _run_periodic(_refresh_earnings, 300, 'earnings')
+    _run_periodic(_refresh_news, 300, 'news')
+    _run_periodic(_refresh_treasury, 120, 'treasury')
+    _run_periodic(_refresh_economic, 120, 'economic')
 
 
 # ── Thin API endpoints — just serve from cache, no Webull calls ──
@@ -4891,6 +5043,18 @@ def get_trending():
 @app.route('/api/dashboard/earnings')
 def get_earnings_calendar():
     return _cache_response('earnings')
+
+@app.route('/api/dashboard/news')
+def get_dashboard_news():
+    return _cache_response('news')
+
+@app.route('/api/dashboard/treasury')
+def get_treasury_rates():
+    return _cache_response('treasury')
+
+@app.route('/api/dashboard/economic')
+def get_economic_indicators():
+    return _cache_response('economic')
 
 
 # =============================================================================
