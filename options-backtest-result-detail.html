@@ -5,98 +5,231 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Options Backtest Results</title>
     <link rel="stylesheet" href="main-styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .results-container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 12px 20px;
+        :root {
+            --report-bg: #eef3f8;
+            --report-surface: #ffffff;
+            --report-surface-alt: #f8fafc;
+            --report-border: #dbe4f0;
+            --report-border-strong: #c4d1e1;
+            --report-text: #102033;
+            --report-muted: #62748a;
+            --report-accent: #2563eb;
+            --report-accent-soft: rgba(37, 99, 235, 0.12);
+            --report-positive: #0f9f6e;
+            --report-negative: #d14343;
+            --report-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
         }
-        
+
+        body.results-body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 28%),
+                linear-gradient(180deg, #f7fafe 0%, var(--report-bg) 100%);
+            color: var(--report-text);
+        }
+
+        .results-shell {
+            max-width: 1580px;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0 auto;
+            padding: 28px 24px 40px;
+            overflow-x: hidden;
+        }
+
         .results-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding: 12px 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            align-items: flex-start;
+            gap: 24px;
+            padding: 24px 28px;
+            margin-bottom: 22px;
+            border: 1px solid rgba(196, 209, 225, 0.9);
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: var(--report-shadow);
+            backdrop-filter: blur(12px);
         }
-        
-        .results-header h1 {
-            margin: 0;
-            color: #1f2937;
-            font-size: 20px;
-        }
-        
-        .results-actions {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
+
+        .page-kicker {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            transition: all 0.2s;
-        }
-        
-        .btn-primary {
-            background: #3b82f6;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #2563eb;
-        }
-        
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #4b5563;
+            margin-bottom: 10px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--report-accent-soft);
+            color: var(--report-accent);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
-        /* Main Layout - vertical stack */
-        .main-layout {
+        .results-header h1 {
+            margin: 0;
+            font-size: clamp(28px, 3vw, 40px);
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+        }
+
+        .results-subtitle {
+            margin: 10px 0 0;
+            color: var(--report-muted);
+            font-size: 15px;
+        }
+
+        .results-actions {
             display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 12px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
-        .config-section {
-            /* no grid area needed */
+        .btn {
+            border: 1px solid transparent;
+            border-radius: 12px;
+            padding: 11px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
         }
 
-        .equity-section {
-            width: 100%;
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--report-accent);
+            color: #fff;
+            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-secondary {
             background: #fff;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            overflow: hidden;
+            color: var(--report-text);
+            border-color: var(--report-border);
         }
 
-        .equity-header {
+        .btn-secondary:hover {
+            background: #f8fbff;
+            border-color: var(--report-border-strong);
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 22px;
+        }
+
+        .content-column {
+            display: grid;
+            gap: 22px;
+        }
+
+        .report-card,
+        .section-card,
+        .equity-section {
+            background: var(--report-surface);
+            border: 1px solid rgba(196, 209, 225, 0.78);
+            border-radius: 24px;
+            box-shadow: var(--report-shadow);
+        }
+
+        .card-header,
+        .equity-header,
+        .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 14px;
+            gap: 12px;
+            padding: 10px 14px;
         }
 
-        .equity-title {
+        .section-header {
+            align-items: center;
+            cursor: default;
+        }
+
+        .card-eyebrow {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--report-muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .card-title,
+        .equity-title,
+        .section-card h3,
+        .chart-modal-header h3 {
+            margin: 0;
+            color: var(--report-text);
             font-size: 14px;
             font-weight: 600;
-            color: #1f2937;
+            letter-spacing: -0.01em;
+        }
+
+        .card-description,
+        .equity-description {
+            margin: 6px 0 0;
+            color: var(--report-muted);
+            font-size: 14px;
+        }
+
+        .section-card h3 {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+        }
+
+        .section-card h3 i,
+        .chart-modal-header h3 i {
+            color: var(--report-accent);
+        }
+
+        .section-content {
+            padding: 18px 24px 24px;
+        }
+
+        .section-content.collapsed {
+            display: none;
+        }
+
+        .collapse-icon {
+            display: none;
+            color: var(--report-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .dt-chevron.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .equity-section {
+            overflow: hidden;
         }
 
         .equity-actions {
@@ -110,389 +243,285 @@
             align-items: center;
             padding: 8px 12px;
             border-radius: 999px;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            color: #62748a;
+            background: var(--report-surface-alt);
+            border: 1px solid var(--report-border);
+            color: var(--report-muted);
             font-size: 12px;
             font-weight: 700;
-        }
-
-        .equity-curve-wrap {
-            position: relative;
-            width: 100%;
-        }
-        
-        .equity-section .equity-curve-container {
-            width: 100%;
-            height: calc(100vh - 240px);
-            min-height: 300px;
-        }
-        
-        .equity-section .equity-curve-container canvas {
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-        }
-
-        .stats-section {
-            /* no grid area needed */
-        }
-
-        .trades-section {
-            /* no grid area needed */
-        }
-
-        /* Bottom row: config + stats side by side */
-        .bottom-sections {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        /* Tablet */
-        @media (max-width: 1024px) {
-            .bottom-sections {
-                grid-template-columns: 1fr;
-            }
-            .equity-section .equity-curve-container {
-                height: calc(100vh - 220px);
-            }
-        }
-
-        /* Mobile */
-        @media (max-width: 480px) {
-            .equity-summary-chip { display: none; }
-
-            body {
-                overflow-x: hidden;
-            }
-            
-            .results-container {
-                padding: 6px;
-                max-width: 100vw;
-                overflow-x: hidden;
-            }
-            
-            .results-header {
-                padding: 10px;
-                margin-bottom: 8px;
-                flex-direction: row;
-                gap: 8px;
-            }
-            
-            .results-header h1 {
-                font-size: 14px;
-            }
-            
-            .results-header p {
-                font-size: 11px;
-            }
-            
-            .btn {
-                padding: 6px 10px;
-                font-size: 11px;
-            }
-            
-            .main-layout {
-                gap: 8px;
-            }
-            
-            .section-card {
-                padding: 8px;
-            }
-            
-            .section-card h3 {
-                font-size: 11px;
-                margin-bottom: 6px;
-                padding-bottom: 4px;
-                gap: 4px;
-            }
-            
-            .section-card h3 i {
-                font-size: 10px;
-            }
-            
-            .equity-section .equity-curve-container {
-                height: 55vh;
-                min-height: 250px;
-            }
-            
-            .config-list {
-                grid-template-columns: 1fr 1fr 1fr;
-                gap: 3px;
-            }
-            
-            .config-item {
-                padding: 3px 4px;
-            }
-            
-            .config-item.full-width {
-                grid-column: span 3;
-            }
-            
-            .config-label {
-                font-size: 7px;
-                margin-bottom: 0;
-            }
-            
-            .config-value {
-                font-size: 9px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: repeat(4, 1fr);
-                gap: 3px;
-            }
-            
-            .stat-card {
-                padding: 4px 2px;
-            }
-            
-            .stat-label {
-                font-size: 6px;
-                margin-bottom: 1px;
-            }
-            
-            .stat-value {
-                font-size: 10px;
-            }
-            
-            .pagination-controls {
-                padding: 6px 0;
-                gap: 6px;
-            }
-            
-            .pagination-info {
-                font-size: 10px;
-            }
-            
-            .pagination-buttons .btn {
-                padding: 4px 8px;
-                font-size: 10px;
-            }
-            
-            .table-container {
-                font-size: 9px;
-                overflow-x: auto;
-                max-width: 100%;
-                -webkit-overflow-scrolling: touch;
-            }
-            
-            .results-table {
-                min-width: 100%;
-            }
-            
-            .results-table th,
-            .results-table td {
-                padding: 3px 2px;
-                font-size: 8px;
-                white-space: nowrap;
-            }
-            
-            .section-card {
-                max-width: 100%;
-                overflow: hidden;
-            }
-            
-            .stats-grid {
-                max-width: 100%;
-            }
-            
-            .config-list {
-                max-width: 100%;
-            }
-            
-            .collapse-icon {
-                display: inline-block !important;
-            }
-            
-            .section-header {
-                cursor: pointer;
-            }
-        }
-        
-        /* Extra small screens */
-        @media (max-width: 375px) {
-            .results-header h1 {
-                font-size: 13px;
-            }
-            
-            .config-list {
-                grid-template-columns: 1fr 1fr;
-            }
-            
-            .config-item.full-width {
-                grid-column: span 2;
-            }
-            
-            .stat-value {
-                font-size: 9px;
-            }
-        }
-        
-        .section-card {
-            background: white;
-            border-radius: 8px;
-            padding: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .section-card h3 {
-            margin: 0 0 10px 0;
-            color: #1f2937;
-            font-size: 13px;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .section-card h3 i {
-            color: #6b7280;
-            font-size: 12px;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: default;
-        }
-
-        .collapse-icon {
-            display: none;
-            cursor: pointer;
-            color: #6b7280;
-            transition: transform 0.2s;
         }
 
         .expand-chart-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
+            gap: 8px;
+            border: 1px solid var(--report-border);
+            border-radius: 12px;
+            background: #fff;
+            color: var(--report-text);
+            padding: 10px 14px;
+            font-size: 12px;
+            font-weight: 700;
             cursor: pointer;
-            color: #374151;
-            font-size: 14px;
-            padding: 4px 8px;
         }
 
         .expand-chart-btn:hover {
-            background: #e5e7eb;
-            color: #1f2937;
+            background: #f8fbff;
+            border-color: var(--report-border-strong);
         }
 
-        .section-content.collapsed {
-            display: none;
+        .equity-curve-wrap {
+            padding: 0 12px 8px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
-        .collapse-icon.collapsed {
-            transform: rotate(-90deg);
+        .equity-curve-container {
+            display: block;
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            height: min(52vh, 520px);
+            min-height: 280px;
+            padding: 0;
+            border-radius: 12px;
+            background: #fbfdff;
+            border: 1px solid rgba(219, 228, 240, 0.95);
+            overflow: hidden;
         }
 
-        .dt-chevron.collapsed {
-            transform: rotate(-90deg);
+        .equity-curve-container > canvas {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-height: none !important;
         }
 
-        /* Full screen chart modal */
+        .chart-modal-content canvas {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .stats-card .section-content {
+            padding-top: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .stat-pill,
+        .stat-card {
+            padding: 16px;
+            border-radius: 18px;
+            background: var(--report-surface-alt);
+            border: 1px solid var(--report-border);
+        }
+
+        .stat-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--report-muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--report-text);
+        }
+
+        .stat-value.positive {
+            color: var(--report-positive);
+        }
+
+        .stat-value.negative {
+            color: var(--report-negative);
+        }
+
+        .summary-panel {
+            position: static;
+            top: 24px;
+        }
+
+        .summary-intro {
+            margin: 0 0 16px;
+            color: var(--report-muted);
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        .config-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .config-list .stat-card {
+            padding: 14px 16px;
+        }
+
+        .trades-section .section-content {
+            padding-top: auto;
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--report-border);
+        }
+
+        .pagination-info {
+            color: var(--report-muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid var(--report-border);
+            border-radius: 18px;
+            background: #fff;
+        }
+
+        .results-table {
+            width: 100%;
+            min-width: 860px;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .results-table th {
+            background: #f7fafe;
+            color: #43546a;
+            font-weight: 700;
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--report-border);
+            white-space: nowrap;
+        }
+
+        .results-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #edf2f8;
+            white-space: nowrap;
+        }
+
+        .results-table tbody tr:hover {
+            background: #f9fbfe;
+        }
+
+        .results-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .results-table .positive {
+            color: var(--report-positive);
+            font-weight: 700;
+        }
+
+        .results-table .negative {
+            color: var(--report-negative);
+            font-weight: 700;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 88px 24px;
+            color: var(--report-muted);
+        }
+
+        .loading i {
+            font-size: 42px;
+            margin-bottom: 18px;
+            color: var(--report-accent);
+            animation: spin 1s linear infinite;
+        }
+
+        .error {
+            background: #fff1f1;
+            border: 1px solid #f4c5c5;
+            color: #9f2d2d;
+            padding: 18px 20px;
+            border-radius: 18px;
+            margin-bottom: 20px;
+        }
+
         .chart-modal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: white;
+            inset: 0;
+            padding: 20px;
+            background: rgba(239, 244, 250, 0.96);
             z-index: 1000;
-            padding: 16px;
-            box-sizing: border-box;
+            backdrop-filter: blur(12px);
         }
 
         .chart-modal.active {
             display: flex;
+            align-items: stretch;
+            justify-content: center;
+        }
+
+        .chart-modal-panel {
+            width: min(1400px, 100%);
+            display: flex;
             flex-direction: column;
+            background: #fff;
+            border-radius: 24px;
+            border: 1px solid var(--report-border);
+            box-shadow: 0 28px 60px rgba(15, 23, 42, 0.16);
+            overflow: hidden;
         }
 
         .chart-modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .chart-modal-header h3 {
-            margin: 0;
-            font-size: 16px;
-            color: #1f2937;
+            gap: 16px;
+            padding: 22px 24px;
+            border-bottom: 1px solid var(--report-border);
         }
 
         .close-modal-btn {
-            background: #6b7280;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
+            background: #fff;
+            color: var(--report-text);
+            border: 1px solid var(--report-border);
+            padding: 10px 14px;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: 700;
         }
 
         .chart-modal-content {
             flex: 1;
+            min-height: 0;
+            padding: 20px;
             position: relative;
         }
 
-        .chart-modal-content canvas {
-            width: 100% !important;
-            height: 100% !important;
-        }
-
-        .config-list {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-        }
-        
-        .config-item {
-            padding: 6px 8px;
-            background: #f9fafb;
-            border-radius: 4px;
-        }
-
-        .config-item.full-width {
-            grid-column: span 2;
-        }
-        
-        .config-label {
-            font-size: 10px;
-            color: #6b7280;
-            text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 1px;
-            letter-spacing: 0.3px;
-        }
-        
-        .config-value {
-            font-size: 12px;
-            color: #1f2937;
-            font-weight: 500;
-        }
-
-        .equity-curve-container {
-            width: 100%;
-            height: calc(100vh - 240px);
-            min-height: 300px;
-        }
-        
-        .equity-curve-container canvas {
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-        }
-        
-        /* Loading state styles */
         .equity-loading {
             display: flex;
             flex-direction: column;
@@ -500,158 +529,27 @@
             justify-content: center;
             height: 100%;
             min-height: 300px;
-            color: #6b7280;
+            color: var(--report-muted);
         }
-        
+
         .equity-loading .loading-spinner {
             width: 48px;
             height: 48px;
-            border: 4px solid #e5e7eb;
-            border-top-color: #3b82f6;
+            border: 4px solid var(--report-border);
+            border-top-color: var(--report-accent);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-bottom: 16px;
         }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
+
         .equity-loading p {
             margin: 4px 0;
             font-size: 14px;
         }
-        
+
         .equity-loading .loading-hint {
             font-size: 12px;
             color: #9ca3af;
-        }
-        
-        .stats-loading, .trades-loading {
-            text-align: center;
-            padding: 20px;
-            color: #9ca3af;
-            font-size: 13px;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-        
-        .stat-card {
-            background: #f9fafb;
-            padding: 8px;
-            border-radius: 6px;
-            text-align: left;
-        }
-        
-        .stat-label {
-            font-size: 10px;
-            color: #6b7280;
-            text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 2px;
-            letter-spacing: 0.3px;
-        }
-        
-        .stat-value {
-            font-size: 12px;
-            font-weight: 700;
-            color: #1f2937;
-        }
-        
-        .stat-value.positive {
-            color: #10b981;
-        }
-        
-        .stat-value.negative {
-            color: #ef4444;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-        }
-        
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        
-        .results-table th {
-            background: #f9fafb;
-            color: #374151;
-            font-weight: 600;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 2px solid #e5e7eb;
-            white-space: nowrap;
-        }
-        
-        .results-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .results-table tr:hover {
-            background: #f9fafb;
-        }
-        
-        .results-table .positive {
-            color: #10b981;
-            font-weight: 600;
-        }
-        
-        .results-table .negative {
-            color: #ef4444;
-            font-weight: 600;
-        }
-
-        .pagination-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .pagination-info {
-            color: #6b7280;
-            font-size: 13px;
-        }
-
-        .pagination-buttons {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 60px;
-            color: #6b7280;
-        }
-        
-        .loading i {
-            font-size: 48px;
-            margin-bottom: 20px;
-            color: #3b82f6;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        
-        .error {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
         }
 
         .legs-section {
@@ -662,7 +560,7 @@
             font-size: 13px;
             color: #374151;
             padding: 6px 0;
-            border-bottom: 1px dashed #e5e7eb;
+            border-bottom: 1px dashed var(--report-border);
         }
 
         .leg-item:last-child {
@@ -673,14 +571,172 @@
             font-weight: 600;
             color: #1a9988;
         }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1180px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 720px) {
+            .results-shell     { padding: 10px 8px 20px; }
+            .main-layout       { gap: 12px; }
+
+            .results-header {
+                padding: 14px 12px;
+                border-radius: 16px;
+                flex-direction: column;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+            .results-header h1   { font-size: clamp(15px, 5vw, 22px); }
+            .results-subtitle    { font-size: 11px; margin-top: 4px; }
+            .page-kicker         { font-size: 9px; padding: 4px 8px; margin-bottom: 6px; }
+
+            .results-actions     { width: 100%; }
+            .results-actions .btn {
+                flex: 1;
+                justify-content: center;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            .report-card,
+            .section-card,
+            .equity-section      { border-radius: 14px; }
+
+            .card-header,
+            .equity-header,
+            .section-header      { padding: 8px 10px; }
+
+            .card-description,
+            .equity-description  { display: none; }
+            .card-eyebrow        { font-size: 9px; margin-bottom: 2px; }
+            .card-title,
+            .equity-title        { font-size: 12px; }
+            .section-card h3     { font-size: 14px; }
+
+            .equity-summary-chip { display: none; }
+            .expand-chart-btn    { padding: 6px 10px; font-size: 11px; }
+
+            .collapse-icon       { display: inline-block; }
+            .section-header      { cursor: pointer; }
+
+            .chart-modal         { padding: 8px; }
+            .chart-modal-header  { padding: 12px 14px; }
+            .chart-modal-content { padding: 10px; }
+
+            .pagination-controls {
+                gap: 8px;
+                margin-bottom: 10px;
+                padding-bottom: 10px;
+            }
+            .pagination-info           { font-size: 11px; }
+            .pagination-buttons .btn   { padding: 5px 8px; font-size: 10px; }
+        }
+
+        @media (max-width: 430px) {
+            .results-shell    { padding: 8px 6px 16px; }
+            .results-header   { padding: 10px; border-radius: 12px; gap: 10px; }
+            .results-header h1 { font-size: 15px; }
+            .results-subtitle  { font-size: 10px; }
+            .page-kicker       { font-size: 8px; }
+            .results-actions .btn { padding: 7px 8px; font-size: 11px; gap: 5px; }
+            .section-card h3  { font-size: 13px; }
+            .pagination-buttons .btn { padding: 4px 7px; font-size: 10px; }
+        }
+
+        body.is-mobile .equity-section,
+        body.is-mobile .report-card,
+        body.is-mobile .section-card    { overflow: hidden; }
+
+        body.is-mobile .equity-curve-wrap {
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 4px 6px;
+        }
+        body.is-mobile .equity-curve-container {
+            display: block;
+            min-width: 300px;
+            width: max(300px, 100%);
+            height: 200px;
+            min-height: unset;
+            max-height: unset;
+        }
+
+        body.is-mobile .stats-card .section-content {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 10px 12px;
+        }
+        body.is-mobile .stats-grid {
+            grid-template-columns: repeat(4, minmax(82px, 1fr));
+            min-width: 340px;
+            gap: 6px;
+        }
+        body.is-mobile .stat-pill,
+        body.is-mobile .stat-card {
+            padding: 10px 8px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        body.is-mobile .stat-label {
+            font-size: 9px;
+            margin-bottom: 3px;
+        }
+        body.is-mobile .stat-value { font-size: 15px; }
+
+        body.is-mobile .summary-panel .section-content {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 10px 12px;
+        }
+        body.is-mobile .config-list {
+            grid-template-columns: repeat(3, minmax(110px, 1fr));
+            min-width: 340px;
+            gap: 8px;
+        }
+        body.is-mobile .config-list .stat-card  { padding: 8px 10px; }
+        body.is-mobile .config-list .stat-label { font-size: 9px; }
+        body.is-mobile .config-list .stat-value { font-size: 13px; }
+        body.is-mobile .summary-intro            { font-size: 11px; margin-bottom: 10px; }
+
+        body.is-mobile .trades-section .section-content { padding: 8px 10px 12px; }
+        body.is-mobile .results-table   { font-size: 12px; }
+        body.is-mobile .results-table th,
+        body.is-mobile .results-table td { padding: 10px 12px; }
+
+        body.is-small-mobile .equity-curve-container { height: 180px; }
+        body.is-small-mobile .stats-grid {
+            grid-template-columns: repeat(4, minmax(72px, 1fr));
+            min-width: 300px;
+        }
+        body.is-small-mobile .stat-label { font-size: 8px; }
+        body.is-small-mobile .stat-value { font-size: 13px; }
+        body.is-small-mobile .config-list {
+            grid-template-columns: repeat(2, minmax(110px, 1fr));
+            min-width: 240px;
+        }
+
+        .chart-card, .equity-section, .equity-curve-container {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
     </style>
 </head>
-<body>
-    <div class="results-container">
+<body class="results-body">
+    <div class="results-shell">
         <div class="results-header">
             <div>
-                <h1><i class="fas fa-chart-bar"></i> Options Backtest Results</h1>
-                <p id="backtestTitle" style="color: #6b7280; margin: 5px 0 0 0;">Loading...</p>
+                <span class="page-kicker"><i class="fas fa-chart-bar"></i> Backtest Report</span>
+                <h1>Options Backtest Results</h1>
+                <p id="backtestTitle" class="results-subtitle">Loading...</p>
             </div>
             <div class="results-actions">
                 <button id="backBtn" class="btn btn-primary" onclick="goBack()">
@@ -705,112 +761,110 @@
         </div>
 
         <div id="mainLayout" class="main-layout" style="display: none;">
-            <!-- 1. Full-width Chart -->
-            <div class="equity-section" id="equitySection">
-                <div class="equity-header">
-                    <div>
-                        <span class="equity-title">Equity Curve</span>
+            <div class="content-column">
+                <div class="equity-section" id="equitySection">
+                    <div class="equity-header">
+                        <div>
+                            <span class="equity-title">Equity Curve</span>
+                        </div>
+                        <div class="equity-actions">
+                            <span class="equity-summary-chip" id="equitySummaryChip">Awaiting results</span>
+                            <button class="expand-chart-btn" type="button" onclick="expandChart()">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="equity-actions">
-                        <span class="equity-summary-chip" id="equitySummaryChip">Awaiting results</span>
-                        <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
-                            <i class="fas fa-expand"></i>
-                        </button>
+                    <div class="equity-curve-wrap">
+                        <div class="equity-curve-container" id="equityCurveContainer">
+                            <canvas id="equityChart"></canvas>
+                        </div>
                     </div>
                 </div>
-                <div class="equity-curve-wrap">
-                    <div class="equity-curve-container" id="equityCurveContainer">
-                        <canvas id="equityChart"></canvas>
-                    </div>
-                </div>
-            </div>
 
-            <!-- 2. Config + Stats side by side -->
-            <div class="bottom-sections">
-                <div class="config-section section-card" id="configSection">
+                <div class="summary-panel section-card" id="configSection">
                     <div class="section-header" onclick="toggleSection('configContent', this)">
-                        <h3><i class="fas fa-cog"></i> Configuration</h3>
+                        <h3><i class="fas fa-sliders"></i> Configuration</h3>
                         <i class="fas fa-chevron-down collapse-icon"></i>
                     </div>
                     <div class="section-content" id="configContent">
+                        <p class="summary-intro">Backtest settings, strategy, sizing, and exit rules for this report.</p>
                         <div class="config-list" id="configList"></div>
                     </div>
                 </div>
 
-                <div class="stats-section section-card" id="statsSection">
-                    <div class="section-header" onclick="toggleSection('statsContent', this)">
-                        <h3><i class="fas fa-chart-bar"></i> Performance</h3>
+                <div class="report-card stats-card" id="statsSection">
+                    <div class="card-header">
+                        <div>
+                            <span class="card-eyebrow">Performance</span>
+                            <h2 class="card-title">Key statistics</h2>
+                            <p class="card-description">Core metrics grouped for quick review.</p>
+                        </div>
+                    </div>
+                    <div class="section-content">
+                        <div class="stats-grid">
+                            <div class="stat-pill">
+                                <div class="stat-label">Total Trades</div>
+                                <div class="stat-value" id="statTotalTrades">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Win Rate</div>
+                                <div class="stat-value" id="statWinRate">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Total P&amp;L</div>
+                                <div class="stat-value" id="statTotalPL">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Return %</div>
+                                <div class="stat-value" id="statReturnPct">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Avg Trade</div>
+                                <div class="stat-value" id="statAvgTrade">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Profit Factor</div>
+                                <div class="stat-value" id="statSharpeRatio">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Max Drawdown</div>
+                                <div class="stat-value" id="statMaxDrawdown">-</div>
+                            </div>
+                            <div class="stat-pill">
+                                <div class="stat-label">Final Capital</div>
+                                <div class="stat-value" id="statFinalCapital">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="trades-section section-card" id="tradesSection">
+                    <div class="section-header" onclick="toggleSection('tradesContent', this)">
+                        <h3><i class="fas fa-table"></i> Trade Log</h3>
                         <i class="fas fa-chevron-down collapse-icon"></i>
                     </div>
-                    <div class="section-content" id="statsContent">
-                        <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-label">Total Trades</div>
-                            <div class="stat-value" id="statTotalTrades">-</div>
+                    <div class="section-content" id="tradesContent">
+                        <div class="pagination-controls">
+                            <div class="pagination-info">
+                                Showing <span id="tradesRangeStart">1</span>-<span id="tradesRangeEnd">10</span> of <span id="tradesTotalCount">0</span> trades
+                            </div>
+                            <div class="pagination-buttons">
+                                <button id="tradesPrevBtn" class="btn btn-secondary" disabled>
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </button>
+                                <button id="tradesNextBtn" class="btn btn-secondary" disabled>
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Win Rate</div>
-                            <div class="stat-value" id="statWinRate">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Total P&L</div>
-                            <div class="stat-value" id="statTotalPL">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Avg Trade</div>
-                            <div class="stat-value" id="statAvgTrade">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Max DD</div>
-                            <div class="stat-value" id="statMaxDrawdown">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Profit Factor</div>
-                            <div class="stat-value" id="statSharpeRatio">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Final Capital</div>
-                            <div class="stat-value" id="statFinalCapital">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Return %</div>
-                            <div class="stat-value" id="statReturnPct">-</div>
-                        </div>
+                        <div class="table-container">
+                            <table class="results-table">
+                                <thead id="tradesTableHead"></thead>
+                                <tbody id="tradesTableBody"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- 3. Trade Log -->
-            <div class="trades-section section-card" id="tradesSection">
-                <div class="section-header" onclick="toggleSection('tradesContent', this)">
-                    <h3><i class="fas fa-table"></i> Trade Log</h3>
-                    <i class="fas fa-chevron-down collapse-icon"></i>
-                </div>
-                <div class="section-content" id="tradesContent">
-                    
-                    <div class="pagination-controls">
-                        <div class="pagination-info">
-                            Showing <span id="tradesRangeStart">1</span>-<span id="tradesRangeEnd">10</span> of <span id="tradesTotalCount">0</span> trades
-                        </div>
-                        <div class="pagination-buttons">
-                            <button id="tradesPrevBtn" class="btn btn-secondary" disabled>
-                                <i class="fas fa-chevron-left"></i> Previous
-                            </button>
-                            <button id="tradesNextBtn" class="btn btn-secondary" disabled>
-                                Next <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="table-container">
-                        <table class="results-table">
-                            <thead id="tradesTableHead"></thead>
-                            <tbody id="tradesTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
 
                 <div class="section-card" id="decisionTreeSection" style="display:none;">
                     <div class="section-header" onclick="toggleSection('decisionTreeContent', this)">
@@ -830,22 +884,25 @@
                         <div id="decisionTreeBody"></div>
                     </div>
                 </div>
+            </div>
         </div>
 
-        <!-- Chart Modal for expanded view -->
         <div class="chart-modal" id="chartModal">
-            <div class="chart-modal-header">
-                <h3><i class="fas fa-chart-area"></i> Equity Curve</h3>
-                <button class="close-modal-btn" onclick="closeChartModal()">
-                    <i class="fas fa-times"></i> Close
-                </button>
-            </div>
-            <div class="chart-modal-content">
-                <canvas id="expandedEquityChart"></canvas>
+            <div class="chart-modal-panel">
+                <div class="chart-modal-header">
+                    <h3><i class="fas fa-chart-area"></i> Equity Curve</h3>
+                    <button class="close-modal-btn" type="button" onclick="closeChartModal()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+                <div class="chart-modal-content">
+                    <canvas id="expandedEquityChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/js/auth-utils.js"></script>
     <script src="options-backtest-result-detail-script.js"></script>
     <script>

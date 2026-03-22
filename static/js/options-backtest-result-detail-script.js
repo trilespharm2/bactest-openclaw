@@ -388,9 +388,9 @@ function displayConfiguration(metadata) {
     
     // Render configuration list
     let html = configItems.map(item => `
-        <div class="config-item">
-            <div class="config-label">${item.label}</div>
-            <div class="config-value">${item.value}</div>
+        <div class="stat-card">
+            <div class="stat-label">${item.label}</div>
+            <div class="stat-value">${item.value}</div>
         </div>
     `).join('');
     
@@ -399,8 +399,8 @@ function displayConfiguration(metadata) {
     if (config.legs && (Array.isArray(config.legs) ? config.legs.length > 0 : Object.keys(config.legs).length > 0)) {
         const legsArray = Array.isArray(config.legs) ? config.legs : Object.entries(config.legs).map(([name, cfg]) => ({...cfg, name}));
         
-        html += `<div class="config-item">
-            <div class="config-label">Strategy Legs</div>
+        html += `<div class="stat-card" style="grid-column: 1 / -1;">
+            <div class="stat-label">Strategy Legs</div>
             <div class="legs-section">`;
         
         legsArray.forEach((legConfig, index) => {
