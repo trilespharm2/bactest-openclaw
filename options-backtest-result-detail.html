@@ -98,6 +98,29 @@
             font-weight: 600;
             color: #1f2937;
         }
+
+        .equity-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .equity-summary-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            color: #62748a;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .equity-curve-wrap {
+            position: relative;
+            width: 100%;
+        }
         
         .equity-section .equity-curve-container {
             width: 100%;
@@ -138,6 +161,8 @@
 
         /* Mobile */
         @media (max-width: 480px) {
+            .equity-summary-chip { display: none; }
+
             body {
                 overflow-x: hidden;
             }
@@ -683,13 +708,20 @@
             <!-- 1. Full-width Chart -->
             <div class="equity-section" id="equitySection">
                 <div class="equity-header">
-                    <span class="equity-title">Results</span>
-                    <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
-                        <i class="fas fa-expand"></i>
-                    </button>
+                    <div>
+                        <span class="equity-title">Equity Curve</span>
+                    </div>
+                    <div class="equity-actions">
+                        <span class="equity-summary-chip" id="equitySummaryChip">Awaiting results</span>
+                        <button class="expand-chart-btn" onclick="expandChart()" title="Expand Chart">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="equity-curve-container" id="equityCurveContainer">
-                    <canvas id="equityChart"></canvas>
+                <div class="equity-curve-wrap">
+                    <div class="equity-curve-container" id="equityCurveContainer">
+                        <canvas id="equityChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -854,58 +886,74 @@
             if (!ctx || !storedEquityData || !storedLabels) return;
             if (expandedChart) { expandedChart.destroy(); }
             
-            // Use the same data from the main chart
-            const equityData = storedEquityData;
+            const values = storedEquityData;
             const labels = storedLabels;
             
-            // Calculate tight y-axis bounds
-            const expMinVal = Math.min(...equityData);
-            const expMaxVal = Math.max(...equityData);
-            const expRange = expMaxVal - expMinVal || 1;
-            const expYPadding = expRange * 0.05;
+            const finalValue = values[values.length - 1];
+            const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
+            const backgroundColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
+            
+            const modalMinVal = Math.min(...values);
+            const modalMaxVal = Math.max(...values);
+            const modalRange = modalMaxVal - modalMinVal || 1;
+            const modalYPadding = modalRange * 0.005;
             
             expandedChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Account Balance',
-                        data: equityData,
-                        segment: { borderColor: ctx => (ctx.p0.parsed.y < initialCapital || ctx.p1.parsed.y < initialCapital) ? '#ef4444' : '#10b981' },
-                        borderColor: '#10b981',
-                        fill: false,
-                        tension: 0.1,
-                        pointRadius: equityData.length > 50 ? 0 : 4,
-                        borderWidth: 2,
-                        pointBackgroundColor: ctx => (ctx.parsed?.y < initialCapital) ? '#ef4444' : '#10b981'
-                    }, {
-                        label: 'Initial Capital',
-                        data: equityData.map(() => initialCapital),
-                        borderColor: '#9ca3af',
-                        borderDash: [5, 5],
+                        label: 'Cumulative P&L ($)',
+                        data: values,
+                        borderColor: lineColor,
+                        backgroundColor: backgroundColor,
                         borderWidth: 1,
-                        pointRadius: 0,
-                        fill: false
+                        fill: true,
+                        tension: 0.18,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: lineColor,
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 0, right: 0, bottom: 0, left: 0 }
+                    },
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: true, position: 'top' },
                         tooltip: {
-                            filter: t => t.datasetIndex === 0,
+                            mode: 'index',
+                            intersect: false,
                             callbacks: {
-                                label: ctx => {
-                                    const diff = ctx.parsed.y - initialCapital;
-                                    return `Balance: $${ctx.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2})} (${diff >= 0 ? '+' : ''}$${diff.toLocaleString(undefined, {minimumFractionDigits: 2})})`;
+                                label: function(context) {
+                                    return 'Cumulative P&L: ' + formatCurrency(context.parsed.y);
                                 }
                             }
                         }
                     },
                     scales: {
-                        x: { title: { display: true, text: 'Trade' }, grid: { display: false } },
-                        y: { min: expMinVal - expYPadding, max: expMaxVal + expYPadding, title: { display: true, text: 'Balance ($)' }, ticks: { callback: v => '$' + v.toLocaleString() } }
+                        x: {
+                            display: true,
+                            title: { display: true, text: 'Trade sequence', font: { size: 14, weight: 'bold' } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            display: true,
+                            min: modalMinVal - modalYPadding,
+                            max: modalMaxVal + modalYPadding,
+                            title: { display: true, text: 'Cumulative P&L ($)', font: { size: 14, weight: 'bold' } },
+                            position: 'right',
+                            grid: { color: 'rgba(98, 116, 138, 0.14)' },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + Math.round(value).toLocaleString();
+                                }
+                            }
+                        }
                     }
                 }
             });

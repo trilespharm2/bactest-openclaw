@@ -524,132 +524,120 @@ function displayStatistics(metadata) {
     }
 }
 
+function formatCurrency(value) {
+    if (value === undefined || value === null) return '$0.00';
+    const prefix = value < 0 ? '-$' : '$';
+    return prefix + Math.abs(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
 function buildEquityCurve(trades) {
     const ctx = document.getElementById('equityChart');
     if (!ctx) return;
     
-    // Destroy existing chart if any
     if (equityChart) {
         equityChart.destroy();
     }
+
+    const summaryChip = document.getElementById('equitySummaryChip');
     
-    // Build equity curve data from trades
-    const equityData = [initialCapital];
+    if (!trades || trades.length === 0) {
+        const container = document.getElementById('equityCurveContainer');
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #62748a; font-weight: 600;">No trades to display</div>';
+        if (summaryChip) summaryChip.textContent = 'No trades executed';
+        return;
+    }
+
+    const container = document.getElementById('equityCurveContainer');
+    container.innerHTML = '<canvas id="equityChart"></canvas>';
+    
     const labels = ['Start'];
-    let runningBalance = initialCapital;
+    const values = [0];
+    let runningTotal = 0;
     
-    // Find the P&L column index
     let pnlColumnIndex = -1;
     let dateColumnIndex = -1;
     
     if (trades.length > 0) {
         const headers = trades[0].headers.map(h => h.toLowerCase());
         
-        // Find P&L column - look for exact 'pnl' first, then fallbacks
-        // Note: 'net_premium_exit' is NOT the P&L, it's the option premium at exit
         for (let i = 0; i < headers.length; i++) {
-            if (headers[i] === 'pnl') {
-                pnlColumnIndex = i;
-                break;
-            }
+            if (headers[i] === 'pnl') { pnlColumnIndex = i; break; }
         }
-        // Fallback to other P&L column names if 'pnl' not found
         if (pnlColumnIndex < 0) {
             for (let i = 0; i < headers.length; i++) {
-                if (headers[i].includes('net_pnl') || headers[i].includes('p&l') || 
-                    headers[i].includes('profit')) {
-                    pnlColumnIndex = i;
-                    break;
+                if (headers[i].includes('net_pnl') || headers[i].includes('p&l') || headers[i].includes('profit')) {
+                    pnlColumnIndex = i; break;
                 }
             }
         }
-        
-        // Find date column
         for (let i = 0; i < headers.length; i++) {
             if (headers[i].includes('exit_date') || headers[i].includes('date')) {
-                dateColumnIndex = i;
-                break;
+                dateColumnIndex = i; break;
             }
         }
     }
     
-    // Build cumulative P&L
     trades.forEach((trade, idx) => {
         if (pnlColumnIndex >= 0 && trade.values[pnlColumnIndex]) {
             const pnl = parseFloat(trade.values[pnlColumnIndex].replace(/[^0-9.-]/g, '')) || 0;
-            runningBalance += pnl;
+            runningTotal += pnl;
         }
-        
         const label = dateColumnIndex >= 0 ? trade.values[dateColumnIndex] : `Trade ${idx + 1}`;
-        equityData.push(runningBalance);
         labels.push(label);
+        values.push(runningTotal);
     });
     
-    // Store data for expanded chart
-    storedEquityData = equityData;
+    storedEquityData = values;
     storedLabels = labels;
     
-    const isMobile = window.innerWidth <= 480;
+    const finalValue = values[values.length - 1];
+    const lineColor = finalValue >= 0 ? '#2563eb' : '#d14343';
+    const fillColor = finalValue >= 0 ? 'rgba(37, 99, 235, 0.12)' : 'rgba(209, 67, 67, 0.12)';
+    const isMobile = window.innerWidth <= 680;
     
-    // Tight y-axis bounds
-    const minVal = Math.min(...equityData);
-    const maxVal = Math.max(...equityData);
-    const dataRange = Math.max(maxVal - minVal, 1);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const dataRange = Math.max(maxValue - minValue, 1);
     const pad = dataRange * 0.08;
+    const tickLimit = window.innerWidth <= 1720 ? 4 : window.innerWidth <= 1100 ? 6 : 9;
+
+    if (summaryChip) {
+        summaryChip.textContent = `${trades.length} trades | ${formatCurrency(finalValue)} cumulative P&L`;
+    }
     
-    // Create baseline data (horizontal line at initial capital)
-    const baselineData = equityData.map(() => initialCapital);
-    
-    equityChart = new Chart(ctx, {
+    const newCtx = document.getElementById('equityChart');
+
+    equityChart = new Chart(newCtx, {
         type: 'line',
         data: {
             labels: labels,
-            datasets: [
-                {
-                    label: 'Account Balance',
-                    data: equityData,
-                    borderColor: '#3b82f6',
-                    borderWidth: 2.5,
-                    fill: false,
-                    tension: 0,
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    pointBackgroundColor: '#3b82f6'
-                },
-                {
-                    label: 'Initial Capital',
-                    data: baselineData,
-                    borderColor: 'rgba(0, 0, 0, 0.15)',
-                    borderDash: [6, 4],
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    fill: false,
-                    tension: 0
-                }
-            ]
+            datasets: [{
+                label: 'Cumulative P&L ($)',
+                data: values,
+                borderColor: lineColor,
+                backgroundColor: fillColor,
+                borderWidth: 2.5,
+                fill: false,
+                tension: 0,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                pointBackgroundColor: lineColor
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { top: 10, right: 10, bottom: 5, left: 5 }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
+                padding: { top: 1, right: 1, bottom: 0, left: 1 }
             },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    filter: function(tooltipItem) {
-                        return tooltipItem.datasetIndex === 0;
-                    },
+                    mode: 'index',
+                    intersect: false,
                     callbacks: {
                         label: function(context) {
-                            const balance = context.parsed.y;
-                            const diff = balance - initialCapital;
-                            const diffStr = diff >= 0 ? `+$${diff.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : `-$${Math.abs(diff).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                            return `Balance: $${balance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${diffStr})`;
+                            return 'Cumulative P&L: ' + formatCurrency(context.parsed.y);
                         }
                     }
                 }
@@ -657,43 +645,72 @@ function buildEquityCurve(trades) {
             scales: {
                 x: {
                     display: true,
-                    grid: { display: false },
-                    ticks: {
-                        maxTicksLimit: isMobile ? 4 : 10,
-                        color: '#9ca3af',
+                    grid: {
+                        display: false,
+                        drawBorder: false
+                    },
+                    ticks: { 
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: tickLimit,
                         font: { size: isMobile ? 10 : 11 },
-                        padding: 4
+                        color: '#7b8ba0',
+                        padding: 8
                     },
                     border: { display: false }
                 },
                 y: {
                     display: true,
                     position: 'right',
-                    min: minVal - pad,
-                    max: maxVal + pad,
+                    min: minValue - pad,
+                    max: maxValue + pad,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.06)',
-                        borderDash: [4, 4],
+                        color: (ctx) => (ctx.tick && ctx.tick.value === 0 ? 'rgba(31, 41, 55, 0.7)' : 'rgba(98, 116, 138, 0.16)'),
+                        borderDash: (ctx) => (ctx.tick && ctx.tick.value === 0 ? [] : [4, 4]),
+                        lineWidth: (ctx) => (ctx.tick && ctx.tick.value === 0 ? 2 : 1),
                         drawBorder: false
                     },
                     ticks: {
-                        color: '#9ca3af',
                         font: { size: isMobile ? 10 : 11 },
-                        padding: 4,
-                        count: 5,
-                        mirror: true,
+                        color: '#7b8ba0',
+                        padding: 8,
+                        count: 4,
                         callback: function(value) {
                             if (Math.abs(value) >= 1000) {
-                                return '  $' + (value / 1000).toFixed(0) + 'k';
+                                return '$' + (value / 1000).toFixed(0) + 'k';
                             }
-                            return '  $' + Math.round(value).toLocaleString();
+                            return '$' + Math.round(value).toLocaleString();
                         }
                     },
                     border: { display: false }
                 }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
             }
         }
     });
+
+    requestAnimationFrame(() => {
+        if (equityChart) equityChart.resize();
+    });
+    setTimeout(() => {
+        if (equityChart) equityChart.resize();
+    }, 50);
+    setTimeout(() => {
+        if (equityChart) equityChart.resize();
+    }, 300);
+
+    const chartContainer = document.getElementById('equityCurveContainer');
+    if (chartContainer && window.ResizeObserver) {
+        if (window._chartResizeObserver) window._chartResizeObserver.disconnect();
+        window._chartResizeObserver = new ResizeObserver(() => {
+            if (equityChart) equityChart.resize();
+        });
+        window._chartResizeObserver.observe(chartContainer);
+    }
 }
 
 async function displayTradeLog(backtestId) {
