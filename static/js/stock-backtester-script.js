@@ -44,9 +44,10 @@ function initializeStockBacktesterPage() {
         
         console.log('Entry type initialized');
         
-        // Form submission
+        // Form submission (remove old handler first to prevent duplicates on SPA re-init)
         const form = document.getElementById('stockBacktestForm');
         if (form) {
+            form.removeEventListener('submit', handleSubmit);
             form.addEventListener('submit', handleSubmit);
             console.log('✓ Form submit handler attached');
         } else {
@@ -428,11 +429,20 @@ function showConfigSummary(config) {
 function closeConfigSummary() {
     document.getElementById('configSummaryOverlay').style.display = 'none';
     _pendingStockConfig = null;
+    const form = document.getElementById('stockBacktestForm');
+    if (form) form.dataset.isSubmitting = 'false';
 }
 
 async function handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
+    
+    const form = e.target;
+    if (form.dataset.isSubmitting === 'true') {
+        console.log('Form already submitting, ignoring duplicate');
+        return;
+    }
+    form.dataset.isSubmitting = 'true';
     
     console.log('=== FORM SUBMIT STARTED ===');
     
@@ -487,6 +497,7 @@ async function handleSubmit(e) {
                 const loadingEl = document.getElementById('loadingMessage');
                 if (errorEl) { errorEl.textContent = `Error: ${err.message}`; errorEl.style.display = 'block'; }
                 if (loadingEl) loadingEl.style.display = 'none';
+                form.dataset.isSubmitting = 'false';
                 alert(`Error: ${err.message}`);
             }
         };
@@ -496,6 +507,7 @@ async function handleSubmit(e) {
         console.error('Error:', error);
         const errorEl = document.getElementById('errorMessage');
         if (errorEl) { errorEl.textContent = `Error: ${error.message}`; errorEl.style.display = 'block'; }
+        form.dataset.isSubmitting = 'false';
         alert(`Error: ${error.message}`);
     }
     
