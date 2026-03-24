@@ -708,6 +708,22 @@
                 </div>
               </div>
 
+              <!-- FRED Macro Data -->
+              <div class="row mb-3">
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-header py-2">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-landmark text-info me-2"></i>Macro Economic Data <span style="font-size:10px;color:#9aa5b4;font-weight:400;margin-left:6px;">via FRED</span></div>
+                    </div>
+                    <div class="card-body py-2">
+                      <div id="fredGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
+                        <div class="text-center py-3" style="grid-column:1/-1;"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Top Gainers + Top Losers -->
               <div class="row mb-3">
                 <div class="col-md-6">
@@ -2762,7 +2778,7 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script src="/static/js/auth-utils.js"></script>
     <script src="/settings-script.js"></script>
-    <script src="/static/js/main-script.js?v=6"></script>
+    <script src="/static/js/main-script.js?v=7"></script>
 
     <script>
       // Close sidebar when clicking outside (on main content area)

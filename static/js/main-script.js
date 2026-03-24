@@ -8,6 +8,13 @@ function _fmt(val, decimals = 2, fallback = '\u2014') {
     return Number(val).toFixed(decimals);
 }
 
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
+
 function _tickerLink(symbol, extraStyle) {
     const style = extraStyle || 'font-weight:600;color:#3b6df0;';
     return '<a href="/ticker/' + encodeURIComponent(symbol || '') + '" style="' + style + 'text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + symbol + '</a>';
@@ -949,7 +956,8 @@ function initDashboardCharts() {
         _loadEarnings(),
         _loadNews(),
         _loadTreasury(),
-        _loadEconomicIndicators()
+        _loadEconomicIndicators(),
+        _loadFredData()
     ]);
 
     _dashCardIntervals.push(setInterval(_loadIndices, 30000));
@@ -960,6 +968,7 @@ function initDashboardCharts() {
     _dashCardIntervals.push(setInterval(_loadNews, 300000));
     _dashCardIntervals.push(setInterval(_loadTreasury, 120000));
     _dashCardIntervals.push(setInterval(_loadEconomicIndicators, 120000));
+    _dashCardIntervals.push(setInterval(_loadFredData, 600000));
 }
 
 async function _loadIndices() {
@@ -1124,6 +1133,38 @@ async function _loadEconomicIndicators() {
                 '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(pct)) + '%</div></a>';
         }).join('');
     } catch (e) { console.error('Economic indicators error:', e); }
+}
+
+const _fredCategoryColors = {
+    'rates': '#3b82f6',
+    'labor': '#8b5cf6',
+    'inflation': '#ef4444',
+    'output': '#10b981',
+    'consumer': '#f59e0b',
+    'housing': '#06b6d4'
+};
+
+async function _loadFredData() {
+    try {
+        const data = await _fetchCached('/api/dashboard/fred');
+        const el = document.getElementById('fredGrid');
+        if (!el) return;
+        const series = data.series || [];
+        if (!series.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:1/-1;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = series.map(s => {
+            const chg = s.change || 0;
+            const isUp = chg >= 0;
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            const color = isUp ? '#0fad6e' : '#d94452';
+            const catColor = _fredCategoryColors[s.category] || '#6b7689';
+            return '<div style="padding:10px 12px;border-radius:8px;background:#f8f9fc;text-align:center;border-left:3px solid ' + catColor + ';transition:background 0.15s;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'#f8f9fc\'">' +
+                '<div style="font-size:10px;font-weight:600;color:#6b7689;text-transform:uppercase;letter-spacing:0.5px;">' + esc(s.name) + '</div>' +
+                '<div style="font-size:18px;font-weight:700;color:#1a1e2e;margin:3px 0;">' + esc(s.display) + '</div>' +
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + esc(s.change_display || '') + '</div>' +
+                '<div style="font-size:9px;color:#9aa5b4;margin-top:2px;">' + esc(s.date) + '</div>' +
+                '</div>';
+        }).join('');
+    } catch (e) { console.error('FRED data error:', e); }
 }
 
 // Setup clickable chart cards

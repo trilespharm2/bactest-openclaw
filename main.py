@@ -4620,6 +4620,7 @@ _dashboard_cache = {
     'news': {'articles': [], 'timestamp': ''},
     'treasury': {'rates': [], 'timestamp': ''},
     'economic': {'indicators': [], 'timestamp': ''},
+    'fred': {'series': [], 'timestamp': ''},
 }
 _cache_lock = threading.Lock()
 _cache_timers = {}
@@ -4982,6 +4983,96 @@ def _refresh_economic():
         print(f"Cache: economic indicators refresh failed: {e}")
 
 
+def _refresh_fred():
+    """Background task: fetch macro economic data from FRED API"""
+    try:
+        fred_key = os.environ.get('FRED_API_KEY')
+        if not fred_key:
+            print("Cache: FRED_API_KEY not set — skipping FRED refresh")
+            with _cache_lock:
+                _dashboard_cache['fred'] = {
+                    'series': [],
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                }
+            return
+        from fredapi import Fred
+        fred = Fred(api_key=fred_key)
+
+        series_config = [
+            {'id': 'FEDFUNDS', 'name': 'Fed Funds Rate', 'unit': '%', 'decimals': 2, 'category': 'rates'},
+            {'id': 'UNRATE', 'name': 'Unemployment', 'unit': '%', 'decimals': 1, 'category': 'labor'},
+            {'id': 'CPIAUCSL', 'name': 'CPI Index', 'unit': '', 'decimals': 1, 'category': 'inflation'},
+            {'id': 'CPILFESL', 'name': 'Core CPI', 'unit': '', 'decimals': 1, 'category': 'inflation'},
+            {'id': 'GDP', 'name': 'GDP', 'unit': 'B', 'decimals': 1, 'category': 'output'},
+            {'id': 'PAYEMS', 'name': 'Nonfarm Payrolls', 'unit': 'K', 'decimals': 0, 'category': 'labor'},
+            {'id': 'RSAFS', 'name': 'Retail Sales', 'unit': 'M', 'decimals': 0, 'category': 'consumer'},
+            {'id': 'UMCSENT', 'name': 'Consumer Sentiment', 'unit': '', 'decimals': 1, 'category': 'consumer'},
+            {'id': 'HOUST', 'name': 'Housing Starts', 'unit': 'K', 'decimals': 0, 'category': 'housing'},
+            {'id': 'INDPRO', 'name': 'Industrial Production', 'unit': '', 'decimals': 1, 'category': 'output'},
+        ]
+        results = []
+        for cfg in series_config:
+            try:
+                s = fred.get_series(cfg['id'], observation_start='2023-01-01')
+                if s.empty:
+                    continue
+                s = s.dropna()
+                if s.empty or len(s) < 1:
+                    continue
+                latest = round(float(s.iloc[-1]), cfg['decimals'])
+                prev = round(float(s.iloc[-2]), cfg['decimals']) if len(s) >= 2 else latest
+                change = round(latest - prev, cfg['decimals'])
+                latest_date = s.index[-1].strftime('%b %Y')
+
+                if cfg['unit'] == '%':
+                    display = f"{latest}%"
+                elif cfg['unit'] == 'B':
+                    display = f"${latest / 1000:.1f}T" if latest >= 10000 else f"${latest:.0f}B"
+                elif cfg['unit'] == 'K':
+                    display = f"{latest / 1000:.1f}M" if latest >= 1000 else f"{latest:.0f}K"
+                elif cfg['unit'] == 'M':
+                    display = f"${latest / 1000:.1f}B" if latest >= 1000 else f"${latest:.0f}M"
+                else:
+                    display = f"{latest}"
+
+                if cfg['unit'] == '%':
+                    change_display = f"{change:+.2f} pp"
+                elif cfg['unit'] == 'K' and abs(change) >= 1000:
+                    change_display = f"{change / 1000:+.1f}M"
+                elif cfg['unit'] == 'K':
+                    change_display = f"{change:+.0f}K"
+                elif cfg['unit'] == 'B':
+                    change_display = f"${change:+.1f}B"
+                elif cfg['unit'] == 'M':
+                    change_display = f"${change:+.0f}M"
+                else:
+                    change_display = f"{change:+.1f}"
+
+                results.append({
+                    'id': cfg['id'],
+                    'name': cfg['name'],
+                    'value': latest,
+                    'prev_value': prev,
+                    'change': change,
+                    'change_display': change_display,
+                    'display': display,
+                    'unit': cfg['unit'],
+                    'date': latest_date,
+                    'category': cfg['category'],
+                })
+            except Exception as e:
+                print(f"Cache: Error fetching FRED series {cfg['id']}: {e}")
+
+        with _cache_lock:
+            _dashboard_cache['fred'] = {
+                'series': results,
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }
+        print(f"Cache: FRED macro data refreshed OK — {len(results)} series")
+    except Exception as e:
+        print(f"Cache: FRED refresh failed: {e}")
+
+
 def _run_periodic(func, interval_sec, name):
     """Run a function in a background thread immediately, then repeat on interval.
     The first call is non-blocking so app.run() starts right away."""
@@ -5016,6 +5107,7 @@ def start_dashboard_cache():
     _run_periodic(_refresh_news, 300, 'news')
     _run_periodic(_refresh_treasury, 120, 'treasury')
     _run_periodic(_refresh_economic, 120, 'economic')
+    _run_periodic(_refresh_fred, 600, 'fred')
 
 
 # ── Thin API endpoints — just serve from cache, no Webull calls ──
@@ -5074,6 +5166,10 @@ def get_treasury_rates():
 @app.route('/api/dashboard/economic')
 def get_economic_indicators():
     return _cache_response('economic')
+
+@app.route('/api/dashboard/fred')
+def get_fred_data():
+    return _cache_response('fred')
 
 
 # =============================================================================
