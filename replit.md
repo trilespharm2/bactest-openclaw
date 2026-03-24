@@ -81,5 +81,27 @@ The architecture utilizes a Wrapper Pattern for API-to-engine communication, Laz
 -   `Material Symbols Rounded`: Google Material icons.
 -   `Inter Font`: Typography.
 
+## Replit Environment Setup
+
+### Configuration
+- Workflow: "Backend Server" runs `python3 main.py` (uses `.pythonlibs` virtualenv automatically)
+- Deployment: `gunicorn --bind 0.0.0.0:5000 main:app`
+- Port: 5000 (mapped to external port 80)
+
+### Secrets (stored in Replit Secrets — never in .replit)
+- `FLASK_SECRET_KEY`: Flask session signing key
+- `ADMIN_PASSWORD`: Admin user bootstrap password
+- `POLYGON_API_KEY`: Polygon.io API key
+- `ENCRYPTION_KEY`: Encryption key for sensitive data
+
+### Env Vars (non-sensitive, in .replit userenv.shared)
+- `FLASK_DEBUG`, `PORT`, `AUTO_CREATE_SCHEMA`, `ENABLE_SCHEDULER`
+- `SESSION_COOKIE_SECURE`, `CORS_ORIGINS`
+- `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_BOOTSTRAP_ENABLED`
+
+### Known Quirks
+- Some market tickers (QQQ, IWM) occasionally return NaN from yfinance; handled server-side via `_sanitize_nan()` and client-side via `_fmt()` helper
+- Admin bootstrap is idempotent — safe to restart with ADMIN_BOOTSTRAP_ENABLED=1
+
 ### Database
 -   `PostgreSQL`: Used for user authentication, saved filters, and backtest metadata storage. Configured with SQLAlchemy ORM and connection pooling.

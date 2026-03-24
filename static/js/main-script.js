@@ -3,6 +3,11 @@
 // API Configuration - Dynamic to work with any port
 const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
+function _fmt(val, decimals = 2, fallback = '\u2014') {
+    if (val === null || val === undefined || isNaN(val)) return fallback;
+    return Number(val).toFixed(decimals);
+}
+
 function getAuthHeaders() {
     const token = localStorage.getItem('authToken');
     const headers = {};
@@ -963,7 +968,7 @@ async function _loadIndices() {
             return '<div class="text-center" style="flex:1;min-width:90px;">' +
                 '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + idx.symbol + '</div>' +
                 '<div style="font-size:15px;font-weight:700;color:#1a1e2e;">' + (idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '\u2014') + '</div>' +
-                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + idx.change_pct.toFixed(2) + '%</div></div>';
+                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + _fmt(idx.change_pct) + '%</div></div>';
         }).join('');
     } catch (e) { console.error('Indices error:', e); }
 }
@@ -1021,7 +1026,7 @@ async function _loadSectors() {
             const bg = isUp ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)';
             return '<div style="padding:8px 10px;border-radius:8px;background:' + bg + ';text-align:center;">' +
                 '<div style="font-size:12px;font-weight:600;color:#1a1e2e;">' + s.name + '</div>' +
-                '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + pct.toFixed(2) + '%</div>' +
+                '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + _fmt(pct) + '%</div>' +
                 '<div style="font-size:9px;color:#6b7689;">' + s.symbol + '</div></div>';
         }).join('');
     } catch (e) { console.error('Sectors error:', e); }
@@ -1388,8 +1393,8 @@ async function loadGainersLosers() {
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
-                        <span class="price">$${item.price.toFixed(2)}</span>
-                        <span class="change positive">+${item.change_pct.toFixed(2)}%</span>
+                        <span class="price">$${_fmt(item.price)}</span>
+                        <span class="change positive">+${_fmt(item.change_pct)}%</span>
                     </div>
                 </div>
             `).join('');
@@ -1406,8 +1411,8 @@ async function loadGainersLosers() {
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
-                        <span class="price">$${item.price.toFixed(2)}</span>
-                        <span class="change negative">${item.change_pct.toFixed(2)}%</span>
+                        <span class="price">$${_fmt(item.price)}</span>
+                        <span class="change negative">${_fmt(item.change_pct)}%</span>
                     </div>
                 </div>
             `).join('');
@@ -1459,9 +1464,9 @@ async function loadWatchlist() {
                     <span class="name">${item.name}</span>
                 </div>
                 <div class="watchlist-price">
-                    <span class="price">$${item.price.toFixed(2)}</span>
+                    <span class="price">$${_fmt(item.price)}</span>
                     <span class="change ${item.change >= 0 ? 'positive' : 'negative'}">
-                        ${item.change >= 0 ? '+' : ''}${item.change.toFixed(2)} (${item.change >= 0 ? '+' : ''}${item.change_pct.toFixed(2)}%)
+                        ${item.change >= 0 ? '+' : ''}${_fmt(item.change)} (${item.change >= 0 ? '+' : ''}${_fmt(item.change_pct)}%)
                     </span>
                 </div>
             </div>

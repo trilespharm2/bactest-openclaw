@@ -374,7 +374,14 @@ def bootstrap_admin_user():
         )
         user.set_password(admin_password)
         db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            user = User.query.filter_by(email=admin_email).first()
+            if user:
+                return {'created': False, 'reason': 'already_exists'}
+            raise
         return {'created': True, 'reason': 'created'}
 
 
@@ -5014,11 +5021,23 @@ def start_dashboard_cache():
 # ── Thin API endpoints — just serve from cache, no Webull calls ──
 # loading=True means the background thread hasn't finished its first fetch yet.
 
+def _sanitize_nan(obj):
+    """Recursively replace NaN/Inf floats with None so JSON serialization succeeds."""
+    import math
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_nan(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_nan(v) for v in obj]
+    return obj
+
+
 def _cache_response(key):
     with _cache_lock:
         data = dict(_dashboard_cache[key])
     data['loading'] = not bool(data.get('timestamp'))
-    return jsonify(data)
+    return jsonify(_sanitize_nan(data))
 
 @app.route('/api/dashboard/gainers-losers')
 def get_gainers_losers():
