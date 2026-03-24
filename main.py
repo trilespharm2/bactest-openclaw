@@ -5077,6 +5077,179 @@ def get_economic_indicators():
 
 
 # =============================================================================
+# TICKER DETAIL PAGE & API ROUTES
+# =============================================================================
+
+@app.route('/ticker/<symbol>')
+def ticker_page(symbol):
+    return send_from_directory('.', 'ticker.html')
+
+
+import re as _re
+_TICKER_RE = _re.compile(r'^[A-Za-z0-9.\-^]{1,10}$')
+
+def _valid_symbol(symbol):
+    return bool(_TICKER_RE.match(symbol))
+
+
+@app.route('/api/ticker/<symbol>/info')
+def ticker_info(symbol):
+    if not _valid_symbol(symbol):
+        return jsonify({'error': 'Invalid ticker symbol'}), 400
+    try:
+        import yfinance as yf
+        t = yf.Ticker(symbol.upper())
+        info = t.info or {}
+        prev = info.get('previousClose') or info.get('regularMarketPreviousClose')
+        price = info.get('regularMarketPrice') or info.get('currentPrice') or prev
+        change = (price - prev) if price and prev else None
+        change_pct = (change / prev * 100) if change and prev else None
+        return jsonify(_sanitize_nan({
+            'symbol': symbol.upper(),
+            'name': info.get('shortName') or info.get('longName', ''),
+            'price': price,
+            'change': change,
+            'change_pct': change_pct,
+            'market_cap': info.get('marketCap'),
+            'pe_ratio': info.get('trailingPE'),
+            'forward_pe': info.get('forwardPE'),
+            'eps': info.get('trailingEps'),
+            'dividend_yield': info.get('dividendYield'),
+            'high_52w': info.get('fiftyTwoWeekHigh'),
+            'low_52w': info.get('fiftyTwoWeekLow'),
+            'volume': info.get('volume'),
+            'avg_volume': info.get('averageVolume'),
+            'beta': info.get('beta'),
+            'sector': info.get('sector'),
+            'industry': info.get('industry'),
+        }))
+    except Exception as e:
+        logging.error(f'Ticker info error for {symbol}: {e}')
+        return jsonify({'error': 'Failed to fetch ticker info'}), 500
+
+
+@app.route('/api/ticker/<symbol>/chart')
+def ticker_chart(symbol):
+    if not _valid_symbol(symbol):
+        return jsonify({'error': 'Invalid ticker symbol'}), 400
+    try:
+        import yfinance as yf
+        period = request.args.get('period', '3mo')
+        valid_periods = ['5d', '1mo', '3mo', '6mo', '1y', '2y', '5y']
+        if period not in valid_periods:
+            period = '3mo'
+        interval_map = {'5d': '15m', '1mo': '1h', '3mo': '1d', '6mo': '1d', '1y': '1d', '2y': '1wk', '5y': '1wk'}
+        interval = interval_map.get(period, '1d')
+        t = yf.Ticker(symbol.upper())
+        hist = t.history(period=period, interval=interval)
+        if hist.empty:
+            return jsonify({'prices': []})
+        prices = []
+        for idx, row in hist.iterrows():
+            date_str = idx.strftime('%Y-%m-%d %H:%M') if interval in ('15m', '1h') else idx.strftime('%Y-%m-%d')
+            prices.append({
+                'date': date_str,
+                'open': row.get('Open'),
+                'high': row.get('High'),
+                'low': row.get('Low'),
+                'close': row.get('Close'),
+                'volume': row.get('Volume'),
+            })
+        return jsonify(_sanitize_nan({'prices': prices}))
+    except Exception as e:
+        logging.error(f'Ticker chart error for {symbol}: {e}')
+        return jsonify({'error': 'Failed to fetch chart data'}), 500
+
+
+@app.route('/api/ticker/<symbol>/news')
+def ticker_news(symbol):
+    if not _valid_symbol(symbol):
+        return jsonify({'error': 'Invalid ticker symbol', 'articles': []}), 400
+    try:
+        import yfinance as yf
+        t = yf.Ticker(symbol.upper())
+        raw_news = t.news or []
+        articles = []
+        for item in raw_news[:15]:
+            content = item.get('content', {}) if isinstance(item, dict) else {}
+            thumbnail = None
+            thumb_obj = content.get('thumbnail')
+            if thumb_obj and isinstance(thumb_obj, dict):
+                resolutions = thumb_obj.get('resolutions', [])
+                if resolutions:
+                    thumbnail = resolutions[-1].get('url')
+            pub_date = content.get('pubDate')
+            articles.append({
+                'title': content.get('title', ''),
+                'link': content.get('canonicalUrl', {}).get('url', '') if isinstance(content.get('canonicalUrl'), dict) else '',
+                'publisher': content.get('provider', {}).get('displayName', '') if isinstance(content.get('provider'), dict) else '',
+                'published': pub_date,
+                'thumbnail': thumbnail,
+            })
+        return jsonify({'articles': articles})
+    except Exception as e:
+        logging.error(f'Ticker news error for {symbol}: {e}')
+        return jsonify({'error': 'Failed to fetch news', 'articles': []}), 500
+
+
+@app.route('/api/ticker/<symbol>/financials')
+def ticker_financials(symbol):
+    if not _valid_symbol(symbol):
+        return jsonify({'error': 'Invalid ticker symbol'}), 400
+    try:
+        import yfinance as yf
+        import math
+        t = yf.Ticker(symbol.upper())
+
+        def df_to_dict(df, max_rows=15):
+            if df is None or df.empty:
+                return {'columns': [], 'rows': []}
+            cols = [c.strftime('%Y') if hasattr(c, 'strftime') else str(c) for c in df.columns[:5]]
+            rows = []
+            for label, row_data in list(df.iterrows())[:max_rows]:
+                vals = []
+                for c in df.columns[:5]:
+                    v = row_data.get(c)
+                    if v is None or (isinstance(v, float) and math.isnan(v)):
+                        vals.append(None)
+                    else:
+                        vals.append(float(v))
+                rows.append({'label': str(label), 'values': vals})
+            return {'columns': cols, 'rows': rows}
+
+        key_income_rows = [
+            'Total Revenue', 'Cost Of Revenue', 'Gross Profit',
+            'Operating Expense', 'Operating Income', 'Net Income',
+            'EBITDA', 'Basic EPS', 'Diluted EPS',
+        ]
+        key_balance_rows = [
+            'Total Assets', 'Total Liabilities Net Minority Interest',
+            'Total Equity Gross Minority Interest', 'Cash And Cash Equivalents',
+            'Total Debt', 'Net Debt', 'Share Issued',
+        ]
+        key_cashflow_rows = [
+            'Operating Cash Flow', 'Capital Expenditure', 'Free Cash Flow',
+            'Investing Cash Flow', 'Financing Cash Flow',
+            'Repurchase Of Capital Stock', 'Cash Dividends Paid',
+        ]
+
+        def filter_df(df, keys):
+            if df is None or df.empty:
+                return df
+            available = [k for k in keys if k in df.index]
+            return df.loc[available] if available else df.head(15)
+
+        return jsonify({
+            'income': df_to_dict(filter_df(t.financials, key_income_rows)),
+            'balance': df_to_dict(filter_df(t.balance_sheet, key_balance_rows)),
+            'cashflow': df_to_dict(filter_df(t.cashflow, key_cashflow_rows)),
+        })
+    except Exception as e:
+        logging.error(f'Ticker financials error for {symbol}: {e}')
+        return jsonify({'error': 'Failed to fetch financials'}), 500
+
+
+# =============================================================================
 # SCREENER API ROUTES
 # =============================================================================
 

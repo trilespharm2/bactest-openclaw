@@ -8,6 +8,12 @@ function _fmt(val, decimals = 2, fallback = '\u2014') {
     return Number(val).toFixed(decimals);
 }
 
+function _tickerLink(symbol, extraStyle) {
+    const s = (symbol || '').replace('^', '');
+    const style = extraStyle || 'font-weight:600;color:#3b6df0;';
+    return '<a href="/ticker/' + encodeURIComponent(s) + '" style="' + style + 'text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + symbol + '</a>';
+}
+
 function getAuthHeaders() {
     const token = localStorage.getItem('authToken');
     const headers = {};
@@ -971,8 +977,8 @@ async function _loadIndices() {
                 : (isUp ? '#0fad6e' : '#d94452');
             const arrow = isUp ? '\u25B2' : '\u25BC';
             const sign = isUp ? '+' : '';
-            return '<div class="text-center" style="flex:1;min-width:90px;">' +
-                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + idx.symbol + '</div>' +
+            return '<div class="text-center" style="flex:1;min-width:90px;cursor:pointer;">' +
+                '<div style="font-size:11px;">' + _tickerLink(idx.symbol, 'font-weight:600;color:#6b7689;') + '</div>' +
                 '<div style="font-size:15px;font-weight:700;color:#1a1e2e;">' + (idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '\u2014') + '</div>' +
                 '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + _fmt(idx.change_pct) + '%</div></div>';
         }).join('');
@@ -992,7 +998,7 @@ async function _loadMostActive() {
             const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
             const vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
             return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
-                '<span style="font-weight:600;color:#3b6df0;">' + item.symbol + '</span>' +
+                _tickerLink(item.symbol) +
                 '<span style="color:#6b7689;font-size:11px;">' + vol + '</span>' +
                 '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
         }).join('');
@@ -1012,7 +1018,7 @@ async function _loadTrending() {
             const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
             return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
                 '<span style="color:#6b7689;font-size:11px;width:18px;">' + (i + 1) + '</span>' +
-                '<span style="font-weight:600;color:#3b6df0;flex:1;">' + item.symbol + '</span>' +
+                '<span style="flex:1;">' + _tickerLink(item.symbol) + '</span>' +
                 '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
         }).join('');
     } catch (e) { console.error('Trending error:', e); }
@@ -1033,7 +1039,7 @@ async function _loadSectors() {
             return '<div style="padding:8px 10px;border-radius:8px;background:' + bg + ';text-align:center;">' +
                 '<div style="font-size:12px;font-weight:600;color:#1a1e2e;">' + s.name + '</div>' +
                 '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + _fmt(pct) + '%</div>' +
-                '<div style="font-size:9px;color:#6b7689;">' + s.symbol + '</div></div>';
+                '<div style="font-size:9px;">' + _tickerLink(s.symbol, 'color:#6b7689;') + '</div></div>';
         }).join('');
     } catch (e) { console.error('Sectors error:', e); }
 }
@@ -1050,7 +1056,7 @@ async function _loadEarnings() {
             const timingBg = timing === 'BMO' ? '#fff7ed' : timing === 'AMC' ? '#eff6ff' : '#f8f9fc';
             const timingColor = timing === 'BMO' ? '#e5873a' : timing === 'AMC' ? '#3b6df0' : '#6b7689';
             return '<div style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;">' +
-                '<div style="font-size:13px;font-weight:700;color:#3b6df0;">' + e.symbol + '</div>' +
+                '<div style="font-size:13px;font-weight:700;">' + _tickerLink(e.symbol) + '</div>' +
                 '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + (e.name || '') + '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
                 '<span style="font-size:10px;color:#6b7689;">' + (e.date || '') + '</span>' +
@@ -1456,7 +1462,7 @@ async function loadGainersLosers() {
             gainersContainer.innerHTML = data.gainers.map(item => `
                 <div class="stock-item">
                     <div class="stock-info">
-                        <span class="symbol">${item.symbol}</span>
+                        <a href="/ticker/${encodeURIComponent(item.symbol)}" class="symbol" style="text-decoration:none;">${item.symbol}</a>
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
@@ -1474,7 +1480,7 @@ async function loadGainersLosers() {
             losersContainer.innerHTML = data.losers.map(item => `
                 <div class="stock-item">
                     <div class="stock-info">
-                        <span class="symbol">${item.symbol}</span>
+                        <a href="/ticker/${encodeURIComponent(item.symbol)}" class="symbol" style="text-decoration:none;">${item.symbol}</a>
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
