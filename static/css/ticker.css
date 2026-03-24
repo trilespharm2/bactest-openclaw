@@ -100,7 +100,27 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.financials-table tr:hover { background: #f8f9fc; }
+.financials-hint {
+  font-size: 11px;
+  color: #9aa5b4;
+  text-align: right;
+  margin-bottom: 4px;
+  font-style: italic;
+}
+.fin-row-clickable {
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.fin-row-clickable:hover {
+  background: #eef2ff !important;
+}
+.fin-row-clickable.selected {
+  background: #e8f0fe !important;
+  box-shadow: inset 3px 0 0 #3b6df0;
+}
+.fin-row-clickable.selected td:first-child {
+  color: #3b6df0;
+}
 .text-up { color: #0fad6e; }
 .text-down { color: #d94452; }
 .ticker-name { font-size: 22px; font-weight: 700; color: #1a1e2e; }

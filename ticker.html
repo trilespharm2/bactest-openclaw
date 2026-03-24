@@ -116,6 +116,28 @@
               </div>
             </div>
           </div>
+
+          <!-- Financial Trend Chart -->
+          <div class="row mb-3">
+            <div class="col-12">
+              <div class="card" id="financialChartCard" style="display:none;">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                  <div class="card-title mb-0" style="font-size:14px;">
+                    <i class="fas fa-chart-area text-success me-2"></i>
+                    <span id="financialChartLabel">Financial Trend</span>
+                  </div>
+                  <button class="btn btn-sm btn-outline-secondary" id="closeFinancialChart" title="Close chart">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="card-body" style="padding:12px;">
+                  <div id="financialChartContainer" style="position:relative;height:320px;">
+                    <canvas id="financialTrendChart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
