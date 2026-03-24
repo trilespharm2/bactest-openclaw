@@ -9,9 +9,8 @@ function _fmt(val, decimals = 2, fallback = '\u2014') {
 }
 
 function _tickerLink(symbol, extraStyle) {
-    const s = (symbol || '').replace('^', '');
     const style = extraStyle || 'font-weight:600;color:#3b6df0;';
-    return '<a href="/ticker/' + encodeURIComponent(s) + '" style="' + style + 'text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + symbol + '</a>';
+    return '<a href="/ticker/' + encodeURIComponent(symbol || '') + '" style="' + style + 'text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + symbol + '</a>';
 }
 
 function getAuthHeaders() {
@@ -1098,10 +1097,10 @@ async function _loadTreasury() {
             const isUp = change >= 0;
             const color = isUp ? '#0fad6e' : '#d94452';
             const arrow = isUp ? '\u25B2' : '\u25BC';
-            return '<div style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;">' +
+            return '<a href="/ticker/' + encodeURIComponent(r.symbol || '') + '" style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;display:block;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'#f8f9fc\'">' +
                 '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (r.name || r.maturity || '') + '</div>' +
                 '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">' + _fmt(r.rate, 3, '\u2014') + '%</div>' +
-                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(change), 3, '0.000') + '</div></div>';
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(change), 3, '0.000') + '</div></a>';
         }).join('');
     } catch (e) { console.error('Treasury error:', e); }
 }
@@ -1119,10 +1118,10 @@ async function _loadEconomicIndicators() {
             const color = ind.symbol === '^VIX' ? (isUp ? '#d94452' : '#0fad6e') : (isUp ? '#0fad6e' : '#d94452');
             const arrow = isUp ? '\u25B2' : '\u25BC';
             const formatted = ind.format === 'percent' ? _fmt(ind.price) + '%' : _fmt(ind.price);
-            return '<div style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;">' +
+            return '<a href="/ticker/' + encodeURIComponent(ind.symbol || '') + '" style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;display:block;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'#f8f9fc\'">' +
                 '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (ind.name || ind.symbol || '') + '</div>' +
                 '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">' + formatted + '</div>' +
-                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(pct)) + '%</div></div>';
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(pct)) + '%</div></a>';
         }).join('');
     } catch (e) { console.error('Economic indicators error:', e); }
 }
@@ -1460,16 +1459,16 @@ async function loadGainersLosers() {
         // Render gainers
         if (data.gainers && data.gainers.length > 0) {
             gainersContainer.innerHTML = data.gainers.map(item => `
-                <div class="stock-item">
+                <a href="/ticker/${encodeURIComponent(item.symbol)}" class="stock-item" style="text-decoration:none;color:inherit;display:flex;">
                     <div class="stock-info">
-                        <a href="/ticker/${encodeURIComponent(item.symbol)}" class="symbol" style="text-decoration:none;">${item.symbol}</a>
+                        <span class="symbol">${item.symbol}</span>
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
                         <span class="price">$${_fmt(item.price)}</span>
                         <span class="change positive">+${_fmt(item.change_pct)}%</span>
                     </div>
-                </div>
+                </a>
             `).join('');
         } else {
             gainersContainer.innerHTML = '<div class="gainers-empty"><i class="material-symbols-rounded">trending_up</i><p>No gainers data</p></div>';
@@ -1478,16 +1477,16 @@ async function loadGainersLosers() {
         // Render losers
         if (data.losers && data.losers.length > 0) {
             losersContainer.innerHTML = data.losers.map(item => `
-                <div class="stock-item">
+                <a href="/ticker/${encodeURIComponent(item.symbol)}" class="stock-item" style="text-decoration:none;color:inherit;display:flex;">
                     <div class="stock-info">
-                        <a href="/ticker/${encodeURIComponent(item.symbol)}" class="symbol" style="text-decoration:none;">${item.symbol}</a>
+                        <span class="symbol">${item.symbol}</span>
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
                         <span class="price">$${_fmt(item.price)}</span>
                         <span class="change negative">${_fmt(item.change_pct)}%</span>
                     </div>
-                </div>
+                </a>
             `).join('');
         } else {
             losersContainer.innerHTML = '<div class="losers-empty"><i class="material-symbols-rounded">trending_down</i><p>No losers data</p></div>';

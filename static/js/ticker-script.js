@@ -1,5 +1,5 @@
 const rawSymbol = decodeURIComponent(window.location.pathname.split('/').pop()).toUpperCase();
-const SYMBOL = /^[A-Z0-9.\-^]{1,10}$/.test(rawSymbol) ? rawSymbol : '';
+const SYMBOL = /^[A-Z0-9.\-^=]{1,12}$/.test(rawSymbol) ? rawSymbol : '';
 if (!SYMBOL) { document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#d94452;">Invalid ticker symbol</div>'; throw new Error('Invalid symbol'); }
 const API = `${window.location.protocol}//${window.location.host}/api`;
 let priceChart = null;

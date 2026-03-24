@@ -5086,7 +5086,7 @@ def ticker_page(symbol):
 
 
 import re as _re
-_TICKER_RE = _re.compile(r'^[A-Za-z0-9.\-^]{1,10}$')
+_TICKER_RE = _re.compile(r'^[A-Za-z0-9.\-^=]{1,12}$')
 
 def _valid_symbol(symbol):
     return bool(_TICKER_RE.match(symbol))
