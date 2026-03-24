@@ -941,7 +941,10 @@ function initDashboardCharts() {
         _loadMostActive(),
         _loadTrending(),
         _loadSectors(),
-        _loadEarnings()
+        _loadEarnings(),
+        _loadNews(),
+        _loadTreasury(),
+        _loadEconomicIndicators()
     ]);
 
     _dashCardIntervals.push(setInterval(_loadIndices, 30000));
@@ -949,6 +952,9 @@ function initDashboardCharts() {
     _dashCardIntervals.push(setInterval(_loadTrending, 60000));
     _dashCardIntervals.push(setInterval(_loadSectors, 60000));
     _dashCardIntervals.push(setInterval(_loadEarnings, 300000));
+    _dashCardIntervals.push(setInterval(_loadNews, 300000));
+    _dashCardIntervals.push(setInterval(_loadTreasury, 120000));
+    _dashCardIntervals.push(setInterval(_loadEconomicIndicators, 120000));
 }
 
 async function _loadIndices() {
@@ -1052,6 +1058,67 @@ async function _loadEarnings() {
                 '</div></div>';
         }).join('') + '</div>';
     } catch (e) { console.error('Earnings error:', e); }
+}
+
+async function _loadNews() {
+    try {
+        const data = await _fetchCached('/api/dashboard/news');
+        const el = document.getElementById('newsContainer');
+        if (!el) return;
+        const articles = data.articles || [];
+        if (!articles.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No news available</div>'; return; }
+        el.innerHTML = articles.slice(0, 8).map(a => {
+            const date = a.published ? new Date(a.published).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+            const thumb = a.thumbnail ? '<img src="' + a.thumbnail + '" style="width:48px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'" />' : '';
+            return '<a href="' + (a.link || '#') + '" target="_blank" rel="noopener" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #f0f1f4;text-decoration:none;color:inherit;">' +
+                thumb +
+                '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:12px;font-weight:600;color:#1a1e2e;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">' + (a.title || '') + '</div>' +
+                '<div style="font-size:10px;color:#6b7689;margin-top:2px;">' + (a.publisher || '') + (date ? ' \u00B7 ' + date : '') + '</div>' +
+                '</div></a>';
+        }).join('');
+    } catch (e) { console.error('News error:', e); }
+}
+
+async function _loadTreasury() {
+    try {
+        const data = await _fetchCached('/api/dashboard/treasury');
+        const el = document.getElementById('treasuryGrid');
+        if (!el) return;
+        const rates = data.rates || [];
+        if (!rates.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = rates.map(r => {
+            const change = r.change || 0;
+            const isUp = change >= 0;
+            const color = isUp ? '#0fad6e' : '#d94452';
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            return '<div style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (r.name || r.maturity || '') + '</div>' +
+                '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">' + _fmt(r.rate, 3, '\u2014') + '%</div>' +
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(change), 3, '0.000') + '</div></div>';
+        }).join('');
+    } catch (e) { console.error('Treasury error:', e); }
+}
+
+async function _loadEconomicIndicators() {
+    try {
+        const data = await _fetchCached('/api/dashboard/economic');
+        const el = document.getElementById('economicGrid');
+        if (!el) return;
+        const indicators = data.indicators || [];
+        if (!indicators.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = indicators.map(ind => {
+            const pct = ind.change_pct || 0;
+            const isUp = pct >= 0;
+            const color = ind.symbol === '^VIX' ? (isUp ? '#d94452' : '#0fad6e') : (isUp ? '#0fad6e' : '#d94452');
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            const formatted = ind.format === 'percent' ? _fmt(ind.price) + '%' : _fmt(ind.price);
+            return '<div style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (ind.name || ind.symbol || '') + '</div>' +
+                '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">' + formatted + '</div>' +
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(pct)) + '%</div></div>';
+        }).join('');
+    } catch (e) { console.error('Economic indicators error:', e); }
 }
 
 // Setup clickable chart cards
