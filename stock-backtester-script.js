@@ -917,15 +917,8 @@ function validateConfig(config) {
     if (isNaN(slVal) || slVal <= 0) {
         errors.push('Stop loss value must be positive');
     }
-    if (isNaN(maxDays) || maxDays < 1) {
-        errors.push('Max holding days must be at least 1');
-    }
-    
-    if (config.take_profit_unit === 'percent' && tpVal > 1000) {
-        errors.push('Take profit % seems unreasonably high (>1000%)');
-    }
-    if (config.stop_loss_unit === 'percent' && slVal > 100) {
-        errors.push('Stop loss % cannot exceed 100%');
+    if (isNaN(maxDays) || maxDays < 0) {
+        errors.push('Max holding days cannot be negative');
     }
     
     if (errors.length > 0) {

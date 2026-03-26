@@ -1662,9 +1662,9 @@ function validateOptionsConfig(config) {
                 errors.push(`${leg.name}: Strike method is required`);
             }
             if (leg.config_type === 'delta' && leg.params) {
-                const delta = Math.abs(leg.params.target_delta || 0);
-                if (delta <= 0 || delta > 1) {
-                    errors.push(`${leg.name}: Delta must be between 0 and 1`);
+                const delta = leg.params.target_delta;
+                if (delta === undefined || delta === null || delta === '' || Math.abs(delta) > 1) {
+                    errors.push(`${leg.name}: Delta must be between -1 and 1`);
                 }
             }
             if ((leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') && leg.params) {
