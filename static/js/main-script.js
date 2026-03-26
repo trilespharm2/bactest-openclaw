@@ -352,16 +352,15 @@ function setupMobileMenu() {
 
 // Setup Navigation
 function setupNavigation() {
-    // Handle all links with data-page attribute
-    document.querySelectorAll('[data-page]').forEach(element => {
-        element.addEventListener('click', (e) => {
+    document.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-page]');
+        if (el) {
             e.preventDefault();
-            const pageName = element.getAttribute('data-page');
+            const pageName = el.getAttribute('data-page');
             console.log('Navigating to:', pageName);
             navigateToPage(pageName);
-        });
+        }
     });
-    
 }
 
 // Navigate to Page
