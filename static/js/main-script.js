@@ -540,7 +540,7 @@ async function loadPageContent(pageName) {
                     fileName = 'stock-backtester';
                     scriptName = 'stock-backtester-script.js';
                 }
-                if (pageName === 'simulatedTrading') {
+                if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
                     scriptName = 'simulated-trading-script.js';
                 }
@@ -597,7 +597,7 @@ async function loadPageContent(pageName) {
                 if (pageName === 'stockBacktester') {
                     scriptName = 'stock-backtester-script.js';
                 }
-                if (pageName === 'simulatedTrading') {
+                if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     scriptName = 'simulated-trading-script.js';
                 }
                 if (pageName === 'screener') {
@@ -691,6 +691,8 @@ function initializePage(pageName) {
             setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
+        } else if (pageName === 'simTradingActive' && typeof initSimTradingActive === 'function') {
+            initSimTradingActive();
         } else if (pageName === 'simResults' && typeof initSimResultsPage === 'function') {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {

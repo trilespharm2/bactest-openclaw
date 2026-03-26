@@ -62,6 +62,7 @@
     <link rel="stylesheet" href="/static/css/stock-backtester.css" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     
     <style>
       /* Hide content during initialization to prevent flash */
@@ -84,6 +85,20 @@
       .movers-table .ticker { font-weight: 600; color: #1b55e2; }
       .movers-table .positive { color: #31cb9e; }
       .movers-table .negative { color: #f97066; }
+      .sim-tf-btn { background: transparent; color: #787b86; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+      .sim-tf-btn:hover { background: #2a2e39; color: #d1d4dc; }
+      .sim-tf-btn.active { background: #2962ff; color: #fff; }
+      .sim-tf-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+      .sim-nav-btn { background: transparent; color: #787b86; border: 1px solid #2a2e39; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+      .sim-nav-btn:hover:not(:disabled) { background: #2a2e39; color: #d1d4dc; }
+      .sim-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+      .sim-dark-select { background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45; border-radius: 4px; padding: 3px 6px; font-size: 11px; outline: none; }
+      .sim-dark-input { background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45; border-radius: 4px; padding: 3px 8px; font-size: 12px; outline: none; text-align: center; }
+      .sim-dark-input:focus, .sim-dark-select:focus { border-color: #2962ff; }
+      .sim-session-card { background: #fff; border: 1px solid #e0e3eb; border-radius: 8px; padding: 16px; transition: box-shadow 0.2s; }
+      .sim-session-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+      #simTradingActivePage .page-inner { padding: 0 !important; }
+      #simTradingWrapper .sim-dark-input, #simTradingWrapper .sim-dark-select { -webkit-appearance: none; }
       .form-card { background: #fff; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
       .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
       .strategy-group { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
@@ -1864,204 +1879,215 @@
               </div>
             </section>
 
-            <!-- Simulated Trading Page -->
+            <!-- Simulated Trading Config Page -->
             <section id="simulatedTradingPage" class="page">
               <div class="page-header">
                 <h3 class="fw-bold mb-3">Simulated Trading</h3>
                 <p class="text-muted">Practice trading by stepping through historical price data bar-by-bar</p>
               </div>
+
+              <div id="simActiveSessionsSection" class="mb-4" style="display: none;">
+                <div class="card">
+                  <div class="card-header">
+                    <div class="card-title"><i class="fas fa-history me-2"></i>ACTIVE SESSIONS</div>
+                  </div>
+                  <div class="card-body">
+                    <div id="simActiveSessionCards" class="row g-3"></div>
+                  </div>
+                </div>
+              </div>
+
               <div class="card mb-4">
                 <div class="card-header">
-                  <div class="card-title"><i class="fas fa-cog me-2"></i>CHART CONFIGURATION</div>
+                  <div class="card-title"><i class="fas fa-plus-circle me-2"></i>NEW SESSION</div>
                 </div>
                 <div class="card-body">
-                  <div class="row">
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label">Symbol:</label>
-                      <input type="text" class="form-control" id="simSymbol" placeholder="e.g., SPY, AAPL" value="SPY">
+                  <div class="row g-3">
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label fw-semibold">Symbol</label>
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="simSymbol" placeholder="e.g., SPY, AAPL" value="SPY">
+                      </div>
                     </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label">Chart Start Date:</label>
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label fw-semibold">Chart Start Date</label>
                       <input type="date" class="form-control" id="simChartStartDate">
                     </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label">Chart End Date:</label>
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label fw-semibold">Chart End Date</label>
                       <input type="date" class="form-control" id="simChartEndDate">
                     </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label">Trading Start Date:</label>
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label fw-semibold">Trading Start Date</label>
                       <input type="date" class="form-control" id="simTradingStartDate">
                     </div>
                   </div>
-                  <div class="row">
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label">Trading Mode:</label>
+                  <div class="row g-3 mt-1">
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label fw-semibold">Trading Mode</label>
                       <select class="form-select" id="simTradingMode">
                         <option value="stock" selected>Stock Trading</option>
                         <option value="options">Options Trading</option>
                       </select>
                     </div>
-                    <div class="col-md-3 mb-3">
-                      <label class="form-label">Account Balance:</label>
-                      <input type="number" class="form-control" id="simAccountBalance" value="100000" min="0" step="1000">
+                    <div class="col-md-4 col-lg-3">
+                      <label class="form-label fw-semibold">Account Balance</label>
+                      <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="simAccountBalance" value="100000" min="0" step="1000">
+                      </div>
                     </div>
-                    <div class="col-md-3 mb-3 d-flex align-items-end">
-                      <button type="button" class="btn btn-primary me-2" id="simLoadChartBtn">
-                        <i class="fas fa-chart-bar me-1"></i> Load Chart
-                      </button>
-                      <button type="button" class="btn btn-secondary" id="simResetBtn">
-                        <i class="fas fa-redo me-1"></i> Reset
+                    <div class="col-md-4 col-lg-6 d-flex align-items-end">
+                      <button type="button" class="btn btn-primary me-2" id="simLoadChartBtn" style="padding: 8px 24px; font-weight: 600;">
+                        <i class="fas fa-play me-1"></i> Start Trading
                       </button>
                     </div>
                   </div>
-                  <div id="simDateError" class="alert alert-danger d-none mb-3" role="alert">
+                  <div id="simDateError" class="alert alert-danger d-none mt-3 mb-0" role="alert">
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     <span id="simDateErrorText"></span>
                   </div>
                 </div>
               </div>
-              
-              <!-- Chart Container -->
-              <div class="card">
-                <div class="card-header">
-                  <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <div class="d-flex align-items-center">
-                      <span id="simChartSymbolDisplay" class="fw-bold me-3" style="font-size: 16px; color: #333;"></span>
-                      <span id="simCurrentTimeDisplay" class="me-3" style="font-size: 15px; font-weight: 600; color: #3b7cff;"></span>
-                      <span id="simChartPriceDisplay" class="me-2" style="font-size: 14px;"></span>
-                      <span id="simChartChangeDisplay" style="font-size: 13px;"></span>
-                    </div>
+            </section>
+
+            <!-- Simulated Trading Active Page (dedicated chart page) -->
+            <section id="simTradingActivePage" class="page">
+              <div id="simTradingWrapper" style="background: #131722; color: #d1d4dc; margin: -25px; padding: 0; min-height: calc(100vh - 60px);">
+                <div id="simTopBar" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #1e222d; border-bottom: 1px solid #2a2e39; flex-wrap: wrap; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <button type="button" id="simBackBtn" class="btn btn-sm" style="background: transparent; color: #787b86; border: 1px solid #2a2e39; padding: 4px 10px;">
+                      <i class="fas fa-arrow-left me-1"></i> Back
+                    </button>
+                    <span id="simChartSymbolDisplay" style="font-size: 18px; font-weight: 700; color: #d1d4dc;"></span>
+                    <span id="simChartPriceDisplay" style="font-size: 16px; font-weight: 600; color: #d1d4dc;"></span>
+                    <span id="simChartChangeDisplay" style="font-size: 13px;"></span>
                   </div>
-                  <div id="simTimeframeSelector" class="mt-2" style="display: none;">
-                    <div class="d-flex align-items-center flex-wrap gap-2">
-                      <div class="btn-group btn-group-sm" role="group" aria-label="Timeframe selection">
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn active" data-timeframe="1m">1m</button>
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="5m">5m</button>
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="15m">15m</button>
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="30m">30m</button>
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="1h">1h</button>
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="2h">2h</button>
-                        <button type="button" class="btn btn-outline-secondary timeframe-btn" data-timeframe="4h">4h</button>
-                      </div>
-                      <div class="chart-navigation d-flex align-items-center" id="chartNavigation" style="display: none;">
-                        <button type="button" class="btn btn-sm btn-outline-primary me-1" id="simPrevBar" disabled>
-                          <i class="fas fa-arrow-left"></i>
-                        </button>
-                        <span class="badge bg-info me-1" id="simBarVisibilityInfo" style="font-size: 11px;">0 bars</span>
-                        <button type="button" class="btn btn-sm btn-outline-primary me-1" id="simNextBar">
-                          <i class="fas fa-arrow-right"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-warning me-2" id="simResetViewBtn" title="Reset to current candle view">
-                          <i class="fas fa-crosshairs"></i>
-                        </button>
-                        <div class="d-flex align-items-center me-2" style="border: 1px solid #d0d3da; border-radius: 6px; padding: 2px 4px; background: #f8f9fa;">
-                          <button type="button" class="btn btn-sm" id="simPlayPauseBtn" title="Auto-advance bars" style="padding: 2px 8px; font-size: 14px; color: #26a69a; border: none; background: transparent;">
-                            <i class="fas fa-play" id="simPlayIcon"></i>
-                          </button>
-                        </div>
-                        <div class="d-flex align-items-center me-2" style="border: 1px solid #d0d3da; border-radius: 6px; padding: 2px 6px; background: #f8f9fa;">
-                          <label class="me-1 small text-muted" style="white-space: nowrap;">Interval:</label>
-                          <select class="form-select form-select-sm" id="simAutoplayInterval" style="width: 70px; border: none; background: transparent; padding: 2px 4px; font-size: 12px;">
-                            <option value="1">1 min</option>
-                            <option value="5">5 min</option>
-                            <option value="15">15 min</option>
-                            <option value="30">30 min</option>
-                            <option value="60">1 hr</option>
-                          </select>
-                        </div>
-                        <div class="d-flex align-items-center me-2" style="border: 1px solid #d0d3da; border-radius: 6px; padding: 2px 6px; background: #f8f9fa;">
-                          <label class="me-1 small text-muted" style="white-space: nowrap;">Speed:</label>
-                          <select class="form-select form-select-sm" id="simAutoplaySpeed" style="width: 75px; border: none; background: transparent; padding: 2px 4px; font-size: 12px;">
-                            <option value="1000">1 sec</option>
-                            <option value="2000">2 sec</option>
-                            <option value="3000">3 sec</option>
-                            <option value="5000" selected>5 sec</option>
-                            <option value="10000">10 sec</option>
-                          </select>
-                        </div>
-                        <div class="d-flex align-items-center">
-                          <label class="me-1 small text-muted">Skip:</label>
-                          <input type="number" class="form-control form-control-sm" id="simSkipBars" value="1" min="1" max="100" style="width: 50px;">
-                          <span class="small text-muted ms-1">min</span>
-                        </div>
-                      </div>
-                      <div class="d-flex align-items-center ms-auto" id="gotoDateGroup" style="display: none;">
-                        <label class="me-1 small text-muted">Date:</label>
-                        <input type="text" class="form-control form-control-sm me-1" id="simGotoDate" placeholder="MM/DD/YYYY" style="width: 100px;">
-                        <input type="text" class="form-control form-control-sm me-1" id="simGotoTime" placeholder="HH:MM" style="width: 65px;">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="simGotoDateBtn">Go</button>
-                      </div>
-                      <span id="simDataLoadingStatus" class="text-muted small"></span>
-                    </div>
-                  </div>
-                  <div id="simOHLCDisplay" class="mt-2" style="display: none; font-size: 13px;">
-                    <span class="me-3">O <span id="simOHLC_O" style="color: #333;">-</span></span>
-                    <span class="me-3">H <span id="simOHLC_H" style="color: #26a69a;">-</span></span>
-                    <span class="me-3">L <span id="simOHLC_L" style="color: #ef5350;">-</span></span>
-                    <span class="me-3">C <span id="simOHLC_C" style="color: #333;">-</span></span>
-                    <span>Vol <span id="simOHLC_V" style="color: #666;">-</span></span>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="simCurrentTimeDisplay" style="font-size: 14px; font-weight: 600; color: #2962ff;"></span>
+                    <span id="simBarVisibilityInfo" style="font-size: 11px; color: #787b86; background: #2a2e39; padding: 2px 8px; border-radius: 4px;"></span>
+                    <span id="simDataLoadingStatus" style="font-size: 11px; color: #787b86;"></span>
                   </div>
                 </div>
-                <div class="card-body p-0">
-                  <div id="simChartContainer" style="height: 500px; position: relative; background: #ffffff;">
-                                        <div id="simChartPlaceholder" class="text-center text-muted py-5" style="padding-top: 150px !important;">
-                      <i class="fas fa-chart-line fa-3x mb-3" style="opacity: 0.3;"></i>
-                      <p>Configure settings above and click "Load Chart" to begin</p>
-                    </div>
-                    <div id="simChartLoader" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.95); z-index: 10;">
-                      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
-                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                          <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <div class="mt-3 text-dark" id="simLoaderText">Loading chart data...</div>
-                        <div class="mt-2 text-muted small" id="simLoaderProgress"></div>
-                      </div>
-                    </div>
-                    <canvas id="simCandlestickChart" style="display: none;"></canvas>
+
+                <div id="simTimeframeBar" style="display: flex; align-items: center; padding: 4px 16px; background: #1e222d; border-bottom: 1px solid #2a2e39; gap: 8px; flex-wrap: wrap;">
+                  <div style="display: flex; gap: 2px;">
+                    <button type="button" class="sim-tf-btn active" data-timeframe="1m">1m</button>
+                    <button type="button" class="sim-tf-btn" data-timeframe="5m">5m</button>
+                    <button type="button" class="sim-tf-btn" data-timeframe="15m">15m</button>
+                    <button type="button" class="sim-tf-btn" data-timeframe="30m">30m</button>
+                    <button type="button" class="sim-tf-btn" data-timeframe="1h">1h</button>
+                    <button type="button" class="sim-tf-btn" data-timeframe="2h">2h</button>
+                    <button type="button" class="sim-tf-btn" data-timeframe="4h">4h</button>
                   </div>
-                </div>
-                <div class="card-footer" id="simTradingControls" style="display: none; background: #ffffff; border-top: 1px solid #e0e3eb;">
-                  <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="d-flex align-items-center">
-                      <span class="small fw-bold me-2" style="color: #666;">Account Balance:</span>
-                      <span class="fw-bold" id="simCurrentBalance" style="color: #333; font-size: 15px;">$100,000.00</span>
-                    </div>
-                    <button type="button" class="btn btn-sm" id="simRunAnalysisBtn" style="background: #7c3aed; color: white; font-weight: 600; padding: 6px 18px;">
-                      <i class="fas fa-chart-line me-1"></i>Run Analysis
+                  <div style="width: 1px; height: 20px; background: #2a2e39;"></div>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <button type="button" class="sim-nav-btn" id="simPrevBar" disabled title="Previous bar">
+                      <i class="fas fa-step-backward"></i>
+                    </button>
+                    <button type="button" class="sim-nav-btn" id="simPlayPauseBtn" title="Auto-advance">
+                      <i class="fas fa-play" id="simPlayIcon"></i>
+                    </button>
+                    <button type="button" class="sim-nav-btn" id="simNextBar" title="Next bar">
+                      <i class="fas fa-step-forward"></i>
+                    </button>
+                    <button type="button" class="sim-nav-btn" id="simResetViewBtn" title="Reset to current candle">
+                      <i class="fas fa-crosshairs"></i>
                     </button>
                   </div>
+                  <div style="width: 1px; height: 20px; background: #2a2e39;"></div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 11px; color: #787b86; white-space: nowrap;">Interval:</label>
+                    <select class="sim-dark-select" id="simAutoplayInterval">
+                      <option value="1">1 min</option>
+                      <option value="5">5 min</option>
+                      <option value="15">15 min</option>
+                      <option value="30">30 min</option>
+                      <option value="60">1 hr</option>
+                    </select>
+                    <label style="font-size: 11px; color: #787b86; white-space: nowrap;">Speed:</label>
+                    <select class="sim-dark-select" id="simAutoplaySpeed">
+                      <option value="500">0.5s</option>
+                      <option value="1000">1s</option>
+                      <option value="2000">2s</option>
+                      <option value="3000" selected>3s</option>
+                      <option value="5000">5s</option>
+                    </select>
+                    <label style="font-size: 11px; color: #787b86; white-space: nowrap;">Skip:</label>
+                    <input type="number" class="sim-dark-input" id="simSkipBars" value="1" min="1" max="100" style="width: 45px;">
+                  </div>
+                  <div style="width: 1px; height: 20px; background: #2a2e39;"></div>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <label style="font-size: 11px; color: #787b86;">Go to:</label>
+                    <input type="text" class="sim-dark-input" id="simGotoDate" placeholder="MM/DD/YYYY" style="width: 95px;">
+                    <input type="text" class="sim-dark-input" id="simGotoTime" placeholder="HH:MM" style="width: 55px;">
+                    <button type="button" class="sim-nav-btn" id="simGotoDateBtn" title="Jump to date">
+                      <i class="fas fa-search"></i>
+                    </button>
+                  </div>
+                </div>
 
-                  <div id="simStockTradingSection">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap">
-                      <div class="d-flex align-items-center">
-                        <button type="button" class="btn btn-sm me-1" id="simBuyBtn" style="background: #26a69a; color: white; font-weight: 600; padding: 6px 16px;">Buy</button>
-                        <button type="button" class="btn btn-sm me-2" id="simSellBtn" style="background: #ef5350; color: white; font-weight: 600; padding: 6px 16px;">Sell</button>
-                        <div class="d-flex align-items-center">
-                          <input type="number" class="form-control form-control-sm" id="simQuantity" value="1" min="1" style="width: 70px; background: #ffffff; color: #333; border-color: #d0d3da;">
-                        </div>
+                <div id="simOHLCBar" style="display: flex; align-items: center; padding: 4px 16px; background: #131722; gap: 16px; font-size: 12px;">
+                  <span>O <span id="simOHLC_O" style="color: #d1d4dc;">-</span></span>
+                  <span>H <span id="simOHLC_H" style="color: #26a69a;">-</span></span>
+                  <span>L <span id="simOHLC_L" style="color: #ef5350;">-</span></span>
+                  <span>C <span id="simOHLC_C" style="color: #d1d4dc;">-</span></span>
+                  <span>Vol <span id="simOHLC_V" style="color: #787b86;">-</span></span>
+                </div>
+
+                <div id="simChartContainer" style="position: relative; height: calc(100vh - 330px); min-height: 400px; background: #131722;">
+                  <div id="simChartLoader" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(19,23,34,0.95); z-index: 10;">
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                      <div class="spinner-border" role="status" style="width: 3rem; height: 3rem; color: #2962ff;">
+                        <span class="visually-hidden">Loading...</span>
                       </div>
-                      <div class="d-flex align-items-center">
-                        <div class="me-4" style="color: #666;">
-                          <span class="small">Stock Realized:</span>
-                          <span class="fw-bold ms-1" id="simRealizedPnl" style="color: #26a69a;">$0.00</span>
-                        </div>
-                        <div style="color: #666;">
-                          <span class="small">Stock Unrealized:</span>
-                          <span class="fw-bold ms-1" id="simUnrealizedPnl" style="color: #666;">$0.00</span>
-                        </div>
-                      </div>
+                      <div class="mt-3" id="simLoaderText" style="color: #d1d4dc;">Loading chart data...</div>
+                      <div class="mt-2 small" id="simLoaderProgress" style="color: #787b86;"></div>
                     </div>
                   </div>
-                  
-                  <div id="simOptionsTradingSection" style="display: none;">
-                    <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
-                      <div class="d-flex align-items-center">
-                        <label class="small me-1" style="color: #666; white-space: nowrap;">DTE:</label>
-                        <input type="number" class="form-control form-control-sm" id="simOptionDTE" value="0" min="0" max="365" style="width: 55px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                  <div id="simLWChartContainer" style="width: 100%; height: 100%;"></div>
+                </div>
+
+                <div id="simTradingPanel" style="background: #1e222d; border-top: 1px solid #2a2e39; padding: 10px 16px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                      <div>
+                        <span style="font-size: 11px; color: #787b86;">Balance</span>
+                        <div id="simCurrentBalance" style="font-size: 15px; font-weight: 700; color: #d1d4dc;">$100,000.00</div>
                       </div>
-                      <div class="d-flex align-items-center">
-                        <label class="small me-1" style="color: #666; white-space: nowrap;">Strategy:</label>
-                        <select class="form-select form-select-sm" id="simOptionStrategy" style="width: 160px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      <div id="simStockPnlGroup">
+                        <span style="font-size: 11px; color: #787b86;">Realized</span>
+                        <div id="simRealizedPnl" style="font-size: 13px; font-weight: 600; color: #787b86;">$0.00</div>
+                      </div>
+                      <div id="simStockUnrealizedGroup">
+                        <span style="font-size: 11px; color: #787b86;">Unrealized</span>
+                        <div id="simUnrealizedPnl" style="font-size: 13px; font-weight: 600; color: #787b86;">$0.00</div>
+                      </div>
+                    </div>
+
+                    <div id="simStockTradingSection" style="display: flex; align-items: center; gap: 8px;">
+                      <input type="number" id="simQuantity" value="1" min="1" class="sim-dark-input" style="width: 65px;">
+                      <button type="button" id="simBuyBtn" style="background: #26a69a; color: white; border: none; padding: 6px 20px; border-radius: 4px; font-weight: 700; font-size: 13px; cursor: pointer;">BUY</button>
+                      <button type="button" id="simSellBtn" style="background: #ef5350; color: white; border: none; padding: 6px 20px; border-radius: 4px; font-weight: 700; font-size: 13px; cursor: pointer;">SELL</button>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <button type="button" id="simEndSessionBtn" style="background: #363a45; color: #ef5350; border: 1px solid #ef5350; padding: 6px 16px; border-radius: 4px; font-weight: 600; font-size: 12px; cursor: pointer;">
+                        <i class="fas fa-stop me-1"></i>End Session
+                      </button>
+                    </div>
+                  </div>
+
+                  <div id="simOptionsTradingSection" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a2e39;">
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: #787b86; white-space: nowrap;">DTE:</label>
+                        <input type="number" class="sim-dark-input" id="simOptionDTE" value="0" min="0" max="365" style="width: 50px;">
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: #787b86; white-space: nowrap;">Strategy:</label>
+                        <select class="sim-dark-select" id="simOptionStrategy" style="width: 155px;">
                           <option value="Long Call">Long Call</option>
                           <option value="Long Put">Long Put</option>
                           <option value="Naked Short Call">Naked Short Call</option>
@@ -2080,59 +2106,59 @@
                           <option value="Short Strangle">Short Strangle</option>
                         </select>
                       </div>
-                      <div class="d-flex align-items-center">
-                        <label class="small me-1" style="color: #666; white-space: nowrap;">TP%:</label>
-                        <input type="number" class="form-control form-control-sm" id="simOptionTP" value="50" step="5" style="width: 60px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: #787b86; white-space: nowrap;">TP%:</label>
+                        <input type="number" class="sim-dark-input" id="simOptionTP" value="50" step="5" style="width: 55px;">
                       </div>
-                      <div class="d-flex align-items-center">
-                        <label class="small me-1" style="color: #666; white-space: nowrap;">SL$:</label>
-                        <input type="number" class="form-control form-control-sm" id="simOptionSL" value="-100" step="10" style="width: 70px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: #787b86; white-space: nowrap;">SL$:</label>
+                        <input type="number" class="sim-dark-input" id="simOptionSL" value="-100" step="10" style="width: 65px;">
                       </div>
-                      <div class="d-flex align-items-center">
-                        <label class="small me-1" style="color: #666; white-space: nowrap;">Det.Bar:</label>
-                        <select class="form-select form-select-sm" id="simOptionDetectionBar" style="width: 70px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: #787b86; white-space: nowrap;">Det.Bar:</label>
+                        <select class="sim-dark-select" id="simOptionDetectionBar" style="width: 65px;">
                           <option value="1" selected>1m</option>
                           <option value="5">5m</option>
                           <option value="10">10m</option>
                           <option value="15">15m</option>
                         </select>
                       </div>
-                      <div class="d-flex align-items-center">
-                        <label class="small me-1" style="color: #666; white-space: nowrap;">Qty:</label>
-                        <input type="number" class="form-control form-control-sm" id="simOptionQuantity" value="10" min="1" style="width: 60px; background: #ffffff; color: #333; border-color: #d0d3da;">
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: #787b86; white-space: nowrap;">Qty:</label>
+                        <input type="number" class="sim-dark-input" id="simOptionQuantity" value="10" min="1" style="width: 55px;">
                       </div>
-                      <button type="button" class="btn btn-sm" id="simOptionTradeBtn" style="background: #3b7cff; color: white; font-weight: 600; padding: 6px 14px;">
-                        <i class="fas fa-bolt me-1"></i>Trade Option
+                      <button type="button" id="simOptionTradeBtn" style="background: #2962ff; color: white; border: none; padding: 6px 14px; border-radius: 4px; font-weight: 600; font-size: 12px; cursor: pointer;">
+                        <i class="fas fa-bolt me-1"></i>Trade
                       </button>
                     </div>
-                    
-                    <div id="simLegConfigSection" class="mt-3 pt-2" style="border-top: 1px solid #e0e3eb;"></div>
 
-                    <div class="mt-3 pt-2 d-flex justify-content-end" style="border-top: 1px solid #e0e3eb;">
-                      <div class="me-4" style="color: #666;">
-                        <span class="small">Options Realized:</span>
-                        <span class="fw-bold ms-1" id="simOptionsRealizedPnl" style="color: #26a69a;">$0.00</span>
+                    <div id="simLegConfigSection" class="mt-2" style="padding-top: 8px; border-top: 1px solid #2a2e39;"></div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #2a2e39;">
+                      <div>
+                        <span style="font-size: 11px; color: #787b86;">Options Realized:</span>
+                        <span id="simOptionsRealizedPnl" style="font-size: 13px; font-weight: 600; color: #787b86; margin-left: 4px;">$0.00</span>
                       </div>
-                      <div style="color: #666;">
-                        <span class="small">Options Unrealized:</span>
-                        <span class="fw-bold ms-1" id="simOptionsUnrealizedPnl" style="color: #666;">$0.00</span>
+                      <div>
+                        <span style="font-size: 11px; color: #787b86;">Options Unrealized:</span>
+                        <span id="simOptionsUnrealizedPnl" style="font-size: 13px; font-weight: 600; color: #787b86; margin-left: 4px;">$0.00</span>
                       </div>
                     </div>
-                  
-                    <div id="simOptionsPositionsCard" class="mt-3 pt-3" style="border-top: 1px solid #e0e3eb; display: none;">
-                      <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0" style="color: #333; font-weight: 600;">
-                          <i class="fas fa-layer-group me-2" style="color: #3b7cff;"></i>Open Options Positions
-                        </h6>
-                        <span id="simOptionsPositionCount" class="badge" style="background: #3b7cff;">0</span>
+
+                    <div id="simOptionsPositionsCard" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #2a2e39;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #d1d4dc;">
+                          <i class="fas fa-layer-group me-1" style="color: #2962ff;"></i>Open Positions
+                        </span>
+                        <span id="simOptionsPositionCount" style="background: #2962ff; color: white; padding: 1px 8px; border-radius: 10px; font-size: 11px;">0</span>
                       </div>
-                      <div id="simOptionsPositionsList" style="max-height: 300px; overflow-y: auto;"></div>
+                      <div id="simOptionsPositionsList" style="max-height: 200px; overflow-y: auto;"></div>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
-            
+
             <div id="simTradeToast" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: none;">
               <div class="d-flex align-items-center p-3 rounded-3 shadow-lg" style="background: #1e222d; color: white; min-width: 300px;">
                 <i id="simToastIcon" class="fas fa-check-circle me-3" style="font-size: 24px;"></i>

@@ -2,29 +2,9 @@ let simAllBars = [];
 let simVisibleBars = [];
 let simCurrentBarIndex = 0;
 let simTradingStartIndex = 0;
-let simChart = null;
 
 let simCurrentMinuteIndex = 0;
 let simTradingStartMinuteIndex = 0;
-
-let simViewportStart = 0;
-let simViewportEnd = 0;
-let simMinBarsVisible = 10;
-let simMaxBarsVisible = 500;
-
-let simIsDragging = false;
-let simDragStartX = 0;
-let simDragStartViewport = 0;
-
-let simVerticalScale = 1.0;
-let simIsYAxisDragging = false;
-let simYAxisDragStartY = 0;
-let simYAxisDragStartScale = 1.0;
-
-let simTouchStartX = 0;
-let simTouchStartViewport = 0;
-let simPinchStartDistance = 0;
-let simPinchStartBarsInView = 0;
 
 let simInitialBalance = 100000;
 let simRealizedPnl = 0;
@@ -47,6 +27,11 @@ const SIM_TIMEFRAME_CONFIG = {
     '4h': { barSize: 'hour', multiplier: 4, label: '4 Hour' }
 };
 
+const TIMEFRAME_MINUTES = {
+    '1m': 1, '5m': 5, '15m': 15, '30m': 30,
+    '1h': 60, '2h': 120, '4h': 240
+};
+
 let simTimeframeData = {};
 let simCurrentTimeframe = '1m';
 let simCurrentSymbol = '';
@@ -57,6 +42,14 @@ let simLoadedTimeframes = 0;
 let simAutoplayTimer = null;
 let simIsPlaying = false;
 
+let simMinuteBarsCache = [];
+
+let lwChart = null;
+let lwCandleSeries = null;
+let lwVolumeSeries = null;
+let lwPositionLines = [];
+let simActiveSessionId = null;
+
 const SIM_API_RATE_LIMIT = 3;
 const SIM_API_RATE_WINDOW = 60000;
 let simApiCallTimestamps = [];
@@ -65,15 +58,12 @@ async function waitForRateLimit() {
     while (true) {
         const now = Date.now();
         simApiCallTimestamps = simApiCallTimestamps.filter(ts => now - ts < SIM_API_RATE_WINDOW);
-        
         if (simApiCallTimestamps.length < SIM_API_RATE_LIMIT) {
             simApiCallTimestamps.push(Date.now());
             return true;
         }
-        
         const oldestCall = simApiCallTimestamps[0];
         const waitTime = SIM_API_RATE_WINDOW - (now - oldestCall) + 100;
-        
         if (waitTime > 0) {
             updateLoadingStatus(`Rate limit: waiting ${Math.ceil(waitTime / 1000)}s...`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -87,154 +77,219 @@ function parseETDateTime(dateStr, timeStr) {
     const testDateEDT = new Date(`${dateStr}T${timeStr}:00-04:00`);
     const estCheck = testDateEST.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
     const [estH, estM] = estCheck.split(':').map(Number);
-    if (estH === hours && estM === minutes) {
-        return testDateEST.getTime();
-    }
+    if (estH === hours && estM === minutes) return testDateEST.getTime();
     return testDateEDT.getTime();
 }
 
 function initSimulatedTrading() {
-    console.log('Initializing Simulated Trading Page');
-    
-    if (document.getElementById('simLoadChartBtn').dataset.initialized) {
-        console.log('Simulated Trading already initialized, skipping');
+    console.log('Initializing Simulated Trading Config Page');
+
+    const loadBtn = document.getElementById('simLoadChartBtn');
+    if (!loadBtn) return;
+
+    if (loadBtn.dataset.initialized) {
+        renderActiveSessionCards();
         return;
     }
-    document.getElementById('simLoadChartBtn').dataset.initialized = 'true';
-    
+    loadBtn.dataset.initialized = 'true';
+
     const today = new Date();
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const fifteenDaysAgo = new Date(today);
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-    
+
     document.getElementById('simChartStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
     document.getElementById('simChartEndDate').value = today.toISOString().split('T')[0];
     document.getElementById('simTradingStartDate').value = fifteenDaysAgo.toISOString().split('T')[0];
-    
-    document.getElementById('simLoadChartBtn').addEventListener('click', loadSimulatedChart);
-    document.getElementById('simResetBtn').addEventListener('click', resetSimulatedChart);
-    document.getElementById('simPrevBar').addEventListener('click', showPreviousBar);
-    document.getElementById('simNextBar').addEventListener('click', showNextBar);
-    
-    document.getElementById('simBuyBtn').addEventListener('click', () => executeTrade('buy'));
-    document.getElementById('simSellBtn').addEventListener('click', () => executeTrade('sell'));
-    document.getElementById('simGotoDateBtn').addEventListener('click', gotoDateTime);
-    document.getElementById('simOptionTradeBtn').addEventListener('click', executeOptionTrade);
-    document.getElementById('simResetViewBtn').addEventListener('click', resetViewToCurrentCandle);
-    document.getElementById('simPlayPauseBtn').addEventListener('click', toggleAutoplay);
-    document.getElementById('simRunAnalysisBtn').addEventListener('click', handleRunAnalysis);
-    
-    document.getElementById('simAutoplaySpeed').addEventListener('change', () => {
-        if (simIsPlaying) {
-            stopAutoplay();
-            startAutoplay();
-        }
-    });
-    
-    document.getElementById('simOptionStrategy').addEventListener('change', buildSimLegConfiguration);
-    buildSimLegConfiguration();
-    
-    const tradingModeSelect = document.getElementById('simTradingMode');
-    if (tradingModeSelect) {
-        tradingModeSelect.addEventListener('change', applyTradingMode);
-        applyTradingMode();
+
+    loadBtn.addEventListener('click', startNewSession);
+
+    renderActiveSessionCards();
+    console.log('Simulated Trading Config Page initialized');
+}
+
+function renderActiveSessionCards() {
+    const section = document.getElementById('simActiveSessionsSection');
+    const container = document.getElementById('simActiveSessionCards');
+    if (!section || !container) return;
+
+    let activeSessions = [];
+    try {
+        activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]');
+    } catch(e) { activeSessions = []; }
+
+    if (activeSessions.length === 0) {
+        section.style.display = 'none';
+        return;
     }
-    
-    document.querySelectorAll('.timeframe-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const tf = e.target.dataset.timeframe;
-            switchTimeframe(tf);
-        });
-    });
-    
-    const canvas = document.getElementById('simCandlestickChart');
-    canvas.addEventListener('mousedown', handleChartMouseDown);
-    canvas.addEventListener('mousemove', handleChartMouseMove);
-    canvas.addEventListener('mouseup', handleChartMouseUp);
-    canvas.addEventListener('mouseleave', handleChartMouseLeave);
-    canvas.addEventListener('wheel', handleChartWheel, { passive: false });
-    canvas.addEventListener('click', handleChartClick);
-    canvas.addEventListener('dblclick', handleChartDoubleClick);
-    
-    canvas.addEventListener('touchstart', handleChartTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleChartTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleChartTouchEnd);
-    
-    console.log('Simulated Trading Page initialized successfully!');
+
+    section.style.display = 'block';
+    container.innerHTML = activeSessions.map((s, i) => {
+        const modeIcon = s.mode === 'options' ? 'fas fa-layer-group' : 'fas fa-chart-line';
+        const modeLabel = s.mode === 'options' ? 'Options' : 'Stock';
+        const pnlColor = (s.realizedPnl || 0) >= 0 ? '#26a69a' : '#ef5350';
+        const pnlStr = `${(s.realizedPnl || 0) >= 0 ? '+' : ''}$${(s.realizedPnl || 0).toFixed(2)}`;
+        const trades = (s.closedTradesCount || 0);
+        const createdDate = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '';
+        return `
+        <div class="col-md-6 col-lg-4">
+          <div class="sim-session-card">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+              <div>
+                <span style="font-size: 18px; font-weight: 700; color: #333;">${s.symbol}</span>
+                <span style="background: ${s.mode === 'options' ? '#f4a261' : '#3b7cff'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-left: 8px;">${modeLabel}</span>
+              </div>
+              <span style="font-size: 11px; color: #999;">${createdDate}</span>
+            </div>
+            <div style="display: flex; gap: 20px; margin-bottom: 12px;">
+              <div>
+                <div style="font-size: 11px; color: #999;">Realized P&L</div>
+                <div style="font-size: 14px; font-weight: 600; color: ${pnlColor};">${pnlStr}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #999;">Trades</div>
+                <div style="font-size: 14px; font-weight: 600; color: #333;">${trades}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #999;">Balance</div>
+                <div style="font-size: 14px; font-weight: 600; color: #333;">$${(s.currentBalance || s.initialBalance || 100000).toLocaleString()}</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="resumeSession(${i})" style="flex: 1; background: #2962ff; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">
+                <i class="fas fa-play me-1"></i> Resume
+              </button>
+              <button onclick="endSessionFromCard(${i})" style="flex: 1; background: #fff; color: #ef5350; border: 1px solid #ef5350; padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">
+                <i class="fas fa-stop me-1"></i> End
+              </button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
 }
 
-function applyTradingMode() {
-    const mode = document.getElementById('simTradingMode').value;
-    const stockSection = document.getElementById('simStockTradingSection');
-    const optionsSection = document.getElementById('simOptionsTradingSection');
-    if (stockSection) stockSection.style.display = mode === 'stock' ? '' : 'none';
-    if (optionsSection) optionsSection.style.display = mode === 'options' ? '' : 'none';
-}
-
-function generateSessionId() {
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yy = String(now.getFullYear()).slice(-2);
-    const hh = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    const mode = document.getElementById('simTradingMode').value;
-    const suffix = mode === 'options' ? 'O' : 'S';
-    return `${dd}${mm}${yy}${hh}${min}${suffix}`;
-}
-
-function buildSessionData() {
-    const mode = document.getElementById('simTradingMode').value;
+function startNewSession() {
     const symbol = document.getElementById('simSymbol').value.toUpperCase().trim();
-    const sessionId = generateSessionId();
-    const trades = mode === 'stock' ? simClosedTrades : simClosedOptionTrades;
-    const realizedPnl = mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl;
-    const initialBalance = simInitialBalance;
+    const chartStartDate = document.getElementById('simChartStartDate').value;
+    const chartEndDate = document.getElementById('simChartEndDate').value;
+    const tradingStartDate = document.getElementById('simTradingStartDate').value;
+    const mode = document.getElementById('simTradingMode').value;
+    const balance = parseFloat(document.getElementById('simAccountBalance').value) || 100000;
+
+    const dateErrorDiv = document.getElementById('simDateError');
+    const dateErrorText = document.getElementById('simDateErrorText');
+    dateErrorDiv.classList.add('d-none');
+
+    if (!symbol || !chartStartDate || !chartEndDate || !tradingStartDate) {
+        dateErrorText.textContent = 'Please fill in all required fields';
+        dateErrorDiv.classList.remove('d-none');
+        return;
+    }
+    if (new Date(tradingStartDate) < new Date(chartStartDate)) {
+        dateErrorText.textContent = 'Trading start date cannot be before chart start date';
+        dateErrorDiv.classList.remove('d-none');
+        return;
+    }
+    if (new Date(tradingStartDate) > new Date(chartEndDate)) {
+        dateErrorText.textContent = 'Trading start date cannot be after chart end date';
+        dateErrorDiv.classList.remove('d-none');
+        return;
+    }
+
+    window._simPendingSession = {
+        symbol, chartStartDate, chartEndDate, tradingStartDate, mode, balance,
+        isNew: true
+    };
+
+    if (typeof navigateToPage === 'function') {
+        navigateToPage('simTradingActive');
+    }
+}
+
+function resumeSession(index) {
+    let activeSessions = [];
+    try { activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]'); } catch(e) {}
+
+    if (index >= activeSessions.length) return;
+    const session = activeSessions[index];
+
+    window._simPendingSession = {
+        symbol: session.symbol,
+        chartStartDate: session.chartStartDate,
+        chartEndDate: session.chartEndDate,
+        tradingStartDate: session.tradingStartDate,
+        mode: session.mode,
+        balance: session.initialBalance,
+        isNew: false,
+        sessionIndex: index,
+        savedState: session
+    };
+
+    if (typeof navigateToPage === 'function') {
+        navigateToPage('simTradingActive');
+    }
+}
+
+function endSessionFromCard(index) {
+    let activeSessions = [];
+    try { activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]'); } catch(e) {}
+    if (index >= activeSessions.length) return;
+
+    const session = activeSessions[index];
+    if (!confirm(`End session for ${session.symbol}? This will save results and remove the active session.`)) return;
+
+    const hasOpenPositions = (session.openPosition != null) || (session.openOptionPositions && session.openOptionPositions.length > 0);
+    if (hasOpenPositions) {
+        alert('This session has open positions. Please resume the session and close all positions before ending.');
+        return;
+    }
+
+    const sessionData = buildSessionDataFromSaved(session);
+    saveCompletedSession(sessionData);
+
+    activeSessions.splice(index, 1);
+    localStorage.setItem('simActiveSessions', JSON.stringify(activeSessions));
+    renderActiveSessionCards();
+
+    if (typeof navigateToPage === 'function') {
+        window._pendingSimResultDetail = sessionData;
+        navigateToPage('simResultDetail');
+    }
+}
+
+function buildSessionDataFromSaved(session) {
+    const trades = session.mode === 'stock' ? (session.closedTrades || []) : (session.closedOptionTrades || []);
+    const realizedPnl = session.realizedPnl || 0;
+    const initialBalance = session.initialBalance || 100000;
 
     let enrichedTrades = [];
-    if (mode === 'stock') {
-        enrichedTrades = simClosedTrades.map((t, i) => {
-            const entryBar = simAllBars[t.entryBarIndex];
-            const exitBar = simAllBars[t.exitBarIndex];
-            return {
-                id: i + 1,
-                side: t.side,
-                quantity: t.quantity,
-                entryPrice: t.entryPrice,
-                exitPrice: t.exitPrice,
-                entryTime: entryBar ? entryBar.timestamp : t.entryTimestamp || '',
-                exitTime: exitBar ? exitBar.timestamp : '',
-                entryBarIndex: t.entryBarIndex,
-                exitBarIndex: t.exitBarIndex,
-                barsInTrade: (t.exitBarIndex || 0) - (t.entryBarIndex || 0),
-                pnl: t.pnl
-            };
-        });
+    if (session.mode === 'stock') {
+        enrichedTrades = trades.map((t, i) => ({
+            id: i + 1, side: t.side, quantity: t.quantity,
+            entryPrice: t.entryPrice, exitPrice: t.exitPrice,
+            entryTime: t.entryTimestamp || '', exitTime: t.exitTimestamp || '',
+            entryBarIndex: t.entryBarIndex, exitBarIndex: t.exitBarIndex,
+            barsInTrade: (t.exitBarIndex || 0) - (t.entryBarIndex || 0), pnl: t.pnl
+        }));
     } else {
-        enrichedTrades = simClosedOptionTrades.map((t, i) => ({
-            id: i + 1,
-            strategy: t.strategy,
+        enrichedTrades = trades.map((t, i) => ({
+            id: i + 1, strategy: t.strategy,
             legs: t.legs ? t.legs.map(l => l.name || `${l.type} ${l.strike}`).join(' / ') : '',
-            quantity: t.quantity,
-            entryPremium: t.totalEntryPremium,
+            quantity: t.quantity, entryPremium: t.totalEntryPremium,
             entryTime: t.entryTimestamp || '',
             exitTime: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].exitTimestamp : '',
-            expiration: t.expiration || '',
-            pnl: t.realizedPnl || 0,
+            expiration: t.expiration || '', pnl: t.realizedPnl || 0,
             exitReason: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].reason : 'manual'
         }));
     }
 
-    const openPos = mode === 'stock' ? simOpenPosition : null;
-    const openOptionPos = mode === 'options' ? simOpenOptionPositions : [];
+    return buildAnalyticsFromTrades(enrichedTrades, session);
+}
 
-    let unrealizedPnl = 0;
-    if (openPos && simVisibleBars.length > 0) {
-        const lastBar = simVisibleBars[simVisibleBars.length - 1];
-        unrealizedPnl = calculatePositionPnl(openPos, lastBar.close);
-    }
-
+function buildAnalyticsFromTrades(enrichedTrades, session) {
+    const initialBalance = session.initialBalance || 100000;
+    const realizedPnl = session.realizedPnl || 0;
     const wins = enrichedTrades.filter(t => t.pnl > 0);
     const losses = enrichedTrades.filter(t => t.pnl <= 0);
     const totalTrades = enrichedTrades.length;
@@ -248,26 +303,20 @@ function buildSessionData() {
     const maxLoss = losses.length > 0 ? Math.min(...losses.map(t => t.pnl)) : 0;
 
     let avgBarsInTrade = 0;
-    if (mode === 'stock' && enrichedTrades.length > 0) {
+    if (session.mode === 'stock' && enrichedTrades.length > 0) {
         avgBarsInTrade = enrichedTrades.reduce((s, t) => s + (t.barsInTrade || 0), 0) / enrichedTrades.length;
     }
 
     const tradeReturns = enrichedTrades.map(t => t.pnl / initialBalance);
     const meanReturn = tradeReturns.length > 0 ? tradeReturns.reduce((s, r) => s + r, 0) / tradeReturns.length : 0;
     const variance = tradeReturns.length > 1
-        ? tradeReturns.reduce((s, r) => s + Math.pow(r - meanReturn, 2), 0) / (tradeReturns.length - 1)
-        : 0;
+        ? tradeReturns.reduce((s, r) => s + Math.pow(r - meanReturn, 2), 0) / (tradeReturns.length - 1) : 0;
     const stdDev = Math.sqrt(variance);
     const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0;
-
-    const riskPerTrade = initialBalance > 0 && totalTrades > 0
-        ? (avgLoss / initialBalance * 100)
-        : 0;
+    const riskPerTrade = initialBalance > 0 && totalTrades > 0 ? (avgLoss / initialBalance * 100) : 0;
     const returnOnRisk = avgLoss > 0 ? (avgWin / avgLoss) : avgWin > 0 ? Infinity : 0;
 
-    let maxDrawdown = 0;
-    let peak = initialBalance;
-    let runningBalance = initialBalance;
+    let maxDrawdown = 0, peak = initialBalance, runningBalance = initialBalance;
     const equityCurve = [{ balance: initialBalance, trade: 0 }];
     enrichedTrades.forEach((t, i) => {
         runningBalance += t.pnl;
@@ -286,44 +335,99 @@ function buildSessionData() {
     });
 
     const netReturn = initialBalance > 0 ? ((runningBalance - initialBalance) / initialBalance * 100) : 0;
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const suffix = session.mode === 'options' ? 'O' : 'S';
+    const sessionId = `${dd}${mm}${yy}${hh}${min}${suffix}`;
 
     return {
-        sessionId,
-        symbol,
-        mode,
-        initialBalance,
-        finalBalance: runningBalance,
-        netPnl: realizedPnl,
-        unrealizedPnl,
-        timestamp: new Date().toISOString(),
-        trades: enrichedTrades,
-        equityCurve,
+        sessionId, symbol: session.symbol, mode: session.mode,
+        initialBalance, finalBalance: runningBalance, netPnl: realizedPnl,
+        unrealizedPnl: 0, timestamp: new Date().toISOString(),
+        trades: enrichedTrades, equityCurve,
         stats: {
-            totalTrades,
-            winRate,
-            wins: wins.length,
-            losses: losses.length,
-            avgWin,
-            avgLoss,
-            avgBarsInTrade,
-            grossProfit,
-            grossLoss,
-            profitFactor,
-            sharpeRatio,
-            maxWin,
-            maxLoss,
-            maxDrawdown,
-            riskPerTrade,
-            returnOnRisk,
-            maxConsecWins,
-            maxConsecLosses,
-            netReturn
+            totalTrades, winRate, wins: wins.length, losses: losses.length,
+            avgWin, avgLoss, avgBarsInTrade, grossProfit, grossLoss,
+            profitFactor, sharpeRatio, maxWin, maxLoss, maxDrawdown,
+            riskPerTrade, returnOnRisk, maxConsecWins, maxConsecLosses, netReturn
         }
     };
 }
 
-function handleRunAnalysis() {
-    const mode = document.getElementById('simTradingMode').value;
+function saveCompletedSession(sessionData) {
+    let savedSessions = [];
+    try { savedSessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]'); } catch(e) {}
+    savedSessions.unshift(sessionData);
+    if (savedSessions.length > 50) savedSessions = savedSessions.slice(0, 50);
+    localStorage.setItem('simTradingSessions', JSON.stringify(savedSessions));
+}
+
+function initSimTradingActive() {
+    console.log('Initializing Simulated Trading Active Page');
+
+    const pending = window._simPendingSession;
+    if (!pending) {
+        console.log('No pending session, going back to config');
+        if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
+        return;
+    }
+
+    setupTradingPageListeners();
+
+    if (pending.isNew) {
+        resetTradingState();
+        simCurrentSymbol = pending.symbol;
+        simChartDates = { start: pending.chartStartDate, end: pending.chartEndDate, tradingStart: pending.tradingStartDate };
+        simInitialBalance = pending.balance;
+        document.getElementById('simTradingMode') && (window._simTradingMode = pending.mode);
+        window._simTradingMode = pending.mode;
+        applyTradingMode();
+        loadSimulatedChart();
+    } else {
+        restoreSession(pending.savedState);
+    }
+}
+
+let _tradingPageListenersSet = false;
+
+function setupTradingPageListeners() {
+    if (_tradingPageListenersSet) return;
+    _tradingPageListenersSet = true;
+
+    document.getElementById('simBackBtn')?.addEventListener('click', handleBackToConfig);
+    document.getElementById('simPrevBar')?.addEventListener('click', showPreviousBar);
+    document.getElementById('simNextBar')?.addEventListener('click', showNextBar);
+    document.getElementById('simPlayPauseBtn')?.addEventListener('click', toggleAutoplay);
+    document.getElementById('simResetViewBtn')?.addEventListener('click', resetViewToCurrentCandle);
+    document.getElementById('simGotoDateBtn')?.addEventListener('click', gotoDateTime);
+    document.getElementById('simBuyBtn')?.addEventListener('click', () => executeTrade('buy'));
+    document.getElementById('simSellBtn')?.addEventListener('click', () => executeTrade('sell'));
+    document.getElementById('simEndSessionBtn')?.addEventListener('click', handleEndSession);
+    document.getElementById('simOptionTradeBtn')?.addEventListener('click', executeOptionTrade);
+    document.getElementById('simOptionStrategy')?.addEventListener('change', buildSimLegConfiguration);
+
+    document.getElementById('simAutoplaySpeed')?.addEventListener('change', () => {
+        if (simIsPlaying) { stopAutoplay(); startAutoplay(); }
+    });
+
+    document.querySelectorAll('.sim-tf-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => switchTimeframe(e.target.dataset.timeframe));
+    });
+}
+
+function handleBackToConfig() {
+    stopAutoplay();
+    saveCurrentSessionState();
+    if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
+}
+
+function handleEndSession() {
+    stopAutoplay();
+    const mode = window._simTradingMode || 'stock';
     const trades = mode === 'stock' ? simClosedTrades : simClosedOptionTrades;
     const hasOpenStock = mode === 'stock' && simOpenPosition;
     const hasOpenOptions = mode === 'options' && simOpenOptionPositions.length > 0;
@@ -332,983 +436,150 @@ function handleRunAnalysis() {
         alert('No trades to analyze. Execute some trades first.');
         return;
     }
-
     if (hasOpenStock || hasOpenOptions) {
-        alert('Please close all open positions before running analysis.');
+        alert('Please close all open positions before ending the session.');
         return;
     }
+    if (!confirm('End this session and save results?')) return;
 
-    if (!confirm('Complete Backtest?')) return;
-
-    if (simIsPlaying) {
-        toggleAutoplay();
-    }
-
-    const sessionData = buildSessionData();
-
-    let savedSessions = [];
-    try {
-        savedSessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]');
-    } catch(e) { savedSessions = []; }
-    savedSessions.unshift(sessionData);
-    if (savedSessions.length > 50) savedSessions = savedSessions.slice(0, 50);
-    localStorage.setItem('simTradingSessions', JSON.stringify(savedSessions));
+    const sessionData = buildCurrentSessionData();
+    saveCompletedSession(sessionData);
+    removeActiveSession();
 
     window._pendingSimResultDetail = sessionData;
-
-    if (typeof navigateToPage === 'function') {
-        navigateToPage('simResultDetail');
-    }
+    if (typeof navigateToPage === 'function') navigateToPage('simResultDetail');
 }
 
-function showLoader(show, text = 'Loading chart data...', progress = '') {
-    const loader = document.getElementById('simChartLoader');
-    const loaderText = document.getElementById('simLoaderText');
-    const loaderProgress = document.getElementById('simLoaderProgress');
-    
-    loader.style.display = show ? 'block' : 'none';
-    if (text) loaderText.textContent = text;
-    if (loaderProgress) loaderProgress.textContent = progress;
-}
+function buildCurrentSessionData() {
+    const mode = window._simTradingMode || 'stock';
+    const trades = mode === 'stock' ? simClosedTrades : simClosedOptionTrades;
+    const realizedPnl = mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl;
 
-function updateLoadingStatus(text) {
-    const statusEl = document.getElementById('simDataLoadingStatus');
-    if (statusEl) statusEl.textContent = text;
-}
-
-async function fetchMinuteBars(symbol, startDate, endDate) {
-    await waitForRateLimit();
-    
-    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `http://${window.location.hostname}:${window.location.port}/api`
-        : '/api';
-    
-    const apiKey = localStorage.getItem('polygonApiKey') || '';
-    
-    try {
-        const response = await fetch(`${apiUrl}/simulated-trading/bars`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': apiKey
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                symbol: symbol,
-                start_date: startDate,
-                end_date: endDate,
-                bar_size: 'minute',
-                multiplier: 1
-            })
+    let enrichedTrades = [];
+    if (mode === 'stock') {
+        enrichedTrades = simClosedTrades.map((t, i) => {
+            const entryBar = simAllBars[t.entryBarIndex];
+            const exitBar = simAllBars[t.exitBarIndex];
+            return {
+                id: i + 1, side: t.side, quantity: t.quantity,
+                entryPrice: t.entryPrice, exitPrice: t.exitPrice,
+                entryTime: entryBar ? entryBar.timestamp : t.entryTimestamp || '',
+                exitTime: exitBar ? exitBar.timestamp : '',
+                entryBarIndex: t.entryBarIndex, exitBarIndex: t.exitBarIndex,
+                barsInTrade: (t.exitBarIndex || 0) - (t.entryBarIndex || 0), pnl: t.pnl
+            };
         });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to fetch data');
-        }
-        
-        const data = await response.json();
-        return data.bars || [];
-    } catch (error) {
-        console.error('Error fetching 1m data:', error);
-        return null;
-    }
-}
-
-function aggregateBars(minuteBars, targetMinutes) {
-    if (!minuteBars || minuteBars.length === 0) return [];
-    if (targetMinutes === 1) return minuteBars;
-    
-    const aggregated = [];
-    const intervalMs = targetMinutes * 60 * 1000;
-    
-    let currentBatch = [];
-    let batchStartTime = null;
-    
-    for (let i = 0; i < minuteBars.length; i++) {
-        const bar = minuteBars[i];
-        const barTime = bar.timestamp;
-        
-        const alignedTime = Math.floor(barTime / intervalMs) * intervalMs;
-        
-        if (batchStartTime === null) {
-            batchStartTime = alignedTime;
-        }
-        
-        if (alignedTime !== batchStartTime && currentBatch.length > 0) {
-            aggregated.push(createAggregatedBar(currentBatch, batchStartTime));
-            currentBatch = [];
-            batchStartTime = alignedTime;
-        }
-        
-        const timeSinceLastBar = i > 0 ? barTime - minuteBars[i - 1].timestamp : 0;
-        if (timeSinceLastBar > 2 * 60 * 1000 && currentBatch.length > 0) {
-            aggregated.push(createAggregatedBar(currentBatch, batchStartTime));
-            currentBatch = [];
-            batchStartTime = alignedTime;
-        }
-        
-        currentBatch.push(bar);
-    }
-    
-    if (currentBatch.length > 0) {
-        aggregated.push(createAggregatedBar(currentBatch, batchStartTime));
-    }
-    
-    return aggregated;
-}
-
-function createAggregatedBar(bars, timestamp, isPartial = false) {
-    return {
-        timestamp: timestamp,
-        open: bars[0].open,
-        high: Math.max(...bars.map(b => b.high)),
-        low: Math.min(...bars.map(b => b.low)),
-        close: bars[bars.length - 1].close,
-        volume: bars.reduce((sum, b) => sum + (b.volume || 0), 0),
-        isPartial: isPartial,
-        minuteCount: bars.length,
-        lastMinuteTimestamp: bars[bars.length - 1].timestamp
-    };
-}
-
-function aggregateBarsUpToMinute(minuteBars, targetMinutes, upToMinuteIndex) {
-    if (!minuteBars || minuteBars.length === 0 || upToMinuteIndex <= 0) return [];
-    if (targetMinutes === 1) {
-        return minuteBars.slice(0, upToMinuteIndex).map(bar => ({
-            ...bar,
-            isPartial: false,
-            minuteCount: 1,
-            lastMinuteTimestamp: bar.timestamp
+    } else {
+        enrichedTrades = simClosedOptionTrades.map((t, i) => ({
+            id: i + 1, strategy: t.strategy,
+            legs: t.legs ? t.legs.map(l => l.name || `${l.type} ${l.strike}`).join(' / ') : '',
+            quantity: t.quantity, entryPremium: t.totalEntryPremium,
+            entryTime: t.entryTimestamp || '',
+            exitTime: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].exitTimestamp : '',
+            expiration: t.expiration || '', pnl: t.realizedPnl || 0,
+            exitReason: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].reason : 'manual'
         }));
     }
-    
-    const aggregated = [];
-    const intervalMs = targetMinutes * 60 * 1000;
-    const barsToProcess = minuteBars.slice(0, upToMinuteIndex);
-    
-    let currentBatch = [];
-    let batchStartTime = null;
-    
-    for (let i = 0; i < barsToProcess.length; i++) {
-        const bar = barsToProcess[i];
-        const barTime = bar.timestamp;
-        const alignedTime = Math.floor(barTime / intervalMs) * intervalMs;
-        
-        if (batchStartTime === null) {
-            batchStartTime = alignedTime;
-        }
-        
-        if (alignedTime !== batchStartTime && currentBatch.length > 0) {
-            aggregated.push(createAggregatedBar(currentBatch, batchStartTime, false));
-            currentBatch = [];
-            batchStartTime = alignedTime;
-        }
-        
-        const timeSinceLastBar = i > 0 ? barTime - barsToProcess[i - 1].timestamp : 0;
-        if (timeSinceLastBar > 2 * 60 * 1000 && currentBatch.length > 0) {
-            aggregated.push(createAggregatedBar(currentBatch, batchStartTime, false));
-            currentBatch = [];
-            batchStartTime = alignedTime;
-        }
-        
-        currentBatch.push(bar);
-    }
-    
-    if (currentBatch.length > 0) {
-        const expectedBarsInCandle = targetMinutes;
-        const isPartial = currentBatch.length < expectedBarsInCandle;
-        aggregated.push(createAggregatedBar(currentBatch, batchStartTime, isPartial));
-    }
-    
-    return aggregated;
-}
 
-const TIMEFRAME_MINUTES = {
-    '1m': 1,
-    '5m': 5,
-    '15m': 15,
-    '30m': 30,
-    '1h': 60,
-    '2h': 120,
-    '4h': 240
-};
-
-let simMinuteBarsCache = [];
-let simLastBarTimestamp = 0;
-let simLastZoomBarsInView = 0;
-let simMouseX = -1;
-let simMouseY = -1;
-let simHoveredBar = null;
-
-async function loadSimulatedChart() {
-    stopAutoplay();
-    const symbol = document.getElementById('simSymbol').value.toUpperCase().trim();
-    const chartStartDate = document.getElementById('simChartStartDate').value;
-    const chartEndDate = document.getElementById('simChartEndDate').value;
-    const tradingStartDate = document.getElementById('simTradingStartDate').value;
-    
-    const dateErrorDiv = document.getElementById('simDateError');
-    const dateErrorText = document.getElementById('simDateErrorText');
-    dateErrorDiv.classList.add('d-none');
-    
-    if (!symbol || !chartStartDate || !chartEndDate || !tradingStartDate) {
-        dateErrorText.textContent = 'Please fill in all required fields';
-        dateErrorDiv.classList.remove('d-none');
-        return;
-    }
-    
-    if (new Date(tradingStartDate) < new Date(chartStartDate)) {
-        dateErrorText.textContent = 'Trading start date cannot be before chart start date';
-        dateErrorDiv.classList.remove('d-none');
-        return;
-    }
-    
-    if (new Date(tradingStartDate) > new Date(chartEndDate)) {
-        dateErrorText.textContent = 'Trading start date cannot be after chart end date';
-        dateErrorDiv.classList.remove('d-none');
-        return;
-    }
-    
-    const loadBtn = document.getElementById('simLoadChartBtn');
-    loadBtn.disabled = true;
-    loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Loading...';
-    
-    simCurrentSymbol = symbol;
-    simChartDates = { start: chartStartDate, end: chartEndDate, tradingStart: tradingStartDate };
-    simTimeframeData = {};
-    simLoadedTimeframes = 0;
-    simIsLoadingTimeframes = true;
-    simMinuteBarsCache = [];
-    
-    document.getElementById('simChartPlaceholder').style.display = 'none';
-    document.getElementById('simCandlestickChart').style.display = 'block';
-    showLoader(true, 'Fetching 1-minute data...', 'Single API call');
-    
-    try {
-        const minuteBars = await fetchMinuteBars(symbol, chartStartDate, chartEndDate);
-        
-        if (!minuteBars || minuteBars.length === 0) {
-            throw new Error('No data found for the specified parameters');
-        }
-        
-        simMinuteBarsCache = minuteBars;
-        console.log(`Fetched ${minuteBars.length} 1-minute bars`);
-        
-        showLoader(true, 'Computing timeframes...', '0 / 7');
-        
-        computeAllTimeframes(tradingStartDate);
-        
-    } catch (error) {
-        console.error('Error loading chart:', error);
-        alert('Error loading chart: ' + error.message);
-        showLoader(false);
-    } finally {
-        loadBtn.disabled = false;
-        loadBtn.innerHTML = '<i class="fas fa-chart-bar me-1"></i> Load Chart';
-    }
-}
-
-function computeAllTimeframes(tradingStartDate) {
-    const defaultTf = '1m';
-    
-    simInitialBalance = parseFloat(document.getElementById('simAccountBalance').value) || 100000;
-    simRealizedPnl = 0;
-    simOpenPosition = null;
-    simClosedTrades = [];
-    
-    for (const tf of SIM_TIMEFRAMES) {
-        updateLoadingStatus(`Computing ${SIM_TIMEFRAME_CONFIG[tf].label}...`);
-        
-        const targetMinutes = TIMEFRAME_MINUTES[tf];
-        const aggregatedBars = aggregateBars(simMinuteBarsCache, targetMinutes);
-        
-        simTimeframeData[tf] = aggregatedBars;
-        simLoadedTimeframes++;
-        
-        updateTimeframeButtons();
-    }
-    
-    simCurrentTimeframe = defaultTf;
-    switchToTimeframeData(defaultTf, tradingStartDate);
-    
-    document.getElementById('simTimeframeSelector').style.display = 'block';
-    document.getElementById('simOHLCDisplay').style.display = 'block';
-    document.getElementById('chartNavigation').style.display = 'flex';
-    document.getElementById('gotoDateGroup').style.display = 'flex';
-    document.getElementById('simTradingControls').style.display = 'block';
-    document.getElementById('simGotoTime').value = '09:30';
-    
-    updateSymbolDisplay();
-    updateTradingDisplay();
-    showLoader(false);
-    
-    simIsLoadingTimeframes = false;
-    updateLoadingStatus(`All timeframes computed (${simMinuteBarsCache.length} 1m bars)`);
-    setTimeout(() => updateLoadingStatus(''), 3000);
-}
-
-function switchToTimeframeData(timeframe, tradingStartDate, retainTimeAndZoom = false) {
-    if (!simMinuteBarsCache || simMinuteBarsCache.length === 0) return;
-    
-    const tradingStartTs = new Date(tradingStartDate || simChartDates.tradingStart).getTime();
-    simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= tradingStartTs);
-    
-    if (simTradingStartMinuteIndex === -1) {
-        simTradingStartMinuteIndex = simMinuteBarsCache.length;
-    }
-    
-    let savedRightEdgeTimestamp = null;
-    let savedMinuteSpan = null;
-    let savedFutureOffset = 0;
-    
-    if (retainTimeAndZoom && simVisibleBars.length > 0) {
-        const barsInView = simViewportEnd - simViewportStart;
-        const oldTargetMinutes = TIMEFRAME_MINUTES[simCurrentTimeframe];
-        savedMinuteSpan = barsInView * oldTargetMinutes;
-        savedFutureOffset = Math.max(0, simViewportEnd - simVisibleBars.length);
-        
-        const rightBarIndex = Math.min(Math.ceil(simViewportEnd) - 1, simVisibleBars.length - 1);
-        if (rightBarIndex >= 0 && rightBarIndex < simVisibleBars.length) {
-            const rightBar = simVisibleBars[rightBarIndex];
-            savedRightEdgeTimestamp = rightBar.lastMinuteTimestamp || rightBar.timestamp;
-        }
-    }
-    
-    if (!retainTimeAndZoom) {
-        simCurrentMinuteIndex = simTradingStartMinuteIndex;
-    }
-    
-    rebuildBarsForCurrentTimeframe();
-    
-    if (retainTimeAndZoom && savedRightEdgeTimestamp !== null && savedMinuteSpan > 0) {
-        const newTargetMinutes = TIMEFRAME_MINUTES[timeframe];
-        const newBarsInView = Math.max(10, Math.round(savedMinuteSpan / newTargetMinutes));
-        
-        let rightBarIndex = simVisibleBars.findIndex(bar => {
-            const barEnd = bar.lastMinuteTimestamp || bar.timestamp;
-            return bar.timestamp <= savedRightEdgeTimestamp && barEnd >= savedRightEdgeTimestamp;
-        });
-        
-        if (rightBarIndex === -1) {
-            rightBarIndex = simVisibleBars.findIndex(bar => bar.timestamp > savedRightEdgeTimestamp);
-            if (rightBarIndex > 0) rightBarIndex--;
-            else if (rightBarIndex === -1) rightBarIndex = simVisibleBars.length - 1;
-        }
-        
-        simViewportEnd = rightBarIndex + 1;
-        simViewportStart = Math.max(0, simViewportEnd - newBarsInView);
-        
-        if (savedFutureOffset > 0) {
-            const oldBarsInView = savedMinuteSpan / TIMEFRAME_MINUTES[simCurrentTimeframe];
-            const futureMinutes = savedFutureOffset * TIMEFRAME_MINUTES[simCurrentTimeframe];
-            const newFutureOffset = Math.round(futureMinutes / newTargetMinutes);
-            const maxFutureSpace = Math.max(newBarsInView, 50);
-            const maxEnd = simVisibleBars.length + maxFutureSpace;
-            simViewportEnd = Math.min(simVisibleBars.length + newFutureOffset, maxEnd);
-            simViewportStart = Math.max(0, simViewportEnd - newBarsInView);
-        }
-    } else {
-        simViewportStart = 0;
-        simViewportEnd = simVisibleBars.length;
-    }
-    
-    renderCandlestickChart();
-    updateNavigationButtons();
-    updateOHLCDisplay();
-}
-
-function rebuildBarsForCurrentTimeframe() {
-    const targetMinutes = TIMEFRAME_MINUTES[simCurrentTimeframe];
-    
-    simAllBars = simTimeframeData[simCurrentTimeframe] || [];
-    
-    simVisibleBars = aggregateBarsUpToMinute(simMinuteBarsCache, targetMinutes, simCurrentMinuteIndex);
-    
-    const tradingStartTs = new Date(simChartDates.tradingStart).getTime();
-    simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= tradingStartTs);
-    if (simTradingStartIndex === -1) simTradingStartIndex = 0;
-    
-    simCurrentBarIndex = simVisibleBars.length;
-}
-
-function switchTimeframe(timeframe) {
-    if (!simTimeframeData[timeframe] || simTimeframeData[timeframe].length === 0) {
-        console.log(`No data available for ${timeframe} yet`);
-        return;
-    }
-    
-    if (simVisibleBars.length > 0) {
-        simLastBarTimestamp = simVisibleBars[simVisibleBars.length - 1].timestamp;
-    }
-    simLastZoomBarsInView = simViewportEnd - simViewportStart;
-    
-    simCurrentTimeframe = timeframe;
-    updateTimeframeButtons();
-    switchToTimeframeData(timeframe, null, true);
-}
-
-function updateTimeframeButtons() {
-    document.querySelectorAll('.timeframe-btn').forEach(btn => {
-        const tf = btn.dataset.timeframe;
-        const dataExists = simTimeframeData.hasOwnProperty(tf);
-        const hasData = dataExists && simTimeframeData[tf] && simTimeframeData[tf].length > 0;
-        const isLoading = !dataExists && simIsLoadingTimeframes;
-        const isActive = tf === simCurrentTimeframe;
-        
-        btn.classList.remove('active', 'btn-outline-secondary', 'btn-secondary');
-        
-        if (isActive) {
-            btn.classList.add('active', 'btn-secondary');
-        } else {
-            btn.classList.add('btn-outline-secondary');
-        }
-        
-        btn.disabled = !hasData;
-        
-        if (isLoading) {
-            btn.style.opacity = '0.5';
-            btn.title = 'Loading...';
-        } else if (dataExists && !hasData) {
-            btn.style.opacity = '0.3';
-            btn.title = 'No data available';
-        } else if (hasData) {
-            btn.style.opacity = '1';
-            btn.title = `${simTimeframeData[tf].length} bars`;
-        } else {
-            btn.style.opacity = '0.5';
-            btn.title = 'Pending';
-        }
+    return buildAnalyticsFromTrades(enrichedTrades, {
+        symbol: simCurrentSymbol, mode: mode,
+        initialBalance: simInitialBalance, realizedPnl: realizedPnl
     });
 }
 
-function updateSymbolDisplay() {
-    const symbolDisplay = document.getElementById('simChartSymbolDisplay');
-    if (symbolDisplay) {
-        symbolDisplay.textContent = simCurrentSymbol;
-    }
-    
-    if (simVisibleBars.length > 0) {
-        const lastBar = simVisibleBars[simVisibleBars.length - 1];
-        const firstBar = simVisibleBars[0];
-        const priceChange = lastBar.close - firstBar.open;
-        const priceChangePercent = ((lastBar.close - firstBar.open) / firstBar.open * 100);
-        
-        const priceDisplay = document.getElementById('simChartPriceDisplay');
-        const changeDisplay = document.getElementById('simChartChangeDisplay');
-        
-        if (priceDisplay) {
-            priceDisplay.textContent = `$${lastBar.close.toFixed(2)}`;
-        }
-        
-        if (changeDisplay) {
-            const isPositive = priceChange >= 0;
-            changeDisplay.innerHTML = `<span style="color: ${isPositive ? '#26a69a' : '#ef5350'};">${isPositive ? '+' : ''}${priceChange.toFixed(2)} (${isPositive ? '+' : ''}${priceChangePercent.toFixed(2)}%)</span>`;
-        }
-    }
-}
+function saveCurrentSessionState() {
+    const mode = window._simTradingMode || 'stock';
+    const sessionState = {
+        symbol: simCurrentSymbol,
+        mode: mode,
+        chartStartDate: simChartDates.start,
+        chartEndDate: simChartDates.end,
+        tradingStartDate: simChartDates.tradingStart,
+        initialBalance: simInitialBalance,
+        currentBalance: simInitialBalance + (mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl),
+        realizedPnl: mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl,
+        currentMinuteIndex: simCurrentMinuteIndex,
+        currentTimeframe: simCurrentTimeframe,
+        openPosition: simOpenPosition,
+        closedTrades: simClosedTrades,
+        closedTradesCount: (mode === 'stock' ? simClosedTrades : simClosedOptionTrades).length,
+        optionsRealizedPnl: simOptionsRealizedPnl,
+        openOptionPositions: simOpenOptionPositions.map(p => ({
+            ...p,
+            legs: p.legs.map(l => ({ ...l, optionBars: [] }))
+        })),
+        closedOptionTrades: simClosedOptionTrades.map(t => ({
+            ...t,
+            legs: t.legs ? t.legs.map(l => ({ ...l, optionBars: [] })) : []
+        })),
+        createdAt: simActiveSessionId || new Date().toISOString()
+    };
 
-function updateOHLCDisplay() {
-    if (simVisibleBars.length === 0) return;
-    
-    const lastBar = simVisibleBars[simVisibleBars.length - 1];
-    
-    document.getElementById('simOHLC_O').textContent = lastBar.open.toFixed(2);
-    document.getElementById('simOHLC_H').textContent = lastBar.high.toFixed(2);
-    document.getElementById('simOHLC_L').textContent = lastBar.low.toFixed(2);
-    document.getElementById('simOHLC_C').textContent = lastBar.close.toFixed(2);
-    document.getElementById('simOHLC_V').textContent = lastBar.volume ? formatVolume(lastBar.volume) : '-';
-}
+    let activeSessions = [];
+    try { activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]'); } catch(e) {}
 
-function formatVolume(vol) {
-    if (vol >= 1000000) return (vol / 1000000).toFixed(2) + 'M';
-    if (vol >= 1000) return (vol / 1000).toFixed(2) + 'K';
-    return vol.toString();
-}
-
-function renderCandlestickChart() {
-    const canvas = document.getElementById('simCandlestickChart');
-    const ctx = canvas.getContext('2d');
-    
-    if (simChart) {
-        simChart.destroy();
-        simChart = null;
-    }
-    
-    drawCandlesticks(ctx, canvas);
-}
-
-function drawCandlesticks(ctx, canvas) {
-    if (simVisibleBars.length === 0) return;
-    
-    const container = document.getElementById('simChartContainer');
-    const dpr = window.devicePixelRatio || 1;
-    const displayWidth = container.clientWidth;
-    const displayHeight = container.clientHeight;
-    
-    canvas.width = displayWidth * dpr;
-    canvas.height = displayHeight * dpr;
-    canvas.style.width = displayWidth + 'px';
-    canvas.style.height = displayHeight + 'px';
-    
-    ctx.scale(dpr, dpr);
-    
-    ctx.clearRect(0, 0, displayWidth, displayHeight);
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, displayWidth, displayHeight);
-    
-    const padding = { top: 20, right: 70, bottom: 55, left: 50 };
-    const chartWidth = displayWidth - padding.left - padding.right;
-    const chartHeight = displayHeight - padding.top - padding.bottom;
-    
-    const viewStart = Math.max(0, Math.floor(simViewportStart));
-    const viewEnd = Math.min(simVisibleBars.length, Math.ceil(simViewportEnd));
-    const viewportBars = simVisibleBars.slice(viewStart, viewEnd);
-    
-    const totalViewportBars = Math.ceil(simViewportEnd) - Math.floor(simViewportStart);
-    const futureBarCount = Math.max(0, Math.ceil(simViewportEnd) - simVisibleBars.length);
-    
-    if (viewportBars.length === 0 && futureBarCount === 0) return;
-    
-    const allHighs = viewportBars.map(b => b.high);
-    const allLows = viewportBars.map(b => b.low);
-    const baseMinPrice = viewportBars.length > 0 ? Math.min(...allLows) * 0.999 : 0;
-    const baseMaxPrice = viewportBars.length > 0 ? Math.max(...allHighs) * 1.001 : 100;
-    const basePriceRange = baseMaxPrice - baseMinPrice;
-    
-    const midPrice = (baseMaxPrice + baseMinPrice) / 2;
-    const scaledRange = basePriceRange * simVerticalScale;
-    const minPrice = midPrice - scaledRange / 2;
-    const maxPrice = midPrice + scaledRange / 2;
-    const priceRange = maxPrice - minPrice;
-    
-    const barsForSpacing = Math.max(totalViewportBars, 1);
-    const barWidth = Math.max(2, Math.min(20, (chartWidth / barsForSpacing) * 0.7));
-    const barSpacing = chartWidth / barsForSpacing;
-    
-    const dataStartOffset = Math.max(0, viewStart - Math.floor(simViewportStart)) * barSpacing;
-    
-    const gridColor = '#eef1f5';
-    ctx.strokeStyle = gridColor;
-    ctx.lineWidth = 1;
-    const gridLines = 8;
-    for (let i = 0; i <= gridLines; i++) {
-        const y = padding.top + (chartHeight * i / gridLines);
-        ctx.beginPath();
-        ctx.moveTo(padding.left, y);
-        ctx.lineTo(displayWidth - padding.right, y);
-        ctx.stroke();
-        
-        const price = maxPrice - (priceRange * i / gridLines);
-        ctx.fillStyle = '#787b86';
-        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(price.toFixed(2), displayWidth - padding.right + 5, y + 4);
-    }
-    
-    const barsBeforeData = Math.max(0, viewStart - Math.floor(simViewportStart));
-    const verticalGridInterval = Math.max(1, Math.floor(totalViewportBars / 10));
-    ctx.strokeStyle = gridColor;
-    
-    for (let slot = 0; slot < totalViewportBars; slot++) {
-        if (slot % verticalGridInterval === 0) {
-            const x = padding.left + (slot * barSpacing) + (barSpacing / 2);
-            ctx.beginPath();
-            ctx.moveTo(x, padding.top);
-            ctx.lineTo(x, padding.top + chartHeight);
-            ctx.stroke();
-        }
-    }
-    
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-    
-    viewportBars.forEach((bar, i) => {
-        const x = padding.left + ((barsBeforeData + i) * barSpacing) + (barSpacing / 2);
-        
-        const yHigh = padding.top + ((maxPrice - bar.high) / priceRange) * chartHeight;
-        const yLow = padding.top + ((maxPrice - bar.low) / priceRange) * chartHeight;
-        const yOpen = padding.top + ((maxPrice - bar.open) / priceRange) * chartHeight;
-        const yClose = padding.top + ((maxPrice - bar.close) / priceRange) * chartHeight;
-        
-        const isGreen = bar.close >= bar.open;
-        const candleColor = isGreen ? '#26a69a' : '#ef5350';
-        
-        ctx.strokeStyle = candleColor;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, yHigh);
-        ctx.lineTo(x, yLow);
-        ctx.stroke();
-        
-        const bodyTop = Math.min(yOpen, yClose);
-        const bodyHeight = Math.max(1, Math.abs(yClose - yOpen));
-        
-        ctx.fillStyle = candleColor;
-        ctx.fillRect(x - barWidth/2, bodyTop, barWidth, bodyHeight);
-    });
-    
-    ctx.restore();
-    
-    const tickInterval = Math.max(1, Math.floor(totalViewportBars / 6));
-    ctx.fillStyle = '#787b86';
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.save();
-    
-    const drawnLabelPositions = [];
-    const minLabelSpacing = 60;
-    
-    viewportBars.forEach((bar, i) => {
-        const slotIndex = barsBeforeData + i;
-        if (slotIndex % tickInterval === 0) {
-            const x = padding.left + (slotIndex * barSpacing) + (barSpacing / 2);
-            
-            const tooClose = drawnLabelPositions.some(pos => Math.abs(pos - x) < minLabelSpacing);
-            if (tooClose) return;
-            
-            drawnLabelPositions.push(x);
-            const date = new Date(bar.timestamp);
-            const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            ctx.fillText(label, x, displayHeight - padding.bottom + 15);
-            
-            const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            ctx.fillText(time, x, displayHeight - padding.bottom + 28);
-        }
-    });
-    ctx.restore();
-    
-    if (viewportBars.length > 0) {
-        const lastBar = viewportBars[viewportBars.length - 1];
-        const lastY = padding.top + ((maxPrice - lastBar.close) / priceRange) * chartHeight;
-        const isGreen = lastBar.close >= lastBar.open;
-        
-        ctx.setLineDash([2, 2]);
-        ctx.strokeStyle = isGreen ? '#26a69a' : '#ef5350';
-        ctx.beginPath();
-        ctx.moveTo(padding.left, lastY);
-        ctx.lineTo(displayWidth - padding.right, lastY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
-        ctx.fillStyle = isGreen ? '#26a69a' : '#ef5350';
-        ctx.fillRect(displayWidth - padding.right, lastY - 9, 65, 18);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(lastBar.close.toFixed(2), displayWidth - padding.right + 5, lastY + 4);
-    }
-    
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(padding.left, padding.top, chartWidth, chartHeight);
-    ctx.clip();
-    
-    drawPositionOnChart(ctx, displayWidth, padding, chartHeight, minPrice, maxPrice, priceRange);
-    drawOptionPositionsOnChart(ctx, displayWidth, padding, chartHeight, minPrice, maxPrice, priceRange);
-    drawCrosshair(ctx, displayWidth, padding, chartHeight, minPrice, maxPrice, priceRange, viewportBars, barSpacing, barsBeforeData);
-    
-    ctx.restore();
-    
-    updateSymbolDisplay();
-    if (!simHoveredBar) {
-        updateOHLCDisplay();
-    }
-    updateTradingDisplay();
-}
-
-function drawCrosshair(ctx, displayWidth, padding, chartHeight, minPrice, maxPrice, priceRange, viewportBars, barSpacing, barsBeforeData) {
-    if (simMouseX < 0 || simMouseY < 0) return;
-    if (simMouseX < padding.left || simMouseX > displayWidth - padding.right) return;
-    if (simMouseY < padding.top || simMouseY > padding.top + chartHeight) return;
-    
-    const container = document.getElementById('simChartContainer');
-    const displayHeight = container.clientHeight;
-    
-    ctx.save();
-    ctx.strokeStyle = '#9598a1';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    
-    ctx.beginPath();
-    ctx.moveTo(simMouseX, padding.top);
-    ctx.lineTo(simMouseX, padding.top + chartHeight);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.moveTo(padding.left, simMouseY);
-    ctx.lineTo(displayWidth - padding.right, simMouseY);
-    ctx.stroke();
-    
-    ctx.setLineDash([]);
-    ctx.restore();
-    
-    const mousePrice = maxPrice - ((simMouseY - padding.top) / chartHeight) * priceRange;
-    ctx.fillStyle = '#363a45';
-    ctx.fillRect(displayWidth - padding.right, simMouseY - 9, 65, 18);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(mousePrice.toFixed(2), displayWidth - padding.right + 5, simMouseY + 4);
-    
-    const offset = barsBeforeData || 0;
-    if (viewportBars.length > 0) {
-        const relativeX = simMouseX - padding.left;
-        const barIndexFloat = relativeX / barSpacing - offset;
-        const barIndex = Math.floor(barIndexFloat);
-        
-        if (barIndex >= 0 && barIndex < viewportBars.length) {
-            const bar = viewportBars[barIndex];
-            const date = new Date(bar.timestamp);
-            const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            const fullLabel = `${dateLabel} ${timeLabel}`;
-            
-            ctx.fillStyle = '#363a45';
-            ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-            const labelWidth = ctx.measureText(fullLabel).width + 10;
-            ctx.fillRect(simMouseX - labelWidth/2, displayHeight - padding.bottom + 5, labelWidth, 18);
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText(fullLabel, simMouseX, displayHeight - padding.bottom + 17);
-        }
-    }
-}
-
-function showNextBar() {
-    stopAutoplay();
-    const skipMinutes = parseInt(document.getElementById('simSkipBars').value) || 1;
-    
-    if (simCurrentMinuteIndex < simMinuteBarsCache.length) {
-        const oldBarsInView = simViewportEnd - simViewportStart;
-        const futureOffset = Math.max(0, simViewportEnd - simVisibleBars.length);
-        
-        let savedRightEdgeTimestamp = null;
-        if (simVisibleBars.length > 0) {
-            const rightBarIndex = Math.min(Math.ceil(simViewportEnd) - 1, simVisibleBars.length - 1);
-            if (rightBarIndex >= 0) {
-                const rightBar = simVisibleBars[rightBarIndex];
-                savedRightEdgeTimestamp = rightBar.lastMinuteTimestamp || rightBar.timestamp;
-            }
-        }
-        
-        simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
-        
-        rebuildBarsForCurrentTimeframe();
-        
-        if (savedRightEdgeTimestamp !== null) {
-            let rightBarIndex = simVisibleBars.findIndex(bar => {
-                const barEnd = bar.lastMinuteTimestamp || bar.timestamp;
-                return bar.timestamp <= savedRightEdgeTimestamp && barEnd >= savedRightEdgeTimestamp;
-            });
-            if (rightBarIndex === -1) {
-                rightBarIndex = simVisibleBars.length - 1;
-            }
-            simViewportEnd = rightBarIndex + 1 + futureOffset;
-            simViewportStart = Math.max(0, simViewportEnd - oldBarsInView);
-        } else {
-            simViewportEnd = simVisibleBars.length;
-            simViewportStart = Math.max(0, simViewportEnd - oldBarsInView);
-        }
-        
-        updateUnrealizedPnl();
-        updateOptionsPnlDisplay();
-        checkOptionTpSlThresholds();
-        
-        redrawChart();
-        updateNavigationButtons();
-    }
-}
-
-function toggleAutoplay() {
-    if (simIsPlaying) {
-        stopAutoplay();
+    const pending = window._simPendingSession;
+    if (pending && !pending.isNew && pending.sessionIndex !== undefined) {
+        activeSessions[pending.sessionIndex] = sessionState;
     } else {
-        startAutoplay();
+        activeSessions.unshift(sessionState);
     }
+
+    localStorage.setItem('simActiveSessions', JSON.stringify(activeSessions));
 }
 
-function startAutoplay() {
-    if (simIsPlaying) return;
-    
-    if (simCurrentMinuteIndex >= simMinuteBarsCache.length) {
-        return;
-    }
-    
-    simIsPlaying = true;
-    const icon = document.getElementById('simPlayIcon');
-    const btn = document.getElementById('simPlayPauseBtn');
-    icon.className = 'fas fa-pause';
-    btn.style.color = '#ef5350';
-    
-    const speed = parseInt(document.getElementById('simAutoplaySpeed').value) || 5000;
-    
-    simAutoplayTimer = setInterval(() => {
-        autoplayAdvance();
-    }, speed);
-}
+function removeActiveSession() {
+    let activeSessions = [];
+    try { activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]'); } catch(e) {}
 
-function stopAutoplay() {
-    simIsPlaying = false;
-    if (simAutoplayTimer) {
-        clearInterval(simAutoplayTimer);
-        simAutoplayTimer = null;
-    }
-    const icon = document.getElementById('simPlayIcon');
-    const btn = document.getElementById('simPlayPauseBtn');
-    icon.className = 'fas fa-play';
-    btn.style.color = '#26a69a';
-}
-
-function autoplayAdvance() {
-    const interval = parseInt(document.getElementById('simAutoplayInterval').value) || 1;
-    
-    if (simCurrentMinuteIndex >= simMinuteBarsCache.length) {
-        stopAutoplay();
-        return;
-    }
-    
-    const oldBarsInView = simViewportEnd - simViewportStart;
-    const futureOffset = Math.max(0, simViewportEnd - simVisibleBars.length);
-    
-    let savedRightEdgeTimestamp = null;
-    if (simVisibleBars.length > 0) {
-        const rightBarIndex = Math.min(Math.ceil(simViewportEnd) - 1, simVisibleBars.length - 1);
-        if (rightBarIndex >= 0) {
-            const rightBar = simVisibleBars[rightBarIndex];
-            savedRightEdgeTimestamp = rightBar.lastMinuteTimestamp || rightBar.timestamp;
-        }
-    }
-    
-    simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + interval);
-    
-    rebuildBarsForCurrentTimeframe();
-    
-    if (savedRightEdgeTimestamp !== null) {
-        let rightBarIndex = simVisibleBars.findIndex(bar => {
-            const barEnd = bar.lastMinuteTimestamp || bar.timestamp;
-            return bar.timestamp <= savedRightEdgeTimestamp && barEnd >= savedRightEdgeTimestamp;
-        });
-        if (rightBarIndex === -1) {
-            rightBarIndex = simVisibleBars.length - 1;
-        }
-        simViewportEnd = rightBarIndex + 1 + futureOffset;
-        simViewportStart = Math.max(0, simViewportEnd - oldBarsInView);
+    const pending = window._simPendingSession;
+    if (pending && !pending.isNew && pending.sessionIndex !== undefined) {
+        activeSessions.splice(pending.sessionIndex, 1);
     } else {
-        simViewportEnd = simVisibleBars.length;
-        simViewportStart = Math.max(0, simViewportEnd - oldBarsInView);
+        const idx = activeSessions.findIndex(s =>
+            s.symbol === simCurrentSymbol && s.chartStartDate === simChartDates.start
+        );
+        if (idx >= 0) activeSessions.splice(idx, 1);
     }
-    
-    updateUnrealizedPnl();
-    updateOptionsPnlDisplay();
-    checkOptionTpSlThresholds();
-    
-    redrawChart();
-    updateNavigationButtons();
-    
-    if (simCurrentMinuteIndex >= simMinuteBarsCache.length) {
-        stopAutoplay();
+
+    localStorage.setItem('simActiveSessions', JSON.stringify(activeSessions));
+}
+
+async function restoreSession(savedState) {
+    resetTradingState();
+    simCurrentSymbol = savedState.symbol;
+    simChartDates = { start: savedState.chartStartDate, end: savedState.chartEndDate, tradingStart: savedState.tradingStartDate };
+    simInitialBalance = savedState.initialBalance;
+    window._simTradingMode = savedState.mode;
+    applyTradingMode();
+
+    simRealizedPnl = savedState.mode === 'stock' ? (savedState.realizedPnl || 0) : 0;
+    simOptionsRealizedPnl = savedState.optionsRealizedPnl || 0;
+    simOpenPosition = savedState.openPosition || null;
+    simClosedTrades = savedState.closedTrades || [];
+    simClosedOptionTrades = savedState.closedOptionTrades || [];
+    simOpenOptionPositions = savedState.openOptionPositions || [];
+    simActiveSessionId = savedState.createdAt;
+
+    const targetMinuteIndex = savedState.currentMinuteIndex || 0;
+    simCurrentTimeframe = savedState.currentTimeframe || '1m';
+
+    await loadSimulatedChart(targetMinuteIndex);
+}
+
+function applyTradingMode() {
+    const mode = window._simTradingMode || 'stock';
+    const stockSection = document.getElementById('simStockTradingSection');
+    const optionsSection = document.getElementById('simOptionsTradingSection');
+    if (stockSection) stockSection.style.display = mode === 'stock' ? 'flex' : 'none';
+    if (optionsSection) optionsSection.style.display = mode === 'options' ? '' : 'none';
+
+    if (mode === 'options') {
+        buildSimLegConfiguration();
     }
 }
 
-function showPreviousBar() {
-    stopAutoplay();
-    const skipMinutes = parseInt(document.getElementById('simSkipBars').value) || 1;
-    
-    if (simCurrentMinuteIndex > simTradingStartMinuteIndex) {
-        const oldBarsInView = simViewportEnd - simViewportStart;
-        const futureOffset = Math.max(0, simViewportEnd - simVisibleBars.length);
-        
-        let savedRightEdgeTimestamp = null;
-        if (simVisibleBars.length > 0) {
-            const rightBarIndex = Math.min(Math.ceil(simViewportEnd) - 1, simVisibleBars.length - 1);
-            if (rightBarIndex >= 0) {
-                const rightBar = simVisibleBars[rightBarIndex];
-                savedRightEdgeTimestamp = rightBar.lastMinuteTimestamp || rightBar.timestamp;
-            }
-        }
-        
-        simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex, simCurrentMinuteIndex - skipMinutes);
-        
-        rebuildBarsForCurrentTimeframe();
-        
-        if (savedRightEdgeTimestamp !== null) {
-            let rightBarIndex = simVisibleBars.findIndex(bar => {
-                const barEnd = bar.lastMinuteTimestamp || bar.timestamp;
-                return bar.timestamp <= savedRightEdgeTimestamp && barEnd >= savedRightEdgeTimestamp;
-            });
-            if (rightBarIndex === -1) {
-                rightBarIndex = simVisibleBars.length - 1;
-            }
-            simViewportEnd = rightBarIndex + 1 + futureOffset;
-            simViewportStart = Math.max(0, simViewportEnd - oldBarsInView);
-        } else {
-            simViewportEnd = simVisibleBars.length;
-            simViewportStart = Math.max(0, simViewportEnd - oldBarsInView);
-        }
-        
-        updateUnrealizedPnl();
-        updateOptionsPnlDisplay();
-        checkOptionTpSlThresholds();
-        
-        redrawChart();
-        updateNavigationButtons();
-    }
-}
-
-function redrawChart() {
-    drawCandlesticks(
-        document.getElementById('simCandlestickChart').getContext('2d'),
-        document.getElementById('simCandlestickChart')
-    );
-}
-
-function updateNavigationButtons() {
-    const prevBtn = document.getElementById('simPrevBar');
-    const nextBtn = document.getElementById('simNextBar');
-    const barInfo = document.getElementById('simBarVisibilityInfo');
-    const timeDisplay = document.getElementById('simCurrentTimeDisplay');
-    const dateField = document.getElementById('simGotoDate');
-    
-    prevBtn.disabled = simCurrentMinuteIndex <= simTradingStartMinuteIndex;
-    nextBtn.disabled = simCurrentMinuteIndex >= simMinuteBarsCache.length;
-    
-    let currentDate = null;
-    let timeStr = '';
-    
-    if (simCurrentMinuteIndex > 0 && simMinuteBarsCache.length > 0) {
-        const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-        if (currentMinuteBar) {
-            currentDate = new Date(currentMinuteBar.timestamp);
-            const hours = currentDate.getHours().toString().padStart(2, '0');
-            const mins = currentDate.getMinutes().toString().padStart(2, '0');
-            timeStr = `${hours}:${mins}`;
-        }
-    }
-    
-    if (timeDisplay && timeStr) {
-        timeDisplay.textContent = timeStr;
-    }
-    
-    if (dateField && currentDate && !dateField.matches(':focus')) {
-        const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-        const day = currentDate.getDate().toString().padStart(2, '0');
-        const year = currentDate.getFullYear();
-        dateField.value = `${month}/${day}/${year}`;
-    }
-    
-    if (barInfo) {
-        const lastBar = simVisibleBars[simVisibleBars.length - 1];
-        const partialIndicator = lastBar && lastBar.isPartial ? '*' : '';
-        const hiddenBars = simAllBars.length - simCurrentBarIndex;
-        barInfo.textContent = `${simVisibleBars.length}${partialIndicator} bars | +${hiddenBars}`;
-    }
-}
-
-function resetSimulatedChart() {
+function resetTradingState() {
     stopAutoplay();
     simAllBars = [];
     simVisibleBars = [];
@@ -1320,364 +591,583 @@ function resetSimulatedChart() {
     simTimeframeData = {};
     simCurrentTimeframe = '1m';
     simIsLoadingTimeframes = false;
-    simVerticalScale = 1.0;
-    
-    simInitialBalance = parseFloat(document.getElementById('simAccountBalance').value) || 100000;
+
+    simInitialBalance = 100000;
     simRealizedPnl = 0;
     simOpenPosition = null;
     simClosedTrades = [];
-    
+
     simOptionsRealizedPnl = 0;
     simOpenOptionPositions = [];
     simClosedOptionTrades = [];
     simOptionBarsCache = {};
-    
-    if (simChart) {
-        simChart.destroy();
-        simChart = null;
+    simActiveSessionId = null;
+
+    destroyLWChart();
+}
+
+function showLoader(show, text = 'Loading chart data...', progress = '') {
+    const loader = document.getElementById('simChartLoader');
+    const loaderText = document.getElementById('simLoaderText');
+    const loaderProgress = document.getElementById('simLoaderProgress');
+    if (!loader) return;
+    loader.style.display = show ? 'block' : 'none';
+    if (text && loaderText) loaderText.textContent = text;
+    if (loaderProgress) loaderProgress.textContent = progress;
+}
+
+function updateLoadingStatus(text) {
+    const statusEl = document.getElementById('simDataLoadingStatus');
+    if (statusEl) statusEl.textContent = text;
+}
+
+async function fetchMinuteBars(symbol, startDate, endDate) {
+    await waitForRateLimit();
+    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
+    const apiKey = localStorage.getItem('polygonApiKey') || '';
+    try {
+        const response = await fetch(`${apiUrl}/simulated-trading/bars`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+            credentials: 'include',
+            body: JSON.stringify({ symbol, start_date: startDate, end_date: endDate, bar_size: 'minute', multiplier: 1 })
+        });
+        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed to fetch data'); }
+        const data = await response.json();
+        return data.bars || [];
+    } catch (error) {
+        console.error('Error fetching 1m data:', error);
+        return null;
     }
-    
-    document.getElementById('chartNavigation').style.display = 'none';
-    document.getElementById('gotoDateGroup').style.display = 'none';
-    document.getElementById('simTimeframeSelector').style.display = 'none';
-    document.getElementById('simOHLCDisplay').style.display = 'none';
-    document.getElementById('simChartPlaceholder').style.display = 'block';
-    document.getElementById('simCandlestickChart').style.display = 'none';
-    document.getElementById('simChartSymbolDisplay').textContent = '';
-    document.getElementById('simChartPriceDisplay').textContent = '';
-    document.getElementById('simChartChangeDisplay').textContent = '';
-    document.getElementById('simTradingControls').style.display = 'none';
-    
-    showLoader(false);
-    updateLoadingStatus('');
+}
+
+function aggregateBars(minuteBars, targetMinutes) {
+    if (!minuteBars || minuteBars.length === 0) return [];
+    if (targetMinutes === 1) return minuteBars;
+    const aggregated = [];
+    const intervalMs = targetMinutes * 60 * 1000;
+    let currentBatch = [];
+    let batchStartTime = null;
+    for (let i = 0; i < minuteBars.length; i++) {
+        const bar = minuteBars[i];
+        const barTime = bar.timestamp;
+        const alignedTime = Math.floor(barTime / intervalMs) * intervalMs;
+        if (batchStartTime === null) batchStartTime = alignedTime;
+        if (alignedTime !== batchStartTime && currentBatch.length > 0) {
+            aggregated.push(createAggregatedBar(currentBatch, batchStartTime));
+            currentBatch = [];
+            batchStartTime = alignedTime;
+        }
+        const timeSinceLastBar = i > 0 ? barTime - minuteBars[i - 1].timestamp : 0;
+        if (timeSinceLastBar > 2 * 60 * 1000 && currentBatch.length > 0) {
+            aggregated.push(createAggregatedBar(currentBatch, batchStartTime));
+            currentBatch = [];
+            batchStartTime = alignedTime;
+        }
+        currentBatch.push(bar);
+    }
+    if (currentBatch.length > 0) aggregated.push(createAggregatedBar(currentBatch, batchStartTime));
+    return aggregated;
+}
+
+function createAggregatedBar(bars, timestamp, isPartial = false) {
+    return {
+        timestamp, open: bars[0].open,
+        high: Math.max(...bars.map(b => b.high)),
+        low: Math.min(...bars.map(b => b.low)),
+        close: bars[bars.length - 1].close,
+        volume: bars.reduce((sum, b) => sum + (b.volume || 0), 0),
+        isPartial, minuteCount: bars.length,
+        lastMinuteTimestamp: bars[bars.length - 1].timestamp
+    };
+}
+
+function aggregateBarsUpToMinute(minuteBars, targetMinutes, upToMinuteIndex) {
+    if (!minuteBars || minuteBars.length === 0 || upToMinuteIndex <= 0) return [];
+    if (targetMinutes === 1) {
+        return minuteBars.slice(0, upToMinuteIndex).map(bar => ({
+            ...bar, isPartial: false, minuteCount: 1, lastMinuteTimestamp: bar.timestamp
+        }));
+    }
+    const aggregated = [];
+    const intervalMs = targetMinutes * 60 * 1000;
+    const barsToProcess = minuteBars.slice(0, upToMinuteIndex);
+    let currentBatch = [];
+    let batchStartTime = null;
+    for (let i = 0; i < barsToProcess.length; i++) {
+        const bar = barsToProcess[i];
+        const barTime = bar.timestamp;
+        const alignedTime = Math.floor(barTime / intervalMs) * intervalMs;
+        if (batchStartTime === null) batchStartTime = alignedTime;
+        if (alignedTime !== batchStartTime && currentBatch.length > 0) {
+            aggregated.push(createAggregatedBar(currentBatch, batchStartTime, false));
+            currentBatch = [];
+            batchStartTime = alignedTime;
+        }
+        const timeSinceLastBar = i > 0 ? barTime - barsToProcess[i - 1].timestamp : 0;
+        if (timeSinceLastBar > 2 * 60 * 1000 && currentBatch.length > 0) {
+            aggregated.push(createAggregatedBar(currentBatch, batchStartTime, false));
+            currentBatch = [];
+            batchStartTime = alignedTime;
+        }
+        currentBatch.push(bar);
+    }
+    if (currentBatch.length > 0) {
+        const expectedBarsInCandle = targetMinutes;
+        const isPartial = currentBatch.length < expectedBarsInCandle;
+        aggregated.push(createAggregatedBar(currentBatch, batchStartTime, isPartial));
+    }
+    return aggregated;
+}
+
+async function loadSimulatedChart(restoreMinuteIndex = null) {
+    stopAutoplay();
+    showLoader(true, 'Fetching 1-minute data...', 'Single API call');
+
+    try {
+        const minuteBars = await fetchMinuteBars(simCurrentSymbol, simChartDates.start, simChartDates.end);
+        if (!minuteBars || minuteBars.length === 0) throw new Error('No data found for the specified parameters');
+
+        simMinuteBarsCache = minuteBars;
+        console.log(`Fetched ${minuteBars.length} 1-minute bars`);
+
+        showLoader(true, 'Computing timeframes...', '0 / 7');
+        computeAllTimeframes(simChartDates.tradingStart, restoreMinuteIndex);
+    } catch (error) {
+        console.error('Error loading chart:', error);
+        alert('Error loading chart: ' + error.message);
+        showLoader(false);
+    }
+}
+
+function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
+    for (const tf of SIM_TIMEFRAMES) {
+        updateLoadingStatus(`Computing ${SIM_TIMEFRAME_CONFIG[tf].label}...`);
+        const targetMinutes = TIMEFRAME_MINUTES[tf];
+        simTimeframeData[tf] = aggregateBars(simMinuteBarsCache, targetMinutes);
+        simLoadedTimeframes++;
+        updateTimeframeButtons();
+    }
+
+    const tradingStartTs = new Date(tradingStartDate).getTime();
+    simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= tradingStartTs);
+    if (simTradingStartMinuteIndex === -1) simTradingStartMinuteIndex = simMinuteBarsCache.length;
+
+    if (restoreMinuteIndex !== null) {
+        simCurrentMinuteIndex = Math.min(restoreMinuteIndex, simMinuteBarsCache.length);
+    } else {
+        simCurrentMinuteIndex = simTradingStartMinuteIndex;
+    }
+
+    rebuildBarsForCurrentTimeframe();
+    createLWChart();
+    updateChartData();
+    updateNavigationButtons();
+    updateSymbolDisplay();
     updateTradingDisplay();
-    
-    const canvas = document.getElementById('simCandlestickChart');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    updatePositionLines();
+    showLoader(false);
+
+    simIsLoadingTimeframes = false;
+    updateLoadingStatus(`All timeframes ready (${simMinuteBarsCache.length} bars)`);
+    setTimeout(() => updateLoadingStatus(''), 3000);
 }
 
-window.addEventListener('resize', () => {
-    if (simVisibleBars.length > 0) {
-        redrawChart();
-    }
-});
+function rebuildBarsForCurrentTimeframe() {
+    const targetMinutes = TIMEFRAME_MINUTES[simCurrentTimeframe];
+    simAllBars = simTimeframeData[simCurrentTimeframe] || [];
+    simVisibleBars = aggregateBarsUpToMinute(simMinuteBarsCache, targetMinutes, simCurrentMinuteIndex);
+    const tradingStartTs = new Date(simChartDates.tradingStart).getTime();
+    simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= tradingStartTs);
+    if (simTradingStartIndex === -1) simTradingStartIndex = 0;
+    simCurrentBarIndex = simVisibleBars.length;
+}
 
-function handleChartMouseDown(e) {
+function createLWChart() {
+    destroyLWChart();
+    const container = document.getElementById('simLWChartContainer');
+    if (!container || typeof LightweightCharts === 'undefined') {
+        console.error('Lightweight Charts not available');
+        return;
+    }
+
+    lwChart = LightweightCharts.createChart(container, {
+        layout: {
+            background: { type: 'solid', color: '#131722' },
+            textColor: '#d1d4dc',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            fontSize: 12
+        },
+        grid: {
+            vertLines: { color: '#1e222d' },
+            horzLines: { color: '#1e222d' }
+        },
+        crosshair: {
+            mode: LightweightCharts.CrosshairMode.Normal,
+            vertLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' },
+            horzLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' }
+        },
+        rightPriceScale: {
+            borderColor: '#2a2e39',
+            scaleMargins: { top: 0.1, bottom: 0.2 }
+        },
+        timeScale: {
+            borderColor: '#2a2e39',
+            timeVisible: true,
+            secondsVisible: false,
+            rightOffset: 5,
+            barSpacing: 6,
+            minBarSpacing: 2
+        },
+        handleScroll: { vertTouchDrag: false },
+        handleScale: { axisPressedMouseMove: true }
+    });
+
+    lwCandleSeries = lwChart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderUpColor: '#26a69a',
+        borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350'
+    });
+
+    lwVolumeSeries = lwChart.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+        scaleMargins: { top: 0.85, bottom: 0 }
+    });
+
+    lwChart.subscribeCrosshairMove(param => {
+        if (!param || !param.time || !param.seriesData) return;
+        const data = param.seriesData.get(lwCandleSeries);
+        if (data) {
+            updateOHLCDisplayForBar({
+                open: data.open, high: data.high, low: data.low, close: data.close,
+                volume: param.seriesData.get(lwVolumeSeries)?.value || 0
+            });
+        }
+    });
+
+    new ResizeObserver(entries => {
+        if (!lwChart) return;
+        const { width, height } = entries[0].contentRect;
+        lwChart.applyOptions({ width, height });
+    }).observe(container);
+}
+
+function destroyLWChart() {
+    if (lwChart) {
+        lwChart.remove();
+        lwChart = null;
+        lwCandleSeries = null;
+        lwVolumeSeries = null;
+        lwPositionLines = [];
+    }
+}
+
+function updateChartData() {
+    if (!lwCandleSeries || !lwVolumeSeries) return;
     if (simVisibleBars.length === 0) return;
-    
-    const canvas = e.target;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const padding = { right: 70 };
-    const displayWidth = rect.width;
-    
-    if (mouseX > displayWidth - padding.right) {
-        simIsYAxisDragging = true;
-        simYAxisDragStartY = e.clientY;
-        simYAxisDragStartScale = simVerticalScale;
-        canvas.style.cursor = 'ns-resize';
-    } else {
-        simIsDragging = true;
-        simDragStartX = e.clientX;
-        simDragStartViewport = simViewportStart;
-        canvas.style.cursor = 'grabbing';
+
+    const candleData = simVisibleBars.map(bar => ({
+        time: Math.floor(bar.timestamp / 1000),
+        open: bar.open, high: bar.high, low: bar.low, close: bar.close
+    }));
+
+    const volumeData = simVisibleBars.map(bar => ({
+        time: Math.floor(bar.timestamp / 1000),
+        value: bar.volume || 0,
+        color: bar.close >= bar.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)'
+    }));
+
+    lwCandleSeries.setData(candleData);
+    lwVolumeSeries.setData(volumeData);
+}
+
+function updatePositionLines() {
+    lwPositionLines.forEach(line => {
+        try { lwCandleSeries.removePriceLine(line); } catch(e) {}
+    });
+    lwPositionLines = [];
+
+    if (!lwCandleSeries) return;
+
+    if (simOpenPosition) {
+        const isBuy = simOpenPosition.side === 'buy';
+        const line = lwCandleSeries.createPriceLine({
+            price: simOpenPosition.entryPrice,
+            color: isBuy ? '#2962ff' : '#f23645',
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: `${isBuy ? 'LONG' : 'SHORT'} ${simOpenPosition.quantity} @ $${simOpenPosition.entryPrice.toFixed(2)}`
+        });
+        lwPositionLines.push(line);
+    }
+
+    for (const pos of simOpenOptionPositions) {
+        for (const leg of pos.legs) {
+            const legColor = leg.position === 'long' ? '#3b7cff' : '#ff9800';
+            const line = lwCandleSeries.createPriceLine({
+                price: leg.strike,
+                color: legColor,
+                lineWidth: 1,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: `${leg.position.toUpperCase()} ${leg.type === 'C' ? 'CALL' : 'PUT'} $${leg.strike}`
+            });
+            lwPositionLines.push(line);
+        }
     }
 }
 
-function handleChartMouseMove(e) {
-    const canvas = document.getElementById('simCandlestickChart');
-    const rect = canvas.getBoundingClientRect();
-    simMouseX = e.clientX - rect.left;
-    simMouseY = e.clientY - rect.top;
-    
-    updateHoveredBar();
-    
-    if (simIsYAxisDragging) {
-        const deltaY = e.clientY - simYAxisDragStartY;
-        const scaleFactor = Math.pow(1.01, deltaY);
-        simVerticalScale = Math.max(0.1, Math.min(10, simYAxisDragStartScale * scaleFactor));
-        redrawChart();
-        return;
+function switchTimeframe(timeframe) {
+    if (!simTimeframeData[timeframe] || simTimeframeData[timeframe].length === 0) return;
+    simCurrentTimeframe = timeframe;
+    updateTimeframeButtons();
+    rebuildBarsForCurrentTimeframe();
+    updateChartData();
+    updatePositionLines();
+
+    if (simVisibleBars.length > 0) {
+        const lastBar = simVisibleBars[simVisibleBars.length - 1];
+        lwChart?.timeScale().scrollToPosition(5, false);
     }
-    
-    if (!simIsYAxisDragging && !simIsDragging) {
-        const padding = { right: 70 };
-        const displayWidth = rect.width;
-        if (simMouseX > displayWidth - padding.right) {
-            canvas.style.cursor = 'ns-resize';
-        } else {
-            canvas.style.cursor = 'crosshair';
-        }
-    }
-    
-    if (simIsDragging && simVisibleBars.length > 0) {
-        const container = document.getElementById('simChartContainer');
-        const chartWidth = container.clientWidth - 80;
-        
-        const deltaX = e.clientX - simDragStartX;
-        const barsInView = simViewportEnd - simViewportStart;
-        const pixelsPerBar = chartWidth / barsInView;
-        const barsDelta = -deltaX / pixelsPerBar;
-        
-        let newStart = simDragStartViewport + barsDelta;
-        let newEnd = newStart + barsInView;
-        
-        if (newStart < 0) {
-            newStart = 0;
-            newEnd = barsInView;
-        }
-        
-        const maxFutureSpace = Math.max(barsInView, 50);
-        const maxEnd = simVisibleBars.length + maxFutureSpace;
-        if (newEnd > maxEnd) {
-            newEnd = maxEnd;
-            newStart = Math.max(0, newEnd - barsInView);
-        }
-        
-        simViewportStart = newStart;
-        simViewportEnd = newEnd;
-    }
-    
-    redrawChart();
 }
 
-function updateHoveredBar() {
-    if (simVisibleBars.length === 0) {
-        simHoveredBar = null;
-        return;
+function updateTimeframeButtons() {
+    document.querySelectorAll('.sim-tf-btn').forEach(btn => {
+        const tf = btn.dataset.timeframe;
+        const hasData = simTimeframeData[tf] && simTimeframeData[tf].length > 0;
+        const isActive = tf === simCurrentTimeframe;
+        btn.classList.toggle('active', isActive);
+        btn.disabled = !hasData;
+        btn.style.opacity = hasData ? '1' : '0.3';
+    });
+}
+
+function showNextBar() {
+    stopAutoplay();
+    const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
+    if (simCurrentMinuteIndex < simMinuteBarsCache.length) {
+        simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
+        rebuildBarsForCurrentTimeframe();
+        updateChartData();
+        updateUnrealizedPnl();
+        updateOptionsPnlDisplay();
+        checkOptionTpSlThresholds();
+        updateNavigationButtons();
+        updatePositionLines();
+        lwChart?.timeScale().scrollToPosition(5, false);
     }
-    
-    const container = document.getElementById('simChartContainer');
-    const padding = { top: 20, right: 70, bottom: 55, left: 50 };
-    const chartWidth = container.clientWidth - padding.left - padding.right;
-    
-    const viewStart = Math.max(0, Math.floor(simViewportStart));
-    const viewEnd = Math.min(simVisibleBars.length, Math.ceil(simViewportEnd));
-    const viewportBars = simVisibleBars.slice(viewStart, viewEnd);
-    
-    if (viewportBars.length === 0) {
-        simHoveredBar = null;
-        return;
+}
+
+function showPreviousBar() {
+    stopAutoplay();
+    const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
+    if (simCurrentMinuteIndex > simTradingStartMinuteIndex) {
+        simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex, simCurrentMinuteIndex - skipMinutes);
+        rebuildBarsForCurrentTimeframe();
+        updateChartData();
+        updateUnrealizedPnl();
+        updateOptionsPnlDisplay();
+        checkOptionTpSlThresholds();
+        updateNavigationButtons();
+        updatePositionLines();
     }
-    
-    const totalViewportBars = Math.ceil(simViewportEnd) - Math.floor(simViewportStart);
-    const barSpacing = chartWidth / Math.max(totalViewportBars, 1);
-    const barsBeforeData = Math.max(0, viewStart - Math.floor(simViewportStart));
-    const relativeX = simMouseX - padding.left;
-    
-    if (relativeX < 0 || relativeX > chartWidth) {
-        simHoveredBar = null;
-        return;
+}
+
+function toggleAutoplay() {
+    if (simIsPlaying) stopAutoplay();
+    else startAutoplay();
+}
+
+function startAutoplay() {
+    if (simIsPlaying) return;
+    if (simCurrentMinuteIndex >= simMinuteBarsCache.length) return;
+    simIsPlaying = true;
+    const icon = document.getElementById('simPlayIcon');
+    if (icon) icon.className = 'fas fa-pause';
+    const speed = parseInt(document.getElementById('simAutoplaySpeed')?.value) || 3000;
+    simAutoplayTimer = setInterval(() => autoplayAdvance(), speed);
+}
+
+function stopAutoplay() {
+    simIsPlaying = false;
+    if (simAutoplayTimer) { clearInterval(simAutoplayTimer); simAutoplayTimer = null; }
+    const icon = document.getElementById('simPlayIcon');
+    if (icon) icon.className = 'fas fa-play';
+}
+
+function autoplayAdvance() {
+    const interval = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
+    if (simCurrentMinuteIndex >= simMinuteBarsCache.length) { stopAutoplay(); return; }
+    simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + interval);
+    rebuildBarsForCurrentTimeframe();
+    updateChartData();
+    updateUnrealizedPnl();
+    updateOptionsPnlDisplay();
+    checkOptionTpSlThresholds();
+    updateNavigationButtons();
+    updatePositionLines();
+    lwChart?.timeScale().scrollToPosition(5, false);
+    if (simCurrentMinuteIndex >= simMinuteBarsCache.length) stopAutoplay();
+}
+
+function resetViewToCurrentCandle() {
+    if (!lwChart || simVisibleBars.length === 0) return;
+    lwChart.timeScale().scrollToPosition(5, true);
+}
+
+function gotoDateTime() {
+    const gotoDateValue = document.getElementById('simGotoDate')?.value.trim();
+    const gotoTimeValue = document.getElementById('simGotoTime')?.value.trim();
+
+    let targetDateStr;
+    let targetTime = '09:30';
+
+    if (gotoDateValue) {
+        const dateParts = gotoDateValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (!dateParts) { alert('Please enter date in MM/DD/YYYY format'); return; }
+        const month = dateParts[1].padStart(2, '0');
+        const day = dateParts[2].padStart(2, '0');
+        targetDateStr = `${dateParts[3]}-${month}-${day}`;
+    } else if (simCurrentMinuteIndex > 0) {
+        const currentBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+        targetDateStr = new Date(currentBar.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    } else { alert('Please enter a date'); return; }
+
+    if (gotoTimeValue) {
+        const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})$/);
+        if (!timeParts) { alert('Please enter time in HH:MM format'); return; }
+        targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
     }
-    
-    const barIndex = Math.floor(relativeX / barSpacing) - barsBeforeData;
-    if (barIndex >= 0 && barIndex < viewportBars.length) {
-        simHoveredBar = viewportBars[barIndex];
-        updateOHLCDisplayForBar(simHoveredBar);
-    } else {
-        simHoveredBar = null;
+
+    const targetTimestamp = parseETDateTime(targetDateStr, targetTime);
+    let targetMinuteIndex = -1;
+    for (let i = simTradingStartMinuteIndex; i < simMinuteBarsCache.length; i++) {
+        if (simMinuteBarsCache[i].timestamp >= targetTimestamp) { targetMinuteIndex = i + 1; break; }
     }
+
+    if (targetMinuteIndex === -1) {
+        if (simMinuteBarsCache.length > 0 && simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp < targetTimestamp) {
+            targetMinuteIndex = simMinuteBarsCache.length;
+        } else { alert('Date/time not found in the available data range'); return; }
+    }
+
+    simCurrentMinuteIndex = targetMinuteIndex;
+    rebuildBarsForCurrentTimeframe();
+    updateChartData();
+    updateUnrealizedPnl();
+    updateOptionsPnlDisplay();
+    checkOptionTpSlThresholds();
+    updateNavigationButtons();
+    updatePositionLines();
+    lwChart?.timeScale().scrollToPosition(5, false);
+}
+
+function updateNavigationButtons() {
+    const prevBtn = document.getElementById('simPrevBar');
+    const nextBtn = document.getElementById('simNextBar');
+    const barInfo = document.getElementById('simBarVisibilityInfo');
+    const timeDisplay = document.getElementById('simCurrentTimeDisplay');
+    const dateField = document.getElementById('simGotoDate');
+
+    if (prevBtn) prevBtn.disabled = simCurrentMinuteIndex <= simTradingStartMinuteIndex;
+    if (nextBtn) nextBtn.disabled = simCurrentMinuteIndex >= simMinuteBarsCache.length;
+
+    let currentDate = null;
+    let timeStr = '';
+    if (simCurrentMinuteIndex > 0 && simMinuteBarsCache.length > 0) {
+        const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+        if (currentMinuteBar) {
+            currentDate = new Date(currentMinuteBar.timestamp);
+            const hours = currentDate.getHours().toString().padStart(2, '0');
+            const mins = currentDate.getMinutes().toString().padStart(2, '0');
+            timeStr = `${hours}:${mins}`;
+        }
+    }
+
+    if (timeDisplay && timeStr) timeDisplay.textContent = timeStr;
+    if (dateField && currentDate && !dateField.matches(':focus')) {
+        const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = currentDate.getDate().toString().padStart(2, '0');
+        dateField.value = `${month}/${day}/${currentDate.getFullYear()}`;
+    }
+
+    if (barInfo) {
+        const hiddenBars = simAllBars.length - simCurrentBarIndex;
+        barInfo.textContent = `${simVisibleBars.length} bars | +${hiddenBars}`;
+    }
+
+    updateOHLCDisplay();
+    updateSymbolDisplay();
+}
+
+function updateSymbolDisplay() {
+    const symbolDisplay = document.getElementById('simChartSymbolDisplay');
+    if (symbolDisplay) symbolDisplay.textContent = simCurrentSymbol;
+
+    if (simVisibleBars.length > 0) {
+        const lastBar = simVisibleBars[simVisibleBars.length - 1];
+        const firstBar = simVisibleBars[0];
+        const priceChange = lastBar.close - firstBar.open;
+        const priceChangePercent = ((lastBar.close - firstBar.open) / firstBar.open * 100);
+
+        const priceDisplay = document.getElementById('simChartPriceDisplay');
+        const changeDisplay = document.getElementById('simChartChangeDisplay');
+
+        if (priceDisplay) priceDisplay.textContent = `$${lastBar.close.toFixed(2)}`;
+        if (changeDisplay) {
+            const isPositive = priceChange >= 0;
+            changeDisplay.innerHTML = `<span style="color: ${isPositive ? '#26a69a' : '#ef5350'};">${isPositive ? '+' : ''}${priceChange.toFixed(2)} (${isPositive ? '+' : ''}${priceChangePercent.toFixed(2)}%)</span>`;
+        }
+    }
+}
+
+function updateOHLCDisplay() {
+    if (simVisibleBars.length === 0) return;
+    const lastBar = simVisibleBars[simVisibleBars.length - 1];
+    updateOHLCDisplayForBar(lastBar);
 }
 
 function updateOHLCDisplayForBar(bar) {
     if (!bar) return;
-    
-    document.getElementById('simOHLC_O').textContent = bar.open.toFixed(2);
-    document.getElementById('simOHLC_H').textContent = bar.high.toFixed(2);
-    document.getElementById('simOHLC_L').textContent = bar.low.toFixed(2);
-    document.getElementById('simOHLC_C').textContent = bar.close.toFixed(2);
-    document.getElementById('simOHLC_V').textContent = bar.volume ? formatVolume(bar.volume) : '-';
+    const oEl = document.getElementById('simOHLC_O');
+    const hEl = document.getElementById('simOHLC_H');
+    const lEl = document.getElementById('simOHLC_L');
+    const cEl = document.getElementById('simOHLC_C');
+    const vEl = document.getElementById('simOHLC_V');
+    if (oEl) oEl.textContent = bar.open.toFixed(2);
+    if (hEl) hEl.textContent = bar.high.toFixed(2);
+    if (lEl) lEl.textContent = bar.low.toFixed(2);
+    if (cEl) cEl.textContent = bar.close.toFixed(2);
+    if (vEl) vEl.textContent = bar.volume ? formatVolume(bar.volume) : '-';
 }
 
-function handleChartMouseUp(e) {
-    const canvas = document.getElementById('simCandlestickChart');
-    if (simIsDragging) {
-        simIsDragging = false;
-        canvas.style.cursor = 'crosshair';
-    }
-    if (simIsYAxisDragging) {
-        simIsYAxisDragging = false;
-        canvas.style.cursor = 'crosshair';
-    }
-}
-
-function handleChartMouseLeave(e) {
-    simMouseX = -1;
-    simMouseY = -1;
-    simHoveredBar = null;
-    simIsDragging = false;
-    simIsYAxisDragging = false;
-    const canvas = document.getElementById('simCandlestickChart');
-    canvas.style.cursor = 'crosshair';
-    updateOHLCDisplay();
-    redrawChart();
-}
-
-function handleChartDoubleClick(e) {
-    const canvas = e.target;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const padding = { right: 70 };
-    const displayWidth = rect.width;
-    
-    if (mouseX > displayWidth - padding.right) {
-        simVerticalScale = 1.0;
-        redrawChart();
-    }
-}
-
-function handleChartWheel(e) {
-    if (simVisibleBars.length === 0) return;
-    
-    if (!e.ctrlKey && !e.metaKey) {
-        return;
-    }
-    
-    e.preventDefault();
-    
-    const canvas = document.getElementById('simCandlestickChart');
-    const container = document.getElementById('simChartContainer');
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    
-    const padding = { left: 50, right: 70 };
-    const chartWidth = container.clientWidth - padding.left - padding.right;
-    
-    const mouseRatio = Math.max(0, Math.min(1, (mouseX - padding.left) / chartWidth));
-    
-    const currentBarsInView = simViewportEnd - simViewportStart;
-    const zoomFactor = e.deltaY > 0 ? 1.15 : 0.85;
-    
-    let newBarsInView = Math.round(currentBarsInView * zoomFactor);
-    newBarsInView = Math.max(simMinBarsVisible, Math.min(simMaxBarsVisible, newBarsInView));
-    
-    const wasInFuture = simViewportEnd > simVisibleBars.length;
-    
-    const mouseBarPosition = simViewportStart + (currentBarsInView * mouseRatio);
-    let newStart = mouseBarPosition - (newBarsInView * mouseRatio);
-    let newEnd = newStart + newBarsInView;
-    
-    if (newStart < 0) {
-        newStart = 0;
-        newEnd = newBarsInView;
-    }
-    
-    if (!wasInFuture && newEnd > simVisibleBars.length) {
-        newEnd = simVisibleBars.length;
-        newStart = Math.max(0, newEnd - newBarsInView);
-    }
-    
-    simViewportStart = newStart;
-    simViewportEnd = newEnd;
-    
-    redrawChart();
-}
-
-function getTouchDistance(touches) {
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-function handleChartTouchStart(e) {
-    if (simVisibleBars.length === 0) return;
-    
-    e.preventDefault();
-    
-    if (e.touches.length === 1) {
-        simTouchStartX = e.touches[0].clientX;
-        simTouchStartViewport = simViewportStart;
-        simPinchStartDistance = 0;
-    } else if (e.touches.length === 2) {
-        simPinchStartDistance = getTouchDistance(e.touches);
-        simPinchStartBarsInView = simViewportEnd - simViewportStart;
-    }
-}
-
-function handleChartTouchMove(e) {
-    if (simVisibleBars.length === 0) return;
-    
-    e.preventDefault();
-    
-    if (e.touches.length === 2 && simPinchStartDistance > 0) {
-        const currentDistance = getTouchDistance(e.touches);
-        const scale = simPinchStartDistance / currentDistance;
-        
-        let newBarsInView = Math.round(simPinchStartBarsInView * scale);
-        newBarsInView = Math.max(simMinBarsVisible, Math.min(simMaxBarsVisible, newBarsInView));
-        
-        const center = (simViewportStart + simViewportEnd) / 2;
-        let newStart = center - newBarsInView / 2;
-        let newEnd = center + newBarsInView / 2;
-        
-        if (newStart < 0) {
-            newStart = 0;
-            newEnd = newBarsInView;
-        }
-        if (newEnd > simVisibleBars.length) {
-            newEnd = simVisibleBars.length;
-            newStart = Math.max(0, newEnd - newBarsInView);
-        }
-        
-        simViewportStart = newStart;
-        simViewportEnd = newEnd;
-        redrawChart();
-        return;
-    }
-    
-    if (e.touches.length !== 1) return;
-    
-    const container = document.getElementById('simChartContainer');
-    const chartWidth = container.clientWidth - 80;
-    
-    const deltaX = e.touches[0].clientX - simTouchStartX;
-    const barsInView = simViewportEnd - simViewportStart;
-    const pixelsPerBar = chartWidth / barsInView;
-    const barsDelta = -deltaX / pixelsPerBar;
-    
-    let newStart = simTouchStartViewport + barsDelta;
-    let newEnd = newStart + barsInView;
-    
-    if (newStart < 0) {
-        newStart = 0;
-        newEnd = barsInView;
-    }
-    if (newEnd > simVisibleBars.length) {
-        newEnd = simVisibleBars.length;
-        newStart = Math.max(0, newEnd - barsInView);
-    }
-    
-    simViewportStart = newStart;
-    simViewportEnd = newEnd;
-    
-    redrawChart();
-}
-
-function handleChartTouchEnd(e) {
+function formatVolume(vol) {
+    if (vol >= 1000000) return (vol / 1000000).toFixed(2) + 'M';
+    if (vol >= 1000) return (vol / 1000).toFixed(2) + 'K';
+    return vol.toString();
 }
 
 function executeTrade(side) {
-    if (simVisibleBars.length === 0) {
-        alert('Load chart data first');
-        return;
-    }
-    
-    const quantity = parseInt(document.getElementById('simQuantity').value) || 1;
+    if (simVisibleBars.length === 0) { alert('Load chart data first'); return; }
+    const quantity = parseInt(document.getElementById('simQuantity')?.value) || 1;
     const currentBar = simVisibleBars[simVisibleBars.length - 1];
     const currentPrice = currentBar.vwap || currentBar.close;
-    
+
     if (!simOpenPosition) {
         simOpenPosition = {
-            side: side,
-            quantity: quantity,
-            entryPrice: currentPrice,
+            side, quantity, entryPrice: currentPrice,
             entryBarIndex: simCurrentBarIndex,
             entryTimestamp: currentBar.timestamp
         };
     } else {
         const isSameSide = simOpenPosition.side === side;
-        
         if (isSameSide) {
             const totalQty = simOpenPosition.quantity + quantity;
             const avgPrice = (simOpenPosition.entryPrice * simOpenPosition.quantity + currentPrice * quantity) / totalQty;
@@ -1685,137 +1175,56 @@ function executeTrade(side) {
             simOpenPosition.entryPrice = avgPrice;
         } else {
             if (quantity < simOpenPosition.quantity) {
-                const closedQty = quantity;
-                const pnlPerShare = simOpenPosition.side === 'buy' 
-                    ? (currentPrice - simOpenPosition.entryPrice)
-                    : (simOpenPosition.entryPrice - currentPrice);
-                const closePnl = pnlPerShare * closedQty;
+                const pnlPerShare = simOpenPosition.side === 'buy'
+                    ? (currentPrice - simOpenPosition.entryPrice) : (simOpenPosition.entryPrice - currentPrice);
+                const closePnl = pnlPerShare * quantity;
                 simRealizedPnl += closePnl;
                 simClosedTrades.push({
-                    side: simOpenPosition.side,
-                    quantity: closedQty,
-                    entryPrice: simOpenPosition.entryPrice,
-                    exitPrice: currentPrice,
-                    exitBarIndex: simCurrentBarIndex,
-                    pnl: closePnl
+                    side: simOpenPosition.side, quantity, entryPrice: simOpenPosition.entryPrice,
+                    exitPrice: currentPrice, exitBarIndex: simCurrentBarIndex,
+                    entryTimestamp: simOpenPosition.entryTimestamp, exitTimestamp: currentBar.timestamp, pnl: closePnl
                 });
-                simOpenPosition.quantity -= closedQty;
+                simOpenPosition.quantity -= quantity;
             } else if (quantity === simOpenPosition.quantity) {
                 const closePnl = calculatePositionPnl(simOpenPosition, currentPrice);
                 simRealizedPnl += closePnl;
                 simClosedTrades.push({
-                    ...simOpenPosition,
-                    exitPrice: currentPrice,
-                    exitBarIndex: simCurrentBarIndex,
-                    pnl: closePnl
+                    ...simOpenPosition, exitPrice: currentPrice, exitBarIndex: simCurrentBarIndex,
+                    exitTimestamp: currentBar.timestamp, pnl: closePnl
                 });
                 simOpenPosition = null;
             } else {
                 const closePnl = calculatePositionPnl(simOpenPosition, currentPrice);
                 simRealizedPnl += closePnl;
                 simClosedTrades.push({
-                    ...simOpenPosition,
-                    exitPrice: currentPrice,
-                    exitBarIndex: simCurrentBarIndex,
-                    pnl: closePnl
+                    ...simOpenPosition, exitPrice: currentPrice, exitBarIndex: simCurrentBarIndex,
+                    exitTimestamp: currentBar.timestamp, pnl: closePnl
                 });
-                const remainingQty = quantity - simOpenPosition.quantity;
                 simOpenPosition = {
-                    side: side,
-                    quantity: remainingQty,
-                    entryPrice: currentPrice,
-                    entryBarIndex: simCurrentBarIndex,
+                    side, quantity: quantity - simOpenPosition.quantity,
+                    entryPrice: currentPrice, entryBarIndex: simCurrentBarIndex,
                     entryTimestamp: currentBar.timestamp
                 };
             }
         }
     }
-    
-    updateTradingDisplay();
-    redrawChart();
-}
 
-function closePosition() {
-    if (!simOpenPosition || simVisibleBars.length === 0) return;
-    
-    const currentBar = simVisibleBars[simVisibleBars.length - 1];
-    const closePnl = calculatePositionPnl(simOpenPosition, currentBar.close);
-    
-    simRealizedPnl += closePnl;
-    const closedPosition = {
-        ...simOpenPosition,
-        exitPrice: currentBar.close,
-        exitBarIndex: simCurrentBarIndex,
-        pnl: closePnl
-    };
-    simClosedTrades.push(closedPosition);
-    
-    showPositionClosedNotice(closedPosition);
-    
-    simOpenPosition = null;
     updateTradingDisplay();
-    redrawChart();
-}
-
-function showPositionClosedNotice(position) {
-    const existingNotice = document.getElementById('positionClosedNotice');
-    if (existingNotice) existingNotice.remove();
-    
-    const isProfit = position.pnl >= 0;
-    const pnlText = `${isProfit ? '+' : ''}$${position.pnl.toFixed(2)}`;
-    const isBuy = position.side === 'buy';
-    
-    const notice = document.createElement('div');
-    notice.id = 'positionClosedNotice';
-    notice.style.cssText = `
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        z-index: 9999;
-        background: ${isProfit ? '#26a69a' : '#ef5350'};
-        color: white;
-        padding: 15px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    notice.innerHTML = `
-        <div style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">Position Closed</div>
-        <div style="font-size: 12px;">${isBuy ? 'LONG' : 'SHORT'} ${position.quantity} @ $${position.entryPrice.toFixed(2)}</div>
-        <div style="font-size: 12px;">Exit: $${position.exitPrice.toFixed(2)}</div>
-        <div style="font-weight: bold; font-size: 14px; margin-top: 5px;">PnL: ${pnlText}</div>
-    `;
-    
-    document.body.appendChild(notice);
-    
-    setTimeout(() => {
-        if (notice.parentNode) {
-            notice.style.opacity = '0';
-            notice.style.transition = 'opacity 0.3s ease-out';
-            setTimeout(() => notice.remove(), 300);
-        }
-    }, 4000);
+    updatePositionLines();
 }
 
 function calculatePositionPnl(position, currentPrice) {
     if (!position) return 0;
-    
     const priceDiff = currentPrice - position.entryPrice;
     const multiplier = position.side === 'buy' ? 1 : -1;
-    
     return priceDiff * position.quantity * multiplier;
 }
 
 function updateUnrealizedPnl() {
     if (simVisibleBars.length === 0) return;
-    
     const currentBar = simVisibleBars[simVisibleBars.length - 1];
-    
     if (simOpenPosition) {
         const unrealizedPnl = calculatePositionPnl(simOpenPosition, currentBar.close);
-        
         const unrealizedEl = document.getElementById('simUnrealizedPnl');
         if (unrealizedEl) {
             const isPositive = unrealizedPnl >= 0;
@@ -1823,27 +1232,27 @@ function updateUnrealizedPnl() {
             unrealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
         }
     }
-    
     updateOptionsPnlDisplay();
 }
 
 function updateTradingDisplay() {
+    const mode = window._simTradingMode || 'stock';
     const balanceEl = document.getElementById('simCurrentBalance');
     const realizedEl = document.getElementById('simRealizedPnl');
     const unrealizedEl = document.getElementById('simUnrealizedPnl');
-    
-    const currentBalance = simInitialBalance + simRealizedPnl;
-    
-    if (balanceEl) {
-        balanceEl.textContent = `$${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-    
+
+    const totalRealized = mode === 'stock' ? simRealizedPnl : (simRealizedPnl + simOptionsRealizedPnl);
+    const currentBalance = simInitialBalance + totalRealized;
+
+    if (balanceEl) balanceEl.textContent = `$${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
     if (realizedEl) {
-        const isPositive = simRealizedPnl >= 0;
-        realizedEl.textContent = `${isPositive ? '+' : ''}$${simRealizedPnl.toFixed(2)}`;
+        const pnl = mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl;
+        const isPositive = pnl >= 0;
+        realizedEl.textContent = `${isPositive ? '+' : ''}$${pnl.toFixed(2)}`;
         realizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
     }
-    
+
     if (unrealizedEl) {
         if (simOpenPosition && simVisibleBars.length > 0) {
             const currentBar = simVisibleBars[simVisibleBars.length - 1];
@@ -1853,272 +1262,11 @@ function updateTradingDisplay() {
             unrealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
         } else {
             unrealizedEl.textContent = '$0.00';
-            unrealizedEl.style.color = '#b2b5be';
+            unrealizedEl.style.color = '#787b86';
         }
     }
-    
+
     updateOptionsPositionsCard();
-}
-
-function resetViewToCurrentCandle() {
-    if (simVisibleBars.length === 0) return;
-    
-    const barsInView = simViewportEnd - simViewportStart;
-    simViewportEnd = simVisibleBars.length;
-    simViewportStart = Math.max(0, simViewportEnd - barsInView);
-    
-    redrawChart();
-}
-
-function gotoDateTime() {
-    const gotoDateValue = document.getElementById('simGotoDate').value.trim();
-    const gotoTimeValue = document.getElementById('simGotoTime').value.trim();
-    
-    let targetDateStr;
-    let targetTime = '09:30';
-    
-    if (gotoDateValue) {
-        const dateParts = gotoDateValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (!dateParts) {
-            alert('Please enter date in MM/DD/YYYY format');
-            return;
-        }
-        const month = dateParts[1].padStart(2, '0');
-        const day = dateParts[2].padStart(2, '0');
-        const year = dateParts[3];
-        targetDateStr = `${year}-${month}-${day}`;
-    } else if (simCurrentMinuteIndex > 0) {
-        const currentBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-        const etDateStr = new Date(currentBar.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-        targetDateStr = etDateStr;
-    } else {
-        alert('Please enter a date');
-        return;
-    }
-    
-    if (gotoTimeValue) {
-        const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})$/);
-        if (!timeParts) {
-            alert('Please enter time in HH:MM format');
-            return;
-        }
-        targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
-    }
-    
-    const targetTimestamp = parseETDateTime(targetDateStr, targetTime);
-    
-    let targetMinuteIndex = -1;
-    for (let i = simTradingStartMinuteIndex; i < simMinuteBarsCache.length; i++) {
-        if (simMinuteBarsCache[i].timestamp >= targetTimestamp) {
-            targetMinuteIndex = i + 1;
-            break;
-        }
-    }
-    
-    if (targetMinuteIndex === -1) {
-        if (simMinuteBarsCache.length > 0 && simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp < targetTimestamp) {
-            targetMinuteIndex = simMinuteBarsCache.length;
-        } else {
-            alert('Date/time not found in the available data range');
-            return;
-        }
-    }
-    
-    simCurrentMinuteIndex = targetMinuteIndex;
-    rebuildBarsForCurrentTimeframe();
-    
-    const barsInView = Math.min(simViewportEnd - simViewportStart, simVisibleBars.length);
-    simViewportEnd = simVisibleBars.length;
-    simViewportStart = Math.max(0, simViewportEnd - barsInView);
-    
-    updateUnrealizedPnl();
-    updateOptionsPnlDisplay();
-    checkOptionTpSlThresholds();
-    redrawChart();
-    updateNavigationButtons();
-}
-
-function handleChartClick(e) {
-    if (simVisibleBars.length === 0) return;
-    
-    const canvas = document.getElementById('simCandlestickChart');
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
-    
-    if (simOpenPosition) {
-        const closeButtonInfo = getPositionCloseButtonBounds(canvas);
-        if (closeButtonInfo) {
-            const { x, y, width, height } = closeButtonInfo;
-            if (clickX >= x && clickX <= x + width && clickY >= y && clickY <= y + height) {
-                closePosition();
-                return;
-            }
-        }
-    }
-    
-    for (const pos of simOpenOptionPositions) {
-        if (pos._closeButtonBounds) {
-            const { x, y, width, height } = pos._closeButtonBounds;
-            if (clickX >= x && clickX <= x + width && clickY >= y && clickY <= y + height) {
-                closeOptionPosition(pos.id);
-                return;
-            }
-        }
-        
-        if (pos._boxBounds) {
-            const { x, y, width, height } = pos._boxBounds;
-            if (clickX >= x && clickX <= x + width && clickY >= y && clickY <= y + height) {
-                showPartialCloseModal(pos);
-                return;
-            }
-        }
-    }
-}
-
-function showPartialCloseModal(pos) {
-    const existingModal = document.getElementById('partialCloseModal');
-    if (existingModal) existingModal.remove();
-    
-    const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-    const currentTimestamp = currentMinuteBar ? currentMinuteBar.timestamp : Date.now();
-    const unrealizedPnl = calculateOptionPositionPnl(pos, currentTimestamp);
-    
-    const modal = document.createElement('div');
-    modal.id = 'partialCloseModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;';
-    
-    modal.innerHTML = `
-        <div style="background: white; padding: 20px; border-radius: 8px; max-width: 350px; width: 90%;">
-            <h5 style="margin: 0 0 15px 0; color: #333;">${pos.strategy}</h5>
-            <div style="margin-bottom: 10px; color: #666; font-size: 14px;">
-                <div>Open Contracts: <strong>${pos.remainingQuantity}</strong></div>
-                <div>Current PnL: <strong style="color: ${unrealizedPnl >= 0 ? '#26a69a' : '#ef5350'}">${unrealizedPnl >= 0 ? '+' : ''}$${unrealizedPnl.toFixed(2)}</strong></div>
-            </div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; color: #333; font-size: 14px;">Contracts to Close:</label>
-                <input type="number" id="partialCloseQty" value="${pos.remainingQuantity}" min="1" max="${pos.remainingQuantity}" 
-                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button id="partialCloseConfirm" style="flex: 1; padding: 10px; background: #ef5350; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                    Close Position
-                </button>
-                <button id="partialCloseCancel" style="flex: 1; padding: 10px; background: #e0e0e0; color: #333; border: none; border-radius: 4px; cursor: pointer;">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    document.getElementById('partialCloseConfirm').onclick = () => {
-        const qty = parseInt(document.getElementById('partialCloseQty').value) || pos.remainingQuantity;
-        const clampedQty = Math.max(1, Math.min(qty, pos.remainingQuantity));
-        closeOptionPosition(pos.id, clampedQty);
-        modal.remove();
-    };
-    
-    document.getElementById('partialCloseCancel').onclick = () => modal.remove();
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-}
-
-function getPositionCloseButtonBounds(canvas) {
-    if (!simOpenPosition || simVisibleBars.length === 0) return null;
-    
-    const container = document.getElementById('simChartContainer');
-    const displayWidth = container.clientWidth;
-    const padding = { top: 20, right: 70, bottom: 55, left: 50 };
-    const chartHeight = container.clientHeight - padding.top - padding.bottom;
-    
-    const viewStart = Math.max(0, Math.floor(simViewportStart));
-    const viewEnd = Math.min(simVisibleBars.length, Math.ceil(simViewportEnd));
-    const viewportBars = simVisibleBars.slice(viewStart, viewEnd);
-    
-    if (viewportBars.length === 0) return null;
-    
-    const allHighs = viewportBars.map(b => b.high);
-    const allLows = viewportBars.map(b => b.low);
-    const baseMinPrice = Math.min(...allLows) * 0.999;
-    const baseMaxPrice = Math.max(...allHighs) * 1.001;
-    const basePriceRange = baseMaxPrice - baseMinPrice;
-    
-    const midPrice = (baseMaxPrice + baseMinPrice) / 2;
-    const scaledRange = basePriceRange * simVerticalScale;
-    const minPrice = midPrice - scaledRange / 2;
-    const maxPrice = midPrice + scaledRange / 2;
-    const priceRange = maxPrice - minPrice;
-    
-    const posY = padding.top + ((maxPrice - simOpenPosition.entryPrice) / priceRange) * chartHeight;
-    
-    const boxWidth = 120;
-    const boxHeight = 40;
-    const boxX = displayWidth - padding.right - boxWidth - 10;
-    const boxY = posY - boxHeight / 2;
-    
-    return {
-        x: boxX + boxWidth - 18,
-        y: boxY + 2,
-        width: 16,
-        height: 16
-    };
-}
-
-function drawPositionOnChart(ctx, displayWidth, padding, chartHeight, minPrice, maxPrice, priceRange) {
-    if (!simOpenPosition) return;
-    
-    const posY = padding.top + ((maxPrice - simOpenPosition.entryPrice) / priceRange) * chartHeight;
-    
-    const isBuy = simOpenPosition.side === 'buy';
-    const posColor = isBuy ? '#2962ff' : '#f23645';
-    
-    ctx.save();
-    ctx.strokeStyle = posColor;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(padding.left, posY);
-    ctx.lineTo(displayWidth - padding.right, posY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-    
-    const currentBar = simVisibleBars[simVisibleBars.length - 1];
-    const unrealizedPnl = calculatePositionPnl(simOpenPosition, currentBar.close);
-    const isProfit = unrealizedPnl >= 0;
-    
-    const boxWidth = 120;
-    const boxHeight = 40;
-    const boxX = displayWidth - padding.right - boxWidth - 10;
-    const boxY = posY - boxHeight / 2;
-    
-    ctx.fillStyle = isProfit ? 'rgba(38, 166, 154, 0.9)' : 'rgba(239, 83, 80, 0.9)';
-    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-    
-    ctx.strokeStyle = isProfit ? '#26a69a' : '#ef5350';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'left';
-    
-    ctx.fillText(`${isBuy ? 'LONG' : 'SHORT'} ${simOpenPosition.quantity}`, boxX + 5, boxY + 12);
-    ctx.fillText(`@ $${simOpenPosition.entryPrice.toFixed(2)}`, boxX + 5, boxY + 24);
-    
-    const pnlText = `${isProfit ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
-    ctx.fillText(pnlText, boxX + 5, boxY + 36);
-    
-    const closeX = boxX + boxWidth - 18;
-    const closeY = boxY + 2;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.fillRect(closeX, closeY, 16, 16);
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('X', closeX + 8, closeY + 12);
 }
 
 const SIM_STRATEGY_LEGS = {
@@ -2153,57 +1301,43 @@ const SIM_LEG_DIRECTION_RULES = {
 
 function getLegDirectionRequirement(strategy, legIndex) {
     const rules = SIM_LEG_DIRECTION_RULES[strategy];
-    if (rules && rules[legIndex] !== undefined) {
-        return rules[legIndex];
-    }
+    if (rules && rules[legIndex] !== undefined) return rules[legIndex];
     return null;
 }
 
 function updateLegRefLabel(legIndex, type) {
-    const strategy = document.getElementById('simOptionStrategy').value;
-    const refSelect = document.querySelector(`.sim-leg-ref[data-leg="${legIndex}"]`);
-    const dirSelect = document.querySelector(`.sim-leg-direction[data-leg="${legIndex}"]`);
     const label = document.querySelector(`.sim-leg-value-label[data-leg="${legIndex}"]`);
-    
-    if (!refSelect || !label) return;
-    
-    const refLegNum = parseInt(refSelect.value) + 1;
-    const direction = dirSelect ? dirSelect.value : 'below';
+    if (!label) return;
     const symbol = type === 'dollar' ? '$' : '%';
-    
     label.textContent = `${symbol}:`;
 }
 
 function buildSimLegConfiguration() {
-    const strategy = document.getElementById('simOptionStrategy').value;
+    const strategy = document.getElementById('simOptionStrategy')?.value;
     const container = document.getElementById('simLegConfigSection');
-    
-    if (!container) return;
-    
+    if (!container || !strategy) return;
+
     const legs = SIM_STRATEGY_LEGS[strategy];
-    if (!legs || legs.length === 0) {
-        container.innerHTML = '';
-        return;
-    }
-    
-    let html = '<div class="d-flex flex-wrap" style="gap: 12px;">';
-    
+    if (!legs || legs.length === 0) { container.innerHTML = ''; return; }
+
+    const inputStyle = 'background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
+    let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+
     legs.forEach((leg, index) => {
         const badgeColor = leg.type === 'C' ? '#3b7cff' : '#f4a261';
         const positionBadge = leg.position === 'long' ? '#26a69a' : '#ef5350';
         const legDirection = getLegDirectionRequirement(strategy, index);
         const dirLabel = legDirection ? legDirection : 'from';
-        
+
         html += `
-            <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; min-width: 200px;">
-                <div class="d-flex align-items-center mb-2" style="gap: 6px;">
-                    <span style="font-weight: 600; color: #333; font-size: 12px;">Leg ${index + 1}: ${leg.name}</span>
-                    <span style="background: ${badgeColor}; color: white; padding: 1px 6px; border-radius: 3px; font-size: 10px;">${leg.type === 'C' ? 'Call' : 'Put'}</span>
-                    <span style="background: ${positionBadge}; color: white; padding: 1px 6px; border-radius: 3px; font-size: 10px;">${leg.position}</span>
+            <div style="background: #1a1e2e; border: 1px solid #2a2e39; border-radius: 6px; padding: 8px; min-width: 190px;">
+                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;">
+                    <span style="font-weight: 600; color: #d1d4dc; font-size: 11px;">Leg ${index + 1}: ${leg.name}</span>
+                    <span style="background: ${badgeColor}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.type === 'C' ? 'Call' : 'Put'}</span>
+                    <span style="background: ${positionBadge}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.position}</span>
                 </div>
-                <div class="mb-2">
-                    <label class="small" style="color: #666; font-size: 11px;">Strike Selection:</label>
-                    <select class="form-select form-select-sm sim-leg-method" data-leg-index="${index}" style="background: #fff; color: #333; border-color: #d0d3da; font-size: 11px;">
+                <div style="margin-bottom: 4px;">
+                    <select class="sim-leg-method" data-leg-index="${index}" style="${inputStyle} width: 100%;">
                         <option value="pct_underlying" selected>% from Underlying</option>
                         <option value="dollar_underlying">$ from Underlying</option>
                         <option value="exact_strike">Exact Strike Price</option>
@@ -2213,14 +1347,13 @@ function buildSimLegConfiguration() {
                         ${index > 0 ? `<option value="pct_leg">% ${dirLabel} Leg</option>` : ''}
                     </select>
                 </div>
-                <div id="simLegParams${index}" class="d-flex flex-wrap" style="gap: 6px;"></div>
-            </div>
-        `;
+                <div id="simLegParams${index}" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+            </div>`;
     });
-    
+
     html += '</div>';
     container.innerHTML = html;
-    
+
     container.querySelectorAll('.sim-leg-method').forEach(select => {
         select.addEventListener('change', (e) => updateSimLegParams(parseInt(e.target.dataset.legIndex), e.target.value));
         updateSimLegParams(parseInt(select.dataset.legIndex), select.value);
@@ -2230,181 +1363,109 @@ function buildSimLegConfiguration() {
 function updateSimLegParams(legIndex, method) {
     const paramsContainer = document.getElementById(`simLegParams${legIndex}`);
     if (!paramsContainer) return;
-    
-    const strategy = document.getElementById('simOptionStrategy').value;
+
+    const strategy = document.getElementById('simOptionStrategy')?.value;
     const requiredDirection = getLegDirectionRequirement(strategy, legIndex);
-    
-    const inputStyle = 'background: #fff; color: #333; border-color: #d0d3da; font-size: 11px;';
+    const inputStyle = 'background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '';
-    
+
     const buildDirectionDropdown = (legIdx, methodType = '') => {
         const dirRequired = getLegDirectionRequirement(strategy, legIdx);
         const defaultDir = dirRequired || 'below';
         const isDisabled = dirRequired !== null;
-        const onChangeHandler = methodType ? `onchange="updateLegRefLabel(${legIdx}, '${methodType}')"` : '';
-        return `
-            <div class="d-flex align-items-center" style="gap: 4px;">
-                <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Direction:</label>
-                <select class="form-select form-select-sm sim-leg-direction" data-leg="${legIdx}" style="width: 65px; ${inputStyle}" ${isDisabled ? 'disabled' : ''} ${onChangeHandler}>
-                    <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
-                    <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
-                </select>
-            </div>
-        `;
+        return `<div style="display: flex; align-items: center; gap: 3px;">
+            <label style="font-size: 10px; color: #787b86; white-space: nowrap;">Dir:</label>
+            <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 60px;" ${isDisabled ? 'disabled' : ''}>
+                <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
+                <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
+            </select></div>`;
     };
-    
+
     switch (method) {
         case 'exact_strike':
-            html = `
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Strike:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="width: 70px; ${inputStyle}">
-                </div>
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Fallback:</label>
-                    <select class="form-select form-select-sm sim-leg-fallback" data-leg="${legIndex}" style="width: 70px; ${inputStyle}">
-                        <option value="closest">Closest</option>
-                        <option value="higher">Higher</option>
-                        <option value="lower">Lower</option>
-                        <option value="exactly">Exactly</option>
-                    </select>
-                </div>
-            `;
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Strike:</label>
+                <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="${inputStyle} width:65px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">FB:</label>
+                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
+                <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
             break;
         case 'dollar_underlying':
-            html = `
-                ${buildDirectionDropdown(legIndex)}
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">$:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="width: 60px; ${inputStyle}">
-                </div>
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Fallback:</label>
-                    <select class="form-select form-select-sm sim-leg-fallback" data-leg="${legIndex}" style="width: 70px; ${inputStyle}">
-                        <option value="closest">Closest</option>
-                        <option value="higher">Higher</option>
-                        <option value="lower">Lower</option>
-                    </select>
-                </div>
-            `;
+            html = `${buildDirectionDropdown(legIndex)}
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">$:</label>
+                <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">FB:</label>
+                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
+                <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
         case 'pct_underlying':
-            html = `
-                ${buildDirectionDropdown(legIndex)}
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">%:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="width: 60px; ${inputStyle}">
-                </div>
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Fallback:</label>
-                    <select class="form-select form-select-sm sim-leg-fallback" data-leg="${legIndex}" style="width: 70px; ${inputStyle}">
-                        <option value="closest">Closest</option>
-                        <option value="higher">Higher</option>
-                        <option value="lower">Lower</option>
-                    </select>
-                </div>
-            `;
+            html = `${buildDirectionDropdown(legIndex)}
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">%:</label>
+                <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">FB:</label>
+                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
+                <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
         case 'mid_price':
-            html = `
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Min $:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-min" data-leg="${legIndex}" value="1" step="0.5" style="width: 55px; ${inputStyle}">
-                </div>
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Max $:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-max" data-leg="${legIndex}" value="5" step="0.5" style="width: 55px; ${inputStyle}">
-                </div>
-            `;
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Min$:</label>
+                <input type="number" class="sim-leg-min" data-leg="${legIndex}" value="1" step="0.5" style="${inputStyle} width:50px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Max$:</label>
+                <input type="number" class="sim-leg-max" data-leg="${legIndex}" value="5" step="0.5" style="${inputStyle} width:50px;"></div>`;
             break;
         case 'delta':
-            html = `
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Delta:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-delta" data-leg="${legIndex}" value="0.30" step="0.05" min="0" max="1" style="width: 60px; ${inputStyle}">
-                </div>
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Method:</label>
-                    <select class="form-select form-select-sm sim-leg-delta-method" data-leg="${legIndex}" style="width: 75px; ${inputStyle}">
-                        <option value="closest">Closest</option>
-                        <option value="above">Above</option>
-                        <option value="below">Below</option>
-                        <option value="between">Between</option>
-                        <option value="exactly">Exactly</option>
-                    </select>
-                </div>
-            `;
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Delta:</label>
+                <input type="number" class="sim-leg-delta" data-leg="${legIndex}" value="0.30" step="0.05" min="0" max="1" style="${inputStyle} width:55px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Method:</label>
+                <select class="sim-leg-delta-method" data-leg="${legIndex}" style="${inputStyle} width:70px;">
+                <option value="closest">Closest</option><option value="above">Above</option><option value="below">Below</option><option value="between">Between</option><option value="exactly">Exactly</option></select></div>`;
             break;
-        case 'dollar_leg':
-            const dollarLegDir = requiredDirection || 'below';
-            const defaultDollarRef = legIndex > 0 ? legIndex - 1 : 0;
-            html = `
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Ref:</label>
-                    <select class="form-select form-select-sm sim-leg-ref" data-leg="${legIndex}" style="width: 55px; ${inputStyle}" onchange="updateLegRefLabel(${legIndex}, 'dollar')">
-                        ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultDollarRef ? 'selected' : ''}>Leg ${i + 1}</option>`).join('')}
-                    </select>
-                </div>
+        case 'dollar_leg': {
+            const defaultRef = legIndex > 0 ? legIndex - 1 : 0;
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Ref:</label>
+                <select class="sim-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:50px;">
+                ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
                 ${buildDirectionDropdown(legIndex, 'dollar')}
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small sim-leg-value-label" data-leg="${legIndex}" style="color: #666; font-size: 10px; white-space: nowrap;">$:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-value" data-leg="${legIndex}" data-param="value" value="1" step="1" min="0" style="width: 55px; ${inputStyle}">
-                </div>
-            `;
+                <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#787b86;">$:</label>
+                <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="1" step="1" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
-        case 'pct_leg':
-            const pctLegDir = requiredDirection || 'below';
-            const defaultPctRef = legIndex > 0 ? legIndex - 1 : 0;
-            html = `
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small" style="color: #666; font-size: 10px; white-space: nowrap;">Ref:</label>
-                    <select class="form-select form-select-sm sim-leg-ref" data-leg="${legIndex}" style="width: 55px; ${inputStyle}" onchange="updateLegRefLabel(${legIndex}, 'pct')">
-                        ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultPctRef ? 'selected' : ''}>Leg ${i + 1}</option>`).join('')}
-                    </select>
-                </div>
+        }
+        case 'pct_leg': {
+            const defaultRef = legIndex > 0 ? legIndex - 1 : 0;
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Ref:</label>
+                <select class="sim-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:50px;">
+                ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
                 ${buildDirectionDropdown(legIndex, 'pct')}
-                <div class="d-flex align-items-center" style="gap: 4px;">
-                    <label class="small sim-leg-value-label" data-leg="${legIndex}" style="color: #666; font-size: 10px; white-space: nowrap;">%:</label>
-                    <input type="number" class="form-control form-control-sm sim-leg-value" data-leg="${legIndex}" data-param="value" value="2" step="0.5" min="0" style="width: 55px; ${inputStyle}">
-                </div>
-            `;
+                <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#787b86;">%:</label>
+                <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="2" step="0.5" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
+        }
     }
-    
+
     paramsContainer.innerHTML = html;
 }
 
 function collectSimLegConfigurations() {
     const legs = [];
-    const strategy = document.getElementById('simOptionStrategy').value;
+    const strategy = document.getElementById('simOptionStrategy')?.value;
     const strategyLegs = SIM_STRATEGY_LEGS[strategy] || [];
-    
+
     document.querySelectorAll('#simLegConfigSection > div > div').forEach((card, index) => {
         if (index >= strategyLegs.length) return;
-        
         const methodSelect = card.querySelector('.sim-leg-method');
         if (!methodSelect) return;
-        
+
         const method = methodSelect.value;
         const legInfo = strategyLegs[index];
-        
-        const leg = {
-            method: method,
-            name: legInfo.name,
-            type: legInfo.type,
-            position: legInfo.position
-        };
-        
+        const leg = { method, name: legInfo.name, type: legInfo.type, position: legInfo.position };
+
         const directionSelect = card.querySelector('.sim-leg-direction');
         const direction = directionSelect ? directionSelect.value : 'below';
-        
+
         switch (method) {
             case 'exact_strike':
                 leg.strike = parseFloat(card.querySelector('.sim-leg-strike')?.value) || 0;
                 leg.fallback = card.querySelector('.sim-leg-fallback')?.value || 'closest';
                 break;
-            case 'dollar_underlying':
-            case 'pct_underlying':
+            case 'dollar_underlying': case 'pct_underlying':
                 leg.value = Math.abs(parseFloat(card.querySelector('.sim-leg-value')?.value) || 0);
                 leg.direction = direction;
                 leg.fallback = card.querySelector('.sim-leg-fallback')?.value || 'closest';
@@ -2417,647 +1478,331 @@ function collectSimLegConfigurations() {
                 leg.min = parseFloat(card.querySelector('.sim-leg-min')?.value) || 1;
                 leg.max = parseFloat(card.querySelector('.sim-leg-max')?.value) || 5;
                 break;
-            case 'dollar_leg':
-            case 'pct_leg':
+            case 'dollar_leg': case 'pct_leg':
                 const refSelect = card.querySelector('.sim-leg-ref');
-                const refValue = refSelect ? refSelect.value : '0';
-                leg.refLeg = parseInt(refValue);
+                leg.refLeg = parseInt(refSelect?.value || '0');
                 if (isNaN(leg.refLeg)) leg.refLeg = 0;
                 leg.value = Math.abs(parseFloat(card.querySelector('.sim-leg-value')?.value) || 0);
                 leg.direction = direction;
                 break;
         }
-        
         legs.push(leg);
     });
-    
     return legs;
 }
 
 function calculateStrikeFromLegConfig(leg, underlyingPrice, resolvedStrikes) {
     const dirMultiplier = (leg.direction === 'above') ? 1 : -1;
-    
     switch (leg.method) {
-        case 'exact_strike':
-            return { strike: leg.strike, fallback: leg.fallback };
-        case 'dollar_underlying':
-            return { strike: underlyingPrice + (leg.value * dirMultiplier), fallback: leg.fallback };
-        case 'pct_underlying':
-            return { strike: underlyingPrice * (1 + (leg.value / 100) * dirMultiplier), fallback: leg.fallback };
+        case 'exact_strike': return { strike: leg.strike, fallback: leg.fallback };
+        case 'dollar_underlying': return { strike: underlyingPrice + (leg.value * dirMultiplier), fallback: leg.fallback };
+        case 'pct_underlying': return { strike: underlyingPrice * (1 + (leg.value / 100) * dirMultiplier), fallback: leg.fallback };
         case 'dollar_leg':
-            if (resolvedStrikes[leg.refLeg] !== undefined) {
-                const refStrike = resolvedStrikes[leg.refLeg];
-                const calculatedStrike = refStrike + (leg.value * dirMultiplier);
-                console.log(`[Strike Calc] dollar_leg: Leg ${leg.refLeg} strike=${refStrike}, value=${leg.value}, dir=${leg.direction}, result=${calculatedStrike}`);
-                return { strike: calculatedStrike, fallback: 'closest' };
-            }
+            if (resolvedStrikes[leg.refLeg] !== undefined) return { strike: resolvedStrikes[leg.refLeg] + (leg.value * dirMultiplier), fallback: 'closest' };
             return { strike: underlyingPrice, fallback: 'closest' };
         case 'pct_leg':
-            if (resolvedStrikes[leg.refLeg] !== undefined) {
-                const refStrike = resolvedStrikes[leg.refLeg];
-                const calculatedStrike = refStrike * (1 + (leg.value / 100) * dirMultiplier);
-                console.log(`[Strike Calc] pct_leg: Leg ${leg.refLeg} strike=${refStrike}, value=${leg.value}%, dir=${leg.direction}, result=${calculatedStrike}`);
-                return { strike: calculatedStrike, fallback: 'closest' };
-            }
+            if (resolvedStrikes[leg.refLeg] !== undefined) return { strike: resolvedStrikes[leg.refLeg] * (1 + (leg.value / 100) * dirMultiplier), fallback: 'closest' };
             return { strike: underlyingPrice, fallback: 'closest' };
-        case 'delta':
-            return { strike: underlyingPrice, fallback: 'closest', delta: leg.delta, deltaMethod: leg.deltaMethod };
-        case 'mid_price':
-            return { strike: underlyingPrice, fallback: 'closest', midPriceMin: leg.min, midPriceMax: leg.max };
-        default:
-            return { strike: underlyingPrice, fallback: 'closest' };
+        case 'delta': return { strike: underlyingPrice, fallback: 'closest', delta: leg.delta, deltaMethod: leg.deltaMethod };
+        case 'mid_price': return { strike: underlyingPrice, fallback: 'closest', midPriceMin: leg.min, midPriceMax: leg.max };
+        default: return { strike: underlyingPrice, fallback: 'closest' };
     }
 }
 
 async function executeOptionTrade() {
-    if (simVisibleBars.length === 0) {
-        alert('Load chart data first');
-        return;
-    }
-    
+    if (simVisibleBars.length === 0) { alert('Load chart data first'); return; }
+
     const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
     if (currentMinuteBar) {
         const barDate = new Date(currentMinuteBar.timestamp);
         const etTime = barDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
         const [etHour, etMinute] = etTime.split(':').map(Number);
         const totalMinutes = etHour * 60 + etMinute;
-        const marketOpen = 9 * 60 + 30;
-        const marketClose = 15 * 60 + 59;
-        
-        if (totalMinutes < marketOpen || totalMinutes > marketClose) {
+        if (totalMinutes < 570 || totalMinutes > 959) {
             alert('Options can only be traded between 9:30 AM and 3:59 PM ET');
             return;
         }
     }
-    
-    const dte = parseInt(document.getElementById('simOptionDTE').value) || 0;
-    const strategy = document.getElementById('simOptionStrategy').value;
-    const tp = parseFloat(document.getElementById('simOptionTP').value) || 50;
-    const sl = parseFloat(document.getElementById('simOptionSL').value) || -100;
-    const detectionBar = parseInt(document.getElementById('simOptionDetectionBar').value) || 1;
-    const quantity = parseInt(document.getElementById('simOptionQuantity').value) || 10;
-    
+
+    const dte = parseInt(document.getElementById('simOptionDTE')?.value) || 0;
+    const strategy = document.getElementById('simOptionStrategy')?.value;
+    const tp = parseFloat(document.getElementById('simOptionTP')?.value) || 50;
+    const sl = parseFloat(document.getElementById('simOptionSL')?.value) || -100;
+    const detectionBar = parseInt(document.getElementById('simOptionDetectionBar')?.value) || 1;
+    const quantity = parseInt(document.getElementById('simOptionQuantity')?.value) || 10;
+
     const legConfigs = collectSimLegConfigurations();
-    if (legConfigs.length === 0) {
-        alert('Please configure at least one leg');
-        return;
-    }
-    
-    if (!currentMinuteBar) {
-        alert('No current bar data available');
-        return;
-    }
-    
+    if (legConfigs.length === 0) { alert('Please configure at least one leg'); return; }
+    if (!currentMinuteBar) { alert('No current bar data available'); return; }
+
     const underlyingPrice = currentMinuteBar.close;
     const entryTimestamp = currentMinuteBar.timestamp;
     const entryDate = new Date(entryTimestamp);
-    
-    const etTimeStr = entryDate.toLocaleString('en-US', { 
-        timeZone: 'America/New_York', 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: false 
-    });
+
+    const etTimeStr = entryDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
     const [etHour, etMinute] = etTimeStr.split(':').map(Number);
-    const entryTimeMinutes = etHour * 60 + etMinute;
-    const marketCloseMinutes = 16 * 60;
-    
-    if (dte === 0 && entryTimeMinutes >= marketCloseMinutes) {
-        alert(`Cannot open 0DTE trades after 4:00 PM ET. Current time: ${etTimeStr} ET.\n\nOptions markets close at 4:00 PM ET on expiration day.`);
+    if (dte === 0 && (etHour * 60 + etMinute) >= 960) {
+        alert(`Cannot open 0DTE trades after 4:00 PM ET.`);
         return;
     }
-    
+
     const expirationDate = new Date(entryDate);
     expirationDate.setDate(expirationDate.getDate() + dte);
     const expDateStr = expirationDate.toISOString().split('T')[0];
     const startDateStr = entryDate.toISOString().split('T')[0];
-    
+
     const tradeBtn = document.getElementById('simOptionTradeBtn');
-    tradeBtn.disabled = true;
-    tradeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
-    
+    if (tradeBtn) { tradeBtn.disabled = true; tradeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...'; }
+
     try {
         const resolvedStrikes = [];
         const positionLegs = [];
-        
-        console.log('Executing option trade:', {
-            symbol: simCurrentSymbol,
-            underlyingPrice,
-            expDate: expDateStr,
-            startDate: startDateStr,
-            endDate: simChartDates.end,
-            legConfigs: JSON.stringify(legConfigs)
-        });
-        
+
         for (let i = 0; i < legConfigs.length; i++) {
             const legConfig = legConfigs[i];
-            
             if (legConfig.method === 'dollar_leg' || legConfig.method === 'pct_leg') {
-                const refLegIdx = legConfig.refLeg !== undefined ? legConfig.refLeg : 0;
-                const refStrike = resolvedStrikes[refLegIdx];
-                console.log(`Leg ${i + 1} conversion check:`, { method: legConfig.method, refLegIdx, refStrike, resolvedStrikes: [...resolvedStrikes] });
-                
+                const refStrike = resolvedStrikes[legConfig.refLeg !== undefined ? legConfig.refLeg : 0];
                 if (refStrike !== undefined) {
-                    let calculatedStrike;
-                    if (legConfig.method === 'dollar_leg') {
-                        calculatedStrike = refStrike + (legConfig.value || 0);
-                    } else {
-                        calculatedStrike = refStrike * (1 + (legConfig.value || 0) / 100);
-                    }
-                    console.log(`Leg ${i + 1} converting to exact_strike: ${calculatedStrike}`);
                     legConfig.method = 'exact_strike';
-                    legConfig.strike = calculatedStrike;
+                    legConfig.strike = legConfig.method === 'dollar_leg'
+                        ? refStrike + (legConfig.value || 0) : refStrike * (1 + (legConfig.value || 0) / 100);
                     legConfig.fallback = 'closest';
                 }
             }
-            
-            console.log(`Leg ${i + 1} config:`, {
-                legConfig: JSON.stringify(legConfig),
-                underlyingPrice
-            });
-            
-            const optionData = await fetchOptionBars(
-                simCurrentSymbol,
-                legConfig.type,
-                expDateStr,
-                startDateStr,
-                simChartDates.end,
-                detectionBar,
-                legConfig,
-                underlyingPrice
-            );
-            
-            console.log(`Leg ${i + 1} option data response:`, {
-                barsCount: optionData.bars?.length || 0,
-                actualStrike: optionData.actualStrike,
-                optionSymbol: optionData.optionSymbol
-            });
-            
+
+            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, expDateStr, startDateStr, simChartDates.end, detectionBar, legConfig, underlyingPrice);
             if (!optionData.bars || optionData.bars.length === 0) {
-                alert(`No option data found for leg ${i + 1}: ${legConfig.name}. Check expiration date and symbol.`);
-                tradeBtn.disabled = false;
-                tradeBtn.innerHTML = '<i class="fas fa-bolt me-1"></i>Trade Option';
+                alert(`No option data found for leg ${i + 1}: ${legConfig.name}`);
                 return;
             }
-            
-            const actualStrike = optionData.actualStrike;
-            resolvedStrikes.push(actualStrike);
-            
+
+            resolvedStrikes.push(optionData.actualStrike);
             let entryBar = findClosestOptionBar(optionData.bars, entryTimestamp);
-            if (!entryBar) {
-                entryBar = optionData.bars.find(b => b.timestamp >= entryTimestamp);
-            }
-            if (!entryBar) {
-                alert(`No option price data at entry time for leg ${i + 1}`);
-                tradeBtn.disabled = false;
-                tradeBtn.innerHTML = '<i class="fas fa-bolt me-1"></i>Trade Option';
-                return;
-            }
-            
-            const entryPrice = entryBar.vwap || entryBar.close;
-            const entryBarTimestamp = entryBar.timestamp;
-            
+            if (!entryBar) entryBar = optionData.bars.find(b => b.timestamp >= entryTimestamp);
+            if (!entryBar) { alert(`No option price data at entry time for leg ${i + 1}`); return; }
+
             positionLegs.push({
-                legIndex: i,
-                name: legConfig.name,
-                type: legConfig.type,
-                position: legConfig.position,
-                strike: actualStrike,
-                entryPrice: entryPrice,
-                entryBarTimestamp: entryBarTimestamp,
-                optionBars: optionData.bars,
-                optionSymbol: optionData.optionSymbol
+                legIndex: i, name: legConfig.name, type: legConfig.type, position: legConfig.position,
+                strike: optionData.actualStrike, entryPrice: entryBar.vwap || entryBar.close,
+                entryBarTimestamp: entryBar.timestamp, optionBars: optionData.bars, optionSymbol: optionData.optionSymbol
             });
         }
-        
+
         let totalEntryPremium = 0;
         positionLegs.forEach(leg => {
             const premium = leg.entryPrice * 100 * quantity;
-            if (leg.position === 'long') {
-                totalEntryPremium -= premium;
-            } else {
-                totalEntryPremium += premium;
-            }
+            totalEntryPremium += leg.position === 'long' ? -premium : premium;
         });
-        
+
         const position = {
-            id: Date.now(),
-            strategy: strategy,
-            legs: positionLegs,
-            expiration: expDateStr,
-            quantity: quantity,
-            remainingQuantity: quantity,
-            totalEntryPremium: totalEntryPremium,
-            entryTimestamp: entryTimestamp,
-            entryMinuteIndex: simCurrentMinuteIndex,
-            underlyingAtEntry: underlyingPrice,
-            tp: tp,
-            sl: sl,
-            detectionBar: detectionBar,
-            status: 'open',
-            closedParts: [],
-            realizedPnl: 0
+            id: Date.now(), strategy, legs: positionLegs, expiration: expDateStr,
+            quantity, remainingQuantity: quantity, totalEntryPremium,
+            entryTimestamp, entryMinuteIndex: simCurrentMinuteIndex,
+            underlyingAtEntry: underlyingPrice, tp, sl, detectionBar,
+            status: 'open', closedParts: [], realizedPnl: 0
         };
-        
+
         simOpenOptionPositions.push(position);
-        
         updateOptionsPnlDisplay();
         updateOptionsPositionsCard();
-        redrawChart();
-        
-        console.log('Option position opened:', position);
-        
+        updatePositionLines();
     } catch (error) {
         console.error('Error opening option position:', error);
         alert('Error opening option position: ' + error.message);
     } finally {
-        tradeBtn.disabled = false;
-        tradeBtn.innerHTML = '<i class="fas fa-bolt me-1"></i>Trade Option';
+        if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.innerHTML = '<i class="fas fa-bolt me-1"></i>Trade'; }
     }
 }
 
 async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, multiplier, legConfig, underlyingPrice) {
     await waitForRateLimit();
-    
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `http://${window.location.hostname}:${window.location.port}/api`
-        : '/api';
-    
+        ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
     const apiKey = localStorage.getItem('polygonApiKey') || '';
-    
-    try {
-        const requestBody = {
-            symbol: symbol,
-            option_type: optionType,
-            expiration_date: expDate,
-            start_date: startDate,
-            end_date: endDate,
-            multiplier: multiplier,
-            underlying_price: underlyingPrice,
-            strike_method: legConfig.method,
-            method_value: legConfig.value || 0,
-            fallback: legConfig.fallback || 'closest'
-        };
-        
-        if (legConfig.method === 'exact_strike') {
-            requestBody.strike = legConfig.strike;
-        }
-        
-        if (legConfig.method === 'delta') {
-            requestBody.delta = legConfig.delta;
-            requestBody.delta_method = legConfig.deltaMethod || 'closest';
-        }
-        
-        if (legConfig.method === 'mid_price') {
-            requestBody.mid_price_min = legConfig.min;
-            requestBody.mid_price_max = legConfig.max;
-        }
-        
-        const response = await fetch(`${apiUrl}/simulated-trading/option-bars`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': apiKey
-            },
-            credentials: 'include',
-            body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to fetch option data');
-        }
-        
-        const data = await response.json();
-        return {
-            bars: data.bars || [],
-            actualStrike: data.strike,
-            optionSymbol: data.option_symbol,
-            optionType: data.option_type
-        };
-    } catch (error) {
-        console.error('Error fetching option bars:', error);
-        throw error;
-    }
+
+    const requestBody = {
+        symbol, option_type: optionType, expiration_date: expDate,
+        start_date: startDate, end_date: endDate, multiplier,
+        underlying_price: underlyingPrice, strike_method: legConfig.method,
+        method_value: legConfig.value || 0, fallback: legConfig.fallback || 'closest'
+    };
+    if (legConfig.method === 'exact_strike') requestBody.strike = legConfig.strike;
+    if (legConfig.method === 'delta') { requestBody.delta = legConfig.delta; requestBody.delta_method = legConfig.deltaMethod || 'closest'; }
+    if (legConfig.method === 'mid_price') { requestBody.mid_price_min = legConfig.min; requestBody.mid_price_max = legConfig.max; }
+
+    const response = await fetch(`${apiUrl}/simulated-trading/option-bars`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+        credentials: 'include',
+        body: JSON.stringify(requestBody)
+    });
+    if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed to fetch option data'); }
+    const data = await response.json();
+    return { bars: data.bars || [], actualStrike: data.strike, optionSymbol: data.option_symbol, optionType: data.option_type };
 }
 
 function calculateOptionPositionPnl(pos, currentTimestamp) {
     if (!pos.legs || pos.legs.length === 0) return 0;
-    
     let totalPnl = 0;
-    
     for (const leg of pos.legs) {
         const optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
         if (!optionBar) continue;
-        
-        const currentPrice = optionBar.vwap || optionBar.close;
-        const entryPrice = leg.entryPrice;
-        
-        const priceDiff = currentPrice - entryPrice;
-        const legPnl = leg.position === 'long' 
-            ? priceDiff * 100 * pos.remainingQuantity
-            : -priceDiff * 100 * pos.remainingQuantity;
-        
-        totalPnl += legPnl;
+        const priceDiff = (optionBar.vwap || optionBar.close) - leg.entryPrice;
+        totalPnl += (leg.position === 'long' ? priceDiff : -priceDiff) * 100 * pos.remainingQuantity;
     }
-    
     return totalPnl;
 }
 
 function checkOptionTpSlThresholds() {
     if (simOpenOptionPositions.length === 0) return;
-    
     const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
     if (!currentMinuteBar) return;
-    
     const currentTimestamp = currentMinuteBar.timestamp;
     const positionsToClose = [];
-    
+
     for (const pos of simOpenOptionPositions) {
         if (pos.status !== 'open') continue;
-        
         const unrealizedPnl = calculateOptionPositionPnl(pos, currentTimestamp);
         const entryPremium = Math.abs(pos.totalEntryPremium);
-        
         if (entryPremium > 0) {
             const pnlPct = (unrealizedPnl / entryPremium) * 100;
-            
-            if (pos.tp && pnlPct >= pos.tp) {
-                console.log(`TP hit for position ${pos.id}: ${pnlPct.toFixed(1)}% >= ${pos.tp}%`);
-                positionsToClose.push({ pos, reason: 'TP' });
-            } else if (pos.sl && unrealizedPnl <= -Math.abs(pos.sl)) {
-                console.log(`SL hit for position ${pos.id}: $${unrealizedPnl.toFixed(2)} <= -$${Math.abs(pos.sl)}`);
-                positionsToClose.push({ pos, reason: 'SL' });
-            }
+            if (pos.tp && pnlPct >= pos.tp) positionsToClose.push({ pos, reason: 'TP' });
+            else if (pos.sl && unrealizedPnl <= -Math.abs(pos.sl)) positionsToClose.push({ pos, reason: 'SL' });
         }
-        
+
         const currentDate = new Date(currentTimestamp);
-        const currentDateET = currentDate.toLocaleString('en-US', { 
-            timeZone: 'America/New_York', 
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        });
-        const [currentMonth, currentDay, currentYear] = currentDateET.split('/');
-        const currentDateStr = `${currentYear}-${currentMonth}-${currentDay}`;
-        
-        const currentTimeET = currentDate.toLocaleString('en-US', { 
-            timeZone: 'America/New_York', 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hour12: false 
-        });
-        const [etHour, etMinute] = currentTimeET.split(':').map(Number);
-        const currentTimeMinutes = etHour * 60 + etMinute;
-        const marketCloseMinutes = 16 * 60;
-        
-        const isPastExpiration = currentDateStr > pos.expiration || 
-            (currentDateStr === pos.expiration && currentTimeMinutes >= marketCloseMinutes);
-        
-        if (isPastExpiration) {
-            console.log(`Position ${pos.id} expired (Current: ${currentDateStr} ${currentTimeET} ET, Exp: ${pos.expiration})`);
-            positionsToClose.push({ pos, reason: 'Expiration' });
-        }
+        const currentDateET = currentDate.toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+        const [cM, cD, cY] = currentDateET.split('/');
+        const currentDateStr = `${cY}-${cM}-${cD}`;
+        const currentTimeET = currentDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+        const [etH, etMi] = currentTimeET.split(':').map(Number);
+        const isPastExpiration = currentDateStr > pos.expiration || (currentDateStr === pos.expiration && (etH * 60 + etMi) >= 960);
+        if (isPastExpiration) positionsToClose.push({ pos, reason: 'Expiration' });
     }
-    
-    for (const { pos, reason } of positionsToClose) {
-        closeOptionPosition(pos.id, null, reason);
-    }
+
+    for (const { pos, reason } of positionsToClose) closeOptionPosition(pos.id, null, reason);
 }
 
 function updateOptionsPnlDisplay() {
     let unrealizedPnl = 0;
-    
     if (simOpenOptionPositions.length > 0) {
         const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
         const currentTimestamp = currentMinuteBar ? currentMinuteBar.timestamp : Date.now();
-        
-        for (const pos of simOpenOptionPositions) {
-            unrealizedPnl += calculateOptionPositionPnl(pos, currentTimestamp);
-        }
+        for (const pos of simOpenOptionPositions) unrealizedPnl += calculateOptionPositionPnl(pos, currentTimestamp);
     }
-    
+
     const optRealizedEl = document.getElementById('simOptionsRealizedPnl');
     const optUnrealizedEl = document.getElementById('simOptionsUnrealizedPnl');
-    
     if (optRealizedEl) {
         const isPositive = simOptionsRealizedPnl >= 0;
         optRealizedEl.textContent = `${isPositive ? '+' : ''}$${simOptionsRealizedPnl.toFixed(2)}`;
         optRealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
     }
-    
     if (optUnrealizedEl) {
         const isPositive = unrealizedPnl >= 0;
         optUnrealizedEl.textContent = `${isPositive ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
         optUnrealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
     }
-    
     updateOptionsPositionsCard();
 }
 
 function findClosestOptionBar(optionBars, targetTimestamp) {
     if (!optionBars || optionBars.length === 0) return null;
-    
-    let closestBefore = null;
-    let minDiffBefore = Infinity;
-    
+    let closestBefore = null, minDiffBefore = Infinity;
     for (const bar of optionBars) {
         if (bar.timestamp <= targetTimestamp) {
             const diff = targetTimestamp - bar.timestamp;
-            if (diff < minDiffBefore) {
-                minDiffBefore = diff;
-                closestBefore = bar;
-            }
+            if (diff < minDiffBefore) { minDiffBefore = diff; closestBefore = bar; }
         }
     }
-    
-    if (closestBefore) return closestBefore;
-    
-    return optionBars[optionBars.length - 1];
+    return closestBefore || optionBars[optionBars.length - 1];
 }
 
 function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual') {
     const posIndex = simOpenOptionPositions.findIndex(p => p.id === positionId);
     if (posIndex === -1) return;
-    
     const pos = simOpenOptionPositions[posIndex];
     const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-    if (!currentMinuteBar) {
-        alert('No current bar data available');
-        return;
-    }
-    
+    if (!currentMinuteBar) { alert('No current bar data available'); return; }
+
     const currentTimestamp = currentMinuteBar.timestamp;
     const qtyToClose = closeQuantity || pos.remainingQuantity;
-    
     let pnl = 0;
     const legExitPrices = [];
-    
+
     for (const leg of pos.legs) {
         let optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
-        if (!optionBar && leg.optionBars.length > 0) {
-            optionBar = leg.optionBars[leg.optionBars.length - 1];
-        }
-        
-        if (!optionBar) {
-            legExitPrices.push({ leg: leg.name, price: leg.entryPrice });
-            continue;
-        }
-        
+        if (!optionBar && leg.optionBars.length > 0) optionBar = leg.optionBars[leg.optionBars.length - 1];
+        if (!optionBar) { legExitPrices.push({ leg: leg.name, price: leg.entryPrice }); continue; }
         const exitPrice = optionBar.vwap || optionBar.close;
         legExitPrices.push({ leg: leg.name, price: exitPrice });
-        
-        const legPnl = leg.position === 'long'
-            ? (exitPrice - leg.entryPrice) * 100 * qtyToClose
-            : (leg.entryPrice - exitPrice) * 100 * qtyToClose;
-        pnl += legPnl;
+        pnl += (leg.position === 'long' ? (exitPrice - leg.entryPrice) : (leg.entryPrice - exitPrice)) * 100 * qtyToClose;
     }
-    
+
     simOptionsRealizedPnl += pnl;
     pos.realizedPnl += pnl;
-    
-    pos.closedParts.push({
-        quantity: qtyToClose,
-        exitPrices: legExitPrices,
-        exitTimestamp: currentTimestamp,
-        pnl: pnl,
-        reason: reason
-    });
-    
+    pos.closedParts.push({ quantity: qtyToClose, exitPrices: legExitPrices, exitTimestamp: currentTimestamp, pnl, reason });
+
     const closeRatio = qtyToClose / pos.remainingQuantity;
     pos.totalEntryPremium = pos.totalEntryPremium * (1 - closeRatio);
     pos.remainingQuantity -= qtyToClose;
-    
-    console.log(`Closed ${qtyToClose} contracts of ${pos.strategy} (${reason}): PnL $${pnl.toFixed(2)}`);
-    
+
     if (pos.remainingQuantity <= 0) {
         pos.status = 'closed';
         simClosedOptionTrades.push(pos);
         simOpenOptionPositions.splice(posIndex, 1);
     }
-    
+
     showTradeToast(pos.strategy, reason, pnl, qtyToClose);
-    
     updateOptionsPnlDisplay();
     updateOptionsPositionsCard();
-    redrawChart();
+    updatePositionLines();
 }
 
 function showTradeToast(strategy, reason, pnl, quantity) {
     const toast = document.getElementById('simTradeToast');
-    const icon = document.getElementById('simToastIcon');
-    const title = document.getElementById('simToastTitle');
-    const message = document.getElementById('simToastMessage');
-    
     if (!toast) return;
-    
     const isProfit = pnl >= 0;
     const pnlStr = `${isProfit ? '+' : ''}$${pnl.toFixed(2)}`;
-    
-    let iconClass = 'fas fa-check-circle';
-    let iconColor = '#26a69a';
-    let titleText = 'Trade Closed';
-    
+    let iconClass = 'fas fa-check-circle', iconColor = '#26a69a', titleText = 'Trade Closed';
     switch (reason) {
-        case 'TP':
-            iconClass = 'fas fa-bullseye';
-            iconColor = '#26a69a';
-            titleText = 'Take Profit Hit!';
-            break;
-        case 'SL':
-            iconClass = 'fas fa-shield-alt';
-            iconColor = '#ef5350';
-            titleText = 'Stop Loss Hit';
-            break;
-        case 'Expiration':
-            iconClass = 'fas fa-clock';
-            iconColor = '#ff9800';
-            titleText = 'Position Expired';
-            break;
-        default:
-            iconClass = 'fas fa-times-circle';
-            iconColor = '#b2b5be';
-            titleText = 'Position Closed';
+        case 'TP': iconClass = 'fas fa-bullseye'; iconColor = '#26a69a'; titleText = 'Take Profit Hit!'; break;
+        case 'SL': iconClass = 'fas fa-shield-alt'; iconColor = '#ef5350'; titleText = 'Stop Loss Hit'; break;
+        case 'Expiration': iconClass = 'fas fa-clock'; iconColor = '#ff9800'; titleText = 'Position Expired'; break;
+        default: iconClass = 'fas fa-times-circle'; iconColor = '#b2b5be'; titleText = 'Position Closed';
     }
-    
-    icon.className = iconClass;
-    icon.style.color = iconColor;
-    title.textContent = titleText;
-    message.innerHTML = `<strong>${strategy}</strong> (${quantity} contracts)<br>P&L: <span style="color: ${isProfit ? '#26a69a' : '#ef5350'};">${pnlStr}</span>`;
-    
+
+    document.getElementById('simToastIcon').className = iconClass;
+    document.getElementById('simToastIcon').style.color = iconColor;
+    document.getElementById('simToastTitle').textContent = titleText;
+    document.getElementById('simToastMessage').innerHTML = `<strong>${strategy}</strong> (${quantity} contracts)<br>P&L: <span style="color: ${isProfit ? '#26a69a' : '#ef5350'};">${pnlStr}</span>`;
     toast.style.display = 'block';
     toast.style.animation = 'slideIn 0.3s ease-out';
-    
-    setTimeout(() => {
-        hideTradeToast();
-    }, 5000);
+    setTimeout(() => hideTradeToast(), 5000);
 }
 
 function hideTradeToast() {
     const toast = document.getElementById('simTradeToast');
-    if (toast) {
-        toast.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 300);
-    }
+    if (toast) { toast.style.animation = 'slideOut 0.3s ease-in'; setTimeout(() => { toast.style.display = 'none'; }, 300); }
 }
 
 function updatePositionTpSl(positionId) {
     const pos = simOpenOptionPositions.find(p => p.id === positionId);
     if (!pos) return;
-    
     const tpInput = document.getElementById(`pos-tp-${positionId}`);
     const slInput = document.getElementById(`pos-sl-${positionId}`);
-    
-    if (tpInput) {
-        const newTp = parseFloat(tpInput.value);
-        if (!isNaN(newTp) && newTp > 0) {
-            pos.tp = newTp;
-        }
-    }
-    
-    if (slInput) {
-        const newSl = parseFloat(slInput.value);
-        if (!isNaN(newSl) && newSl >= 0) {
-            pos.sl = -Math.abs(newSl);
-        }
-    }
-    
-    console.log(`Updated position ${positionId} TP/SL: TP=${pos.tp}%, SL=$${Math.abs(pos.sl)}`);
-    
-    const btn = document.querySelector(`#pos-card-${positionId} .btn-outline-primary`);
-    if (btn) {
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i>';
-        btn.classList.remove('btn-outline-primary');
-        btn.classList.add('btn-success');
-        setTimeout(() => {
-            btn.innerHTML = originalHtml;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-primary');
-        }, 1500);
-    }
+    if (tpInput) { const v = parseFloat(tpInput.value); if (!isNaN(v) && v > 0) pos.tp = v; }
+    if (slInput) { const v = parseFloat(slInput.value); if (!isNaN(v) && v >= 0) pos.sl = -Math.abs(v); }
 }
 
 function closePositionPartial(positionId) {
     const pos = simOpenOptionPositions.find(p => p.id === positionId);
     if (!pos) return;
-    
     const qtyInput = document.getElementById(`pos-close-qty-${positionId}`);
     if (!qtyInput) return;
-    
     const closeQty = parseInt(qtyInput.value);
-    if (isNaN(closeQty) || closeQty < 1) {
-        alert('Please enter a valid quantity to close');
-        return;
-    }
-    
-    if (closeQty > pos.remainingQuantity) {
-        alert(`Cannot close ${closeQty} contracts. Only ${pos.remainingQuantity} remaining.`);
-        return;
-    }
-    
+    if (isNaN(closeQty) || closeQty < 1) { alert('Please enter a valid quantity'); return; }
+    if (closeQty > pos.remainingQuantity) { alert(`Only ${pos.remainingQuantity} remaining.`); return; }
     closeOptionPosition(positionId, closeQty, 'Manual');
 }
 
@@ -3065,20 +1810,15 @@ function updateOptionsPositionsCard() {
     const card = document.getElementById('simOptionsPositionsCard');
     const list = document.getElementById('simOptionsPositionsList');
     const countBadge = document.getElementById('simOptionsPositionCount');
-    
     if (!card || !list) return;
-    
-    if (simOpenOptionPositions.length === 0) {
-        card.style.display = 'none';
-        return;
-    }
-    
+
+    if (simOpenOptionPositions.length === 0) { card.style.display = 'none'; return; }
     card.style.display = 'block';
-    countBadge.textContent = simOpenOptionPositions.length;
-    
+    if (countBadge) countBadge.textContent = simOpenOptionPositions.length;
+
     const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
     const currentTimestamp = currentMinuteBar ? currentMinuteBar.timestamp : Date.now();
-    
+
     let html = '';
     for (const pos of simOpenOptionPositions) {
         const unrealizedPnl = calculateOptionPositionPnl(pos, currentTimestamp);
@@ -3086,164 +1826,44 @@ function updateOptionsPositionsCard() {
         const pnlStr = `${isProfit ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
         const entryPremium = Math.abs(pos.totalEntryPremium);
         const pnlPct = entryPremium > 0 ? (unrealizedPnl / entryPremium * 100).toFixed(1) : '0.0';
-        
+
         const legsHtml = pos.legs.map(leg => {
             const optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
             const currentPrice = optionBar ? (optionBar.vwap || optionBar.close) : leg.entryPrice;
-            return `<span class="badge me-1" style="background: ${leg.position === 'long' ? '#3b7cff' : '#ff9800'}; font-size: 10px;">
-                ${leg.position.charAt(0).toUpperCase()} ${leg.type} $${leg.strike} @ $${currentPrice.toFixed(2)}
-            </span>`;
+            return `<span style="background: ${leg.position === 'long' ? '#2962ff' : '#ff9800'}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-right: 3px;">
+                ${leg.position.charAt(0).toUpperCase()} ${leg.type} $${leg.strike} @ $${currentPrice.toFixed(2)}</span>`;
         }).join('');
-        
+
         html += `
-        <div class="p-2 mb-2 rounded" style="background: #f8f9fa; border: 1px solid #e0e3eb;" id="pos-card-${pos.id}">
-            <div class="d-flex justify-content-between align-items-start mb-1">
-                <div>
-                    <span class="fw-bold" style="color: #333; font-size: 13px;">${pos.strategy}</span>
-                    <span class="small text-muted ms-2">${pos.remainingQuantity} contracts</span>
-                </div>
-                <span class="fw-bold" style="color: ${isProfit ? '#26a69a' : '#ef5350'}; font-size: 13px;">
-                    ${pnlStr} (${pnlPct}%)
-                </span>
+        <div style="background: #2a2e39; border: 1px solid #363a45; border-radius: 6px; padding: 8px; margin-bottom: 6px;" id="pos-card-${pos.id}">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-weight: 600; color: #d1d4dc; font-size: 12px;">${pos.strategy} <span style="color: #787b86; font-weight: 400;">${pos.remainingQuantity} contracts</span></span>
+                <span style="font-weight: 600; color: ${isProfit ? '#26a69a' : '#ef5350'}; font-size: 12px;">${pnlStr} (${pnlPct}%)</span>
             </div>
-            <div class="mb-2">${legsHtml}</div>
-            <div class="small text-muted mb-2">Exp: ${pos.expiration}</div>
-            <div class="d-flex align-items-center flex-wrap mb-2" style="gap: 8px;">
-                <div class="d-flex align-items-center">
-                    <label class="small me-1" style="color: #666; white-space: nowrap;">TP%:</label>
-                    <input type="number" class="form-control form-control-sm" id="pos-tp-${pos.id}" value="${pos.tp}" step="5" style="width: 55px; font-size: 11px; padding: 2px 5px;">
-                </div>
-                <div class="d-flex align-items-center">
-                    <label class="small me-1" style="color: #666; white-space: nowrap;">SL$:</label>
-                    <input type="number" class="form-control form-control-sm" id="pos-sl-${pos.id}" value="${Math.abs(pos.sl)}" min="0" step="10" style="width: 60px; font-size: 11px; padding: 2px 5px;">
-                </div>
-                <button class="btn btn-sm btn-outline-primary" onclick="updatePositionTpSl(${pos.id})" style="font-size: 10px; padding: 2px 6px;">
-                    <i class="fas fa-save"></i>
-                </button>
-            </div>
-            <div class="d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center" style="gap: 6px;">
-                    <label class="small" style="color: #666; white-space: nowrap;">Close:</label>
-                    <input type="number" class="form-control form-control-sm" id="pos-close-qty-${pos.id}" value="${pos.remainingQuantity}" min="1" max="${pos.remainingQuantity}" style="width: 50px; font-size: 11px; padding: 2px 5px;">
-                    <span class="small text-muted">/ ${pos.remainingQuantity}</span>
-                </div>
-                <div class="d-flex" style="gap: 4px;">
-                    <button class="btn btn-sm btn-outline-danger" onclick="closePositionPartial(${pos.id})" style="font-size: 10px; padding: 2px 8px;">
-                        Close
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="closeOptionPosition(${pos.id})" style="font-size: 10px; padding: 2px 8px;">
-                        Close All
-                    </button>
-                </div>
+            <div style="margin-bottom: 4px;">${legsHtml}</div>
+            <div style="font-size: 10px; color: #787b86; margin-bottom: 6px;">Exp: ${pos.expiration}</div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <label style="font-size: 10px; color: #787b86;">TP%:</label>
+                <input type="number" id="pos-tp-${pos.id}" value="${pos.tp}" step="5" class="sim-dark-input" style="width: 48px; font-size: 10px; padding: 2px 4px;">
+                <label style="font-size: 10px; color: #787b86;">SL$:</label>
+                <input type="number" id="pos-sl-${pos.id}" value="${Math.abs(pos.sl)}" step="10" class="sim-dark-input" style="width: 55px; font-size: 10px; padding: 2px 4px;">
+                <button onclick="updatePositionTpSl(${pos.id})" class="sim-nav-btn" style="font-size: 10px; padding: 2px 6px;"><i class="fas fa-save"></i></button>
+                <span style="flex: 1;"></span>
+                <label style="font-size: 10px; color: #787b86;">Close:</label>
+                <input type="number" id="pos-close-qty-${pos.id}" value="${pos.remainingQuantity}" min="1" max="${pos.remainingQuantity}" class="sim-dark-input" style="width: 42px; font-size: 10px; padding: 2px 4px;">
+                <button onclick="closePositionPartial(${pos.id})" class="sim-nav-btn" style="font-size: 10px; padding: 2px 6px; color: #ef5350; border-color: #ef5350;">Close</button>
+                <button onclick="closeOptionPosition(${pos.id})" style="background: #ef5350; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer;">All</button>
             </div>
         </div>`;
     }
-    
     list.innerHTML = html;
 }
 
-function drawOptionPositionsOnChart(ctx, displayWidth, padding, chartHeight, minPrice, maxPrice, priceRange) {
-    if (simOpenOptionPositions.length === 0) return;
-    
-    const container = document.getElementById('simChartContainer');
-    const displayHeight = container.clientHeight;
-    
-    const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-    if (!currentMinuteBar) return;
-    
-    const currentTimestamp = currentMinuteBar.timestamp;
-    
-    let boxYOffset = 0;
-    
-    for (const pos of simOpenOptionPositions) {
-        if (!pos.legs || pos.legs.length === 0) continue;
-        
-        for (const leg of pos.legs) {
-            const strikeY = padding.top + ((maxPrice - leg.strike) / priceRange) * chartHeight;
-            
-            if (strikeY < padding.top || strikeY > displayHeight - padding.bottom) continue;
-            
-            const legColor = leg.position === 'long' ? '#3b7cff' : '#ff9800';
-            const typeColor = leg.type === 'C' ? '#26a69a' : '#ef5350';
-            
-            ctx.save();
-            ctx.strokeStyle = legColor;
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([5, 3]);
-            ctx.beginPath();
-            ctx.moveTo(padding.left, strikeY);
-            ctx.lineTo(displayWidth - padding.right, strikeY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.restore();
-            
-            const labelText = `${leg.position.toUpperCase()} ${leg.type === 'C' ? 'CALL' : 'PUT'} $${leg.strike}`;
-            ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-            const labelWidth = ctx.measureText(labelText).width + 10;
-            
-            ctx.fillStyle = typeColor;
-            ctx.fillRect(displayWidth - padding.right - labelWidth - 5, strikeY - 8, labelWidth, 16);
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'left';
-            ctx.fillText(labelText, displayWidth - padding.right - labelWidth, strikeY + 4);
-        }
-        
-        const unrealizedPnl = calculateOptionPositionPnl(pos, currentTimestamp);
-        const isProfit = unrealizedPnl >= 0;
-        const strategyLabel = pos.strategy.toUpperCase();
-        
-        const avgStrike = pos.legs.reduce((sum, leg) => sum + leg.strike, 0) / pos.legs.length;
-        const avgStrikeY = padding.top + ((maxPrice - avgStrike) / priceRange) * chartHeight;
-        
-        const boxWidth = 155;
-        const boxHeight = 58;
-        const boxX = padding.left + 10;
-        let boxY = avgStrikeY - boxHeight / 2 + boxYOffset;
-        
-        boxY = Math.max(padding.top + 5, Math.min(boxY, displayHeight - padding.bottom - boxHeight - 5));
-        
-        ctx.fillStyle = isProfit ? 'rgba(38, 166, 154, 0.95)' : 'rgba(239, 83, 80, 0.95)';
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-        
-        ctx.strokeStyle = isProfit ? '#26a69a' : '#ef5350';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'left';
-        
-        ctx.fillText(strategyLabel, boxX + 5, boxY + 12);
-        
-        ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
-        const strikesText = pos.legs.map(l => `${l.type}$${l.strike}`).join(' / ');
-        ctx.fillText(strikesText.substring(0, 25), boxX + 5, boxY + 24);
-        ctx.fillText(`Qty: ${pos.remainingQuantity} | Exp: ${pos.expiration}`, boxX + 5, boxY + 36);
-        
-        const pnlText = `PnL: ${isProfit ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
-        ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText(pnlText, boxX + 5, boxY + 50);
-        
-        const closeX = boxX + boxWidth - 18;
-        const closeY = boxY + 2;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.fillRect(closeX, closeY, 16, 16);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('X', closeX + 8, closeY + 12);
-        
-        pos._closeButtonBounds = { x: closeX, y: closeY, width: 16, height: 16 };
-        pos._boxBounds = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
-        
-        boxYOffset += 65;
-    }
-}
-
-
-// Make functions globally accessible for HTML onclick handlers
 window.hideTradeToast = hideTradeToast;
 window.closeOptionPosition = closeOptionPosition;
 window.updatePositionTpSl = updatePositionTpSl;
 window.closePositionPartial = closePositionPartial;
+window.resumeSession = resumeSession;
+window.endSessionFromCard = endSessionFromCard;
+window.updateLegRefLabel = updateLegRefLabel;
+window.initSimTradingActive = initSimTradingActive;
