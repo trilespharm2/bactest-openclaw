@@ -128,7 +128,7 @@ function renderActiveSessionCards() {
     container.innerHTML = activeSessions.map((s, i) => {
         const modeIcon = s.mode === 'options' ? 'fas fa-layer-group' : 'fas fa-chart-line';
         const modeLabel = s.mode === 'options' ? 'Options' : 'Stock';
-        const pnlColor = (s.realizedPnl || 0) >= 0 ? '#26a69a' : '#ef5350';
+        const pnlColor = (s.realizedPnl || 0) >= 0 ? '#089981' : '#f23645';
         const pnlStr = `${(s.realizedPnl || 0) >= 0 ? '+' : ''}$${(s.realizedPnl || 0).toFixed(2)}`;
         const trades = (s.closedTradesCount || 0);
         const createdDate = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '';
@@ -160,7 +160,7 @@ function renderActiveSessionCards() {
               <button onclick="resumeSession(${i})" style="flex: 1; background: #2962ff; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">
                 <i class="fas fa-play me-1"></i> Resume
               </button>
-              <button onclick="endSessionFromCard(${i})" style="flex: 1; background: #fff; color: #ef5350; border: 1px solid #ef5350; padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">
+              <button onclick="endSessionFromCard(${i})" style="flex: 1; background: #fff; color: #f23645; border: 1px solid #f23645; padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">
                 <i class="fas fa-stop me-1"></i> End
               </button>
             </div>
@@ -794,26 +794,26 @@ function createLWChart() {
 
     lwChart = LightweightCharts.createChart(container, {
         layout: {
-            background: { type: 'solid', color: '#131722' },
-            textColor: '#d1d4dc',
+            background: { type: 'solid', color: '#ffffff' },
+            textColor: '#191919',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             fontSize: 12
         },
         grid: {
-            vertLines: { color: '#1e222d' },
-            horzLines: { color: '#1e222d' }
+            vertLines: { color: '#e1e3eb' },
+            horzLines: { color: '#e1e3eb' }
         },
         crosshair: {
             mode: LightweightCharts.CrosshairMode.Normal,
-            vertLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' },
-            horzLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' }
+            vertLine: { color: '#9598a1', width: 1, style: 3, labelBackgroundColor: '#2962ff' },
+            horzLine: { color: '#9598a1', width: 1, style: 3, labelBackgroundColor: '#2962ff' }
         },
         rightPriceScale: {
-            borderColor: '#2a2e39',
+            borderColor: '#d1d4dc',
             scaleMargins: { top: 0.1, bottom: 0.2 }
         },
         timeScale: {
-            borderColor: '#2a2e39',
+            borderColor: '#d1d4dc',
             timeVisible: true,
             secondsVisible: false,
             rightOffset: 5,
@@ -825,16 +825,16 @@ function createLWChart() {
     });
 
     lwCandleSeries = lwChart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderUpColor: '#26a69a',
-        borderDownColor: '#ef5350',
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350'
+        upColor: '#089981',
+        downColor: '#f23645',
+        borderUpColor: '#089981',
+        borderDownColor: '#f23645',
+        wickUpColor: '#089981',
+        wickDownColor: '#f23645'
     });
 
     lwVolumeSeries = lwChart.addHistogramSeries({
-        color: '#26a69a',
+        color: '#089981',
         priceFormat: { type: 'volume' },
         priceScaleId: '',
         scaleMargins: { top: 0.85, bottom: 0 }
@@ -880,7 +880,7 @@ function updateChartData() {
     const volumeData = simVisibleBars.map(bar => ({
         time: Math.floor(bar.timestamp / 1000),
         value: bar.volume || 0,
-        color: bar.close >= bar.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)'
+        color: bar.close >= bar.open ? 'rgba(8,153,129,0.4)' : 'rgba(242,54,69,0.4)'
     }));
 
     lwCandleSeries.setData(candleData);
@@ -1123,7 +1123,7 @@ function updateSymbolDisplay() {
         if (priceDisplay) priceDisplay.textContent = `$${lastBar.close.toFixed(2)}`;
         if (changeDisplay) {
             const isPositive = priceChange >= 0;
-            changeDisplay.innerHTML = `<span style="color: ${isPositive ? '#26a69a' : '#ef5350'};">${isPositive ? '+' : ''}${priceChange.toFixed(2)} (${isPositive ? '+' : ''}${priceChangePercent.toFixed(2)}%)</span>`;
+            changeDisplay.innerHTML = `<span style="color: ${isPositive ? '#089981' : '#f23645'};">${isPositive ? '+' : ''}${priceChange.toFixed(2)} (${isPositive ? '+' : ''}${priceChangePercent.toFixed(2)}%)</span>`;
         }
     }
 }
@@ -1229,7 +1229,7 @@ function updateUnrealizedPnl() {
         if (unrealizedEl) {
             const isPositive = unrealizedPnl >= 0;
             unrealizedEl.textContent = `${isPositive ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
-            unrealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
+            unrealizedEl.style.color = isPositive ? '#089981' : '#f23645';
         }
     }
     updateOptionsPnlDisplay();
@@ -1250,7 +1250,7 @@ function updateTradingDisplay() {
         const pnl = mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl;
         const isPositive = pnl >= 0;
         realizedEl.textContent = `${isPositive ? '+' : ''}$${pnl.toFixed(2)}`;
-        realizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
+        realizedEl.style.color = isPositive ? '#089981' : '#f23645';
     }
 
     if (unrealizedEl) {
@@ -1259,10 +1259,10 @@ function updateTradingDisplay() {
             const unrealizedPnl = calculatePositionPnl(simOpenPosition, currentBar.close);
             const isPositive = unrealizedPnl >= 0;
             unrealizedEl.textContent = `${isPositive ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
-            unrealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
+            unrealizedEl.style.color = isPositive ? '#089981' : '#f23645';
         } else {
             unrealizedEl.textContent = '$0.00';
-            unrealizedEl.style.color = '#787b86';
+            unrealizedEl.style.color = '#6a6d78';
         }
     }
 
@@ -1320,19 +1320,19 @@ function buildSimLegConfiguration() {
     const legs = SIM_STRATEGY_LEGS[strategy];
     if (!legs || legs.length === 0) { container.innerHTML = ''; return; }
 
-    const inputStyle = 'background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
+    const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
 
     legs.forEach((leg, index) => {
         const badgeColor = leg.type === 'C' ? '#3b7cff' : '#f4a261';
-        const positionBadge = leg.position === 'long' ? '#26a69a' : '#ef5350';
+        const positionBadge = leg.position === 'long' ? '#089981' : '#f23645';
         const legDirection = getLegDirectionRequirement(strategy, index);
         const dirLabel = legDirection ? legDirection : 'from';
 
         html += `
-            <div style="background: #1a1e2e; border: 1px solid #2a2e39; border-radius: 6px; padding: 8px; min-width: 190px;">
+            <div style="background: #f8f9fd; border: 1px solid #e0e3eb; border-radius: 6px; padding: 8px; min-width: 190px;">
                 <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;">
-                    <span style="font-weight: 600; color: #d1d4dc; font-size: 11px;">Leg ${index + 1}: ${leg.name}</span>
+                    <span style="font-weight: 600; color: #191919; font-size: 11px;">Leg ${index + 1}: ${leg.name}</span>
                     <span style="background: ${badgeColor}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.type === 'C' ? 'Call' : 'Put'}</span>
                     <span style="background: ${positionBadge}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.position}</span>
                 </div>
@@ -1366,7 +1366,7 @@ function updateSimLegParams(legIndex, method) {
 
     const strategy = document.getElementById('simOptionStrategy')?.value;
     const requiredDirection = getLegDirectionRequirement(strategy, legIndex);
-    const inputStyle = 'background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
+    const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '';
 
     const buildDirectionDropdown = (legIdx, methodType = '') => {
@@ -1374,7 +1374,7 @@ function updateSimLegParams(legIndex, method) {
         const defaultDir = dirRequired || 'below';
         const isDisabled = dirRequired !== null;
         return `<div style="display: flex; align-items: center; gap: 3px;">
-            <label style="font-size: 10px; color: #787b86; white-space: nowrap;">Dir:</label>
+            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Dir:</label>
             <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 60px;" ${isDisabled ? 'disabled' : ''}>
                 <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
                 <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
@@ -1383,58 +1383,58 @@ function updateSimLegParams(legIndex, method) {
 
     switch (method) {
         case 'exact_strike':
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Strike:</label>
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
                 <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="${inputStyle} width:65px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">FB:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
             break;
         case 'dollar_underlying':
             html = `${buildDirectionDropdown(legIndex)}
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">$:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">FB:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
         case 'pct_underlying':
             html = `${buildDirectionDropdown(legIndex)}
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">%:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">FB:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
         case 'mid_price':
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Min$:</label>
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Min$:</label>
                 <input type="number" class="sim-leg-min" data-leg="${legIndex}" value="1" step="0.5" style="${inputStyle} width:50px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Max$:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Max$:</label>
                 <input type="number" class="sim-leg-max" data-leg="${legIndex}" value="5" step="0.5" style="${inputStyle} width:50px;"></div>`;
             break;
         case 'delta':
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Delta:</label>
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Delta:</label>
                 <input type="number" class="sim-leg-delta" data-leg="${legIndex}" value="0.30" step="0.05" min="0" max="1" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Method:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Method:</label>
                 <select class="sim-leg-delta-method" data-leg="${legIndex}" style="${inputStyle} width:70px;">
                 <option value="closest">Closest</option><option value="above">Above</option><option value="below">Below</option><option value="between">Between</option><option value="exactly">Exactly</option></select></div>`;
             break;
         case 'dollar_leg': {
             const defaultRef = legIndex > 0 ? legIndex - 1 : 0;
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Ref:</label>
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Ref:</label>
                 <select class="sim-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:50px;">
                 ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
                 ${buildDirectionDropdown(legIndex, 'dollar')}
-                <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#787b86;">$:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="1" step="1" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
         }
         case 'pct_leg': {
             const defaultRef = legIndex > 0 ? legIndex - 1 : 0;
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#787b86;">Ref:</label>
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Ref:</label>
                 <select class="sim-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:50px;">
                 ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
                 ${buildDirectionDropdown(legIndex, 'pct')}
-                <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#787b86;">%:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="2" step="0.5" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
         }
@@ -1696,12 +1696,12 @@ function updateOptionsPnlDisplay() {
     if (optRealizedEl) {
         const isPositive = simOptionsRealizedPnl >= 0;
         optRealizedEl.textContent = `${isPositive ? '+' : ''}$${simOptionsRealizedPnl.toFixed(2)}`;
-        optRealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
+        optRealizedEl.style.color = isPositive ? '#089981' : '#f23645';
     }
     if (optUnrealizedEl) {
         const isPositive = unrealizedPnl >= 0;
         optUnrealizedEl.textContent = `${isPositive ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
-        optUnrealizedEl.style.color = isPositive ? '#26a69a' : '#ef5350';
+        optUnrealizedEl.style.color = isPositive ? '#089981' : '#f23645';
     }
     updateOptionsPositionsCard();
 }
@@ -1764,18 +1764,18 @@ function showTradeToast(strategy, reason, pnl, quantity) {
     if (!toast) return;
     const isProfit = pnl >= 0;
     const pnlStr = `${isProfit ? '+' : ''}$${pnl.toFixed(2)}`;
-    let iconClass = 'fas fa-check-circle', iconColor = '#26a69a', titleText = 'Trade Closed';
+    let iconClass = 'fas fa-check-circle', iconColor = '#089981', titleText = 'Trade Closed';
     switch (reason) {
-        case 'TP': iconClass = 'fas fa-bullseye'; iconColor = '#26a69a'; titleText = 'Take Profit Hit!'; break;
-        case 'SL': iconClass = 'fas fa-shield-alt'; iconColor = '#ef5350'; titleText = 'Stop Loss Hit'; break;
+        case 'TP': iconClass = 'fas fa-bullseye'; iconColor = '#089981'; titleText = 'Take Profit Hit!'; break;
+        case 'SL': iconClass = 'fas fa-shield-alt'; iconColor = '#f23645'; titleText = 'Stop Loss Hit'; break;
         case 'Expiration': iconClass = 'fas fa-clock'; iconColor = '#ff9800'; titleText = 'Position Expired'; break;
-        default: iconClass = 'fas fa-times-circle'; iconColor = '#b2b5be'; titleText = 'Position Closed';
+        default: iconClass = 'fas fa-times-circle'; iconColor = '#6a6d78'; titleText = 'Position Closed';
     }
 
     document.getElementById('simToastIcon').className = iconClass;
     document.getElementById('simToastIcon').style.color = iconColor;
     document.getElementById('simToastTitle').textContent = titleText;
-    document.getElementById('simToastMessage').innerHTML = `<strong>${strategy}</strong> (${quantity} contracts)<br>P&L: <span style="color: ${isProfit ? '#26a69a' : '#ef5350'};">${pnlStr}</span>`;
+    document.getElementById('simToastMessage').innerHTML = `<strong>${strategy}</strong> (${quantity} contracts)<br>P&L: <span style="color: ${isProfit ? '#089981' : '#f23645'};">${pnlStr}</span>`;
     toast.style.display = 'block';
     toast.style.animation = 'slideIn 0.3s ease-out';
     setTimeout(() => hideTradeToast(), 5000);
@@ -1835,24 +1835,24 @@ function updateOptionsPositionsCard() {
         }).join('');
 
         html += `
-        <div style="background: #2a2e39; border: 1px solid #363a45; border-radius: 6px; padding: 8px; margin-bottom: 6px;" id="pos-card-${pos.id}">
+        <div style="background: #f8f9fd; border: 1px solid #e0e3eb; border-radius: 6px; padding: 8px; margin-bottom: 6px;" id="pos-card-${pos.id}">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-weight: 600; color: #d1d4dc; font-size: 12px;">${pos.strategy} <span style="color: #787b86; font-weight: 400;">${pos.remainingQuantity} contracts</span></span>
-                <span style="font-weight: 600; color: ${isProfit ? '#26a69a' : '#ef5350'}; font-size: 12px;">${pnlStr} (${pnlPct}%)</span>
+                <span style="font-weight: 600; color: #191919; font-size: 12px;">${pos.strategy} <span style="color: #6a6d78; font-weight: 400;">${pos.remainingQuantity} contracts</span></span>
+                <span style="font-weight: 600; color: ${isProfit ? '#089981' : '#f23645'}; font-size: 12px;">${pnlStr} (${pnlPct}%)</span>
             </div>
             <div style="margin-bottom: 4px;">${legsHtml}</div>
-            <div style="font-size: 10px; color: #787b86; margin-bottom: 6px;">Exp: ${pos.expiration}</div>
+            <div style="font-size: 10px; color: #6a6d78; margin-bottom: 6px;">Exp: ${pos.expiration}</div>
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                <label style="font-size: 10px; color: #787b86;">TP%:</label>
+                <label style="font-size: 10px; color: #6a6d78;">TP%:</label>
                 <input type="number" id="pos-tp-${pos.id}" value="${pos.tp}" step="5" class="sim-dark-input" style="width: 48px; font-size: 10px; padding: 2px 4px;">
-                <label style="font-size: 10px; color: #787b86;">SL$:</label>
+                <label style="font-size: 10px; color: #6a6d78;">SL$:</label>
                 <input type="number" id="pos-sl-${pos.id}" value="${Math.abs(pos.sl)}" step="10" class="sim-dark-input" style="width: 55px; font-size: 10px; padding: 2px 4px;">
                 <button onclick="updatePositionTpSl(${pos.id})" class="sim-nav-btn" style="font-size: 10px; padding: 2px 6px;"><i class="fas fa-save"></i></button>
                 <span style="flex: 1;"></span>
-                <label style="font-size: 10px; color: #787b86;">Close:</label>
+                <label style="font-size: 10px; color: #6a6d78;">Close:</label>
                 <input type="number" id="pos-close-qty-${pos.id}" value="${pos.remainingQuantity}" min="1" max="${pos.remainingQuantity}" class="sim-dark-input" style="width: 42px; font-size: 10px; padding: 2px 4px;">
-                <button onclick="closePositionPartial(${pos.id})" class="sim-nav-btn" style="font-size: 10px; padding: 2px 6px; color: #ef5350; border-color: #ef5350;">Close</button>
-                <button onclick="closeOptionPosition(${pos.id})" style="background: #ef5350; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer;">All</button>
+                <button onclick="closePositionPartial(${pos.id})" class="sim-nav-btn" style="font-size: 10px; padding: 2px 6px; color: #f23645; border-color: #f23645;">Close</button>
+                <button onclick="closeOptionPosition(${pos.id})" style="background: #f23645; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer;">All</button>
             </div>
         </div>`;
     }
