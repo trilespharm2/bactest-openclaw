@@ -61,9 +61,22 @@ def load_config_from_json(json_path):
     if 'entry_time_max' in web_config and web_config['entry_time_max']:
         config['entry_time_max'] = web_config['entry_time_max']
     
-    # Handle price conditions (optional)
-    if 'price_conditions' in web_config and web_config['price_conditions']:
-        config['price_conditions'] = web_config['price_conditions']
+    # Handle entry conditions (preset or custom)
+    options_entry_type = web_config.get('options_entry_type', 'none')
+    config['options_entry_type'] = options_entry_type
+    
+    if options_entry_type == 'preset':
+        config['preset_condition'] = web_config.get('preset_condition', '1')
+        config['preset_operator'] = web_config.get('preset_operator', '>')
+        config['preset_threshold'] = float(web_config.get('preset_threshold', 0))
+        if config['preset_condition'] == '5':
+            config['velocity_lookback'] = int(web_config.get('velocity_lookback', 5))
+    elif options_entry_type == 'custom':
+        if 'price_conditions' in web_config and web_config['price_conditions']:
+            config['price_conditions'] = web_config['price_conditions']
+    else:
+        if 'price_conditions' in web_config and web_config['price_conditions']:
+            config['price_conditions'] = web_config['price_conditions']
     
     return config
 

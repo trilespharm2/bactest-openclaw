@@ -251,6 +251,118 @@ def rate_limit_option_request():
 
 # ==================== PRICE CONDITIONS EVALUATION ====================
 
+def evaluate_preset_condition(config: Dict, bars_today: List[Dict], bar: Dict, 
+                              prev_day_bars: List[Dict] = None) -> Tuple[bool, str]:
+    """
+    Evaluate preset entry conditions for the options backtester.
+    Similar to stock backtester's check_preset_condition_intraday.
+    
+    Presets:
+      1 = Premarket Change % (from prev close)
+      2 = Change % (from prev close)
+      3 = Gap % (open vs prev close)
+      4 = Change-Open % (from today's open)
+      5 = Velocity (rate of change over N minutes)
+    """
+    preset = config.get('preset_condition', '1')
+    operator = config.get('preset_operator', '>')
+    threshold = float(config.get('preset_threshold', 0))
+    
+    bar_price = bar.get('open', 0)
+    bar_time = bar.get('time', '')
+    
+    if not prev_day_bars and preset in ('1', '2', '3'):
+        return False, "No previous day data for preset condition"
+    
+    prev_close = None
+    if prev_day_bars:
+        for b in sorted(prev_day_bars, key=lambda x: x.get('time', ''), reverse=True):
+            if b.get('close'):
+                prev_close = b['close']
+                break
+    
+    open_930_price = None
+    for b in sorted(bars_today, key=lambda x: x.get('time', '')):
+        t = b.get('time', '')
+        if t >= '09:30':
+            open_930_price = b.get('open')
+            break
+    
+    def check_op(value, op, thresh):
+        if op == '>': return value > thresh
+        if op == '<': return value < thresh
+        if op == '>=': return value >= thresh
+        if op == '<=': return value <= thresh
+        if op == '=' or op == '==': return abs(value - thresh) < 0.01
+        return False
+    
+    try:
+        if preset == '1':
+            if not prev_close or prev_close == 0:
+                return False, "No previous close for premarket change"
+            open_price = None
+            for b in sorted(bars_today, key=lambda x: x.get('time', '')):
+                if b.get('time', '')[:5] == '09:30':
+                    open_price = b.get('open')
+                    break
+            check_price = open_price if open_price else bar_price
+            change_pct = ((check_price / prev_close) - 1) * 100
+            if check_op(change_pct, operator, threshold):
+                return True, f"Premarket Change {change_pct:.2f}% {operator} {threshold}%"
+            return False, f"Premarket Change {change_pct:.2f}% failed {operator} {threshold}%"
+        
+        elif preset == '2':
+            if not prev_close or prev_close == 0:
+                return False, "No previous close for change %"
+            change_pct = ((bar_price / prev_close) - 1) * 100
+            if check_op(change_pct, operator, threshold):
+                return True, f"Change {change_pct:.2f}% {operator} {threshold}%"
+            return False, f"Change {change_pct:.2f}% failed {operator} {threshold}%"
+        
+        elif preset == '3':
+            if not bar_time or bar_time[:5] != '09:30':
+                return False, "Gap % only checked at 09:30 open"
+            if not prev_close or prev_close == 0:
+                return False, "No previous close for gap %"
+            gap_pct = ((bar_price / prev_close) - 1) * 100
+            if check_op(gap_pct, operator, threshold):
+                return True, f"Gap {gap_pct:.2f}% {operator} {threshold}%"
+            return False, f"Gap {gap_pct:.2f}% failed {operator} {threshold}%"
+        
+        elif preset == '4':
+            if not open_930_price or open_930_price == 0:
+                return False, "No 09:30 open price for change-open %"
+            change_pct = ((bar_price / open_930_price) - 1) * 100
+            if check_op(change_pct, operator, threshold):
+                return True, f"Change-Open {change_pct:.2f}% {operator} {threshold}%"
+            return False, f"Change-Open {change_pct:.2f}% failed {operator} {threshold}%"
+        
+        elif preset == '5':
+            lookback = int(config.get('velocity_lookback', 5))
+            sorted_bars = sorted(bars_today, key=lambda x: x.get('time', ''))
+            current_idx = None
+            for i, b in enumerate(sorted_bars):
+                if b.get('time', '') == bar_time:
+                    current_idx = i
+                    break
+            if current_idx is None or current_idx < lookback:
+                return False, f"Not enough bars for velocity (need {lookback})"
+            ref_bar = sorted_bars[current_idx - lookback]
+            ref_price = ref_bar.get('close', ref_bar.get('open', 0))
+            if not ref_price or ref_price == 0:
+                return False, "No reference price for velocity"
+            velocity_pct = ((bar_price / ref_price) - 1) * 100
+            if check_op(velocity_pct, operator, threshold):
+                return True, f"Velocity {velocity_pct:.2f}% over {lookback}min {operator} {threshold}%"
+            return False, f"Velocity {velocity_pct:.2f}% over {lookback}min failed {operator} {threshold}%"
+        
+        else:
+            return True, "Unknown preset - skipping"
+    
+    except Exception as e:
+        return False, f"Preset condition error: {str(e)}"
+
+
 def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: datetime, entry_timestamp: int) -> Tuple[bool, str]:
     """
     Evaluate underlying price conditions for trade entry.
@@ -2986,6 +3098,7 @@ def run_backtest(config: Dict, client: RESTClient):
     # Pre-fetch ALL indicator data for the entire backtest range ONCE
     # This uses only 1-2 API calls instead of N calls per trading day
     price_conditions = config.get('price_conditions', [])
+    has_preset = config.get('options_entry_type') == 'preset'
     indicators_cache = {}
     if price_conditions:
         indicators_cache = prefetch_all_indicators_for_range(
@@ -3015,6 +3128,16 @@ def run_backtest(config: Dict, client: RESTClient):
             # Get underlying bars for today
             bars_1min_today = underlying_bars_1min.get(date_str, [])
             bars_detection_today = underlying_bars_detection.get(date_str, [])
+            
+            # Get previous day's bars for preset condition evaluation
+            _prev_day_bars = []
+            if has_preset:
+                sorted_dates = sorted(underlying_bars_1min.keys())
+                for d in sorted_dates:
+                    if d < date_str:
+                        _prev_day_bars = underlying_bars_1min.get(d, [])
+                    else:
+                        break
             
             # Determine entry time range (check both field names for compatibility)
             entry_time_start = config['entry_time']
@@ -3056,7 +3179,25 @@ def run_backtest(config: Dict, client: RESTClient):
                 
                 day_entry['underlying_price'] = underlying_price
                 
-                # Check price conditions at this bar using cached indicator data
+                # Check preset conditions (if using preset entry type)
+                if has_preset:
+                    preset_met, preset_reason = evaluate_preset_condition(
+                        config, bars_1min_today, bar, _prev_day_bars
+                    )
+                    if not preset_met:
+                        print(f"  Preset not met: {preset_reason}", flush=True)
+                        last_condition_reason = preset_reason
+                        continue
+                    else:
+                        print(f"  Preset met: {preset_reason}", flush=True)
+                        day_entry['events'].append({
+                            'type': 'condition_met',
+                            'time': bar_time,
+                            'price': underlying_price,
+                            'reason': preset_reason
+                        })
+                
+                # Check custom price conditions at this bar using cached indicator data
                 if price_conditions:
                     conditions_met, condition_reason = evaluate_price_conditions_with_cache(
                         config, bar, indicators_cache, trade_date

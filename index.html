@@ -1046,15 +1046,83 @@
                     <!-- [5/15] UNDERLYING PRICE CONDITIONS -->
                     <div class="backtester-section">
                       <div class="section-label"><span class="section-number">[5/15]</span> UNDERLYING PRICE CONDITIONS <small class="text-muted">(Optional)</small></div>
-                      <p class="text-muted small mb-3">Add conditions based on technical indicators. All conditions must be true simultaneously for entry.</p>
+                      <p class="text-muted small mb-3">Add conditions based on the underlying stock price for trade entry.</p>
                       
-                      <div id="priceConditionsContainer">
-                        <!-- Conditions will be added here dynamically -->
+                      <div class="mb-3">
+                        <label class="form-label">Condition type:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="optionsEntryType" id="optionsEntryNone" value="none" checked onchange="updateOptionsEntryType()">
+                          <label class="form-check-label" for="optionsEntryNone">None (enter on every trading day)</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="optionsEntryType" id="optionsEntryPreset" value="preset" onchange="updateOptionsEntryType()">
+                          <label class="form-check-label" for="optionsEntryPreset">Preset Conditions</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="optionsEntryType" id="optionsEntryCustom" value="custom" onchange="updateOptionsEntryType()">
+                          <label class="form-check-label" for="optionsEntryCustom">Custom Builder</label>
+                        </div>
                       </div>
                       
-                      <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPriceCondition()">
-                        <i class="fas fa-plus me-1"></i>Add Condition
-                      </button>
+                      <div id="optionsPresetSection" style="display: none;">
+                        <div class="mb-3">
+                          <label class="form-label">Select Preset:</label>
+                          <select class="form-select" id="optionsPresetCondition" onchange="updateOptionsPresetFields()">
+                            <option value="1">Premarket Change %</option>
+                            <option value="2">Change % (from prev close)</option>
+                            <option value="3">Gap % (open vs prev close)</option>
+                            <option value="4">Change-Open % (from today's open)</option>
+                            <option value="5">Velocity (Rate of Change)</option>
+                          </select>
+                        </div>
+                        
+                        <div id="optionsStandardPresetFields" class="row">
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Operator:</label>
+                            <select class="form-select" id="optionsPresetOperator">
+                              <option value=">">></option>
+                              <option value="<"><</option>
+                              <option value=">=">>=</option>
+                              <option value="<="><=</option>
+                              <option value="=">=</option>
+                            </select>
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Threshold (%):</label>
+                            <input type="number" class="form-control" id="optionsPresetThreshold" step="0.01" placeholder="e.g., 2.5">
+                          </div>
+                        </div>
+                        
+                        <div id="optionsVelocityFields" class="row" style="display: none;">
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Time Interval (minutes):</label>
+                            <input type="number" class="form-control" id="optionsVelocityLookback" placeholder="e.g., 5" value="5" min="1">
+                          </div>
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Operator:</label>
+                            <select class="form-select" id="optionsVelocityOperator">
+                              <option value=">">></option>
+                              <option value="<"><</option>
+                              <option value=">=">>=</option>
+                              <option value="<="><=</option>
+                            </select>
+                          </div>
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Threshold (%):</label>
+                            <input type="number" class="form-control" id="optionsVelocityThreshold" step="0.01" placeholder="e.g., 1.5">
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div id="optionsCustomSection" style="display: none;">
+                        <div class="alert alert-info py-2">
+                          <i class="fas fa-tools me-2"></i>Custom Condition Builder - Compare indicators to define entry triggers
+                        </div>
+                        <div id="priceConditionsContainer"></div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPriceCondition()">
+                          <i class="fas fa-plus me-1"></i>Add Condition
+                        </button>
+                      </div>
                     </div>
 
                     <!-- [6/15] DTE -->

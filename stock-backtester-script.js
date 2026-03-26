@@ -787,52 +787,156 @@ async function collectFormData() {
     return config;
 }
 
-// Validate configuration
 function validateConfig(config) {
-    // Auto-generate name if not provided
     if (!config.name) {
         const symbol = config.symbol || (config.symbols && config.symbols[0]) || 'Multi';
         config.name = `${symbol} Backtest ${new Date().toLocaleDateString()}`;
     }
     
-    // Check required date fields
+    const errors = [];
+    
     if (!config.start_date || !config.end_date) {
-        return false;
+        errors.push('Start and end dates are required');
+    } else {
+        const start = new Date(config.start_date);
+        const end = new Date(config.end_date);
+        if (start >= end) {
+            errors.push('Start date must be before end date');
+        }
+        const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+        if (diffDays > 365 * 2) {
+            errors.push('Date range cannot exceed 2 years');
+        }
+        if (end > new Date()) {
+            errors.push('End date cannot be in the future');
+        }
     }
     
-    // Check symbols
     if (config.symbol_mode === 'single' && !config.symbol) {
-        return false;
+        errors.push('Symbol is required');
+    } else if (config.symbol_mode === 'single' && config.symbol && !/^[A-Za-z0-9.\-^=]{1,12}$/.test(config.symbol)) {
+        errors.push('Invalid symbol format');
     }
     if (config.symbol_mode === 'multiple' && (!config.symbols || config.symbols.length === 0)) {
-        return false;
+        errors.push('At least one symbol is required for multiple mode');
     }
     if (config.symbol_mode === 'all' && (!config.symbols || config.symbols.length === 0)) {
-        return false;
+        errors.push('CSV file with symbols is required');
     }
     
-    // Check entry conditions
     if (config.entry_type === 'preset') {
-        if (!config.preset_operator || !config.preset_threshold) {
-            return false;
+        if (!config.preset_operator) {
+            errors.push('Preset condition requires an operator');
+        }
+        if (config.preset_threshold === undefined || config.preset_threshold === '' || config.preset_threshold === null) {
+            errors.push('Preset condition requires a threshold value');
+        }
+        if (config.preset_condition === '5') {
+            const lookback = parseInt(config.velocity_lookback);
+            if (!lookback || lookback < 1 || lookback > 120) {
+                errors.push('Velocity lookback must be between 1 and 120 minutes');
+            }
         }
     } else {
         if (!config.custom_conditions || config.custom_conditions.length === 0) {
-            return false;
+            errors.push('At least one custom condition is required');
+        } else {
+            const hasEntry = config.custom_conditions.some(c => c.type === 'entry');
+            if (!hasEntry) {
+                errors.push('Custom conditions must include at least one entry trigger');
+            }
+            for (const cond of config.custom_conditions) {
+                if (cond.left_type === 'value') {
+                    errors.push('Left side cannot be "Fixed Value" — use it on the right side');
+                }
+                if (['sma', 'ema'].includes(cond.left_type)) {
+                    const w = parseInt(cond.left_window);
+                    if (!w || w < 2 || w > 500) {
+                        errors.push(`Left ${cond.left_type.toUpperCase()} window must be between 2 and 500`);
+                    }
+                }
+                if (['sma', 'ema'].includes(cond.right_type)) {
+                    const w = parseInt(cond.right_window);
+                    if (!w || w < 2 || w > 500) {
+                        errors.push(`Right ${cond.right_type.toUpperCase()} window must be between 2 and 500`);
+                    }
+                }
+                if (cond.left_type === 'rsi') {
+                    const w = parseInt(cond.left_window);
+                    if (!w || w < 2 || w > 100) {
+                        errors.push('RSI window must be between 2 and 100');
+                    }
+                }
+                if (cond.right_type === 'rsi') {
+                    const w = parseInt(cond.right_window);
+                    if (!w || w < 2 || w > 100) {
+                        errors.push('RSI window must be between 2 and 100');
+                    }
+                }
+                if (cond.left_type === 'macd') {
+                    const short = parseInt(cond.left_macd_short) || 12;
+                    const long = parseInt(cond.left_macd_long) || 26;
+                    if (short >= long) {
+                        errors.push('MACD short period must be less than long period');
+                    }
+                }
+                if (cond.right_type === 'macd') {
+                    const short = parseInt(cond.right_macd_short) || 12;
+                    const long = parseInt(cond.right_macd_long) || 26;
+                    if (short >= long) {
+                        errors.push('MACD short period must be less than long period');
+                    }
+                }
+                if (cond.threshold_unit === 'percent' && cond.right_type === 'value') {
+                    errors.push('Cannot use % threshold when comparing to a fixed value — use $ instead');
+                }
+            }
         }
     }
     
-    // Check sizing - sizing_value should be a number, not a string like 'shares'
     const sizingVal = parseFloat(config.sizing_value);
     if (isNaN(sizingVal) || sizingVal <= 0) {
-        return false;
+        errors.push('Position sizing value must be a positive number');
     }
-    if (config.sizing_type === 'percent' && !config.starting_capital) {
-        return false;
+    if (config.sizing_type === 'percent') {
+        if (!config.starting_capital || parseFloat(config.starting_capital) < 1000) {
+            errors.push('Starting capital must be at least $1,000 for percent sizing');
+        }
+        if (sizingVal > 100) {
+            errors.push('Position sizing % cannot exceed 100%');
+        }
     }
     
-    // Check exit criteria
-    if (!config.take_profit_value || !config.stop_loss_value || !config.max_days) {
+    const tpVal = parseFloat(config.take_profit_value);
+    const slVal = parseFloat(config.stop_loss_value);
+    const maxDays = parseInt(config.max_days);
+    
+    if (isNaN(tpVal) || tpVal <= 0) {
+        errors.push('Take profit value must be positive');
+    }
+    if (isNaN(slVal) || slVal <= 0) {
+        errors.push('Stop loss value must be positive');
+    }
+    if (isNaN(maxDays) || maxDays < 1) {
+        errors.push('Max holding days must be at least 1');
+    }
+    
+    if (config.take_profit_unit === 'percent' && tpVal > 1000) {
+        errors.push('Take profit % seems unreasonably high (>1000%)');
+    }
+    if (config.stop_loss_unit === 'percent' && slVal > 100) {
+        errors.push('Stop loss % cannot exceed 100%');
+    }
+    
+    if (errors.length > 0) {
+        const errorSection = document.getElementById('stockBacktestError');
+        const errorMessage = document.getElementById('stockBacktestErrorMessage');
+        if (errorSection && errorMessage) {
+            errorMessage.innerHTML = errors.join('<br>');
+            errorSection.style.display = 'block';
+        } else {
+            alert(errors.join('\n'));
+        }
         return false;
     }
     

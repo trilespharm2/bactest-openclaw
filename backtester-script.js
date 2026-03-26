@@ -50,6 +50,36 @@ const METRICS = [
     { value: 'macd', label: 'MACD' }
 ];
 
+function updateOptionsEntryType() {
+    const type = document.querySelector('input[name="optionsEntryType"]:checked')?.value || 'none';
+    const presetSection = document.getElementById('optionsPresetSection');
+    const customSection = document.getElementById('optionsCustomSection');
+    
+    if (presetSection) presetSection.style.display = type === 'preset' ? 'block' : 'none';
+    if (customSection) customSection.style.display = type === 'custom' ? 'block' : 'none';
+    
+    if (type === 'custom') {
+        const container = document.getElementById('priceConditionsContainer');
+        if (container && container.querySelectorAll('.price-condition-row').length === 0) {
+            addPriceCondition();
+        }
+    }
+}
+
+function updateOptionsPresetFields() {
+    const preset = document.getElementById('optionsPresetCondition')?.value;
+    const standardFields = document.getElementById('optionsStandardPresetFields');
+    const velocityFields = document.getElementById('optionsVelocityFields');
+    
+    if (preset === '5') {
+        if (standardFields) standardFields.style.display = 'none';
+        if (velocityFields) velocityFields.style.display = 'flex';
+    } else {
+        if (standardFields) standardFields.style.display = 'flex';
+        if (velocityFields) velocityFields.style.display = 'none';
+    }
+}
+
 function addPriceCondition() {
     const container = document.getElementById('priceConditionsContainer');
     if (!container) return;
@@ -1512,7 +1542,15 @@ function buildOptConfigSummaryHtml(config) {
     }
 
     let conditionsHtml = '<span style="color:#94a3b8;">None</span>';
-    if (config.price_conditions && config.price_conditions.length > 0) {
+    const presetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
+    if (config.options_entry_type === 'preset' && config.preset_condition) {
+        const condName = presetNames[config.preset_condition] || `Preset #${config.preset_condition}`;
+        if (config.preset_condition === '5') {
+            conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}% over ${config.velocity_lookback || 5} min`;
+        } else {
+            conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}%`;
+        }
+    } else if (config.price_conditions && config.price_conditions.length > 0) {
         conditionsHtml = config.price_conditions.map(pc => {
             return `<div style="margin-bottom:4px;">${pc.left_metric || pc.metric || 'Price'} ${pc.operator || ''} ${pc.right_metric || pc.value || ''}</div>`;
         }).join('');
@@ -1569,6 +1607,173 @@ function closeOptConfigSummary() {
     if (form) form.dataset.isSubmitting = 'false';
 }
 
+function validateOptionsConfig(config) {
+    const errors = [];
+    
+    if (!config.symbol || config.symbol.length === 0) {
+        errors.push('Symbol is required');
+    } else if (!/^[A-Za-z0-9.\-^=]{1,12}$/.test(config.symbol)) {
+        errors.push('Invalid symbol format');
+    }
+    
+    if (!config.start_date || !config.end_date) {
+        errors.push('Start and end dates are required');
+    } else {
+        const start = new Date(config.start_date);
+        const end = new Date(config.end_date);
+        if (start >= end) {
+            errors.push('Start date must be before end date');
+        }
+        const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+        if (diffDays > 365 * 2) {
+            errors.push('Date range cannot exceed 2 years');
+        }
+        if (end > new Date()) {
+            errors.push('End date cannot be in the future');
+        }
+    }
+    
+    if (!config.entry_time) {
+        errors.push('Entry time is required');
+    } else if (config.entry_time < '09:30' || config.entry_time > '16:00') {
+        errors.push('Entry time must be between 09:30 and 16:00');
+    }
+    if (config.entry_time_max && config.entry_time_max <= config.entry_time) {
+        errors.push('Entry time end must be after entry time start');
+    }
+    
+    if (config.dte < 0) {
+        errors.push('DTE cannot be negative');
+    }
+    
+    if (!config.strategy) {
+        errors.push('Strategy is required');
+    }
+    
+    if (!config.starting_capital || config.starting_capital < 1000) {
+        errors.push('Starting capital must be at least $1,000');
+    }
+    
+    if (!config.legs || config.legs.length === 0) {
+        errors.push('At least one leg must be configured');
+    } else {
+        for (const leg of config.legs) {
+            if (!leg.config_type) {
+                errors.push(`${leg.name}: Strike method is required`);
+            }
+            if (leg.config_type === 'delta' && leg.params) {
+                const delta = Math.abs(leg.params.target_delta || 0);
+                if (delta <= 0 || delta > 1) {
+                    errors.push(`${leg.name}: Delta must be between 0 and 1`);
+                }
+            }
+            if ((leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') && leg.params) {
+                if (leg.params.reference === undefined || leg.params.reference === '') {
+                    errors.push(`${leg.name}: Reference leg is required for leg-to-leg method`);
+                }
+                const refIdx = parseInt(leg.params.reference);
+                if (refIdx === leg.original_index) {
+                    errors.push(`${leg.name}: Cannot reference itself as the reference leg`);
+                }
+            }
+        }
+    }
+    
+    if (config.allocation_type === 'pct' && (config.allocation_value <= 0 || config.allocation_value > 100)) {
+        errors.push('Allocation % must be between 0 and 100');
+    }
+    if (config.allocation_type === 'contracts' && (!config.allocation_value || config.allocation_value < 1)) {
+        errors.push('Number of contracts must be at least 1');
+    }
+    if (config.allocation_type === 'fixed' && (!config.allocation_value || config.allocation_value < 100)) {
+        errors.push('Fixed allocation must be at least $100');
+    }
+    
+    if (config.avoid_pdt && config.dte === 0) {
+        if (config.take_profit_pct || config.take_profit_dollar || config.stop_loss_pct || config.stop_loss_dollar) {
+            errors.push('PDT avoidance is ON with 0 DTE — TP/SL will never trigger (trade cannot close same day). Disable PDT avoidance or use DTE > 0.');
+        }
+    }
+    
+    if (config.take_profit_pct !== null && config.take_profit_pct <= 0) {
+        errors.push('Take profit % must be positive');
+    }
+    if (config.stop_loss_pct !== null && config.stop_loss_pct <= 0) {
+        errors.push('Stop loss % must be positive');
+    }
+    if (config.take_profit_dollar !== null && config.take_profit_dollar <= 0) {
+        errors.push('Take profit $ must be positive');
+    }
+    if (config.stop_loss_dollar !== null && config.stop_loss_dollar <= 0) {
+        errors.push('Stop loss $ must be positive');
+    }
+    
+    if (config.options_entry_type === 'preset') {
+        if (!config.preset_operator || config.preset_threshold === undefined || config.preset_threshold === '') {
+            errors.push('Preset condition requires an operator and threshold');
+        }
+        if (config.preset_condition === '5') {
+            const lookback = parseInt(config.velocity_lookback);
+            if (!lookback || lookback < 1 || lookback > 120) {
+                errors.push('Velocity lookback must be between 1 and 120 minutes');
+            }
+        }
+    }
+    if (config.options_entry_type === 'custom') {
+        if (!config.price_conditions || config.price_conditions.length === 0) {
+            errors.push('Custom conditions selected but no conditions added');
+        } else {
+            for (let i = 0; i < config.price_conditions.length; i++) {
+                const pc = config.price_conditions[i];
+                const label = `Condition ${i+1}`;
+                if (pc.metric === 'macd' && pc.left) {
+                    const s = parseInt(pc.left.short_window) || 12;
+                    const l = parseInt(pc.left.long_window) || 26;
+                    if (s >= l) {
+                        errors.push(`${label}: MACD short period must be less than long period`);
+                    }
+                }
+                if (['sma', 'ema'].includes(pc.metric) && pc.left) {
+                    const w = parseInt(pc.left.window);
+                    if (!w || w < 2 || w > 500) {
+                        errors.push(`${label}: ${pc.metric.toUpperCase()} window must be between 2 and 500`);
+                    }
+                }
+                if (pc.metric === 'rsi' && pc.left) {
+                    const w = parseInt(pc.left.window);
+                    if (!w || w < 2 || w > 100) {
+                        errors.push(`${label}: RSI window must be between 2 and 100`);
+                    }
+                }
+                if (pc.comparator === 'value' && pc.compare_value === undefined) {
+                    errors.push(`${label}: Compare value is required when comparing to a fixed value`);
+                }
+                if (pc.comparator !== 'value' && pc.threshold) {
+                    if (pc.threshold.unit === 'percent' && pc.comparator === 'compare_rsi') {
+                        errors.push(`${label}: Cannot use % threshold when comparing RSI values — use $ (points) instead`);
+                    }
+                }
+            }
+        }
+    }
+    
+    if (config.strategy && config.strategy.includes('Iron') && !config.strategy.includes('Butterfly')) {
+        const legs = config.legs || [];
+        const putLegs = legs.filter(l => l.type === 'Put');
+        const callLegs = legs.filter(l => l.type === 'Call');
+        if (putLegs.length >= 2 && callLegs.length >= 2) {
+            if (config.allow_skewed_wings === false) {
+                const allDelta = legs.every(l => l.config_type === 'delta');
+                if (!allDelta) {
+                    // OK - offset or dollar methods can have balanced or skewed behavior
+                }
+            }
+        }
+    }
+    
+    return errors;
+}
+
 async function handleBacktestSubmit(e) {
     e.preventDefault();
     
@@ -1585,6 +1790,13 @@ async function handleBacktestSubmit(e) {
     
     if (!config) {
         showError('Please complete all required fields');
+        form.dataset.isSubmitting = 'false';
+        return;
+    }
+    
+    const configErrors = validateOptionsConfig(config);
+    if (configErrors.length > 0) {
+        showError(configErrors.join('<br>'));
         form.dataset.isSubmitting = 'false';
         return;
     }
@@ -1781,10 +1993,25 @@ function collectFormData() {
         config.entry_time_max = entryTimeMax;
     }
     
-    // Collect price conditions
-    const priceConditions = collectPriceConditions();
-    if (priceConditions && priceConditions.length > 0) {
-        config.price_conditions = priceConditions;
+    // Collect entry conditions based on type
+    const optionsEntryType = document.querySelector('input[name="optionsEntryType"]:checked')?.value || 'none';
+    config.options_entry_type = optionsEntryType;
+    
+    if (optionsEntryType === 'preset') {
+        config.preset_condition = document.getElementById('optionsPresetCondition').value;
+        if (config.preset_condition === '5') {
+            config.velocity_lookback = document.getElementById('optionsVelocityLookback').value;
+            config.preset_operator = document.getElementById('optionsVelocityOperator').value;
+            config.preset_threshold = document.getElementById('optionsVelocityThreshold').value;
+        } else {
+            config.preset_operator = document.getElementById('optionsPresetOperator').value;
+            config.preset_threshold = document.getElementById('optionsPresetThreshold').value;
+        }
+    } else if (optionsEntryType === 'custom') {
+        const priceConditions = collectPriceConditions();
+        if (priceConditions && priceConditions.length > 0) {
+            config.price_conditions = priceConditions;
+        }
     }
     
     return config;
