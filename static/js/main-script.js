@@ -599,6 +599,11 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     scriptName = 'simulated-trading-script.js';
+                    if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
+                        loadedScripts.add(pageName);
+                        initializePage(pageName);
+                        scriptName = null;
+                    }
                 }
                 if (pageName === 'screener') {
                     scriptName = 'static/js/screener-script.js';

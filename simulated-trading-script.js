@@ -392,7 +392,7 @@ function initSimTradingActive() {
     }
 }
 
-let _tradingPageListenersSet = false;
+var _tradingPageListenersSet = _tradingPageListenersSet || false;
 
 function setupTradingPageListeners() {
     if (_tradingPageListenersSet) return;
