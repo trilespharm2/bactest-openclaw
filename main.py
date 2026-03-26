@@ -4255,9 +4255,8 @@ def get_stocks_backtest_v3_results(backtest_id):
 @app.route('/api/stocks-backtest-v3/list', methods=['GET'])
 @login_required
 def list_stocks_backtests_v3():
-    """List user's stocks V3 backtests"""
+    """List user's stocks V3 backtests with status and performance data"""
     try:
-        # Get user's stock backtests from database
         records = BacktestResult.query.filter_by(
             user_id=current_user.id,
             backtest_type='stocks'
@@ -4268,23 +4267,38 @@ def list_stocks_backtests_v3():
         
         for record in records:
             backtest_id = record.id
-            filepath = os.path.join(output_dir, f'{backtest_id}.json')
             
+            live_status = running_stock_backtests.get(backtest_id)
+            status = live_status['status'] if live_status else (record.status or 'completed')
+            
+            entry = {
+                'id': backtest_id,
+                'name': record.strategy or 'Unnamed',
+                'symbol': record.symbol or '',
+                'status': status,
+                'total_return': record.total_return,
+                'win_rate': record.win_rate,
+                'total_trades': record.total_trades,
+                'total_pnl': record.total_pnl,
+                'timestamp': record.created_at.isoformat() if record.created_at else '',
+                'symbol_count': 0
+            }
+            
+            filepath = os.path.join(output_dir, f'{backtest_id}.json')
             if os.path.exists(filepath):
                 try:
                     with open(filepath, 'r') as f:
                         data = json.load(f)
-                    
-                    backtests.append({
-                        'id': backtest_id,
-                        'name': data.get('config', {}).get('name', 'Unnamed'),
-                        'timestamp': record.created_at.isoformat() if record.created_at else '',
-                        'total_trades': data.get('metadata', {}).get('total_trades', 0),
-                        'symbol_count': data.get('metadata', {}).get('symbol_count', 0)
-                    })
+                    config = data.get('config', {})
+                    entry['name'] = config.get('name', entry['name'])
+                    entry['symbol_count'] = data.get('metadata', {}).get('symbol_count', 0)
+                    entry['date_range'] = f"{config.get('start_date', '')} to {config.get('end_date', '')}"
+                    if not entry['total_trades']:
+                        entry['total_trades'] = data.get('metadata', {}).get('total_trades', 0)
                 except Exception as e:
                     print(f"Error reading {backtest_id}.json: {e}")
-                    continue
+            
+            backtests.append(entry)
         
         return jsonify({'backtests': backtests})
     

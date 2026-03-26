@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="main-styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         :root {
             --report-bg: #eef3f8;
@@ -278,7 +278,7 @@
         }
 
         .equity-curve-container {
-            display: block;          /* override main-styles.css display:flex */
+            display: block;
             position: relative;
             width: 100%;
             max-width: 100%;
@@ -290,25 +290,6 @@
             background: #fbfdff;
             border: 1px solid rgba(219, 228, 240, 0.95);
             overflow: hidden;
-        }
-
-        /* Chart.js canvas: fill the relative container completely.
-           max-height override needed against main-styles.css 200px cap. */
-        .equity-curve-container > canvas {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            max-height: none !important;  /* override main-styles.css 200px cap */
-        }
-
-        /* Modal canvas: the modal-content is the scroll-flex child;
-           give it an inner wrapper to anchor the canvas. */
-        .chart-modal-content canvas {
-            display: block !important;
-            width: 100% !important;
-            height: 100% !important;
         }
 
         .stats-card .section-content {
@@ -626,7 +607,7 @@
             display: block;
             min-width: 300px;
             width: max(300px, 100%);
-            height: 200px;
+            height: 240px;
             min-height: unset;
             max-height: unset;
         }
@@ -677,7 +658,7 @@
         body.is-mobile .results-table td { padding: 10px 12px; }
 
         /* is-small-mobile (<= 430px) overrides */
-        body.is-small-mobile .equity-curve-container { height: 180px; }
+        body.is-small-mobile .equity-curve-container { height: 200px; }
         body.is-small-mobile .stats-grid {
             grid-template-columns: repeat(4, minmax(72px, 1fr));
             min-width: 300px;
@@ -743,9 +724,7 @@
                         </div>
                     </div>
                     <div class="equity-curve-wrap">
-                        <div class="equity-curve-container" id="equityCurveContainer">
-                            <canvas id="equityChart"></canvas>
-                        </div>
+                        <div class="equity-curve-container" id="equityCurveContainer"></div>
                     </div>
                 </div>
 
@@ -865,14 +844,12 @@
                         <i class="fas fa-times"></i> Close
                     </button>
                 </div>
-                <div class="chart-modal-content">
-                    <canvas id="modalEquityChart"></canvas>
-                </div>
+                <div class="chart-modal-content" id="modalChartContainer"></div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
     <script src="/static/js/auth-utils.js"></script>
     <script src="stock-backtest-results-script.js"></script>
 </body>

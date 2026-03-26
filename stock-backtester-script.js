@@ -3,12 +3,123 @@
 
 let conditionCount = 0;
 
+function toggleStockSection(labelEl) {
+    const section = labelEl.closest('.backtester-section');
+    if (section) section.classList.toggle('collapsed');
+}
+
+async function loadStockSessions() {
+    const section = document.getElementById('stockSessionsSection');
+    const grid = document.getElementById('stockSessionsGrid');
+    const countEl = document.getElementById('stockSessionsCount');
+    if (!grid) return;
+
+    if (typeof window.isAuthenticated === 'function' && !window.isAuthenticated()) {
+        return;
+    }
+
+    try {
+        const resp = await authFetch('/api/stocks-backtest-v3/list');
+        if (!resp.ok) { section.style.display = 'none'; return; }
+        const data = await resp.json();
+        const backtests = data.backtests || [];
+
+        if (backtests.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+
+        section.style.display = 'block';
+        if (countEl) countEl.textContent = `${backtests.length} backtest${backtests.length !== 1 ? 's' : ''}`;
+
+        grid.innerHTML = backtests.slice(0, 12).map(bt => {
+            const statusClass = bt.status === 'running' ? 'running' : bt.status === 'failed' ? 'failed' : 'completed';
+            const statusLabel = bt.status === 'running' ? 'Running' : bt.status === 'failed' ? 'Failed' : 'Completed';
+
+            let statsHtml = '';
+            if (bt.status === 'completed' && bt.total_trades != null) {
+                const returnClass = (bt.total_return || 0) >= 0 ? 'positive' : 'negative';
+                const returnVal = bt.total_return != null ? `${bt.total_return.toFixed(1)}%` : '-';
+                const wrVal = bt.win_rate != null ? `${bt.win_rate.toFixed(0)}%` : '-';
+                statsHtml = `
+                    <div class="session-card-stats">
+                        <div class="session-stat"><span class="session-stat-label">Trades</span><span class="session-stat-value">${bt.total_trades}</span></div>
+                        <div class="session-stat"><span class="session-stat-label">Return</span><span class="session-stat-value ${returnClass}">${returnVal}</span></div>
+                        <div class="session-stat"><span class="session-stat-label">Win Rate</span><span class="session-stat-value">${wrVal}</span></div>
+                    </div>`;
+            }
+
+            const timeAgo = bt.timestamp ? formatTimeAgo(bt.timestamp) : '';
+            const symbolInfo = bt.symbol_count > 1 ? `${bt.symbol} +${bt.symbol_count - 1}` : (bt.symbol || '');
+
+            let actionsHtml = '';
+            if (bt.status === 'running') {
+                actionsHtml = `<button class="btn btn-sm btn-primary" onclick="window.location.href='/stock-backtest-results.html?id=${bt.id}'"><i class="fas fa-eye me-1"></i>View Progress</button>`;
+            } else if (bt.status === 'completed') {
+                actionsHtml = `
+                    <button class="btn btn-sm btn-primary" onclick="window.location.href='/stock-backtest-results.html?id=${bt.id}'"><i class="fas fa-chart-line me-1"></i>View Results</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteStockSession('${bt.id}')"><i class="fas fa-trash"></i></button>`;
+            } else {
+                actionsHtml = `<button class="btn btn-sm btn-outline-danger" onclick="deleteStockSession('${bt.id}')"><i class="fas fa-trash me-1"></i>Remove</button>`;
+            }
+
+            return `
+                <div class="session-card" id="session-${bt.id}">
+                    <div class="session-card-header">
+                        <span class="session-card-name" title="${bt.name}">${bt.name}</span>
+                        <span class="session-badge ${statusClass}">${statusLabel}</span>
+                    </div>
+                    <div class="session-card-meta">
+                        ${symbolInfo ? `<span><i class="fas fa-chart-area"></i> ${symbolInfo}</span>` : ''}
+                        ${timeAgo ? `<span><i class="fas fa-clock"></i> ${timeAgo}</span>` : ''}
+                    </div>
+                    ${statsHtml}
+                    <div class="session-card-actions">${actionsHtml}</div>
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.log('Could not load stock sessions:', e);
+        section.style.display = 'none';
+    }
+}
+
+function formatTimeAgo(isoString) {
+    const d = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - d;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString();
+}
+
+async function deleteStockSession(id) {
+    if (!confirm('Delete this backtest?')) return;
+    try {
+        const resp = await authFetch(`/api/stocks-backtest-v3/${id}`, { method: 'DELETE' });
+        if (resp.ok) {
+            const card = document.getElementById('session-' + id);
+            if (card) card.remove();
+            const grid = document.getElementById('stockSessionsGrid');
+            if (grid && grid.children.length === 0) {
+                document.getElementById('stockSessionsSection').style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Error deleting session:', e);
+    }
+}
+
 // Initialize form function (can be called from dashboard)
 function initializeStockBacktesterPage() {
     console.log('=== Stock Backtester V3.0 Initialized ===');
     
-    // Check if user is authenticated - if not, gray out fields
-    // Wait for auth check to complete (it's async)
+    loadStockSessions();
+    
     function applyLoginOverlayIfNeeded() {
         if (typeof window.isAuthenticated === 'function') {
             if (!window.isAuthenticated()) {
@@ -934,340 +1045,6 @@ function validateConfig(config) {
     }
     
     return true;
-}
-
-// ============================================================================
-// RESULTS DISPLAY FUNCTIONS
-// ============================================================================
-
-async function displayResults(backtestId, apiKey) {
-    try {
-        console.log('Fetching results for backtest ID:', backtestId);
-        
-        // No API key needed for viewing results - just reading saved files
-        
-        // Fetch results from API
-        const response = await authFetch(`/api/stocks-backtest-v3/results/${backtestId}`);
-        
-        if (!response.ok) {
-            throw new Error('Failed to fetch results');
-        }
-        
-        const data = await response.json();
-        console.log('===== API RESPONSE RECEIVED =====');
-        console.log('Full response:', data);
-        console.log('Response keys:', Object.keys(data));
-        console.log('Has stats?', 'stats' in data);
-        console.log('Stats value:', data.stats);
-        console.log('Has trades?', 'trades' in data);
-        console.log('Trades count:', data.trades ? data.trades.length : 'N/A');
-        console.log('=================================');
-        
-        // Show results section
-        document.getElementById('backtestResults').style.display = 'block';
-        
-        // Display equity curve if available
-        if (data.equity_curve_data || data.trades) {
-            const curveSection = document.getElementById('equityCurveSection');
-            const container = document.getElementById('equityCurveContainer');
-            curveSection.style.display = 'block';
-            
-            // Create canvas for Chart.js
-            container.innerHTML = '<canvas id="equityCurveChart"></canvas>';
-            
-            // Build equity curve from trades
-            const equityData = buildEquityCurve(data.trades || []);
-            
-            // Render chart
-            renderEquityCurve(equityData);
-        }
-        
-        // Display statistics - pass stats or empty object if undefined
-        displayStatistics(data.stats || {});
-        
-        // Display trades table
-        displayTradesTable(data.trades || []);
-        
-        // Setup download CSV button
-        setupDownloadButton(data.csv_data, backtestId);
-        
-        // Setup view full results button
-        setupViewFullResultsButton(backtestId);
-        
-        console.log('Results displayed successfully');
-        
-    } catch (error) {
-        console.error('Error displaying results:', error);
-        alert('Error loading results: ' + error.message);
-    }
-}
-
-function displayStatistics(stats) {
-    // Check if stats exists
-    if (!stats) {
-        console.error('Stats is undefined or null');
-        console.error('This usually means the API response structure is different than expected');
-        // Set all to 0
-        document.getElementById('statTotalTrades').textContent = '0';
-        document.getElementById('statWinRate').textContent = '0.0%';
-        document.getElementById('statTotalPL').textContent = '$0.00';
-        document.getElementById('statAvgWin').textContent = '$0.00';
-        document.getElementById('statAvgLoss').textContent = '$0.00';
-        document.getElementById('statProfitFactor').textContent = '0.00';
-        document.getElementById('statMaxDrawdown').textContent = '0.00%';
-        document.getElementById('statTotalReturn').textContent = '0.00%';
-        return;
-    }
-    
-    console.log('Displaying stats:', stats);
-    
-    // Update each stat value with safe access
-    document.getElementById('statTotalTrades').textContent = stats.total_trades !== undefined ? stats.total_trades : 0;
-    document.getElementById('statWinRate').textContent = stats.win_rate !== undefined
-        ? `${stats.win_rate.toFixed(1)}%` 
-        : '0.0%';
-    document.getElementById('statTotalPL').textContent = stats.total_pnl !== undefined
-        ? `$${stats.total_pnl.toFixed(2)}` 
-        : '$0.00';
-    document.getElementById('statAvgWin').textContent = stats.avg_win !== undefined
-        ? `$${stats.avg_win.toFixed(2)}` 
-        : '$0.00';
-    document.getElementById('statAvgLoss').textContent = stats.avg_loss !== undefined
-        ? `$${stats.avg_loss.toFixed(2)}` 
-        : '$0.00';
-    document.getElementById('statProfitFactor').textContent = stats.profit_factor !== undefined
-        ? stats.profit_factor.toFixed(2) 
-        : '0.00';
-    document.getElementById('statMaxDrawdown').textContent = stats.max_drawdown !== undefined
-        ? `${stats.max_drawdown.toFixed(2)}%` 
-        : '0.00%';
-    document.getElementById('statTotalReturn').textContent = stats.total_return !== undefined
-        ? `${stats.total_return.toFixed(2)}%` 
-        : '0.00%';
-    
-    // Color code positive/negative values
-    const plEl = document.getElementById('statTotalPL');
-    if (stats.total_pnl > 0) {
-        plEl.style.color = '#10b981';
-    } else if (stats.total_pnl < 0) {
-        plEl.style.color = '#ef4444';
-    }
-    
-    const returnEl = document.getElementById('statTotalReturn');
-    if (stats.total_return > 0) {
-        returnEl.style.color = '#10b981';
-    } else if (stats.total_return < 0) {
-        returnEl.style.color = '#ef4444';
-    }
-}
-
-function displayTradesTable(trades) {
-    const thead = document.getElementById('tradesTableHead');
-    const tbody = document.getElementById('tradesTableBody');
-    
-    // Clear existing content
-    thead.innerHTML = '';
-    tbody.innerHTML = '';
-    
-    if (!trades || trades.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">No trades executed</td></tr>';
-        return;
-    }
-    
-    // Create header
-    thead.innerHTML = `
-        <tr>
-            <th>Trade #</th>
-            <th>Symbol</th>
-            <th>Entry Date</th>
-            <th>Entry Price</th>
-            <th>Exit Date</th>
-            <th>Exit Price</th>
-            <th>Shares</th>
-            <th>P&L</th>
-            <th>P&L %</th>
-            <th>Exit Reason</th>
-        </tr>
-    `;
-    
-    // Create rows
-    trades.forEach((trade, index) => {
-        const pnl = trade.pnl || 0;
-        const pnlPct = trade.pnl_pct || 0;
-        const pnlClass = pnl >= 0 ? 'positive' : 'negative';
-        
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${index + 1}</td>
-            <td><strong>${trade.symbol || 'N/A'}</strong></td>
-            <td>${trade.entry_date || 'N/A'}</td>
-            <td>$${(trade.entry_price || 0).toFixed(2)}</td>
-            <td>${trade.exit_date || 'N/A'}</td>
-            <td>$${(trade.exit_price || 0).toFixed(2)}</td>
-            <td>${trade.shares || 0}</td>
-            <td class="${pnlClass}">$${pnl.toFixed(2)}</td>
-            <td class="${pnlClass}">${pnlPct.toFixed(2)}%</td>
-            <td>${trade.exit_reason || 'N/A'}</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function setupDownloadButton(csvData, backtestId) {
-    const downloadBtn = document.getElementById('downloadCSV');
-    if (!downloadBtn) return;
-    
-    downloadBtn.onclick = () => {
-        if (!csvData) {
-            alert('No CSV data available');
-            return;
-        }
-        
-        // Create blob and download
-        const blob = new Blob([csvData], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `stock_backtest_${backtestId}_trades.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-    };
-}
-
-function setupViewFullResultsButton(backtestId) {
-    const viewBtn = document.getElementById('viewFullResults');
-    if (!viewBtn) return;
-    
-    viewBtn.onclick = () => {
-        window.open(`stock-backtest-results.html?id=${backtestId}`, '_blank');
-    };
-}
-
-// Build equity curve data from trades
-function buildEquityCurve(trades) {
-    if (!trades || trades.length === 0) {
-        return { labels: ['Start'], values: [0] };
-    }
-    
-    const labels = ['Start'];
-    const values = [0];
-    let runningTotal = 0;
-    
-    trades.forEach((trade, index) => {
-        runningTotal += (trade.pnl || 0);
-        labels.push(`Trade ${index + 1}`);
-        values.push(runningTotal);
-    });
-    
-    return { labels, values };
-}
-
-// Render equity curve using Chart.js
-let equityCurveChart = null;
-
-function renderEquityCurve(data) {
-    const ctx = document.getElementById('equityCurveChart');
-    if (!ctx) {
-        console.error('Canvas element not found');
-        return;
-    }
-    
-    // Destroy existing chart if any
-    if (equityCurveChart) {
-        equityCurveChart.destroy();
-    }
-    
-    const isMobile = window.innerWidth <= 480;
-    
-    // Tight y-axis bounds
-    const minVal = Math.min(...data.values);
-    const maxVal = Math.max(...data.values);
-    const dataRange = Math.max(maxVal - minVal, 1);
-    const pad = dataRange * 0.08;
-
-    equityCurveChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Cumulative P&L ($)',
-                data: data.values,
-                borderColor: '#3b82f6',
-                borderWidth: 2.5,
-                fill: false,
-                tension: 0,
-                pointRadius: 0,
-                pointHoverRadius: 4,
-                pointBackgroundColor: '#3b82f6'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            layout: {
-                padding: { top: 10, right: 10, bottom: 5, left: 5 }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            return 'P&L: $' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    display: true,
-                    grid: { display: false },
-                    ticks: {
-                        maxRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: isMobile ? 4 : 8,
-                        font: { size: isMobile ? 10 : 11 },
-                        color: '#9ca3af',
-                        padding: 4
-                    },
-                    border: { display: false }
-                },
-                y: {
-                    display: true,
-                    position: 'right',
-                    min: minVal - pad,
-                    max: maxVal + pad,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.06)',
-                        borderDash: [4, 4],
-                        drawBorder: false
-                    },
-                    ticks: {
-                        font: { size: isMobile ? 10 : 11 },
-                        color: '#9ca3af',
-                        padding: 4,
-                        count: 5,
-                        mirror: true,
-                        callback: function(value) {
-                            if (Math.abs(value) >= 1000) {
-                                return '  $' + (value / 1000).toFixed(0) + 'k';
-                            }
-                            return '  $' + Math.round(value).toLocaleString();
-                        }
-                    },
-                    border: { display: false }
-                }
-            },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
-            }
-        }
-    });
 }
 
 // =============================================================================

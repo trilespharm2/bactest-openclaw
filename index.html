@@ -331,16 +331,133 @@
       }
       
       /* Backtester Styles */
-      .backtester-section { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
-      .backtester-section:last-of-type { border-bottom: none; }
-      .section-label { display: flex; align-items: center; gap: 10px; font-weight: 600; color: #1f2937; margin-bottom: 12px; font-size: 1rem; }
-      .section-number { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
+      .backtester-section {
+        margin-bottom: 8px;
+        padding: 20px 24px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #fff;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .backtester-section:hover { border-color: #c7d2fe; box-shadow: 0 2px 8px rgba(59,130,246,0.06); }
+      .backtester-section.collapsed .backtester-section-body { display: none; }
+      .backtester-section-body { margin-top: 16px; }
+      .section-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0;
+        font-size: 0.95rem;
+        cursor: pointer;
+        user-select: none;
+      }
+      .section-label .section-chevron {
+        margin-left: auto;
+        color: #94a3b8;
+        transition: transform 0.2s;
+        font-size: 0.8rem;
+      }
+      .backtester-section.collapsed .section-label .section-chevron { transform: rotate(-90deg); }
+      .section-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        color: white;
+        border-radius: 8px;
+        font-size: 0.75em;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      .section-icon { color: #6366f1; font-size: 0.9em; }
       .leg-config-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
       .leg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
       .leg-title { font-weight: 600; color: #1f2937; }
       .leg-badge { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.8em; }
       .stock-filter-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; margin-right: 6px; }
       .stock-filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+
+      /* Stock Active Sessions */
+      .stock-sessions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 14px;
+      }
+      .session-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 18px 20px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        position: relative;
+      }
+      .session-card:hover { border-color: #c7d2fe; box-shadow: 0 4px 16px rgba(59,130,246,0.08); }
+      .session-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .session-card-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #1f2937;
+        line-height: 1.3;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .session-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        flex-shrink: 0;
+      }
+      .session-badge.running { background: #fef3c7; color: #92400e; }
+      .session-badge.running::before {
+        content: '';
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #f59e0b;
+        animation: pulse-dot 1.5s infinite;
+      }
+      .session-badge.completed { background: #d1fae5; color: #065f46; }
+      .session-badge.failed { background: #fee2e2; color: #991b1b; }
+      @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+      .session-card-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      .session-card-meta span { display: inline-flex; align-items: center; gap: 4px; }
+      .session-card-stats {
+        display: flex;
+        gap: 16px;
+        font-size: 0.82rem;
+        margin-bottom: 14px;
+      }
+      .session-stat { display: flex; flex-direction: column; }
+      .session-stat-label { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
+      .session-stat-value { font-weight: 700; color: #1e293b; }
+      .session-stat-value.positive { color: #059669; }
+      .session-stat-value.negative { color: #dc2626; }
+      .session-card-actions { display: flex; gap: 8px; }
+      .session-card-actions .btn { font-size: 0.78rem; padding: 6px 14px; border-radius: 8px; }
     </style>
   </head>
   <body class="initializing">
@@ -1478,40 +1595,76 @@
               <div class="page-header">
                 <h3 class="fw-bold mb-3">Stock Backtester</h3>
               </div>
+
+              <!-- Active Sessions Section -->
+              <div id="stockSessionsSection" class="mb-4" style="display:none;">
+                <div class="card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-title"><i class="fas fa-layer-group me-2"></i>Recent Backtests</div>
+                    <div class="d-flex align-items-center gap-2">
+                      <span id="stockSessionsCount" class="text-muted" style="font-size:0.8rem;"></span>
+                      <button class="btn btn-sm btn-outline-secondary" onclick="loadStockSessions()" style="border-radius:8px;">
+                        <i class="fas fa-sync-alt"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="card-body" id="stockSessionsBody">
+                    <div class="stock-sessions-grid" id="stockSessionsGrid"></div>
+                  </div>
+                </div>
+              </div>
+
               <div class="card">
                 <div class="card-header">
                   <div class="card-title"><i class="fas fa-chart-bar me-2"></i>STOCK BACKTESTING SYSTEM V3.0</div>
                 </div>
-                <div class="card-body">
+                <div class="card-body" style="background:#f8fafc;">
                   <form id="stockBacktestForm">
                     <!-- [1/7] BACKTEST NAME -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[1/7]</span> BACKTEST NAME</div>
-                      <div class="mb-3">
-                        <label class="form-label">Enter a name for this backtest:</label>
-                        <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
-                        <small class="text-muted">This name will be used to identify your backtest in the results page</small>
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">1</span>
+                        <i class="fas fa-tag section-icon"></i> BACKTEST NAME
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
+                        <div class="mb-3">
+                          <label class="form-label">Enter a name for this backtest:</label>
+                          <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
+                          <small class="text-muted">This name will be used to identify your backtest in the results page</small>
+                        </div>
                       </div>
                     </div>
 
                     <!-- [2/7] DATE RANGE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[2/7]</span> DATE RANGE</div>
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Start Date:</label>
-                          <input type="date" class="form-control" id="stockStartDate" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">End Date:</label>
-                          <input type="date" class="form-control" id="stockEndDate" required>
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">2</span>
+                        <i class="fas fa-calendar-alt section-icon"></i> DATE RANGE
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
+                        <div class="row">
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Start Date:</label>
+                            <input type="date" class="form-control" id="stockStartDate" required>
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">End Date:</label>
+                            <input type="date" class="form-control" id="stockEndDate" required>
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     <!-- [3/7] SYMBOL SELECTION -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[3/7]</span> SYMBOL SELECTION</div>
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">3</span>
+                        <i class="fas fa-search-dollar section-icon"></i> SYMBOL SELECTION
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
                       <div class="mb-3">
                         <label class="form-label">Select symbol mode:</label>
                         <div class="form-check">
@@ -1570,11 +1723,17 @@
                           </div>
                         </div>
                       </div>
+                      </div>
                     </div>
 
                     <!-- [4/7] ENTRY CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[4/7]</span> ENTRY CONDITIONS</div>
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">4</span>
+                        <i class="fas fa-sign-in-alt section-icon"></i> ENTRY CONDITIONS
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
                       <div class="mb-3">
                         <label class="form-label">Condition type:</label>
                         <div class="form-check">
@@ -1650,12 +1809,17 @@
                           <i class="fas fa-plus me-1"></i>Add Condition
                         </button>
                       </div>
+                      </div>
                     </div>
 
                     <!-- [5/7] ENTRY CRITERIA -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[5/7]</span> ENTRY CRITERIA</div>
-                      
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">5</span>
+                        <i class="fas fa-crosshairs section-icon"></i> ENTRY CRITERIA
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
                       <!-- Direction Selection -->
                       <div class="mb-3">
                         <label class="form-label">Direction:</label>
@@ -1709,12 +1873,17 @@
                           <input type="number" class="form-control" id="stockSizingPercent" step="0.01" min="0.01" max="100" placeholder="e.g., 10">
                         </div>
                       </div>
+                      </div>
                     </div>
 
                     <!-- [6/7] EXIT CRITERIA -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/7]</span> EXIT CRITERIA</div>
-                      
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">6</span>
+                        <i class="fas fa-sign-out-alt section-icon"></i> EXIT CRITERIA
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
                       <!-- Take Profit -->
                       <div class="mb-3">
                         <label class="form-label">Take Profit Type:</label>
@@ -1752,16 +1921,23 @@
                       <!-- Max Days -->
                       <div class="mb-3">
                         <label class="form-label">Max Days in Trade:</label>
-                        <input type="number" class="form-control" id="maxDays" min="1" placeholder="e.g., 5" required>
+                        <input type="number" class="form-control" id="maxDays" min="0" placeholder="e.g., 5 (0 = same-day)" required>
+                      </div>
                       </div>
                     </div>
 
                     <!-- [7/7] ADVANCED OPTIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[7/7]</span> ADVANCED OPTIONS</div>
+                      <div class="section-label" onclick="toggleStockSection(this)">
+                        <span class="section-number">7</span>
+                        <i class="fas fa-cog section-icon"></i> ADVANCED OPTIONS
+                        <i class="fas fa-chevron-down section-chevron"></i>
+                      </div>
+                      <div class="backtester-section-body">
                       <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="allowConsecutive">
                         <label class="form-check-label" for="allowConsecutive">Allow consecutive trades (new entry if already in position for same symbol)</label>
+                      </div>
                       </div>
                     </div>
 
@@ -1801,67 +1977,6 @@
                 </div>
               </div>
 
-              <!-- Results Section -->
-              <div class="card mt-3" id="stockBacktestResults" style="display: none;">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <div class="card-title">Backtest Results</div>
-                  <div>
-                    <button class="btn btn-sm btn-secondary me-2" id="viewFullStockResults">
-                      <i class="fas fa-external-link-alt me-1"></i>View Full Results
-                    </button>
-                    <button class="btn btn-sm btn-secondary" id="downloadStockCSV">
-                      <i class="fas fa-file-csv me-1"></i>Download Trade Log
-                    </button>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <!-- Performance Statistics -->
-                  <h5>Performance Statistics</h5>
-                  <div class="row mb-4">
-                    <div class="col-md-3 col-6 mb-3">
-                      <div class="card card-stats">
-                        <div class="card-body text-center">
-                          <small class="text-muted">Total Trades</small>
-                          <h4 id="stockStatTotalTrades">-</h4>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
-                      <div class="card card-stats">
-                        <div class="card-body text-center">
-                          <small class="text-muted">Win Rate</small>
-                          <h4 id="stockStatWinRate">-</h4>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
-                      <div class="card card-stats">
-                        <div class="card-body text-center">
-                          <small class="text-muted">Total P&L</small>
-                          <h4 id="stockStatTotalPL">-</h4>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
-                      <div class="card card-stats">
-                        <div class="card-body text-center">
-                          <small class="text-muted">Total Return</small>
-                          <h4 id="stockStatTotalReturn">-</h4>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Trade Log -->
-                  <h5>Trade Log</h5>
-                  <div class="table-responsive">
-                    <table class="table table-striped">
-                      <thead id="stockTradesTableHead"></thead>
-                      <tbody id="stockTradesTableBody"></tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
             </section>
 
             <!-- Simulated Trading Page -->
