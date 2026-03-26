@@ -383,6 +383,14 @@ async function navigateToPage(pageName, skipPushState = false) {
     if (_mov) _mov.classList.remove('active');
 
     if (pageName === currentPage && !skipPushState) return;
+
+    if (currentPage === 'simTradingActive' && pageName !== 'simTradingActive') {
+        try {
+            if (typeof stopAutoplay === 'function') stopAutoplay();
+            if (typeof saveCurrentSessionState === 'function') saveCurrentSessionState();
+            console.log('Auto-saved sim trading session before navigating away');
+        } catch(e) { console.error('Error auto-saving sim session:', e); }
+    }
     
     // Update current page
     currentPage = pageName;

@@ -398,6 +398,12 @@ function setupTradingPageListeners() {
     if (_tradingPageListenersSet) return;
     _tradingPageListenersSet = true;
 
+    window.addEventListener('beforeunload', function() {
+        if (typeof simCurrentSymbol !== 'undefined' && simCurrentSymbol) {
+            try { saveCurrentSessionState(); } catch(e) {}
+        }
+    });
+
     document.getElementById('simBackBtn')?.addEventListener('click', handleBackToConfig);
     document.getElementById('simPrevBar')?.addEventListener('click', showPreviousBar);
     document.getElementById('simNextBar')?.addEventListener('click', showNextBar);
@@ -523,6 +529,10 @@ function saveCurrentSessionState() {
         activeSessions[pending.sessionIndex] = sessionState;
     } else {
         activeSessions.unshift(sessionState);
+        if (pending) {
+            pending.isNew = false;
+            pending.sessionIndex = 0;
+        }
     }
 
     localStorage.setItem('simActiveSessions', JSON.stringify(activeSessions));
