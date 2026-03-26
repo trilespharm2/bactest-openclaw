@@ -228,14 +228,63 @@ function addCondition() {
                 <input type="number" id="left-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 5">
             </div>
             <div>
-                <label>Price Type</label>
-                <select id="left-type-${conditionCount}">
-                    <option value="open">Open</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                    <option value="close">Close</option>
-                    <option value="vwap">VWAP</option>
+                <label>Metric</label>
+                <select id="left-type-${conditionCount}" onchange="toggleIndicatorFields('left', ${conditionCount})">
+                    <optgroup label="Price">
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                        <option value="close">Close</option>
+                        <option value="vwap">VWAP</option>
+                    </optgroup>
+                    <optgroup label="Indicators">
+                        <option value="sma">SMA</option>
+                        <option value="ema">EMA</option>
+                        <option value="rsi">RSI</option>
+                        <option value="macd">MACD</option>
+                    </optgroup>
                 </select>
+            </div>
+        </div>
+        <div id="left-indicator-params-${conditionCount}" style="display:none;margin-bottom:15px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div id="left-window-group-${conditionCount}">
+                    <label>Period</label>
+                    <input type="number" id="left-window-${conditionCount}" min="2" value="20" placeholder="e.g., 20">
+                </div>
+                <div id="left-series-group-${conditionCount}">
+                    <label>Series</label>
+                    <select id="left-series-${conditionCount}">
+                        <option value="close">Close</option>
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div id="left-macd-component-group-${conditionCount}" style="display:none;">
+                    <label>MACD Component</label>
+                    <select id="left-macd-component-${conditionCount}">
+                        <option value="histogram">Histogram</option>
+                        <option value="signal">Signal Line</option>
+                        <option value="macd">MACD Line</option>
+                    </select>
+                </div>
+            </div>
+            <div id="left-macd-windows-${conditionCount}" style="display:none;margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                    <div>
+                        <label>Short Window</label>
+                        <input type="number" id="left-macd-short-${conditionCount}" min="2" value="12">
+                    </div>
+                    <div>
+                        <label>Long Window</label>
+                        <input type="number" id="left-macd-long-${conditionCount}" min="2" value="26">
+                    </div>
+                    <div>
+                        <label>Signal Window</label>
+                        <input type="number" id="left-macd-signal-${conditionCount}" min="2" value="9">
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -276,15 +325,71 @@ function addCondition() {
                 <input type="number" id="right-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 1">
             </div>
             <div>
-                <label>Price Type</label>
-                <select id="right-type-${conditionCount}">
-                    <option value="open">Open</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                    <option value="close">Close</option>
-                    <option value="vwap">VWAP</option>
+                <label>Metric</label>
+                <select id="right-type-${conditionCount}" onchange="toggleIndicatorFields('right', ${conditionCount})">
+                    <optgroup label="Price">
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                        <option value="close">Close</option>
+                        <option value="vwap">VWAP</option>
+                    </optgroup>
+                    <optgroup label="Indicators">
+                        <option value="sma">SMA</option>
+                        <option value="ema">EMA</option>
+                        <option value="rsi">RSI</option>
+                        <option value="macd">MACD</option>
+                    </optgroup>
+                    <optgroup label="Fixed Value">
+                        <option value="value">Numeric Value</option>
+                    </optgroup>
                 </select>
             </div>
+        </div>
+        <div id="right-indicator-params-${conditionCount}" style="display:none;margin-bottom:15px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div id="right-window-group-${conditionCount}">
+                    <label>Period</label>
+                    <input type="number" id="right-window-${conditionCount}" min="2" value="20" placeholder="e.g., 20">
+                </div>
+                <div id="right-series-group-${conditionCount}">
+                    <label>Series</label>
+                    <select id="right-series-${conditionCount}">
+                        <option value="close">Close</option>
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div id="right-macd-component-group-${conditionCount}" style="display:none;">
+                    <label>MACD Component</label>
+                    <select id="right-macd-component-${conditionCount}">
+                        <option value="histogram">Histogram</option>
+                        <option value="signal">Signal Line</option>
+                        <option value="macd">MACD Line</option>
+                    </select>
+                </div>
+            </div>
+            <div id="right-macd-windows-${conditionCount}" style="display:none;margin-top:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                    <div>
+                        <label>Short Window</label>
+                        <input type="number" id="right-macd-short-${conditionCount}" min="2" value="12">
+                    </div>
+                    <div>
+                        <label>Long Window</label>
+                        <input type="number" id="right-macd-long-${conditionCount}" min="2" value="26">
+                    </div>
+                    <div>
+                        <label>Signal Window</label>
+                        <input type="number" id="right-macd-signal-${conditionCount}" min="2" value="9">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="right-value-input-${conditionCount}" style="display:none;margin-bottom:15px;">
+            <label>Value</label>
+            <input type="number" id="right-fixed-value-${conditionCount}" step="0.01" placeholder="e.g., 30 (for RSI), 0 (for MACD)">
         </div>
         
         <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px;">
@@ -303,6 +408,40 @@ function addCondition() {
     `;
     
     container.appendChild(conditionDiv);
+}
+
+const INDICATOR_TYPES = ['sma', 'ema', 'rsi', 'macd'];
+
+function toggleIndicatorFields(side, id) {
+    const typeVal = document.getElementById(`${side}-type-${id}`).value;
+    const paramsDiv = document.getElementById(`${side}-indicator-params-${id}`);
+    const windowGroup = document.getElementById(`${side}-window-group-${id}`);
+    const seriesGroup = document.getElementById(`${side}-series-group-${id}`);
+    const macdCompGroup = document.getElementById(`${side}-macd-component-group-${id}`);
+    const macdWindows = document.getElementById(`${side}-macd-windows-${id}`);
+    const valueInput = document.getElementById(`${side}-value-input-${id}`);
+
+    if (INDICATOR_TYPES.includes(typeVal)) {
+        paramsDiv.style.display = 'block';
+        if (typeVal === 'macd') {
+            windowGroup.style.display = 'none';
+            seriesGroup.style.display = 'block';
+            macdCompGroup.style.display = 'block';
+            macdWindows.style.display = 'block';
+        } else {
+            windowGroup.style.display = 'block';
+            seriesGroup.style.display = typeVal === 'rsi' ? 'none' : 'block';
+            macdCompGroup.style.display = 'none';
+            macdWindows.style.display = 'none';
+        }
+        if (valueInput) valueInput.style.display = 'none';
+    } else if (typeVal === 'value' && valueInput) {
+        paramsDiv.style.display = 'none';
+        valueInput.style.display = 'block';
+    } else {
+        paramsDiv.style.display = 'none';
+        if (valueInput) valueInput.style.display = 'none';
+    }
 }
 
 // Remove a condition
@@ -578,21 +717,44 @@ async function collectFormData() {
         conditions.forEach((condItem, index) => {
             const id = condItem.id.split('-')[1];
             
+            const leftType = document.getElementById(`left-type-${id}`).value;
+            const rightType = document.getElementById(`right-type-${id}`).value;
+
             const condition = {
                 type: index === 0 ? 'entry' : 'prior',
                 left_day: parseInt(document.getElementById(`left-day-${id}`).value),
                 left_candle: document.getElementById(`left-candle-${id}`).value,
                 left_multiplier: parseInt(document.getElementById(`left-mult-${id}`).value),
-                left_type: document.getElementById(`left-type-${id}`).value,
+                left_type: leftType,
                 operation: document.getElementById(`operator-${id}`).value,
                 right_day: parseInt(document.getElementById(`right-day-${id}`).value),
                 right_candle: document.getElementById(`right-candle-${id}`).value,
                 right_multiplier: parseInt(document.getElementById(`right-mult-${id}`).value),
-                right_type: document.getElementById(`right-type-${id}`).value,
+                right_type: rightType,
                 threshold_unit: document.getElementById(`threshold-unit-${id}`).value,
                 threshold_value: parseFloat(document.getElementById(`threshold-value-${id}`).value)
             };
-            
+
+            ['left', 'right'].forEach(side => {
+                const sType = side === 'left' ? leftType : rightType;
+                if (['sma', 'ema'].includes(sType)) {
+                    condition[`${side}_window`] = parseInt(document.getElementById(`${side}-window-${id}`).value) || 20;
+                    condition[`${side}_series`] = document.getElementById(`${side}-series-${id}`).value || 'close';
+                } else if (sType === 'rsi') {
+                    condition[`${side}_window`] = parseInt(document.getElementById(`${side}-window-${id}`).value) || 14;
+                } else if (sType === 'macd') {
+                    condition[`${side}_macd_short`] = parseInt(document.getElementById(`${side}-macd-short-${id}`).value) || 12;
+                    condition[`${side}_macd_long`] = parseInt(document.getElementById(`${side}-macd-long-${id}`).value) || 26;
+                    condition[`${side}_macd_signal`] = parseInt(document.getElementById(`${side}-macd-signal-${id}`).value) || 9;
+                    condition[`${side}_macd_component`] = document.getElementById(`${side}-macd-component-${id}`).value || 'histogram';
+                    condition[`${side}_series`] = document.getElementById(`${side}-series-${id}`).value || 'close';
+                }
+            });
+
+            if (rightType === 'value') {
+                condition.right_fixed_value = parseFloat(document.getElementById(`right-fixed-value-${id}`).value) || 0;
+            }
+
             config.custom_conditions.push(condition);
         });
     }

@@ -4838,7 +4838,7 @@ def _refresh_earnings():
 
 
 def _refresh_news():
-    """Background task: fetch headline news via yfinance"""
+    """Background task: fetch headline news via yfinance + finviz"""
     try:
         import yfinance as yf
         articles = []
@@ -4870,9 +4870,34 @@ def _refresh_news():
                             'thumbnail': thumb_url,
                             'published': pub_date,
                             'source_symbol': sym,
+                            'source_feed': 'yahoo',
                         })
             except Exception as e:
                 print(f"Cache: Error fetching news for {sym}: {e}")
+
+        try:
+            from finvizfinance.news import News
+            fnews = News()
+            all_news = fnews.get_news()
+            for category in ['news', 'blogs']:
+                items = all_news.get(category, [])
+                if hasattr(items, 'iterrows'):
+                    for _, row in items.head(15).iterrows():
+                        title = str(row.get('Title', ''))
+                        if not title:
+                            continue
+                        pub_date = str(row.get('Date', ''))
+                        articles.append({
+                            'title': title,
+                            'publisher': str(row.get('Source', 'Finviz')),
+                            'link': str(row.get('Link', '')),
+                            'thumbnail': '',
+                            'published': pub_date,
+                            'source_symbol': '',
+                            'source_feed': 'finviz',
+                        })
+        except Exception as e:
+            print(f"Cache: Error fetching finviz news: {e}")
 
         seen_titles = set()
         unique = []
@@ -4884,7 +4909,7 @@ def _refresh_news():
 
         with _cache_lock:
             _dashboard_cache['news'] = {
-                'articles': unique[:12],
+                'articles': unique[:20],
                 'timestamp': datetime.now().strftime('%H:%M:%S')
             }
         print(f"Cache: news refreshed OK — {len(unique[:12])} articles")
@@ -5263,9 +5288,10 @@ def ticker_news(symbol):
         return jsonify({'error': 'Invalid ticker symbol', 'articles': []}), 400
     try:
         import yfinance as yf
+        articles = []
+
         t = yf.Ticker(symbol.upper())
         raw_news = t.news or []
-        articles = []
         for item in raw_news[:15]:
             content = item.get('content', {}) if isinstance(item, dict) else {}
             thumbnail = None
@@ -5281,8 +5307,39 @@ def ticker_news(symbol):
                 'publisher': content.get('provider', {}).get('displayName', '') if isinstance(content.get('provider'), dict) else '',
                 'published': pub_date,
                 'thumbnail': thumbnail,
+                'source_feed': 'yahoo',
             })
-        return jsonify({'articles': articles})
+
+        try:
+            clean_sym = symbol.upper().replace('^', '').replace('=', '')
+            if clean_sym and len(clean_sym) <= 5 and clean_sym.isalpha():
+                from finvizfinance.quote import finvizfinance as fvf
+                stock = fvf(clean_sym)
+                fnews = stock.ticker_news()
+                if fnews is not None and not fnews.empty:
+                    for _, row in fnews.head(15).iterrows():
+                        title = str(row.get('Title', ''))
+                        if not title:
+                            continue
+                        articles.append({
+                            'title': title,
+                            'link': str(row.get('Link', '')),
+                            'publisher': str(row.get('Source', 'Finviz')),
+                            'published': str(row.get('Date', '')),
+                            'thumbnail': None,
+                            'source_feed': 'finviz',
+                        })
+        except Exception as e:
+            logging.debug(f'Finviz news unavailable for {symbol}: {e}')
+
+        seen = set()
+        unique = []
+        for a in articles:
+            if a['title'] and a['title'] not in seen:
+                seen.add(a['title'])
+                unique.append(a)
+
+        return jsonify({'articles': unique[:20]})
     except Exception as e:
         logging.error(f'Ticker news error for {symbol}: {e}')
         return jsonify({'error': 'Failed to fetch news', 'articles': []}), 500

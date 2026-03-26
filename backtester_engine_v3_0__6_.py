@@ -722,6 +722,90 @@ class BacktesterEngine:
         except Exception as e:
             return None
     
+    _INDICATOR_TYPES = {'sma', 'ema', 'rsi', 'macd'}
+
+    def _get_price_series(self, grouped_data, dates, current_date_index, day_offset,
+                          series_type='close', current_candle=None):
+        """Build a price series from grouped_data up to and including the target day.
+        When current_candle is provided and day_offset==0, truncates at current_candle
+        timestamp to avoid lookahead bias."""
+        try:
+            target_idx = current_date_index + day_offset
+            end_idx = min(target_idx + 1, len(dates))
+            frames = []
+            for i in range(max(0, end_idx - 60), end_idx):
+                d = dates[i]
+                if d in grouped_data.groups:
+                    frames.append(grouped_data.get_group(d))
+            if not frames:
+                return None
+            combined = pd.concat(frames)
+            if current_candle is not None and day_offset == 0 and 'timestamp' in combined.columns:
+                ts = current_candle.get('timestamp') or current_candle.name
+                combined = combined[combined['timestamp'] <= ts]
+                if combined.empty:
+                    return None
+            col = series_type if series_type in combined.columns else 'close'
+            return combined[col]
+        except Exception:
+            return None
+
+    def _compute_indicator(self, condition, side, grouped_data, dates, current_date_index,
+                           current_candle=None):
+        """Compute an indicator value for a given side (left/right) of a condition."""
+        ind_type = condition.get(f'{side}_type')
+        day_offset = condition.get(f'{side}_day', 0)
+        series_type = condition.get(f'{side}_series', 'close')
+        series = self._get_price_series(grouped_data, dates, current_date_index, day_offset,
+                                        series_type, current_candle=current_candle)
+        if series is None or len(series) < 2:
+            return None
+
+        try:
+            if ind_type == 'sma':
+                window = int(condition.get(f'{side}_window', 20))
+                result = series.rolling(window=window, min_periods=window).mean()
+                return float(result.iloc[-1]) if not pd.isna(result.iloc[-1]) else None
+
+            elif ind_type == 'ema':
+                window = int(condition.get(f'{side}_window', 20))
+                result = series.ewm(span=window, adjust=False).mean()
+                return float(result.iloc[-1]) if not pd.isna(result.iloc[-1]) else None
+
+            elif ind_type == 'rsi':
+                window = int(condition.get(f'{side}_window', 14))
+                delta = series.diff()
+                gain = delta.clip(lower=0)
+                loss = (-delta.clip(upper=0))
+                avg_gain = gain.rolling(window=window, min_periods=window).mean()
+                avg_loss = loss.rolling(window=window, min_periods=window).mean()
+                rs = avg_gain / avg_loss.replace(0, float('nan'))
+                rsi = 100 - (100 / (1 + rs))
+                val = rsi.iloc[-1]
+                return float(val) if not pd.isna(val) else None
+
+            elif ind_type == 'macd':
+                short_w = int(condition.get(f'{side}_macd_short', 12))
+                long_w = int(condition.get(f'{side}_macd_long', 26))
+                signal_w = int(condition.get(f'{side}_macd_signal', 9))
+                component = condition.get(f'{side}_macd_component', 'histogram')
+                ema_short = series.ewm(span=short_w, adjust=False).mean()
+                ema_long = series.ewm(span=long_w, adjust=False).mean()
+                macd_line = ema_short - ema_long
+                signal_line = macd_line.ewm(span=signal_w, adjust=False).mean()
+                histogram = macd_line - signal_line
+                if component == 'macd':
+                    val = macd_line.iloc[-1]
+                elif component == 'signal':
+                    val = signal_line.iloc[-1]
+                else:
+                    val = histogram.iloc[-1]
+                return float(val) if not pd.isna(val) else None
+
+        except Exception:
+            return None
+        return None
+
     def check_custom_condition(self, condition: Dict, grouped_data: Dict, dates: List,
                               current_date_index: int, current_candle: Optional[pd.Series] = None) -> bool:
         """
@@ -729,33 +813,35 @@ class BacktesterEngine:
         
         Returns True if condition is satisfied
         """
-        # NEW v3.0: Check if velocity condition
         if condition.get('type') == 'velocity':
             return self.check_velocity_condition(condition, grouped_data, dates, current_date_index, current_candle)
         
         try:
-            # Get left side value
-            if condition['left_day'] == 0 and condition['left_candle'] == 'min' and current_candle is not None:
-                # Current candle
-                left_value = current_candle[condition['left_type']]
+            left_type = condition.get('left_type', 'close')
+            right_type = condition.get('right_type', 'close')
+
+            if left_type in self._INDICATOR_TYPES:
+                left_value = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, current_candle)
+            elif condition['left_day'] == 0 and condition['left_candle'] == 'min' and current_candle is not None:
+                left_value = current_candle[left_type]
             else:
-                # Historical candle
                 left_value = self.get_candle_value(
                     grouped_data, dates, current_date_index,
                     condition['left_day'], condition['left_candle'],
-                    condition['left_multiplier'], condition['left_type']
+                    condition['left_multiplier'], left_type
                 )
-            
-            # Get right side value
-            if condition['right_day'] == 0 and condition['right_candle'] == 'min' and current_candle is not None:
-                # Current candle
-                right_value = current_candle[condition['right_type']]
+
+            if right_type == 'value':
+                right_value = condition.get('right_fixed_value', 0)
+            elif right_type in self._INDICATOR_TYPES:
+                right_value = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, current_candle)
+            elif condition['right_day'] == 0 and condition['right_candle'] == 'min' and current_candle is not None:
+                right_value = current_candle[right_type]
             else:
-                # Historical candle
                 right_value = self.get_candle_value(
                     grouped_data, dates, current_date_index,
                     condition['right_day'], condition['right_candle'],
-                    condition['right_multiplier'], condition['right_type']
+                    condition['right_multiplier'], right_type
                 )
             
             if left_value is None or right_value is None:
@@ -766,11 +852,12 @@ class BacktesterEngine:
             
             # Calculate comparison
             if condition['threshold_unit'] == '%':
-                # Percentage comparison
-                change = ((left_value / right_value) - 1) * 100
+                if right_value == 0:
+                    change = left_value - right_value
+                else:
+                    change = ((left_value / right_value) - 1) * 100
                 threshold = condition['threshold_value']
             else:  # '$'
-                # Dollar comparison
                 change = left_value - right_value
                 threshold = condition['threshold_value']
             
@@ -1197,8 +1284,15 @@ class BacktesterEngine:
                         condition_values = []
                         if self.config['entry_type'] == 'custom':
                             for cond_idx, condition in enumerate(self.config['custom_conditions']):
-                                if condition['left_day'] == 0 and condition['left_candle'] == 'min':
-                                    left_val = candle[condition['left_type']]
+                                lt = condition.get('left_type', 'close')
+                                rt = condition.get('right_type', 'close')
+
+                                if lt in self._INDICATOR_TYPES:
+                                    left_val = self._compute_indicator(condition, 'left', grouped, dates, i, candle)
+                                    left_date = current_date
+                                    left_time = candle['timestamp']
+                                elif condition['left_day'] == 0 and condition['left_candle'] == 'min':
+                                    left_val = candle.get(lt)
                                     left_date = current_date
                                     left_time = candle['timestamp']
                                 else:
@@ -1206,13 +1300,21 @@ class BacktesterEngine:
                                                                      condition['left_day'],
                                                                      condition['left_candle'],
                                                                      condition['left_multiplier'],
-                                                                     condition['left_type'])
+                                                                     lt)
                                     left_idx = i + condition['left_day']
                                     left_date = dates[left_idx] if 0 <= left_idx < len(dates) else None
                                     left_time = None
-                                
-                                if condition['right_day'] == 0 and condition['right_candle'] == 'min':
-                                    right_val = candle[condition['right_type']]
+
+                                if rt == 'value':
+                                    right_val = condition.get('right_fixed_value', 0)
+                                    right_date = None
+                                    right_time = None
+                                elif rt in self._INDICATOR_TYPES:
+                                    right_val = self._compute_indicator(condition, 'right', grouped, dates, i, candle)
+                                    right_date = current_date
+                                    right_time = candle['timestamp']
+                                elif condition['right_day'] == 0 and condition['right_candle'] == 'min':
+                                    right_val = candle.get(rt)
                                     right_date = current_date
                                     right_time = candle['timestamp']
                                 else:
@@ -1220,7 +1322,7 @@ class BacktesterEngine:
                                                                       condition['right_day'],
                                                                       condition['right_candle'],
                                                                       condition['right_multiplier'],
-                                                                      condition['right_type'])
+                                                                      rt)
                                     right_idx = i + condition['right_day']
                                     right_date = dates[right_idx] if 0 <= right_idx < len(dates) else None
                                     right_time = None
