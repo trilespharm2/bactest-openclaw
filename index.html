@@ -40,8 +40,16 @@
         border: none;
       }
       .btn-toggle:hover, .btn-toggle:focus {
-        background: rgba(0,0,0,0.05) !important;
+        background: rgba(255,255,255,0.1) !important;
         border-radius: 8px;
+      }
+      .btn-toggle .gg-menu-right,
+      .btn-toggle .gg-menu-left {
+        display: none !important;
+      }
+      .btn-toggle .fa-bars {
+        font-size: 18px;
+        color: #fff;
       }
     </style>
     <link rel="stylesheet" href="/static/css/pricing.css" />
@@ -340,9 +348,11 @@
             <div class="nav-toggle">
               <button class="btn btn-toggle toggle-sidebar">
                 <i class="gg-menu-right"></i>
+                <i class="fas fa-bars"></i>
               </button>
               <button class="btn btn-toggle sidenav-toggler">
                 <i class="gg-menu-left"></i>
+                <i class="fas fa-bars"></i>
               </button>
             </div>
             <button class="topbar-toggler more">
@@ -456,9 +466,11 @@
               <div class="nav-toggle">
                 <button class="btn btn-toggle toggle-sidebar">
                   <i class="gg-menu-right"></i>
+                  <i class="fas fa-bars"></i>
                 </button>
                 <button class="btn btn-toggle sidenav-toggler">
                   <i class="gg-menu-left"></i>
+                  <i class="fas fa-bars"></i>
                 </button>
               </div>
               <button class="topbar-toggler more">
@@ -2958,6 +2970,9 @@
 
           const response = await fetch('/api/backtests/list');
           if (!response.ok) throw new Error('Failed to load backtests');
+          if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
+            throw new Error('Please sign in to view your backtest results');
+          }
 
           const data = await response.json();
           allOptionsBacktests = data.backtests || [];
@@ -3117,6 +3132,9 @@
 
           const response = await fetch('/api/stocks-backtest-v3/list');
           if (!response.ok) throw new Error('Failed to load backtests');
+          if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
+            throw new Error('Please sign in to view your backtest results');
+          }
 
           const data = await response.json();
           allStockBacktests = data.backtests || [];
