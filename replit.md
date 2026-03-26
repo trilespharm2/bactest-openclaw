@@ -79,16 +79,10 @@ The architecture utilizes a Wrapper Pattern for API-to-engine communication, Laz
 -   `scipy`: For Black-Scholes options Greeks calculations (norm, brentq optimizer).
 
 ### Frontend Libraries (CDN)
--   `TradingView Lightweight Charts v4.2`: Interactive equity curve charts on stock backtest results page (replaced Chart.js for stock results).
--   `Chart.js`: For data visualization (options backtester equity curves, simulated trading charts).
+-   `Chart.js`: For data visualization (equity curves, performance charts).
 -   `Font Awesome`: Icons.
 -   `Material Symbols Rounded`: Google Material icons.
 -   `Inter Font`: Typography.
-
-### Stock Backtester UX
-- **Config page** (`index.html` stockBacktester section): Card-based collapsible layout with 7 numbered sections (Backtest Name, Date Range, Symbols, Entry Conditions, Trade Direction & Sizing, Exit Conditions, Advanced Options). Each section has a gradient badge, icon, and chevron toggle.
-- **Active Sessions** (`#stockSessionsSection`): Shows running/completed/failed backtests with stats cards above the config form. Hidden when no backtests exist or user is not authenticated.
-- **Results page** (`stock-backtest-results.html`): Uses TradingView Lightweight Charts for equity curve with area series, crosshair, and expandable modal view. Decision tree log with paginated day-by-day breakdown.
 
 ## Replit Environment Setup
 
