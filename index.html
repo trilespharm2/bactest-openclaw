@@ -51,6 +51,12 @@
         font-size: 18px;
         color: #fff;
       }
+      .nav-toggle .toggle-sidebar {
+        display: none !important;
+      }
+      .nav-toggle .sidenav-toggler {
+        display: inline-flex !important;
+      }
     </style>
     <link rel="stylesheet" href="/static/css/pricing.css" />
     <link rel="stylesheet" href="/static/css/stock-backtester.css" />
@@ -2942,6 +2948,33 @@
       // Options Results Page
       let allOptionsBacktests = [];
       
+      function showResultsLoginBanner(pageId) {
+        const page = document.getElementById(pageId);
+        if (!page || page.querySelector('.login-banner')) return;
+        const pageHeader = page.querySelector('.page-header');
+        const banner = document.createElement('div');
+        banner.className = 'login-banner';
+        banner.innerHTML = `
+            <div class="login-banner-text">
+                <i class="fas fa-lock"></i>
+                <span>Sign in to view your backtest results</span>
+            </div>
+            <div class="login-banner-actions">
+                <a href="/login" class="btn-login">Sign In</a>
+                <a href="/register" class="btn-signup">Sign Up Free</a>
+            </div>
+        `;
+        if (pageHeader) {
+            pageHeader.after(banner);
+        } else {
+            page.insertBefore(banner, page.firstChild);
+        }
+        const statsRow = page.querySelector('[id$="StatsRow"]');
+        if (statsRow) statsRow.style.display = 'none';
+        const filterRow = page.querySelector('.stock-filter-row, .filter-row');
+        if (filterRow) filterRow.style.display = 'none';
+      }
+
       function initOptionsResultsPage() {
         loadOptionsBacktests();
         setupOptionsRefresh();
@@ -2969,10 +3002,12 @@
           document.getElementById('optionsEmptyState').style.display = 'none';
 
           const response = await fetch('/api/backtests/list');
-          if (!response.ok) throw new Error('Failed to load backtests');
           if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
-            throw new Error('Please sign in to view your backtest results');
+            document.getElementById('optionsLoadingSection').style.display = 'none';
+            showResultsLoginBanner('optionsResultsPage');
+            return;
           }
+          if (!response.ok) throw new Error('Failed to load backtests');
 
           const data = await response.json();
           allOptionsBacktests = data.backtests || [];
@@ -3131,10 +3166,12 @@
           document.getElementById('stockEmptyState').style.display = 'none';
 
           const response = await fetch('/api/stocks-backtest-v3/list');
-          if (!response.ok) throw new Error('Failed to load backtests');
           if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
-            throw new Error('Please sign in to view your backtest results');
+            document.getElementById('stockLoadingSection').style.display = 'none';
+            showResultsLoginBanner('stockResultsPage');
+            return;
           }
+          if (!response.ok) throw new Error('Failed to load backtests');
 
           const data = await response.json();
           allStockBacktests = data.backtests || [];
