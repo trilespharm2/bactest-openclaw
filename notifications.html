@@ -763,6 +763,169 @@
         margin-top: 2px;
     }
 
+    .saved-filter-info-box {
+        display: flex;
+        gap: 12px;
+        padding: 14px 16px;
+        background: #e7f0ff;
+        border: 1px solid #c5d9f8;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        align-items: flex-start;
+    }
+
+    .saved-filter-info-box > i {
+        color: #1b55e2;
+        font-size: 16px;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+
+    .saved-filter-info-box strong {
+        display: block;
+        font-size: 13px;
+        color: #1b55e2;
+        margin-bottom: 4px;
+    }
+
+    .saved-filter-info-box p {
+        font-size: 13px;
+        color: #4a6fa5;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .saved-filter-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .saved-filter-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .saved-filter-card:hover {
+        border-color: #a0b4d0;
+        background: #f0f4f8;
+    }
+
+    .saved-filter-card.selected {
+        border-color: #1b55e2;
+        background: #e7f0ff;
+    }
+
+    .saved-filter-card .filter-radio {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid #ccc;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .saved-filter-card.selected .filter-radio {
+        border-color: #1b55e2;
+        background: #1b55e2;
+    }
+
+    .saved-filter-card.selected .filter-radio::after {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #fff;
+    }
+
+    .saved-filter-card .filter-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .saved-filter-card .filter-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 2px;
+    }
+
+    .saved-filter-card .filter-meta {
+        font-size: 12px;
+        color: #888;
+    }
+
+    .saved-filter-card .filter-count-badge {
+        padding: 4px 10px;
+        background: #e9ecef;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #666;
+        flex-shrink: 0;
+    }
+
+    .saved-filter-card.selected .filter-count-badge {
+        background: #c5d9f8;
+        color: #1b55e2;
+    }
+
+    .saved-filter-empty {
+        text-align: center;
+        padding: 32px 20px;
+        background: #f8f9fa;
+        border: 2px dashed #ddd;
+        border-radius: 10px;
+    }
+
+    .saved-filter-empty i {
+        font-size: 36px;
+        color: #ccc;
+        margin-bottom: 12px;
+    }
+
+    .saved-filter-empty h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        color: #555;
+    }
+
+    .saved-filter-empty p {
+        margin: 0 0 16px;
+        font-size: 13px;
+        color: #888;
+    }
+
+    .btn-create-filter {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #1b55e2, #4a7df5);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-create-filter:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(27,85,226,0.3);
+    }
+
     @media (max-width: 768px) {
         .scanner-grid {
             grid-template-columns: 1fr;
@@ -871,9 +1034,24 @@
                             </select>
                         </div>
                         <div id="savedFilterContainer" style="margin-top: 12px; display: none;">
-                            <select class="filter-select" id="savedFilterSelect">
-                                <option value="">-- Select a saved filter --</option>
-                            </select>
+                            <div class="saved-filter-info-box">
+                                <i class="fas fa-info-circle"></i>
+                                <div>
+                                    <strong>Using Stored Filters</strong>
+                                    <p>Select a filter you previously saved from the Screener. Your scanner will use these filter criteria to find matching stocks and send you notifications.</p>
+                                </div>
+                            </div>
+                            <div id="savedFilterCards" class="saved-filter-cards">
+                                <div class="saved-filter-empty">
+                                    <i class="fas fa-filter"></i>
+                                    <h4>No Filters Saved</h4>
+                                    <p>Create filters in the Screener and save them to use here.</p>
+                                    <button type="button" class="btn-create-filter" onclick="goToScreener()">
+                                        <i class="fas fa-plus"></i> Create Filter
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="hidden" id="savedFilterSelect" value="">
                         </div>
                     </div>
                     

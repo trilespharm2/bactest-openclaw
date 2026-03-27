@@ -82,6 +82,7 @@ function setupFilterTypeToggle() {
             } else {
                 presetContainer.style.display = 'none';
                 savedContainer.style.display = 'block';
+                loadSavedFilters();
             }
         });
     });
@@ -187,8 +188,9 @@ function createScanner() {
         data.preset_filter_id = document.getElementById('presetFilterSelect').value;
     } else {
         var savedFilterId = document.getElementById('savedFilterSelect').value;
-        if (!savedFilterId) {
-            alert('Please select a saved filter');
+        var selectedCard = document.querySelector('.saved-filter-card.selected');
+        if (!savedFilterId || !selectedCard) {
+            alert('Please select a saved filter from the list');
             return;
         }
         data.saved_filter_id = parseInt(savedFilterId);
@@ -623,20 +625,81 @@ function loadSavedFilters() {
     .then(function(response) { return response.json(); })
     .then(function(result) {
         if (result.success) {
-            var select = document.getElementById('savedFilterSelect');
-            select.innerHTML = '<option value="">-- Select a saved filter --</option>';
-            
-            result.filters.forEach(function(filter) {
-                var option = document.createElement('option');
-                option.value = filter.id;
-                option.textContent = filter.name;
-                select.appendChild(option);
-            });
+            renderSavedFilterCards(result.filters || []);
         }
     })
     .catch(function(error) {
         console.error('Error loading saved filters:', error);
     });
+}
+
+function renderSavedFilterCards(filters) {
+    var container = document.getElementById('savedFilterCards');
+    if (!container) return;
+
+    if (filters.length === 0) {
+        container.innerHTML = '<div class="saved-filter-empty">' +
+            '<i class="fas fa-filter"></i>' +
+            '<h4>No Filters Saved</h4>' +
+            '<p>Create filters in the Screener and save them to use here.</p>' +
+            '<button type="button" class="btn-create-filter" onclick="goToScreener()">' +
+                '<i class="fas fa-plus"></i> Create Filter' +
+            '</button>' +
+        '</div>';
+        document.getElementById('savedFilterSelect').value = '';
+        return;
+    }
+
+    var html = '';
+    filters.forEach(function(filter) {
+        var filterCount = 0;
+        try {
+            var config = typeof filter.filter_config === 'string' ? JSON.parse(filter.filter_config) : filter.filter_config;
+            filterCount = Array.isArray(config) ? config.length : 0;
+        } catch(e) { filterCount = 0; }
+
+        html += '<div class="saved-filter-card" data-filter-id="' + filter.id + '" onclick="selectSavedFilter(' + filter.id + ')">' +
+            '<div class="filter-radio"></div>' +
+            '<div class="filter-details">' +
+                '<div class="filter-name">' + escapeHtml(filter.name) + '</div>' +
+                '<div class="filter-meta">' + filterCount + ' filter' + (filterCount !== 1 ? 's' : '') + ' configured</div>' +
+            '</div>' +
+            '<div class="filter-count-badge"><i class="fas fa-filter" style="margin-right: 4px;"></i>' + filterCount + '</div>' +
+        '</div>';
+    });
+
+    container.innerHTML = html;
+
+    var hiddenInput = document.getElementById('savedFilterSelect');
+    var currentValue = hiddenInput.value;
+    if (currentValue) {
+        var stillExists = filters.some(function(f) { return String(f.id) === String(currentValue); });
+        if (stillExists) {
+            var matchingCard = container.querySelector('[data-filter-id="' + currentValue + '"]');
+            if (matchingCard) matchingCard.classList.add('selected');
+        } else {
+            hiddenInput.value = '';
+        }
+    }
+}
+
+function selectSavedFilter(filterId) {
+    document.getElementById('savedFilterSelect').value = filterId;
+
+    var cards = document.querySelectorAll('.saved-filter-card');
+    cards.forEach(function(card) {
+        if (parseInt(card.getAttribute('data-filter-id')) === filterId) {
+            card.classList.add('selected');
+        } else {
+            card.classList.remove('selected');
+        }
+    });
+}
+
+function goToScreener() {
+    if (typeof window.navigateToPage === 'function') {
+        window.navigateToPage('screener');
+    }
 }
 
 function loadPresetFilters() {
@@ -697,4 +760,7 @@ if (typeof window.initNotificationsPage === 'undefined') {
     window.clearAllNotifications = clearAllNotifications;
     window.prevNotificationPage = prevNotificationPage;
     window.nextNotificationPage = nextNotificationPage;
+    window.selectSavedFilter = selectSavedFilter;
+    window.goToScreener = goToScreener;
+    window.renderSavedFilterCards = renderSavedFilterCards;
 }
