@@ -3095,7 +3095,7 @@
           document.getElementById('optionsBacktestsGrid').style.display = 'none';
           document.getElementById('optionsEmptyState').style.display = 'none';
 
-          const response = await fetch('/api/backtests/list');
+          const response = await authFetch('/api/backtests/list');
           if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
             document.getElementById('optionsLoadingSection').style.display = 'none';
             showResultsLoginBanner('optionsResultsPage');
@@ -3203,7 +3203,7 @@
         if (!confirm('Are you sure you want to delete this backtest?')) return;
         
         try {
-          const response = await fetch('/api/backtests/' + id, { method: 'DELETE' });
+          const response = await authFetch('/api/backtests/' + id, { method: 'DELETE' });
           if (response.ok) {
             loadOptionsBacktests();
           } else {
@@ -3259,7 +3259,7 @@
           document.getElementById('stockBacktestsGrid').style.display = 'none';
           document.getElementById('stockEmptyState').style.display = 'none';
 
-          const response = await fetch('/api/stocks-backtest-v3/list');
+          const response = await authFetch('/api/stocks-backtest-v3/list');
           if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
             document.getElementById('stockLoadingSection').style.display = 'none';
             showResultsLoginBanner('stockResultsPage');
@@ -3364,7 +3364,7 @@
         if (!confirm('Are you sure you want to delete this backtest?')) return;
         
         try {
-          const response = await fetch('/api/stocks-backtest-v3/' + id, { method: 'DELETE' });
+          const response = await authFetch('/api/stocks-backtest-v3/' + id, { method: 'DELETE' });
           if (response.ok) {
             loadStockBacktests();
           } else {
@@ -3550,7 +3550,7 @@
             const apiKey = localStorage.getItem('polygonApiKey');
             if (!apiKey) throw new Error('API key not found. Please configure it in settings.');
             
-            const response = await fetch('/api/backtest/start', {
+            const response = await authFetch('/api/backtest/start', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
               body: JSON.stringify(config)
@@ -3732,7 +3732,7 @@
             const apiKey = localStorage.getItem('polygonApiKey');
             if (!apiKey) throw new Error('API key not found. Please configure it in settings.');
             
-            const response = await fetch('/api/stocks-backtest-v3/start', {
+            const response = await authFetch('/api/stocks-backtest-v3/start', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
               body: JSON.stringify(config)
