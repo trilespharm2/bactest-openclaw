@@ -461,33 +461,22 @@ async function loadPageContent(pageName) {
     // If authenticated and on home page, load dashboard content into home page
     if (pageName === 'home' && isAuthenticated) {
         const homePage = document.getElementById('homePage');
-        const dashboardPage = document.getElementById('dashboardPage');
         
-        if (homePage && dashboardPage) {
-            // Check if dashboard content is loaded
-            let dashboardContent = dashboardPage.innerHTML.trim();
-            if (!dashboardContent || dashboardContent.includes('error-message')) {
-                // Need to load dashboard content
+        if (homePage) {
+            if (!loadedScripts.has('dashboard')) {
+                // First load: fetch dashboard HTML directly into homePage
                 try {
                     const response = await fetch('dashboard.html');
                     if (response.ok) {
-                        dashboardContent = await response.text();
-                        dashboardPage.innerHTML = dashboardContent;
-                        
-                        // Load dashboard script
-                        if (!loadedScripts.has('dashboard')) {
-                            await loadScript('dashboard-script.js?v=3', 'dashboard');
-                        } else {
-                            initializePage('dashboard');
-                        }
+                        const dashboardContent = await response.text();
+                        homePage.innerHTML = dashboardContent;
+                        await loadScript('dashboard-script.js?v=3', 'dashboard');
                     }
                 } catch (error) {
                     console.error('Error loading dashboard:', error);
                 }
             }
             
-            // Replace home page with dashboard content
-            homePage.innerHTML = dashboardPage.innerHTML;
             homePage.classList.add('active');
             
             // Initialize dashboard widgets
