@@ -117,7 +117,7 @@ function addPriceCondition() {
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small">Day</label>
-                    <select class="form-select form-select-sm" id="leftDay${conditionId}">
+                    <select class="form-select form-select-sm" id="leftDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
@@ -193,13 +193,13 @@ function addPriceCondition() {
             <div class="row g-2">
                 <div class="col-md-2">
                     <label class="form-label small">Day</label>
-                    <select class="form-select form-select-sm" id="rightDay${conditionId}">
+                    <select class="form-select form-select-sm" id="rightDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small">Candle Type</label>
-                    <select class="form-select form-select-sm" id="rightCandleType${conditionId}">
+                    <select class="form-select form-select-sm" id="rightCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
                 </div>
@@ -343,26 +343,28 @@ function updateConditionFields(conditionId) {
 }
 
 function handleCandleTypeChange(conditionId) {
-    // Only apply restrictions to condition 0 (first condition row)
-    if (conditionId === 0) {
-        const leftCandleType = document.getElementById(`leftCandleType${conditionId}`)?.value;
-        const leftSeriesType = document.getElementById(`leftSeriesType${conditionId}`);
-        
-        if (leftSeriesType) {
-            const nonMinuteCandles = ['day', 'week', 'month', 'quarter', 'year'];
-            if (nonMinuteCandles.includes(leftCandleType)) {
-                // For Day/Week/Month/Quarter/Year, only allow Open (can't know H/L/C at entry)
-                leftSeriesType.innerHTML = '<option value="open" selected>Open</option>';
-            } else {
-                // For Minute candles, show all series types
-                leftSeriesType.innerHTML = SERIES_TYPES.map(s => 
-                    `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`
-                ).join('');
-            }
-        }
-        
-        // Only check day candle conditions for condition 0
-        checkDayCandleConditions();
+    enforceDayCandleSeriesRestriction('left', conditionId);
+    enforceDayCandleSeriesRestriction('right', conditionId);
+    checkDayCandleConditions();
+}
+
+function enforceDayCandleSeriesRestriction(side, conditionId) {
+    var candleEl = document.getElementById(side + 'CandleType' + conditionId);
+    var dayEl = document.getElementById(side + 'Day' + conditionId);
+    var seriesEl = document.getElementById(side + 'SeriesType' + conditionId);
+    if (!candleEl || !seriesEl) return;
+
+    var candleType = candleEl.value;
+    var dayOffset = parseInt(dayEl ? dayEl.value : '-1') || 0;
+    var nonMinute = ['day', 'week', 'month', 'quarter', 'year'];
+
+    if (nonMinute.indexOf(candleType) !== -1 && dayOffset === 0) {
+        seriesEl.innerHTML = '<option value="open" selected>Open</option>';
+    } else {
+        var prev = seriesEl.value;
+        seriesEl.innerHTML = SERIES_TYPES.map(function(s) {
+            return '<option value="' + s.value + '"' + (s.value === prev ? ' selected' : '') + '>' + s.label + '</option>';
+        }).join('');
     }
 }
 
@@ -1551,8 +1553,38 @@ function buildOptConfigSummaryHtml(config) {
             conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}%`;
         }
     } else if (config.price_conditions && config.price_conditions.length > 0) {
-        conditionsHtml = config.price_conditions.map(pc => {
-            return `<div style="margin-bottom:4px;">${pc.left_metric || pc.metric || 'Price'} ${pc.operator || ''} ${pc.right_metric || pc.value || ''}</div>`;
+        conditionsHtml = config.price_conditions.map(function(pc, idx) {
+            var metric = (pc.metric || 'price').toUpperCase();
+            var left = pc.left || {};
+            var leftDay = parseInt(left.day) || 0;
+            var leftCandle = left.candle_type || 'minute';
+            var leftSeries = left.series_type || 'close';
+            var leftWindow = left.window ? '(' + left.window + ')' : '';
+            var leftDesc = metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + leftCandle + ']';
+
+            var op = pc.operator || '>';
+
+            var rightDesc = '';
+            if (pc.comparator === 'value') {
+                rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
+            } else {
+                var rightMetric = (pc.comparator || '').replace('compare_', '').toUpperCase();
+                var right = pc.right || {};
+                var rightDay = parseInt(right.day) || 0;
+                var rightCandle = right.candle_type || 'minute';
+                var rightSeries = right.series_type || 'close';
+                var rightWindow = right.window ? '(' + right.window + ')' : '';
+                rightDesc = rightMetric + rightWindow + ' ' + rightSeries + ' [day ' + rightDay + ', ' + rightCandle + ']';
+
+                var threshold = pc.threshold || {};
+                var threshVal = parseFloat(threshold.value);
+                if (threshVal) {
+                    var unit = threshold.unit === 'percent' ? '%' : '$';
+                    rightDesc += ' ±' + threshVal + unit;
+                }
+            }
+
+            return '<div style="margin-bottom:4px;">' + leftDesc + ' ' + op + ' ' + rightDesc + '</div>';
         }).join('');
     }
 

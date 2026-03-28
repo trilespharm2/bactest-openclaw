@@ -155,6 +155,37 @@ function toggleCustomDay(side, id) {
         customInput.style.display = 'none';
         customInput.value = '';
     }
+    enforceStockDayCandleRestriction(side, id);
+}
+
+function enforceStockDayCandleRestriction(side, id) {
+    var candleEl = document.getElementById(side + '-candle-' + id);
+    var dayEl = document.getElementById(side + '-day-' + id);
+    var typeEl = document.getElementById(side + '-type-' + id);
+    if (!candleEl || !typeEl) return;
+
+    var candleType = candleEl.value;
+    var dayVal = dayEl ? dayEl.value : '-1';
+    var dayOffset = dayVal === 'custom'
+        ? parseInt((document.getElementById(side + '-day-custom-' + id) || {}).value) || 0
+        : parseInt(dayVal) || 0;
+
+    var allTypes = ['open', 'high', 'low', 'close', 'vwap'];
+    if (candleType === 'day' && dayOffset === 0) {
+        typeEl.innerHTML = '<option value="open">Open</option>';
+        typeEl.value = 'open';
+    } else {
+        var prev = typeEl.value;
+        if (typeEl.options.length <= 1) {
+            typeEl.innerHTML = allTypes.map(function(t) {
+                return '<option value="' + t + '"' + (t === prev ? ' selected' : '') + '>' + t.charAt(0).toUpperCase() + t.slice(1) + '</option>';
+            }).join('');
+        }
+    }
+}
+
+function onStockCandleChange(side, id) {
+    enforceStockDayCandleRestriction(side, id);
 }
 
 // Reset form to defaults
@@ -217,7 +248,7 @@ function addCondition() {
             </div>
             <div>
                 <label>Candle Type</label>
-                <select id="left-candle-${conditionCount}">
+                <select id="left-candle-${conditionCount}" onchange="onStockCandleChange('left', ${conditionCount})">
                     <option value="min">Minute</option>
                     <option value="hr">Hour</option>
                     <option value="day">Day</option>
@@ -314,7 +345,7 @@ function addCondition() {
             </div>
             <div>
                 <label>Candle Type</label>
-                <select id="right-candle-${conditionCount}">
+                <select id="right-candle-${conditionCount}" onchange="onStockCandleChange('right', ${conditionCount})">
                     <option value="min">Minute</option>
                     <option value="hr">Hour</option>
                     <option value="day">Day</option>
