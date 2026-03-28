@@ -635,11 +635,10 @@ async function fetchMinuteBars(symbol, startDate, endDate) {
     await waitForRateLimit();
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
-    const apiKey = localStorage.getItem('polygonApiKey') || '';
     try {
         const response = await fetch(`${apiUrl}/simulated-trading/bars`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ symbol, start_date: startDate, end_date: endDate, bar_size: 'minute', multiplier: 1 })
         });
@@ -1628,8 +1627,6 @@ async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, 
     await waitForRateLimit();
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
-    const apiKey = localStorage.getItem('polygonApiKey') || '';
-
     const requestBody = {
         symbol, option_type: optionType, expiration_date: expDate,
         start_date: startDate, end_date: endDate, multiplier,
@@ -1642,7 +1639,7 @@ async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, 
 
     const response = await fetch(`${apiUrl}/simulated-trading/option-bars`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(requestBody)
     });

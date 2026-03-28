@@ -38,7 +38,6 @@ function authFetch(url, options = {}) {
 
 // State
 let currentPage = 'home';
-let apiKeyConfigured = false;
 let isAuthenticated = false;
 let currentUser = null;
 
@@ -47,10 +46,6 @@ const sidebar = document.querySelector('.sidebar');
 const navItems = document.querySelectorAll('.nav-item');
 const pages = document.querySelectorAll('.page');
 const pageTitle = document.getElementById('pageTitle');
-const apiKeyInput = document.getElementById('apiKeyInput');
-const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
-const apiStatusIcon = document.getElementById('apiStatusIcon');
-const apiStatusText = document.getElementById('apiStatusText');
 
 // Track loaded scripts to prevent duplicates
 const loadedScripts = new Set();
@@ -62,22 +57,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check authentication status first
     await checkAuthStatus();
     
-    // Load saved API key
-    const savedApiKey = localStorage.getItem('polygonApiKey');
-    if (savedApiKey) {
-        if (apiKeyInput) apiKeyInput.value = savedApiKey;
-        apiKeyConfigured = true;
-        updateAPIStatus(true);
-    } else {
-        updateAPIStatus(false);
-    }
-    
     // Set default dates for forms (will be called when pages load)
     setDefaultDates();
     
     // Event Listeners
     setupNavigation();
-    setupAPIKey();
     setupQuickLinks();
     setupFooterLinks();
     setupFAQAccordion();
@@ -107,12 +91,6 @@ async function checkAuthStatus() {
         isAuthenticated = data.authenticated;
         currentUser = data.user || null;
         console.log('Auth status:', isAuthenticated ? 'Logged in as' : 'Guest', currentUser?.name || '');
-        
-        // Load API key from user profile if authenticated
-        if (isAuthenticated && data.polygon_api_key) {
-            localStorage.setItem('polygonApiKey', data.polygon_api_key);
-            console.log('API key loaded from user profile');
-        }
         
         // Apply UI state after auth check
         applyAuthUIState();
@@ -716,78 +694,6 @@ function initializePage(pageName) {
     }
 }
 
-// Setup API Key
-function setupAPIKey() {
-    if (!saveApiKeyBtn || !apiKeyInput) return;
-    
-    saveApiKeyBtn.addEventListener('click', async () => {
-        const apiKey = apiKeyInput.value.trim();
-        if (apiKey) {
-            localStorage.setItem('polygonApiKey', apiKey);
-            apiKeyConfigured = true;
-            updateAPIStatus(true);
-            
-            // Save to user profile if authenticated
-            if (isAuthenticated) {
-                try {
-                    const response = await authFetch('/api/user/api-key', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ api_key: apiKey })
-                    });
-                    if (response.ok) {
-                        showNotification('API key saved to your profile', 'success');
-                    } else {
-                        showNotification('API key saved locally', 'success');
-                    }
-                } catch (e) {
-                    showNotification('API key saved locally', 'success');
-                }
-            } else {
-                showNotification('API key saved successfully', 'success');
-            }
-        } else {
-            showNotification('Please enter a valid API key', 'error');
-        }
-    });
-    
-    // Auto-save on change
-    apiKeyInput.addEventListener('change', async () => {
-        const apiKey = apiKeyInput.value.trim();
-        if (apiKey) {
-            localStorage.setItem('polygonApiKey', apiKey);
-            apiKeyConfigured = true;
-            updateAPIStatus(true);
-            
-            // Save to user profile if authenticated
-            if (isAuthenticated) {
-                try {
-                    await authFetch('/api/user/api-key', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ api_key: apiKey })
-                    });
-                } catch (e) { }
-            }
-        }
-    });
-}
-
-// Update API Status
-function updateAPIStatus(isConnected) {
-    if (!apiStatusIcon || !apiStatusText) return;
-    
-    if (isConnected) {
-        apiStatusIcon.classList.add('connected');
-        apiStatusIcon.classList.remove('disconnected');
-        apiStatusText.textContent = 'API Connected';
-    } else {
-        apiStatusIcon.classList.add('disconnected');
-        apiStatusIcon.classList.remove('connected');
-        apiStatusText.textContent = 'API Not Configured';
-    }
-}
-
 // Setup Quick Links
 function setupQuickLinks() {
     document.querySelectorAll('.quick-link-card[data-navigate], .clickable-card[data-navigate]').forEach(card => {
@@ -871,11 +777,6 @@ function showNotification(message, type = 'info') {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => notification.remove(), 300);
     }, 3000);
-}
-
-// Get API Key
-function getAPIKey() {
-    return localStorage.getItem('polygonApiKey') || '';
 }
 
 // Utility: Format Number

@@ -1829,13 +1829,10 @@ async function handleBacktestSubmit(e) {
         if (progressDiv) progressDiv.textContent = 'Starting backtest...';
         
         try {
-            const apiKey = getAPIKey();
-            
             const response = await authFetch(`${API_BASE_URL}/backtest/start`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': apiKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(config)
             });

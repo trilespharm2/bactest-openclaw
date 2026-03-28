@@ -1985,7 +1985,7 @@ def main():
     ╚═══════════════════════════════════════════════════════════╝
     """)
     
-    api_key = os.getenv('POLYGON_API_KEY', 'fHPGJ8Bc0bg1hCeKgE4fvMQ8ziqc9tAt')
+    api_key = os.getenv('POLYGON_API_KEY', '')
     
     backtester = BacktesterEngine(api_key)
     backtester.configure_backtest()

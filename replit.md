@@ -30,7 +30,7 @@ The options backtester supports 6 strike selection methods for each leg:
 User-specific backtest results employ a hybrid storage model: metadata is stored in PostgreSQL, while detailed JSON results, trade logs (CSV), and equity curves (PNG) are stored on the filesystem. All result access requires authentication and ownership verification.
 
 ### Key Design Patterns
-The architecture utilizes a Wrapper Pattern for API-to-engine communication, Lazy Loading for page scripts, and local storage for API keys and cached data. Hybrid persistence combines database and filesystem storage, with robust authorization checks ensuring data security.
+The architecture utilizes a Wrapper Pattern for API-to-engine communication, Lazy Loading for page scripts, and server-side environment secrets for API keys. Hybrid persistence combines database and filesystem storage, with robust authorization checks ensuring data security.
 
 ### UI/UX Decisions
 - **Design Theme**: Custom implementation inspired by Phoenix Dashboard using CSS variables.
@@ -44,7 +44,7 @@ The architecture utilizes a Wrapper Pattern for API-to-engine communication, Laz
 - **FRED Macro Economic Data**: Integrated with the Federal Reserve (FRED) API via `fredapi` library. Displays 10 key macro indicators on the dashboard: Fed Funds Rate, Unemployment, CPI, Core CPI, GDP, Nonfarm Payrolls, Retail Sales, Consumer Sentiment, Housing Starts, and Industrial Production. Each card shows the latest value, month-over-month change, and data date. Color-coded by category (rates=blue, labor=violet, inflation=red, output=green, consumer=amber, housing=cyan). Refreshes every 10 minutes. Requires `FRED_API_KEY` environment secret.
 - **Public Pages**: Includes landing, terms, privacy, FAQ, and contact pages.
 - **Subscription Management**: Integrates with Stripe for billing, plan upgrades/downgrades with proration logic, and customer portal access.
-- **Settings Page**: Allows account management, API key configuration, and notification preferences.
+- **Settings Page**: Allows account management, password changes, and notification preferences.
 - **Stock Screener**: Filters stocks by technical and fundamental criteria, supporting saved filters for logged-in users.
 - **Dashboard Access Control**: Protected routes ensure only authenticated users can access dashboard features.
 - **Notification System**: Allows users to create automated stock scanners that run on a schedule and deliver alerts via Email or Telegram. Uses APScheduler for background jobs and encrypts sensitive credentials. Scanner setup includes: scanner name, symbol selection (any/specific), filter configuration (preset or stored filters from Screener), scan frequency, timing/duration, repeat symbol filtering, and communication method (email/Telegram). Stored filters section uses card-based UI with radio selection, info box with instructions, and "No Filters Saved" empty state with "Create Filter" button that navigates to the Screener page.

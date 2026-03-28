@@ -2822,31 +2822,6 @@
                   </div>
                 </div>
               </div>
-              <div class="row mt-3">
-                <div class="col-md-6">
-                  <div class="card">
-                    <div class="card-header">
-                      <div class="card-title">API Configuration</div>
-                    </div>
-                    <div class="card-body">
-                      <div class="mb-3">
-                        <label class="form-label">Polygon.io API Key</label>
-                        <div class="input-group">
-                          <input type="password" class="form-control" id="polygonApiKey" placeholder="Enter your API key">
-                          <button class="btn btn-outline-secondary" type="button" onclick="toggleApiKeyVisibility()">
-                            <i class="fas fa-eye"></i>
-                          </button>
-                        </div>
-                        <small class="form-text text-muted">Your API key is stored locally and used for market data requests.</small>
-                      </div>
-                      <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-primary" onclick="saveApiKey()">Update API Key</button>
-                        <span class="text-muted" id="apiKeySaveStatus"></span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               <!-- Email Change Modal -->
               <div id="emailChangeModal" class="modal fade" tabindex="-1" style="display: none;">
@@ -3547,12 +3522,10 @@
           
           try {
             const config = collectOptionsFormData();
-            const apiKey = localStorage.getItem('polygonApiKey');
-            if (!apiKey) throw new Error('API key not found. Please configure it in settings.');
             
             const response = await authFetch('/api/backtest/start', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(config)
             });
             
@@ -3729,12 +3702,10 @@
           
           try {
             const config = collectStockFormData();
-            const apiKey = localStorage.getItem('polygonApiKey');
-            if (!apiKey) throw new Error('API key not found. Please configure it in settings.');
             
             const response = await authFetch('/api/stocks-backtest-v3/start', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(config)
             });
             

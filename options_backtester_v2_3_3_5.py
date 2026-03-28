@@ -210,7 +210,7 @@ from scipy.optimize import brentq
 
 # ==================== CONFIGURATION ====================
 
-API_KEY = "fHPGJ8Bc0bg1hCeKgE4fvMQ8ziqc9tAt"
+API_KEY = os.environ.get('POLYGON_API_KEY', '')
 
 # Use absolute path for OUTPUT_DIR so it works regardless of where script is called from
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

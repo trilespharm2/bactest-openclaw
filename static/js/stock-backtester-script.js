@@ -460,11 +460,6 @@ async function handleSubmit(e) {
         }
         console.log('Validation passed');
         
-        const apiKey = localStorage.getItem('polygonApiKey');
-        if (!apiKey) {
-            throw new Error('API key not found. Please configure it in settings.');
-        }
-
         showConfigSummary(config);
 
         document.getElementById('confirmRunBacktestBtn').onclick = async function() {
@@ -476,8 +471,7 @@ async function handleSubmit(e) {
                 const response = await authFetch('/api/stocks-backtest-v3/start', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': apiKey
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(config)
                 });

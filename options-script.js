@@ -152,10 +152,7 @@ function initializeOptionsPage() {
         elements.loading.style.display = 'block';
         
         try {
-            const apiKey = getAPIKey();
-            const headers = apiKey ? { 'X-API-Key': apiKey } : {};
-            
-            const response = await fetch(url, { headers });
+            const response = await fetch(url);
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));

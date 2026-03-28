@@ -4,7 +4,6 @@
 function initSettingsPage() {
     console.log('Settings page initialized');
     loadUserInfo();
-    loadApiKey();
 }
 
 async function loadUserInfo() {
@@ -152,54 +151,6 @@ async function changePassword() {
             statusEl.textContent = error.message;
             statusEl.className = 'save-status error';
         }
-    }
-}
-
-function toggleApiKeyVisibility() {
-    const input = document.getElementById('polygonApiKey');
-    const btn = event.target.closest('button');
-    const icon = btn ? btn.querySelector('i') : null;
-    
-    if (input.type === 'password') {
-        input.type = 'text';
-        if (icon) {
-            icon.className = 'fas fa-eye-slash';
-        }
-    } else {
-        input.type = 'password';
-        if (icon) {
-            icon.className = 'fas fa-eye';
-        }
-    }
-}
-
-function saveApiKey() {
-    const input = document.getElementById('polygonApiKey');
-    const statusEl = document.getElementById('apiKeySaveStatus');
-    
-    if (!input || !input.value.trim()) {
-        if (statusEl) {
-            statusEl.textContent = 'Please enter an API key';
-            statusEl.className = 'save-status error';
-        }
-        return;
-    }
-    
-    const apiKey = input.value.trim();
-    localStorage.setItem('polygonApiKey', apiKey);
-    
-    if (statusEl) {
-        statusEl.textContent = 'API Key saved!';
-        statusEl.className = 'save-status success';
-        setTimeout(() => { statusEl.textContent = ''; }, 3000);
-    }
-}
-
-function loadApiKey() {
-    const input = document.getElementById('polygonApiKey');
-    const savedKey = localStorage.getItem('polygonApiKey');
-    if (input && savedKey) {
-        input.value = savedKey;
     }
 }
 

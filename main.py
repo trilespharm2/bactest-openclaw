@@ -673,7 +673,6 @@ def api_auth_status():
                 'name': current_user.name or current_user.email.split('@')[0],
                 'email': current_user.email
             },
-            'polygon_api_key': current_user.polygon_api_key or ''
         }), 200
     return jsonify({'authenticated': False}), 200
 
@@ -688,33 +687,6 @@ def api_auth_user():
             'is_admin': bool(getattr(current_user, 'is_admin', False))
         }), 200
     return jsonify({'error': 'Not authenticated'}), 401
-
-
-@app.route('/api/user/api-key', methods=['GET', 'POST'])
-@login_required
-def api_user_api_key():
-    """Get or save user's Polygon API key"""
-    if request.method == 'GET':
-        api_key = current_user.polygon_api_key or ''
-        return jsonify({
-            'api_key': api_key,
-            'has_key': bool(api_key)
-        }), 200
-    
-    elif request.method == 'POST':
-        data = request.json
-        api_key = data.get('api_key', '').strip()
-        
-        if not api_key:
-            return jsonify({'error': 'API key is required'}), 400
-        
-        current_user.polygon_api_key = api_key
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'API key saved successfully'
-        }), 200
 
 
 @app.route('/api/market-movers')

@@ -196,17 +196,9 @@
 
         async function loadBacktests() {
             try {
-                // Get API key
-                const apiKey = localStorage.getItem('polygonApiKey');
-                if (!apiKey) {
-                    throw new Error('API key not found. Please configure it in settings.');
-                }
-
                 // Fetch list of backtests
                 const response = await fetch('/api/stocks-backtest-v3/list', {
-                    headers: {
-                        'X-API-Key': apiKey
-                    }
+                    credentials: 'include'
                 });
 
                 if (!response.ok) {

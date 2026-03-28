@@ -205,18 +205,9 @@ async function deleteBacktest(backtestId) {
     }
     
     try {
-        // Get API key
-        const apiKey = localStorage.getItem('polygonApiKey');
-        if (!apiKey) {
-            throw new Error('API key not found');
-        }
-        
         // Delete backtest
         const response = await authFetch(`/api/stocks-backtest-v3/${backtestId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-API-Key': apiKey
-            }
+            method: 'DELETE'
         });
         
         if (!response.ok) {
