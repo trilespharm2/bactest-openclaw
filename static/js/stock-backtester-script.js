@@ -661,6 +661,16 @@ function validateConfig(config) {
         if (!config.custom_conditions || config.custom_conditions.length === 0) {
             return false;
         }
+        for (const cond of config.custom_conditions) {
+            if (cond.left_candle === 'day' && cond.left_day === 0 && ['close', 'high', 'low', 'vwap'].includes(cond.left_type)) {
+                alert(`Invalid condition: cannot use day candle "${cond.left_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
+                return false;
+            }
+            if (cond.right_candle === 'day' && cond.right_day === 0 && ['close', 'high', 'low', 'vwap'].includes(cond.right_type)) {
+                alert(`Invalid condition: cannot use day candle "${cond.right_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
+                return false;
+            }
+        }
     }
     
     // Check sizing - sizing_value should be a number, not a string like 'shares'

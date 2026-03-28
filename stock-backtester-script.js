@@ -893,6 +893,12 @@ function validateConfig(config) {
                 if (cond.threshold_unit === 'percent' && cond.right_type === 'value') {
                     errors.push('Cannot use % threshold when comparing to a fixed value — use $ instead');
                 }
+                if (cond.left_candle === 'day' && cond.left_day === 0 && cond.left_type !== 'open' && ['close', 'high', 'low', 'vwap'].includes(cond.left_type)) {
+                    errors.push(`Left side: cannot use day candle "${cond.left_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset`);
+                }
+                if (cond.right_candle === 'day' && cond.right_day === 0 && cond.right_type !== 'open' && ['close', 'high', 'low', 'vwap'].includes(cond.right_type)) {
+                    errors.push(`Right side: cannot use day candle "${cond.right_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset`);
+                }
             }
         }
     }
