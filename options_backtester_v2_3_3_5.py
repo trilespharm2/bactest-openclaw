@@ -524,7 +524,8 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
             if metric == 'price':
                 # Fetch minute bars for intraday comparisons
                 series_type = params.get('series_type', 'close')
-                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/minute/{start_str}/{end_str}"
+                price_multiplier = int(params.get('multiplier', 1) or 1)
+                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/{price_multiplier}/minute/{start_str}/{end_str}"
                 print(f"[Prefetch] Fetching PRICE MINUTE data: {start_str} to {end_str}...", flush=True)
                 
                 response = requests.get(url, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true'})
@@ -565,18 +566,22 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 window = params.get('window', 14)
                 timespan = params.get('candle_type', 'day')
                 series_type = params.get('series_type', 'close')
+                ind_multiplier = int(params.get('multiplier', 1) or 1)
                 
                 url = f"https://api.polygon.io/v1/indicators/{metric}/{underlying_sym}"
                 query_params = {
                     'apiKey': api_key,
                     'timespan': timespan,
+                    'adjusted': 'true',
                     'window': window,
                     'series_type': series_type,
                     'timestamp.gte': start_ts,
                     'timestamp.lte': end_ts,
-                    'limit': 5000,  # Indicator endpoints have lower max limit than aggs
+                    'limit': 5000,
                     'order': 'asc'
                 }
+                if ind_multiplier > 1:
+                    query_params['timespan_multiplier'] = ind_multiplier
                 
                 print(f"[Prefetch] Fetching {metric.upper()}: window={window}, timespan={timespan}...", flush=True)
                 

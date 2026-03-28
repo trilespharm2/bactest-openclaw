@@ -56,6 +56,8 @@ function initializeStockBacktesterPage() {
         
         console.log('=== Initialization Complete ===');
 
+        checkForRunningStockBacktests();
+
         var pendingTemplate = sessionStorage.getItem('stockBacktestUseTemplate');
         if (pendingTemplate) {
             try {
@@ -654,6 +656,14 @@ async function handleSubmit(e) {
 
                 if (!response.ok) {
                     const error = await response.json();
+                    if (response.status === 429) {
+                        const loadingEl = document.getElementById('loadingMessage');
+                        if (loadingEl) loadingEl.style.display = 'none';
+                        form.dataset.isSubmitting = 'false';
+                        alert(error.error || 'A backtest is already running.');
+                        checkForRunningStockBacktests();
+                        return;
+                    }
                     throw new Error(error.error || 'Backtest failed to start');
                 }
 
@@ -1499,5 +1509,87 @@ function applyStockConfig(config) {
     }
 
     console.log('Stock config applied from Use Template');
+}
+
+var _stockRunningPollTimer = null;
+
+async function checkForRunningStockBacktests() {
+    try {
+        var response = await authFetch('/api/backtest/running');
+        if (!response.ok) return;
+        var data = await response.json();
+        if (data.has_running && data.running_backtests.length > 0) {
+            var bt = data.running_backtests[0];
+            showRunningStockBanner(bt.backtest_id, bt.type);
+            disableStockSubmit(true);
+            pollRunningStockBacktest(bt.backtest_id, bt.type);
+        }
+    } catch (e) {
+        console.log('Could not check running backtests:', e);
+    }
+}
+
+function showRunningStockBanner(backtestId, backtestType) {
+    var existing = document.getElementById('runningStockBanner');
+    if (existing) existing.remove();
+    
+    var banner = document.createElement('div');
+    banner.id = 'runningStockBanner';
+    banner.style.cssText = 'background: linear-gradient(135deg, #1e3a5f, #2d4a7c); border: 1px solid #3b7cff; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px;';
+    var viewUrl = backtestType === 'stocks' ? '/stock-backtest-results.html?id=' + backtestId : '/options-backtest-result-detail.html?id=' + backtestId;
+    banner.innerHTML = '<div style="display:flex; align-items:center; gap:12px;">' +
+        '<div class="spinner-border spinner-border-sm text-info" role="status"><span class="visually-hidden">Loading...</span></div>' +
+        '<div><div style="color:#fff; font-weight:600;">Backtest In Progress</div>' +
+        '<div style="color:#94b8db; font-size:13px;">Please wait for the current backtest to finish before starting a new one.</div></div></div>' +
+        '<div style="display:flex; gap:10px;">' +
+        '<a href="' + viewUrl + '" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i> View</a>' +
+        '<button class="btn btn-sm btn-outline-danger" onclick="cancelStockBacktest(\'' + backtestId + '\')"><i class="fas fa-times"></i> Cancel</button></div>';
+    
+    var form = document.getElementById('stockBacktestForm');
+    if (form) {
+        form.parentNode.insertBefore(banner, form);
+    }
+}
+
+function disableStockSubmit(disabled) {
+    var btn = document.getElementById('runStockBacktestBtn');
+    if (btn) {
+        btn.disabled = disabled;
+        btn.style.opacity = disabled ? '0.5' : '1';
+        btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    }
+}
+
+function pollRunningStockBacktest(backtestId, backtestType) {
+    if (_stockRunningPollTimer) clearInterval(_stockRunningPollTimer);
+    var statusUrl = backtestType === 'stocks' ? '/api/stocks-backtest-v3/status/' + backtestId : '/api/backtest/status/' + backtestId;
+    _stockRunningPollTimer = setInterval(async function() {
+        try {
+            var response = await authFetch(statusUrl);
+            if (!response.ok) return;
+            var data = await response.json();
+            if (data.status !== 'running') {
+                var banner = document.getElementById('runningStockBanner');
+                if (banner) banner.remove();
+                if (_stockRunningPollTimer) { clearInterval(_stockRunningPollTimer); _stockRunningPollTimer = null; }
+                disableStockSubmit(false);
+            }
+        } catch (e) {}
+    }, 3000);
+}
+
+async function cancelStockBacktest(backtestId) {
+    if (!confirm('Are you sure you want to cancel this backtest?')) return;
+    try {
+        var response = await authFetch('/api/backtest/cancel/' + backtestId, { method: 'POST' });
+        if (response.ok) {
+            var banner = document.getElementById('runningStockBanner');
+            if (banner) banner.remove();
+            if (_stockRunningPollTimer) { clearInterval(_stockRunningPollTimer); _stockRunningPollTimer = null; }
+            disableStockSubmit(false);
+        }
+    } catch (e) {
+        console.error('Cancel error:', e);
+    }
 }
 

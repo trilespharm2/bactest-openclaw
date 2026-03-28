@@ -128,6 +128,10 @@ function addPriceCondition() {
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
                 </div>
+                <div class="col-md-1" id="leftMultiplierGroup${conditionId}">
+                    <label class="form-label small">Mult</label>
+                    <input type="number" class="form-control form-control-sm" id="leftMultiplier${conditionId}" value="1" min="1" max="60">
+                </div>
                 <div class="col-md-2" id="leftWindowGroup${conditionId}">
                     <label class="form-label small" id="leftWindowLabel${conditionId}">Window</label>
                     <input type="number" class="form-control form-control-sm" id="leftWindow${conditionId}" value="14" min="1">
@@ -203,6 +207,10 @@ function addPriceCondition() {
                     <select class="form-select form-select-sm" id="rightCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
+                </div>
+                <div class="col-md-1" id="rightMultiplierGroup${conditionId}">
+                    <label class="form-label small">Mult</label>
+                    <input type="number" class="form-control form-control-sm" id="rightMultiplier${conditionId}" value="1" min="1" max="60">
                 </div>
                 <div class="col-md-2" id="rightWindowGroup${conditionId}">
                     <label class="form-label small">Window</label>
@@ -304,12 +312,14 @@ function updateConditionFields(conditionId) {
     
     var leftDayGroup = document.getElementById(`leftDayGroup${conditionId}`);
     var leftCandleTypeGroup = document.getElementById(`leftCandleTypeGroup${conditionId}`);
+    var leftMultiplierGroup = document.getElementById(`leftMultiplierGroup${conditionId}`);
 
     // Update based on metric
     switch (metric) {
         case 'current_price':
             if (leftDayGroup) leftDayGroup.style.display = 'none';
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
             if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
@@ -320,6 +330,7 @@ function updateConditionFields(conditionId) {
         case 'price':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
@@ -330,6 +341,7 @@ function updateConditionFields(conditionId) {
         case 'ema':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
@@ -340,6 +352,7 @@ function updateConditionFields(conditionId) {
         case 'rsi':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
@@ -350,6 +363,7 @@ function updateConditionFields(conditionId) {
         case 'macd':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
@@ -546,6 +560,7 @@ function collectPriceConditions() {
             left: {
                 day: metric === 'current_price' ? '0' : (document.getElementById(`leftDay${id}`)?.value || '0'),
                 candle_type: metric === 'current_price' ? 'minute' : (document.getElementById(`leftCandleType${id}`)?.value || 'minute'),
+                multiplier: metric === 'current_price' ? 1 : (parseInt(document.getElementById(`leftMultiplier${id}`)?.value) || 1),
                 series_type: metric === 'current_price' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
             },
             operator: document.getElementById(`operator${id}`)?.value,
@@ -571,6 +586,7 @@ function collectPriceConditions() {
             condition.right = {
                 day: document.getElementById(`rightDay${id}`)?.value,
                 candle_type: document.getElementById(`rightCandleType${id}`)?.value,
+                multiplier: parseInt(document.getElementById(`rightMultiplier${id}`)?.value) || 1,
                 series_type: document.getElementById(`rightSeriesType${id}`)?.value
             };
             
@@ -628,6 +644,9 @@ function initializeBacktesterPage() {
     // Setup event listeners
     setupFormControls();
     setupStrategySelection();
+    
+    // Check for running backtests and show notification
+    checkForRunningBacktests();
     
     // Load last backtest result if available
     loadLastBacktestResult();
@@ -1583,8 +1602,16 @@ function buildOptConfigSummaryHtml(config) {
             var leftCandle = left.candle_type || 'minute';
             var leftSeries = left.series_type || 'close';
             var leftWindow = left.window ? '(' + left.window + ')' : '';
+            var leftMult = parseInt(left.multiplier) || 1;
             var isCurrentPrice = metric === 'PRICE' && leftDay === 0 && leftCandle === 'minute' && leftSeries === 'vwap';
-            var leftDesc = isCurrentPrice ? 'Current Price' : (metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + leftCandle + ']');
+            var candleFmt = function(candle, mult) {
+                var m = parseInt(mult) || 1;
+                if (candle === 'minute') return m + 'min';
+                if (candle === 'hour') return m + 'hr';
+                if (candle === 'day') return m > 1 ? m + 'day' : 'day';
+                return candle;
+            };
+            var leftDesc = isCurrentPrice ? 'Current Price' : (metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + candleFmt(leftCandle, leftMult) + ']');
 
             var op = pc.operator || '>';
 
@@ -1596,9 +1623,10 @@ function buildOptConfigSummaryHtml(config) {
                 var right = pc.right || {};
                 var rightDay = parseInt(right.day) || 0;
                 var rightCandle = right.candle_type || 'minute';
+                var rightMult = parseInt(right.multiplier) || 1;
                 var rightSeries = right.series_type || 'close';
                 var rightWindow = right.window ? '(' + right.window + ')' : '';
-                rightDesc = rightMetric + rightWindow + ' ' + rightSeries + ' [day ' + rightDay + ', ' + rightCandle + ']';
+                rightDesc = rightMetric + rightWindow + ' ' + rightSeries + ' [day ' + rightDay + ', ' + candleFmt(rightCandle, rightMult) + ']';
 
                 var threshold = pc.threshold || {};
                 var threshVal = parseFloat(threshold.value);
@@ -1895,6 +1923,13 @@ async function handleBacktestSubmit(e) {
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                if (response.status === 429) {
+                    showError(errorData.error || 'A backtest is already running. Please wait for it to finish.');
+                    if (loadingDiv) loadingDiv.style.display = 'none';
+                    form.dataset.isSubmitting = 'false';
+                    checkForRunningBacktests();
+                    return;
+                }
                 throw new Error(errorData.error || `Server error: ${response.status}`);
             }
             
@@ -2607,6 +2642,121 @@ function applyOptionsConfig(rawConfig) {
     }, 200);
 }
 
+var _runningBacktestId = null;
+var _runningBacktestPollTimer = null;
+
+async function checkForRunningBacktests() {
+    try {
+        var response = await authFetch(API_BASE_URL + '/backtest/running');
+        if (!response.ok) return;
+        var data = await response.json();
+        if (data.has_running && data.running_backtests.length > 0) {
+            var bt = data.running_backtests[0];
+            _runningBacktestId = bt.backtest_id;
+            showRunningBacktestBanner(bt.backtest_id, bt.type);
+            disableBacktestSubmit(true);
+            pollRunningBacktest(bt.backtest_id, bt.type);
+        }
+    } catch (e) {
+        console.log('Could not check running backtests:', e);
+    }
+}
+
+function showRunningBacktestBanner(backtestId, backtestType) {
+    var existing = document.getElementById('runningBacktestBanner');
+    if (existing) existing.remove();
+    
+    var viewUrl = backtestType === 'stocks' ? '/stock-backtest-results.html?id=' + backtestId : '/options-backtest-result-detail.html?id=' + backtestId;
+    var typeLabel = backtestType === 'stocks' ? 'Stock' : 'Options';
+    var banner = document.createElement('div');
+    banner.id = 'runningBacktestBanner';
+    banner.style.cssText = 'background: linear-gradient(135deg, #1e3a5f, #2d4a7c); border: 1px solid #3b7cff; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px;';
+    banner.innerHTML = '<div style="display:flex; align-items:center; gap:12px;">' +
+        '<div class="spinner-border spinner-border-sm text-info" role="status"><span class="visually-hidden">Loading...</span></div>' +
+        '<div><div style="color:#fff; font-weight:600;">' + typeLabel + ' Backtest In Progress</div>' +
+        '<div style="color:#94b8db; font-size:13px;">Please wait for the current backtest to finish before starting a new one.</div></div></div>' +
+        '<div style="display:flex; gap:10px;">' +
+        '<a href="' + viewUrl + '" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i> View</a>' +
+        '<button class="btn btn-sm btn-outline-danger" onclick="cancelRunningBacktest(\'' + backtestId + '\')"><i class="fas fa-times"></i> Cancel</button></div>';
+    
+    var form = document.getElementById('backtestForm');
+    if (form) {
+        form.parentNode.insertBefore(banner, form);
+    }
+}
+
+function removeRunningBacktestBanner() {
+    var banner = document.getElementById('runningBacktestBanner');
+    if (banner) banner.remove();
+    _runningBacktestId = null;
+    if (_runningBacktestPollTimer) {
+        clearInterval(_runningBacktestPollTimer);
+        _runningBacktestPollTimer = null;
+    }
+}
+
+function disableBacktestSubmit(disabled) {
+    var btn = document.getElementById('runBacktestBtn');
+    if (btn) {
+        btn.disabled = disabled;
+        if (disabled) {
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        } else {
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        }
+    }
+}
+
+function pollRunningBacktest(backtestId, backtestType) {
+    if (_runningBacktestPollTimer) clearInterval(_runningBacktestPollTimer);
+    var statusUrl = backtestType === 'stocks' ? API_BASE_URL + '/stocks-backtest-v3/status/' + backtestId : API_BASE_URL + '/backtest/status/' + backtestId;
+    var viewUrl = backtestType === 'stocks' ? '/stock-backtest-results.html?id=' + backtestId : '/options-backtest-result-detail.html?id=' + backtestId;
+    _runningBacktestPollTimer = setInterval(async function() {
+        try {
+            var response = await authFetch(statusUrl);
+            if (!response.ok) return;
+            var data = await response.json();
+            if (data.status !== 'running') {
+                removeRunningBacktestBanner();
+                disableBacktestSubmit(false);
+                if (data.status === 'completed') {
+                    showSuccess('Your previous backtest has completed! <a href="' + viewUrl + '" style="color:#31ce36;text-decoration:underline;">View Results</a>');
+                } else if (data.status === 'cancelled') {
+                    showError('The backtest was cancelled.');
+                }
+            }
+        } catch (e) {}
+    }, 3000);
+}
+
+async function cancelRunningBacktest(backtestId) {
+    if (!confirm('Are you sure you want to cancel this backtest?')) return;
+    try {
+        var response = await authFetch(API_BASE_URL + '/backtest/cancel/' + backtestId, { method: 'POST' });
+        if (response.ok) {
+            removeRunningBacktestBanner();
+            disableBacktestSubmit(false);
+            showError('Backtest cancelled.');
+        }
+    } catch (e) {
+        console.error('Cancel error:', e);
+    }
+}
+
+function viewRunningBacktest(backtestId) {
+}
+
+function showSuccess(msg) {
+    var el = document.getElementById('backtestError');
+    if (el) {
+        el.innerHTML = msg;
+        el.style.display = 'block';
+        el.className = 'alert alert-success';
+    }
+}
+
 function applyPriceConditions(conditions) {
     // Clear existing conditions
     const container = document.getElementById('priceConditionsContainer');
@@ -2640,10 +2790,9 @@ function applyPriceConditions(conditions) {
             if (document.getElementById(`leftDay${id}`)) document.getElementById(`leftDay${id}`).value = condition.left?.day || '0';
             if (document.getElementById(`leftCandleType${id}`)) {
                 document.getElementById(`leftCandleType${id}`).value = condition.left?.candle_type || 'day';
-                // Update series type options based on candle type
                 handleCandleTypeChange(id);
             }
-            // Set series type after handleCandleTypeChange updates options
+            if (document.getElementById(`leftMultiplier${id}`)) document.getElementById(`leftMultiplier${id}`).value = condition.left?.multiplier || 1;
             if (document.getElementById(`leftSeriesType${id}`)) document.getElementById(`leftSeriesType${id}`).value = condition.left?.series_type || 'open';
             if (document.getElementById(`leftWindow${id}`)) document.getElementById(`leftWindow${id}`).value = condition.left?.window || 14;
             
@@ -2669,6 +2818,7 @@ function applyPriceConditions(conditions) {
                 setTimeout(() => {
                     if (document.getElementById(`rightDay${id}`)) document.getElementById(`rightDay${id}`).value = condition.right?.day || '0';
                     if (document.getElementById(`rightCandleType${id}`)) document.getElementById(`rightCandleType${id}`).value = condition.right?.candle_type || 'day';
+                    if (document.getElementById(`rightMultiplier${id}`)) document.getElementById(`rightMultiplier${id}`).value = condition.right?.multiplier || 1;
                     if (document.getElementById(`rightSeriesType${id}`)) document.getElementById(`rightSeriesType${id}`).value = condition.right?.series_type || 'close';
                     if (document.getElementById(`rightWindow${id}`)) document.getElementById(`rightWindow${id}`).value = condition.right?.window || 14;
                     

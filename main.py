@@ -446,7 +446,7 @@ API_KEY = os.environ.get('POLYGON_API_KEY', '')
 stocks_v3_wrapper = None  # Will be initialized when needed
 
 # Track running backtests for async processing
-running_backtests = {}  # {backtest_id: {'status': 'running'|'completed'|'error', 'error': None|str}}
+running_backtests = {}  # {backtest_id: {'status': 'running'|'completed'|'error', 'error': None|str, 'process': subprocess.Popen|None, 'user_id': int|None}}
 running_stock_backtests = {}  # Track running stock backtests
 
 @app.route('/')
@@ -3008,6 +3008,14 @@ def start_backtest_async():
         # Get current user for result association
         user_id = current_user.id
         
+        # Check if user already has a running backtest
+        for bid, binfo in running_backtests.items():
+            if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
+                return jsonify({'error': 'You already have a backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+        for bid, binfo in running_stock_backtests.items():
+            if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
+                return jsonify({'error': 'You already have a stock backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+        
         print("\n" + "="*60)
         print("ASYNC BACKTEST STARTED")
         print(f"Backtest ID: {backtest_id}")
@@ -3056,13 +3064,13 @@ def start_backtest_async():
         db.session.commit()
         
         # Track this backtest
-        running_backtests[backtest_id] = {'status': 'running', 'error': None}
+        running_backtests[backtest_id] = {'status': 'running', 'error': None, 'process': None, 'user_id': user_id}
         
         # Run backtest in background thread
         def run_async():
             try:
                 result = run_backtester_script_with_id(params, api_key, backtest_id)
-                running_backtests[backtest_id] = {'status': 'completed', 'error': None}
+                running_backtests[backtest_id]['status'] = 'completed'
                 
                 # Update metadata with completed status and summary
                 try:
@@ -3149,7 +3157,8 @@ def start_backtest_async():
                     
             except Exception as e:
                 print(f"Async backtest error: {e}")
-                running_backtests[backtest_id] = {'status': 'error', 'error': str(e)}
+                running_backtests[backtest_id]['status'] = 'error'
+                running_backtests[backtest_id]['error'] = str(e)
                 # Update metadata with error
                 try:
                     with open(metadata_path, 'r') as f:
@@ -3207,6 +3216,136 @@ def get_backtest_status(backtest_id):
             pass
     
     return jsonify({'status': 'not_found', 'error': 'Backtest not found'}), 404
+
+
+@app.route('/api/backtest/cancel/<backtest_id>', methods=['POST'])
+@login_required
+def cancel_backtest(backtest_id):
+    """Cancel a running backtest by killing its subprocess"""
+    import signal
+    user_id = current_user.id
+    
+    # Check options backtests
+    if backtest_id in running_backtests:
+        bt = running_backtests[backtest_id]
+        if bt.get('user_id') != user_id:
+            return jsonify({'error': 'Not authorized to cancel this backtest'}), 403
+        if bt.get('status') != 'running':
+            return jsonify({'error': 'Backtest is not running'}), 400
+        
+        proc = bt.get('process')
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        
+        bt['status'] = 'cancelled'
+        bt['error'] = 'Cancelled by user'
+        
+        # Update metadata
+        metadata_path = os.path.join('backtest_results', f'metadata_{backtest_id}.json')
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                metadata['status'] = 'cancelled'
+                metadata['error'] = 'Cancelled by user'
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+            except:
+                pass
+        
+        # Update database
+        try:
+            record = BacktestResult.query.get(backtest_id)
+            if record:
+                record.status = 'cancelled'
+                db.session.commit()
+        except:
+            pass
+        
+        return jsonify({'status': 'cancelled', 'message': 'Backtest cancelled'})
+    
+    # Check stock backtests
+    if backtest_id in running_stock_backtests:
+        bt = running_stock_backtests[backtest_id]
+        if bt.get('user_id') != user_id:
+            return jsonify({'error': 'Not authorized to cancel this backtest'}), 403
+        if bt.get('status') != 'running':
+            return jsonify({'error': 'Backtest is not running'}), 400
+        
+        proc = bt.get('process')
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        
+        bt['status'] = 'cancelled'
+        bt['error'] = 'Cancelled by user'
+        
+        metadata_path = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                metadata['status'] = 'cancelled'
+                metadata['error'] = 'Cancelled by user'
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+            except:
+                pass
+        
+        try:
+            record = BacktestResult.query.get(backtest_id)
+            if record:
+                record.status = 'cancelled'
+                db.session.commit()
+        except:
+            pass
+        
+        return jsonify({'status': 'cancelled', 'message': 'Stock backtest cancelled'})
+    
+    return jsonify({'error': 'Backtest not found or not running'}), 404
+
+
+@app.route('/api/backtest/running', methods=['GET'])
+@login_required
+def check_running_backtests():
+    """Check if the current user has any running backtests"""
+    user_id = current_user.id
+    running = []
+    
+    for bid, binfo in running_backtests.items():
+        if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
+            running.append({'backtest_id': bid, 'type': 'options'})
+    
+    for bid, binfo in running_stock_backtests.items():
+        if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
+            running.append({'backtest_id': bid, 'type': 'stocks'})
+    
+    # Also check database for running backtests (in case of server restart)
+    if not running:
+        try:
+            db_running = BacktestResult.query.filter_by(user_id=user_id, status='running').all()
+            for record in db_running:
+                running.append({'backtest_id': record.id, 'type': record.backtest_type or 'options'})
+        except:
+            pass
+    
+    return jsonify({
+        'has_running': len(running) > 0,
+        'running_backtests': running
+    })
 
 
 @app.route('/api/backtest/run', methods=['POST'])
@@ -3897,6 +4036,10 @@ def run_backtester_script_with_id(config, api_key, backtest_id):
             text=True
         )
         
+        # Store process reference for cancel support
+        if backtest_id in running_backtests:
+            running_backtests[backtest_id]['process'] = process
+        
         output_lines = []
         for line in iter(process.stdout.readline, ''):
             if line:
@@ -4015,6 +4158,14 @@ def start_stocks_backtest_v3_async():
         # Get current user for result association
         user_id = current_user.id
         
+        # Check if user already has a running backtest
+        for bid, binfo in running_backtests.items():
+            if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
+                return jsonify({'error': 'You already have an options backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+        for bid, binfo in running_stock_backtests.items():
+            if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
+                return jsonify({'error': 'You already have a stock backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+        
         print(f"\n{'='*60}")
         print(f"STOCK BACKTEST V3.0 - STARTING ASYNC")
         print(f"{'='*60}")
@@ -4055,7 +4206,7 @@ def start_stocks_backtest_v3_async():
         db.session.commit()
         
         # Track this backtest
-        running_stock_backtests[unique_id] = {'status': 'running', 'error': None}
+        running_stock_backtests[unique_id] = {'status': 'running', 'error': None, 'process': None, 'user_id': user_id}
         
         # Initialize wrapper
         global stocks_v3_wrapper

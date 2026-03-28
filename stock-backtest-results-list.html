@@ -199,10 +199,11 @@
       let allBacktests = [];
       let currentFilter = 'all';
 
-      document.addEventListener('DOMContentLoaded', () => {
-        loadBacktests();
+      document.addEventListener('DOMContentLoaded', async () => {
         setupFilters();
         setupSearch();
+        await loadBacktests();
+        checkRunningStockBacktests();
       });
 
       function setupSearch() {
@@ -344,6 +345,71 @@
             </div>
           `;
         }).join('');
+      }
+
+      var _stockResultsPollTimer = null;
+
+      async function checkRunningStockBacktests() {
+        try {
+          const response = await fetch('/api/backtest/running');
+          if (!response.ok) return;
+          const data = await response.json();
+          const stocksRunning = (data.running_backtests || []).filter(b => b.type === 'stocks');
+          const runningCard = document.getElementById('runningBacktestCard');
+          if (runningCard) runningCard.remove();
+          
+          if (stocksRunning.length > 0) {
+            const bt = stocksRunning[0];
+            const grid = document.getElementById('backtestsGrid');
+            grid.style.display = 'flex';
+            document.getElementById('emptyState').style.display = 'none';
+            
+            const card = document.createElement('div');
+            card.id = 'runningBacktestCard';
+            card.className = 'col-sm-6 col-lg-4 col-xl-3';
+            card.innerHTML = '<div class="card backtest-card" style="border: 1px solid #3b7cff; background: linear-gradient(135deg, #1a1a2e, #16213e);">' +
+              '<div class="card-header"><div class="card-title" style="color:#3b7cff;"><i class="fas fa-spinner fa-spin me-2"></i>Running...</div>' +
+              '<span class="badge bg-info badge-status">In Progress</span></div>' +
+              '<div class="card-body">' +
+              '<div class="text-center py-3"><div class="spinner-border text-info" role="status"></div>' +
+              '<p class="text-muted mt-2 mb-0" style="font-size:13px;">Backtest is running...</p></div>' +
+              '<div class="d-flex gap-2 mt-3">' +
+              '<a href="/stock-backtest-results.html?id=' + bt.backtest_id + '" class="btn btn-sm btn-info flex-grow-1"><i class="fas fa-eye me-1"></i>View</a>' +
+              '<button class="btn btn-sm btn-danger" onclick="cancelStockRunningBacktest(\'' + bt.backtest_id + '\')"><i class="fas fa-times"></i></button>' +
+              '</div></div></div>';
+            grid.insertBefore(card, grid.firstChild);
+            
+            if (_stockResultsPollTimer) clearInterval(_stockResultsPollTimer);
+            _stockResultsPollTimer = setInterval(async function() {
+              try {
+                const r = await fetch('/api/stocks-backtest-v3/status/' + bt.backtest_id);
+                if (!r.ok) return;
+                const d = await r.json();
+                if (d.status !== 'running') {
+                  clearInterval(_stockResultsPollTimer);
+                  _stockResultsPollTimer = null;
+                  loadBacktests();
+                  checkRunningStockBacktests();
+                }
+              } catch(e) {}
+            }, 3000);
+          }
+        } catch(e) {
+          console.log('Could not check running backtests:', e);
+        }
+      }
+
+      async function cancelStockRunningBacktest(id) {
+        if (!confirm('Cancel this running backtest?')) return;
+        try {
+          const r = await fetch('/api/backtest/cancel/' + id, { method: 'POST' });
+          if (r.ok) {
+            if (_stockResultsPollTimer) { clearInterval(_stockResultsPollTimer); _stockResultsPollTimer = null; }
+            const card = document.getElementById('runningBacktestCard');
+            if (card) card.remove();
+            loadBacktests();
+          }
+        } catch(e) { console.error('Cancel error:', e); }
       }
 
       async function deleteBacktest(id) {
