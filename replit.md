@@ -1,7 +1,7 @@
 # BacktestPro
 
 ## Overview
-BacktestPro is a web-based platform designed for backtesting trading strategies against historical market data for both options and stocks. It provides a dashboard for users to configure backtests, analyze results, and manage their strategies. The platform integrates with market data providers and supports a wide range of options strategies, aiming to empower users with robust tools for financial strategy validation.
+BacktestPro is a web-based platform for backtesting trading strategies across options and stocks using historical market data. It offers a dashboard for configuring backtests, analyzing results, and managing strategies, integrating with various market data providers. The platform aims to provide robust tools for financial strategy validation.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -9,106 +9,75 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend is a Single Page Application (SPA) built with vanilla JavaScript and HTML, utilizing dynamic page loading and a component-based structure. It features a custom, Phoenix-inspired light theme with a white sidebar, blue primary accents, and a light gray background. The UI is authentication-aware, adapting the landing experience and feature access based on user login status. SPA navigation is managed with the History API for a seamless user experience.
+The frontend is a vanilla JavaScript and HTML Single Page Application (SPA) with a component-based structure. It features a custom light theme (Phoenix-inspired) with a white sidebar, blue accents, and a light gray background. The UI adapts based on user authentication, and navigation uses the History API.
 
 ### Backend
-The backend is built with Flask (Python) and Flask-CORS, serving as both an API and static file server. It implements RESTful API endpoints and uses Flask-Login for authentication, supporting both authenticated and unauthenticated usage. Authentication uses a hybrid cookie + token approach: Flask-Login cookies for direct browser access, and Bearer tokens (stored in localStorage, sent via Authorization header) as fallback for iframe/proxy environments where third-party cookies are blocked. Tokens expire after 7 days and are rotated on each login.
+Built with Flask, the backend provides a RESTful API and serves static files. It uses Flask-Login for authentication, supporting both authenticated and unauthenticated access via a hybrid cookie + Bearer token approach.
 
 ### Backtesting Engines
-The system incorporates two distinct backtesting engines: one for options (supporting 16+ strategies) and another for stocks (with custom condition builders). Both engines are wrapped for web API consumption.
-
-#### Options Backtester Strike Selection Methods
-The options backtester supports 6 strike selection methods for each leg:
-1. **Mid Price Range**: Select strikes based on option mid price range
-2. **% Distance from Underlying**: Calculate strike as percentage above/below spot price
-3. **$ Distance from Underlying**: Calculate strike as dollar amount above/below spot price
-4. **% Distance from Another Leg**: Reference another leg with percentage offset
-5. **$ Distance from Another Leg**: Reference another leg with dollar offset
-6. **Delta-Based Selection**: Select strikes based on target delta values using Black-Scholes Greeks calculations. Supports methods: closest, above, below, between, exactly.
+The system includes specialized backtesting engines for options (supporting 16+ strategies) and stocks (with custom condition builders), both exposed via web APIs. The options engine supports 6 strike selection methods, including mid-price range, distance from underlying (percentage or dollar), distance from another leg, and delta-based selection.
 
 ### Data Storage
-User-specific backtest results employ a hybrid storage model: metadata is stored in PostgreSQL, while detailed JSON results, trade logs (CSV), and equity curves (PNG) are stored on the filesystem. All result access requires authentication and ownership verification.
+Backtest results use a hybrid storage model: metadata in PostgreSQL, and detailed JSON results, trade logs, and equity curves stored on the filesystem, with access secured by authentication and ownership verification.
 
 ### Key Design Patterns
-The architecture utilizes a Wrapper Pattern for API-to-engine communication, Lazy Loading for page scripts, and server-side environment secrets for API keys. Hybrid persistence combines database and filesystem storage, with robust authorization checks ensuring data security.
+The architecture employs a Wrapper Pattern for API-to-engine communication, Lazy Loading for scripts, and server-side environment secrets. It uses hybrid persistence (database + filesystem) and robust authorization checks.
 
 ### UI/UX Decisions
-- **Design Theme**: Custom implementation inspired by Phoenix Dashboard using CSS variables.
-- **Color Scheme**: White sidebar (`#ffffff`), blue primary (`#3b7cff`), soft orange accent (`#f4a261`), light gray background (`#f6f8fb`).
-- **Authentication-Aware UI**: Features like backtester fields are dynamically enabled/disabled based on user authentication status.
+-   **Design Theme**: Custom Phoenix Dashboard-inspired CSS.
+-   **Color Scheme**: White sidebar, blue primary, soft orange accent, light gray background.
+-   **Authentication-Aware UI**: Dynamic feature access based on user login status.
 
 ### Feature Specifications
-- **Authentication**: Supports email/password and Google OAuth, including password reset and email change flows.
-- **Top Gainers/Losers Widget**: Displays real-time market movers data from Webull, refreshing automatically and adapting to market sessions.
-- **Dashboard Data Feeds**: Most Active, Trending, Sector Performance, Indices, and Upcoming Earnings cards are powered by `yfinance` (free, no API key). Gainers/Losers remain on Webull. All feeds use background thread caching with configurable refresh intervals (30-300s).
-- **FRED Macro Economic Data**: Integrated with the Federal Reserve (FRED) API via `fredapi` library. Displays 10 key macro indicators on the dashboard: Fed Funds Rate, Unemployment, CPI, Core CPI, GDP, Nonfarm Payrolls, Retail Sales, Consumer Sentiment, Housing Starts, and Industrial Production. Each card shows the latest value, month-over-month change, and data date. Color-coded by category (rates=blue, labor=violet, inflation=red, output=green, consumer=amber, housing=cyan). Refreshes every 10 minutes. Requires `FRED_API_KEY` environment secret.
-- **Public Pages**: Includes landing, terms, privacy, FAQ, and contact pages.
-- **Subscription Management**: Integrates with Stripe for billing, plan upgrades/downgrades with proration logic, and customer portal access.
-- **Settings Page**: Allows account management, password changes, and notification preferences.
-- **Stock Screener**: Filters stocks by technical and fundamental criteria, supporting saved filters for logged-in users.
-- **Dashboard Access Control**: Protected routes ensure only authenticated users can access dashboard features.
-- **Notification System**: Allows users to create automated stock scanners that run on a schedule and deliver alerts via Email or Telegram. Uses APScheduler for background jobs and encrypts sensitive credentials. Scanner setup includes: scanner name, symbol selection (any/specific), filter configuration (preset or stored filters from Screener), scan frequency, timing/duration, repeat symbol filtering, and communication method (email/Telegram). Stored filters section uses card-based UI with radio selection, info box with instructions, and "No Filters Saved" empty state with "Create Filter" button that navigates to the Screener page.
-- **Ticker Detail Page**: Standalone page at `/ticker/<symbol>` showing real-time price, stats grid (market cap, P/E, EPS, volume, sector, etc.), interactive Chart.js price chart with period selector (5D/1M/3M/6M/1Y/5Y), ticker-specific news, and tabbed financial statements (income/balance/cashflow) from yfinance. Clicking any row in the financials table renders a bar+line trend chart below showing that metric across years (e.g., Total Revenue trend). Supports Treasury rate symbols (^TNX, ^TYX, etc.) and economic indicators (^VIX, DX-Y.NYB, CL=F, GC=F) with full chart history. All dashboard ticker symbols are clickable links navigating to the detail page. Backend validates symbols and sanitizes all data; frontend escapes all dynamic content to prevent XSS.
-- **Backtester Templates**: "Use Template" button on results pages stores config in sessionStorage and navigates back to config page with settings pre-filled.
-- **Pre-Backtest Confirmation Modal**: Before running any backtest, a summary overlay shows all configuration settings. User must click "Confirm" (Run Backtest) or "Modify" to go back and adjust settings.
-- **Decision Tree Log**: Both stock and options backtest results include a per-day decision log showing every trading day in the period. Stock: engine (`backtester_engine_v3_0__6_.py`) builds `decision_log` alongside trades. Options: engine (`options_backtester_v2_3_3_5.py`) `run_backtest()` returns 3-tuple `(trades, equity, decision_log)`, wrapper saves as `decision_log_{id}.json`, metadata endpoint includes it. Each day tracks: underlying price, conditions checked, whether met, entry details (legs, premium, contracts), exit details (reason, P&L), or skip reason (data gaps, premium filter, insufficient capital). Frontend renders as expandable day-by-day log with color-coded statuses.
-- **Simulated Trading**: Two-page architecture: config page (`simulatedTradingPage`) for session setup + active session cards, and a dedicated full-screen dark-themed trading page (`simTradingActivePage`) with TradingView Lightweight Charts v4. Config page lets users set symbol, date range, trading start date, mode (stock/options), and initial balance. Active session cards show saved sessions with Resume/End buttons. Trading page features: professional candlestick + volume chart via Lightweight Charts API, OHLC bar, timeframe switching (1m/5m/15m/30m/1h/2h/4h via client-side aggregation from 1m bars), bar navigation (prev/next/play/pause), go-to-date/time, position price lines on chart. Stock mode: Buy/Sell with quantity. Options mode: 16 strategies, configurable leg strike selection (% underlying, $ underlying, exact, delta, mid-price, $ from leg, % from leg), TP/SL, partial closes, expiration tracking. Session persistence via localStorage — saves config + trading state (not raw bars), re-fetches bars on resume. End session runs full analytics (equity curve, win rate, Sharpe ratio, profit factor, max drawdown, etc.) and navigates to results page. Sessions stored with format DDMMYYHHMM(S/O) as Session ID.
-- **Underlying Price Conditions**: Advanced entry filtering system supporting both preset and custom conditions for both stock and options backtesters. **Preset conditions**: Premarket Change %, Change %, Gap %, Change-Open %, and Velocity (rate of change over N minutes). **Custom conditions**: Technical indicators (SMA, EMA, RSI, MACD) supporting both intraday minute bars and day-level bars. **"Current Price" metric** (options backtester): shortcut that auto-sets day=0, candle=minute, series=vwap and hides those fields in the UI — stored as a standard price condition for backend compatibility. Day candle conditions compare daily OHLC values with proper timezone conversion from UTC to Eastern. When Day candle type is selected, entry time auto-locks to 09:30 AM. Both sides support SMA/EMA (configurable period and series), RSI (configurable period, always uses close), MACD (configurable short/long/signal windows, component selection: histogram/signal/MACD line). Right side also supports a fixed numeric "Value" type for absolute comparisons (e.g., RSI < 30, MACD histogram > 0). Indicators are computed locally from minute-level OHLCV data using up to 60 days of history, with lookahead bias prevention.
-- **Background Backtest Execution & Concurrency Control**: Backtests run asynchronously in background threads/subprocesses. Users are limited to one running backtest at a time (across both options and stock types). The system provides: (1) Running detection — config pages check `/api/backtest/running` on load and show a banner with View/Cancel buttons while disabling the Run button, (2) Cancel support — `/api/backtest/cancel/<id>` kills the subprocess (options) or marks as cancelled (stocks), (3) 429 blocking — start endpoints return HTTP 429 if user already has a running backtest, (4) Loading cards on results listing pages — running backtests appear as animated cards at the top of the grid with View/Cancel buttons, auto-refreshing via polling every 3 seconds. Running backtest state is tracked in `running_backtests` (options) and `running_stock_backtests` (stocks) dictionaries keyed by backtest_id, with fallback to database status on server restart.
-- **Input Validation**: Both stock and options backtesters perform comprehensive client-side validation before submission. Checks include: date range validity (start < end, not future, max 2 years), symbol format, entry time bounds, indicator window bounds (SMA/EMA 2-500, RSI 2-100), MACD short < long period, position sizing limits, TP/SL positivity, PDT+0DTE conflict detection, leg self-reference detection, allocation bounds, velocity lookback limits, and custom condition completeness. All errors displayed inline before API call.
-
-- **SPY Data Cache**: Pre-fetched 2-year SPY 1-minute OHLCV+VWAP data stored locally as a Parquet file (`data/spy_1min.parquet`, ~11MB, ~415K bars). Eliminates redundant Polygon API calls for SPY data used by backtester and simulated trading. Module: `spy_data_cache.py`. Features: (1) `build_full_cache(years=2)` — fetches full history in 40-day chunks (40K bars/call) with incremental saving and resume support, (2) `daily_update()` — fetches missing days since last cached timestamp, (3) Auto-scheduled via APScheduler at 8:30 PM ET daily, (4) API endpoints: `GET /api/spy-cache/info`, `POST /api/spy-cache/build` (admin), `POST /api/spy-cache/update` (admin), `GET /api/spy-cache/data?start_date=&end_date=`. Data includes extended hours (premarket + after hours). Load with `load_cached_data(start, end)` for DataFrame or `load_cached_bars_as_list(start, end)` for dict list.
+-   **Authentication**: Email/password and Google OAuth, including password and email management.
+-   **Market Data Widgets**: Top Gainers/Losers (Webull), Most Active, Trending, Sector Performance, Indices, Upcoming Earnings (yfinance). All use background caching.
+-   **FRED Macro Economic Data**: Displays 10 key indicators from the Federal Reserve (FRED) API, updated every 10 minutes.
+-   **Public Pages**: Landing, terms, privacy, FAQ, and contact.
+-   **Subscription Management**: Stripe integration for billing and plan management.
+-   **Settings Page**: Account, password, and notification preferences.
+-   **Stock Screener**: Filters stocks by technical/fundamental criteria; supports saved filters for logged-in users.
+-   **Notification System**: Automated stock scanners with alerts via Email or Telegram, scheduled via APScheduler.
+-   **Ticker Detail Page**: Dedicated page showing real-time price, stats, interactive Chart.js price chart, news, and tabbed financial statements from yfinance. Supports various market and economic symbols.
+-   **Backtester Templates**: Allows saving and reusing backtest configurations.
+-   **Pre-Backtest Confirmation**: A modal summary of settings before running a backtest.
+-   **Decision Tree Log**: Detailed per-day decision logs for both stock and options backtests, showing conditions, entry/exit details, and P&L.
+-   **Simulated Trading**: A two-page interface for setting up and conducting simulated trading sessions (stock/options) with a dark-themed, full-screen trading page using TradingView Lightweight Charts. Features include candlestick charts, OHLC bars, timeframe switching, bar navigation, position management, and session persistence.
+-   **Underlying Price Conditions**: Advanced entry filtering for backtesters with preset (e.g., Change %, Gap %) and custom (e.g., SMA, EMA, RSI, MACD) conditions, supporting both intraday and daily bars. Indicators are computed locally with lookahead bias prevention.
+-   **Background Backtest Execution & Concurrency Control**: Backtests run asynchronously, limited to one per user. The system provides running detection, cancellation support, and HTTP 429 blocking for concurrent requests.
+-   **Input Validation**: Comprehensive client-side validation for all backtester inputs, covering date ranges, symbol formats, indicator bounds, and financial constraints.
+-   **SPY Data Cache**: A local Parquet file (`data/spy_1min.parquet`) containing 2 years of SPY 1-minute OHLCV+VWAP data, updated daily, to reduce external API calls.
 
 ## External Dependencies
 
 ### Third-Party APIs
--   **Polygon.io**: Primary market data for stocks and options.
--   **Webull**: Real-time market movers data (Top Gainers/Losers).
--   **Stripe**: Payment processing and subscription management.
--   **Mailtrap**: SMTP service for email delivery (e.g., password resets, email verification, scanner notifications).
--   **Telegram Bot API**: For delivering scanner notifications.
--   **TradingView Screener Library**: Used by the stock screener and notification system for filtering.
+-   **Polygon.io**: Primary market data.
+-   **Webull**: Real-time market movers.
+-   **Stripe**: Payment processing.
+-   **Mailtrap**: SMTP service for email.
+-   **Telegram Bot API**: Scanner notifications.
+-   **FRED API**: Macroeconomic data.
+-   **TradingView Screener Library**: Stock filtering.
 
 ### Python Libraries
 -   `Flask`: Web framework.
--   `Flask-CORS`: Cross-origin resource sharing.
+-   `Flask-CORS`: CORS handling.
 -   `Requests`: HTTP client.
--   `Flask-Login`: User session management.
--   `Flask-SQLAlchemy`: ORM for database interaction.
--   `polygon-api-client`: Python client for Polygon.io.
--   `webull`: Python library for Webull data.
--   `APScheduler`: For background task scheduling (scanner notifications).
--   `cryptography`: For encryption (Telegram tokens).
--   `scipy`: For Black-Scholes options Greeks calculations (norm, brentq optimizer).
+-   `Flask-Login`: User sessions.
+-   `Flask-SQLAlchemy`: ORM.
+-   `polygon-api-client`: Polygon.io client.
+-   `webull`: Webull data.
+-   `APScheduler`: Background tasks.
+-   `cryptography`: Encryption.
+-   `scipy`: Black-Scholes calculations.
+-   `yfinance`: Financial data feeds.
+-   `fredapi`: FRED API client.
 
 ### Frontend Libraries (CDN)
--   `Chart.js`: For data visualization (equity curves, performance charts).
--   `TradingView Lightweight Charts v4`: Professional candlestick/volume charting for simulated trading.
+-   `Chart.js`: Data visualization.
+-   `TradingView Lightweight Charts v4`: Candlestick charts.
 -   `Font Awesome`: Icons.
--   `Material Symbols Rounded`: Google Material icons.
+-   `Material Symbols Rounded`: Icons.
 -   `Inter Font`: Typography.
 
-## Replit Environment Setup
-
-### Configuration
-- Workflow: "Backend Server" runs `python3 main.py` (uses `.pythonlibs` virtualenv automatically)
-- Deployment: `gunicorn --bind 0.0.0.0:5000 main:app`
-- Port: 5000 (mapped to external port 80)
-
-### Secrets (stored in Replit Secrets — never in .replit)
-- `FLASK_SECRET_KEY`: Flask session signing key
-- `ADMIN_PASSWORD`: Admin user bootstrap password
-- `POLYGON_API_KEY`: Polygon.io API key
-- `ENCRYPTION_KEY`: Encryption key for sensitive data
-
-### Env Vars (non-sensitive, in .replit userenv.shared)
-- `FLASK_DEBUG`, `PORT`, `AUTO_CREATE_SCHEMA`, `ENABLE_SCHEDULER`
-- `SESSION_COOKIE_SECURE`, `CORS_ORIGINS`
-- `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_BOOTSTRAP_ENABLED`
-
-### Known Quirks
-- Some market tickers (QQQ, IWM) occasionally return NaN from yfinance; handled server-side via `_sanitize_nan()` and client-side via `_fmt()` helper
-- Admin bootstrap is idempotent — safe to restart with ADMIN_BOOTSTRAP_ENABLED=1
-
 ### Database
--   `PostgreSQL`: Used for user authentication, saved filters, and backtest metadata storage. Configured with SQLAlchemy ORM and connection pooling.
+-   **PostgreSQL**: User data, saved filters, and backtest metadata.

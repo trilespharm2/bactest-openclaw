@@ -735,7 +735,7 @@ function aggregateBarsUpToMinute(minuteBars, targetMinutes, upToMinuteIndex) {
 
 async function loadSimulatedChart(restoreMinuteIndex = null) {
     stopAutoplay();
-    showLoader(true, 'Fetching 1-minute data...', 'Single API call');
+    showLoader(true, 'Loading chart data...', '');
 
     try {
         const minuteBars = await fetchMinuteBars(simCurrentSymbol, simChartDates.start, simChartDates.end);

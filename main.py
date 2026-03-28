@@ -5647,7 +5647,7 @@ def clear_screener_filters():
 
 @app.route('/api/simulated-trading/bars', methods=['POST'])
 def get_simulated_trading_bars():
-    """Fetch OHLCV bars for simulated trading chart"""
+    """Fetch OHLCV bars for simulated trading chart — uses SPY cache when available"""
     try:
         data = request.json
         symbol = data.get('symbol', '').upper().strip()
@@ -5655,17 +5655,92 @@ def get_simulated_trading_bars():
         end_date = data.get('end_date')
         bar_size = data.get('bar_size', 'day')
         multiplier = int(data.get('multiplier', 1))
-        
+
         if not symbol or not start_date or not end_date:
             return jsonify({'error': 'Symbol, start_date, and end_date are required'}), 400
-        
+
+        if symbol == 'SPY' and bar_size == 'minute' and multiplier == 1:
+            import pandas as _pd
+            cache_info = spy_data_cache.get_cache_info()
+            if cache_info.get('exists'):
+                from datetime import datetime as dt_cls
+                req_start = dt_cls.strptime(start_date, '%Y-%m-%d').date()
+                req_end = dt_cls.strptime(end_date, '%Y-%m-%d').date()
+                cache_first = _pd.to_datetime(cache_info['first_date']).date()
+                cache_last = _pd.to_datetime(cache_info['last_date']).date()
+
+                needs_before = req_start < cache_first
+                needs_after = req_end > cache_last
+
+                if not needs_before and not needs_after:
+                    cached_bars = spy_data_cache.load_cached_bars_as_list(start_date, end_date)
+                    bars = [{'timestamp': int(b['timestamp']), 'open': b['open'], 'high': b['high'],
+                             'low': b['low'], 'close': b['close'], 'volume': b['volume'],
+                             'vwap': b.get('vwap')} for b in cached_bars]
+                    print(f"[SPY Cache] Served {len(bars)} bars from cache for {start_date} to {end_date}")
+                    return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
+                                    'multiplier': multiplier, 'bars': bars, 'count': len(bars), 'source': 'cache'})
+
+                bars = []
+                source = 'cache'
+                cached_bars = spy_data_cache.load_cached_bars_as_list(
+                    max(start_date, cache_first.strftime('%Y-%m-%d')),
+                    min(end_date, cache_last.strftime('%Y-%m-%d'))
+                )
+                for b in (cached_bars or []):
+                    bars.append({'timestamp': int(b['timestamp']), 'open': b['open'], 'high': b['high'],
+                                 'low': b['low'], 'close': b['close'], 'volume': b['volume'],
+                                 'vwap': b.get('vwap')})
+                cached_count = len(bars)
+
+                api_key = request.headers.get('X-API-Key') or API_KEY
+                if api_key:
+                    from polygon.rest import RESTClient
+                    client = RESTClient(api_key)
+                    gap_ranges = []
+                    if needs_before:
+                        gap_ranges.append((start_date, (cache_first - timedelta(days=1)).strftime('%Y-%m-%d')))
+                    if needs_after:
+                        gap_ranges.append(((cache_last + timedelta(days=1)).strftime('%Y-%m-%d'), end_date))
+
+                    for gap_start, gap_end in gap_ranges:
+                        try:
+                            aggs = client.get_aggs(ticker='SPY', multiplier=1, timespan='minute',
+                                                   from_=gap_start, to=gap_end, limit=50000)
+                            if aggs:
+                                for agg in aggs:
+                                    ts = agg.timestamp
+                                    if hasattr(ts, 'timestamp'):
+                                        ts = int(ts.timestamp() * 1000)
+                                    else:
+                                        ts = int(ts)
+                                    bars.append({'timestamp': ts, 'open': agg.open, 'high': agg.high,
+                                                 'low': agg.low, 'close': agg.close, 'volume': agg.volume,
+                                                 'vwap': getattr(agg, 'vwap', None)})
+                                source = 'cache+live'
+                        except Exception as live_err:
+                            print(f"[SPY Cache] Live fetch for gap {gap_start}-{gap_end} failed: {live_err}")
+
+                live_count = len(bars) - cached_count
+                print(f"[SPY Cache] Served {cached_count} cached + {live_count} live bars")
+                bars.sort(key=lambda x: x['timestamp'])
+                seen = set()
+                unique_bars = []
+                for b in bars:
+                    if b['timestamp'] not in seen:
+                        seen.add(b['timestamp'])
+                        unique_bars.append(b)
+                return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
+                                'multiplier': multiplier, 'bars': unique_bars, 'count': len(unique_bars),
+                                'source': source})
+
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
             return jsonify({'error': 'Polygon API key not configured'}), 400
-        
-        from polygon import RESTClient
+
+        from polygon.rest import RESTClient
         client = RESTClient(api_key)
-        
+
         bars = []
         try:
             aggs = client.get_aggs(
@@ -5676,7 +5751,7 @@ def get_simulated_trading_bars():
                 to=end_date,
                 limit=50000
             )
-            
+
             for agg in aggs:
                 ts = agg.timestamp
                 if hasattr(ts, 'timestamp'):
@@ -5691,22 +5766,24 @@ def get_simulated_trading_bars():
                     'high': agg.high,
                     'low': agg.low,
                     'close': agg.close,
-                    'volume': agg.volume
+                    'volume': agg.volume,
+                    'vwap': getattr(agg, 'vwap', None),
                 })
         except Exception as e:
             return jsonify({'error': f'Failed to fetch data from Polygon: {str(e)}'}), 500
-        
+
         bars.sort(key=lambda x: x['timestamp'])
-        
+
         return jsonify({
             'success': True,
             'symbol': symbol,
             'bar_size': bar_size,
             'multiplier': multiplier,
             'bars': bars,
-            'count': len(bars)
+            'count': len(bars),
+            'source': 'live'
         })
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
