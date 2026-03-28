@@ -3042,6 +3042,11 @@
         if (statsRow) statsRow.style.display = 'none';
         const filterRow = page.querySelector('.stock-filter-row, .filter-row');
         if (filterRow) filterRow.style.display = 'none';
+        page.querySelectorAll('.card, .row').forEach(el => {
+          if (el.querySelector('.stock-filter-btn, .filter-btn, [id$="RefreshBtn"]')) {
+            el.style.display = 'none';
+          }
+        });
       }
 
       function initOptionsResultsPage() {
@@ -3069,6 +3074,12 @@
           document.getElementById('optionsErrorSection').style.display = 'none';
           document.getElementById('optionsBacktestsGrid').style.display = 'none';
           document.getElementById('optionsEmptyState').style.display = 'none';
+
+          if (!window.isAuthenticated || !window.isAuthenticated()) {
+            document.getElementById('optionsLoadingSection').style.display = 'none';
+            showResultsLoginBanner('optionsResultsPage');
+            return;
+          }
 
           const response = await authFetch('/api/backtests/list');
           if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
@@ -3233,6 +3244,12 @@
           document.getElementById('stockErrorSection').style.display = 'none';
           document.getElementById('stockBacktestsGrid').style.display = 'none';
           document.getElementById('stockEmptyState').style.display = 'none';
+
+          if (!window.isAuthenticated || !window.isAuthenticated()) {
+            document.getElementById('stockLoadingSection').style.display = 'none';
+            showResultsLoginBanner('stockResultsPage');
+            return;
+          }
 
           const response = await authFetch('/api/stocks-backtest-v3/list');
           if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
