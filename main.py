@@ -6772,6 +6772,10 @@ def test_notification_channel(channel_id):
 # Safe to call multiple times — timers are daemon threads
 start_dashboard_cache()
 
+# Bootstrap admin user and ensure schema for gunicorn/wsgi
+ensure_database_schema()
+bootstrap_admin_user()
+
 
 if __name__ == '__main__':
     startup_state = initialize_app_runtime(
