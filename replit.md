@@ -30,7 +30,7 @@ The architecture employs a Wrapper Pattern for API-to-engine communication, Lazy
 
 ### Feature Specifications
 -   **Authentication**: Email/password and Google OAuth, including password and email management.
--   **Market Data Widgets**: Top Gainers/Losers (Webull), Most Active, Trending, Sector Performance, Indices, Upcoming Earnings (yfinance). All use background caching.
+-   **Market Data Widgets**: Top Gainers/Losers (Webull), Most Active, Trending, Sector Performance, Indices, Upcoming Earnings (yfinance). All use background server-side caching. Client-side localStorage caching (5-min TTL, `dash_` prefix) renders cached data instantly on re-navigation and refreshes every 5 minutes. All ticker symbols are clickable links to `/ticker/<SYMBOL>` pages. Earnings entries with NA/N/A symbols or dates are filtered out; NA timing badges are hidden. Both `dashboard-script.js` and the duplicate renderers in `main-script.js` must stay in sync.
 -   **FRED Macro Economic Data**: Displays 10 key indicators from the Federal Reserve (FRED) API, updated every 10 minutes.
 -   **Public Pages**: Landing, terms, privacy, FAQ, and contact.
 -   **Subscription Management**: Stripe integration for billing and plan management.

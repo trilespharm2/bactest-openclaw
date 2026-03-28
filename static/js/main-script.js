@@ -972,19 +972,27 @@ async function _loadEarnings() {
         const data = await _fetchCached('/api/dashboard/earnings');
         const el = document.getElementById('earningsTable');
         if (!el) return;
-        const earnings = data.earnings || [];
+        const earnings = (data.earnings || []).filter(e => {
+            if (!e.symbol || e.symbol === 'NA' || e.symbol === 'N/A') return false;
+            if (!e.date || e.date === 'NA' || e.date === 'N/A') return false;
+            if (e.name === 'NA' || e.name === 'N/A') e.name = '';
+            return true;
+        });
         if (!earnings.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No upcoming earnings</div>'; return; }
         el.innerHTML = '<div class="d-flex flex-wrap gap-2">' + earnings.slice(0, 12).map(e => {
-            const timing = e.time === 'before' ? 'BMO' : e.time === 'after' ? 'AMC' : e.time || '';
+            let timing = e.time === 'before' ? 'BMO' : e.time === 'after' ? 'AMC' : '';
+            if (e.time && e.time !== 'before' && e.time !== 'after' && e.time !== 'NA' && e.time !== 'N/A' && e.time !== 'TAS') timing = e.time;
             const timingBg = timing === 'BMO' ? '#fff7ed' : timing === 'AMC' ? '#eff6ff' : '#f8f9fc';
             const timingColor = timing === 'BMO' ? '#e5873a' : timing === 'AMC' ? '#3b6df0' : '#6b7689';
-            return '<div style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;">' +
-                '<div style="font-size:13px;font-weight:700;">' + _tickerLink(e.symbol) + '</div>' +
-                '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + (e.name || '') + '</div>' +
+            const displayName = (e.name && e.name !== 'NA' && e.name !== 'N/A') ? e.name : '';
+            const displayDate = (e.date && e.date !== 'NA' && e.date !== 'N/A') ? e.date : '';
+            return '<a href="/ticker/' + encodeURIComponent(e.symbol) + '" style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;text-decoration:none;display:block;transition:border-color 0.15s,box-shadow 0.15s;" onmouseover="this.style.borderColor=\'#3b6df0\';this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.08)\'" onmouseout="this.style.borderColor=\'#e2e6ee\';this.style.boxShadow=\'none\'">' +
+                '<div style="font-size:13px;font-weight:700;color:#3b6df0;">' + e.symbol + '</div>' +
+                (displayName ? '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + displayName + '</div>' : '') +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<span style="font-size:10px;color:#6b7689;">' + (e.date || '') + '</span>' +
+                (displayDate ? '<span style="font-size:10px;color:#6b7689;">' + displayDate + '</span>' : '') +
                 (timing ? '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:' + timingBg + ';color:' + timingColor + ';">' + timing + '</span>' : '') +
-                '</div></div>';
+                '</div></a>';
         }).join('') + '</div>';
     } catch (e) { console.error('Earnings error:', e); }
 }
