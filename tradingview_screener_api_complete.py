@@ -223,188 +223,180 @@ class TradingViewScreenerAPI:
             {"id": "technicals", "name": "Technicals", "icon": "show_chart"},
             {"id": "financials", "name": "Financials", "icon": "account_balance"},
             {"id": "margin_ratios", "name": "Margin & Ratios", "icon": "analytics"},
+            {"id": "valuation_growth", "name": "Valuation & Growth", "icon": "insights"},
             {"id": "dividends", "name": "Dividends", "icon": "payments"},
         ]
         
         self.filters = {
-            # ==================== SECURITY INFO ====================
             "Security Info": [
                 {"id": "exchange", "name": "Exchange", "type": "checkbox_list", "column": "exchange", "options": self.EXCHANGES},
                 {"id": "sector", "name": "Sector", "type": "checkbox_list", "column": "sector", "options": self.SECTORS},
                 {"id": "industry", "name": "Industry", "type": "checkbox_list", "column": "industry", "options": self.INDUSTRIES},
-                {"id": "float_shares", "name": "Float Shares Outstanding", "type": "range", "column": "float_shares_outstanding", "unit": "shares"},
-                {"id": "shares_outstanding", "name": "Total Shares Outstanding", "type": "range", "column": "total_shares_outstanding", "unit": "shares"},
-                {"id": "upcoming_earnings", "name": "Upcoming Earnings Date", "type": "date_preset", "column": "earnings_release_date", "options": self.UPCOMING_EARNINGS_OPTIONS},
-                {"id": "recent_earnings", "name": "Recent Earnings Date", "type": "date_preset", "column": "earnings_release_date_recent", "options": self.RECENT_EARNINGS_OPTIONS},
+                {"id": "free_float", "name": "Free Float", "type": "range", "column": "free_float", "unit": "shares"},
+                {"id": "free_float_percent", "name": "Free Float %", "type": "range", "column": "free_float_percent", "unit": "%"},
+                {"id": "shares_outstanding", "name": "Total Common Shares Outstanding", "type": "range", "column": "total_shares_outstanding", "unit": "shares"},
+                {"id": "ipo_date", "name": "IPO Offer Date", "type": "date_preset", "column": "ipo_date", "options": self.IPO_DATE_OPTIONS},
+                {"id": "ipo_deal_amount", "name": "IPO Deal Amount", "type": "predefined_ranges", "column": "ipo_deal_amount", "options": ["1B and above", "500M to 1B", "250M to 500M", "100M to 250M", "50M to 100M", "50M and below"]},
+                {"id": "ipo_price", "name": "IPO Offer Price", "type": "predefined_ranges", "column": "ipo_price", "options": ["Above 1000", "500 to 1000", "100 to 500", "25 to 100", "5 to 25", "Below 5"]},
+                {"id": "number_of_shareholders", "name": "Number of Shareholders", "type": "locked_fiscal", "column": "number_of_shareholders", "locked_fiscal_period": "Annual", "unit": "count"},
+                {"id": "earnings_release_date", "name": "Upcoming Earnings Date", "type": "date_preset", "column": "earnings_release_date", "options": self.UPCOMING_EARNINGS_OPTIONS},
+                {"id": "earnings_release_date_recent", "name": "Recent Earnings Date", "type": "date_preset", "column": "earnings_release_date_recent", "options": self.RECENT_EARNINGS_OPTIONS},
+                {"id": "analyst_rating", "name": "Analyst Rating", "type": "checkbox_list", "column": "Recommend.All", "options": self.RATING_OPTIONS},
                 {"id": "target_price", "name": "Target Price", "type": "range", "column": "price_target_mean", "unit": "USD"},
                 {"id": "number_of_employees", "name": "Number of Employees", "type": "range", "column": "number_of_employees", "unit": "count"},
             ],
             
-            # ==================== MARKET DATA ====================
             "Market Data": [
-                # Basic Price & Volume
                 {"id": "price", "name": "Price", "type": "standard", "column": "close", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "change_percent", "name": "Change %", "type": "standard", "column": "change", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "%"},
                 {"id": "change_abs", "name": "Change", "type": "standard", "column": "change_abs", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "volume", "name": "Volume", "type": "standard", "column": "volume", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "shares"},
                 {"id": "avg_volume", "name": "Average Volume", "type": "avg_volume", "column": "average_volume", "period_options": self.AVG_VOLUME_PERIODS, "default_period": "10 days", "unit": "shares"},
                 {"id": "volume_change", "name": "Volume Change", "type": "standard", "column": "volume_change", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "shares"},
-                {"id": "volume_change_percent", "name": "Volume Change %", "type": "standard", "column": "volume_change", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "%"},
-                # Price Levels
+                {"id": "volume_change_percent", "name": "Volume Change %", "type": "standard", "column": "volume_change_percent", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "%"},
                 {"id": "open", "name": "Open", "type": "standard", "column": "open", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "high", "name": "High", "type": "standard", "column": "high", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "low", "name": "Low", "type": "standard", "column": "low", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                # Performance & Analysis
                 {"id": "performance", "name": "Performance %", "type": "performance", "column": "Perf", "period_options": self.PERFORMANCE_RANGES, "default_period": "Year to date", "unit": "%"},
                 {"id": "beta", "name": "Beta", "type": "beta", "column": "beta", "period_options": self.BETA_PERIODS, "default_period": "5 years", "unit": "ratio"},
                 {"id": "volatility", "name": "Volatility", "type": "volatility", "column": "Volatility", "timeframes": ["1 day", "1 week", "1 month"], "default_timeframe": "1 day", "unit": "%"},
                 {"id": "gap", "name": "Gap %", "type": "standard", "column": "gap", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "%"},
                 {"id": "relative_volume", "name": "Relative Volume", "type": "standard", "column": "relative_volume_10d_calc", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "ratio"},
-                {"id": "relative_volume_at_time", "name": "Relative Volume at Time", "type": "standard", "column": "relative_volume_intraday.5", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "ratio"},
-                {"id": "price_x_volume", "name": "Price × Volume", "type": "standard", "column": "Value.Traded", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                # Change from Open
+                {"id": "relative_volume_at_time", "name": "Relative Volume at Time", "type": "standard", "column": "relative_volume_at_time", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "ratio"},
+                {"id": "price_x_volume", "name": "Price × Volume", "type": "standard", "column": "price_x_volume", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "change_from_open", "name": "Change from Open", "type": "standard", "column": "change_from_open", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "change_from_open_percent", "name": "Change from Open %", "type": "standard", "column": "change_from_open", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "%"},
-                # Pre-Market
+                {"id": "change_from_open_percent", "name": "Change from Open %", "type": "standard", "column": "change_from_open_percent", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "%"},
                 {"id": "premarket_close", "name": "Pre-market Price", "type": "standard", "column": "premarket_close", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "premarket_change", "name": "Pre-market Change", "type": "standard", "column": "premarket_change", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
-                {"id": "premarket_change_percent", "name": "Pre-market Change %", "type": "standard", "column": "premarket_change", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "%"},
+                {"id": "premarket_change_percent", "name": "Pre-market Change %", "type": "standard", "column": "premarket_change_percent", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "%"},
                 {"id": "premarket_volume", "name": "Pre-market Volume", "type": "standard", "column": "premarket_volume", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "shares"},
                 {"id": "premarket_open", "name": "Pre-market Open", "type": "standard", "column": "premarket_open", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "premarket_high", "name": "Pre-market High", "type": "standard", "column": "premarket_high", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "premarket_low", "name": "Pre-market Low", "type": "standard", "column": "premarket_low", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
-                {"id": "premarket_gap_percent", "name": "Pre-market Gap %", "type": "standard", "column": "premarket_gap", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "%"},
-                # Post-Market
+                {"id": "premarket_gap_percent", "name": "Pre-market Gap %", "type": "standard", "column": "premarket_gap_percent", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "%"},
+                {"id": "premarket_change_from_open", "name": "Pre-market Change from Open", "type": "standard", "column": "premarket_change_from_open", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "postmarket_close", "name": "Post-market Price", "type": "standard", "column": "postmarket_close", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "postmarket_change", "name": "Post-market Change", "type": "standard", "column": "postmarket_change", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
-                {"id": "postmarket_change_percent", "name": "Post-market Change %", "type": "standard", "column": "postmarket_change", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "%"},
+                {"id": "postmarket_change_percent", "name": "Post-market Change %", "type": "standard", "column": "postmarket_change_percent", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "%"},
                 {"id": "postmarket_volume", "name": "Post-market Volume", "type": "standard", "column": "postmarket_volume", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "shares"},
                 {"id": "postmarket_open", "name": "Post-market Open", "type": "standard", "column": "postmarket_open", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "postmarket_high", "name": "Post-market High", "type": "standard", "column": "postmarket_high", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
                 {"id": "postmarket_low", "name": "Post-market Low", "type": "standard", "column": "postmarket_low", "timeframes": ["Current"], "default_timeframe": "Current", "unit": "USD"},
             ],
             
-            # ==================== TECHNICALS ====================
             "Technicals": [
-                # Oscillators
                 {"id": "rsi", "name": "RSI", "type": "predefined_period", "column": "RSI", "period_options": self.RSI_PERIODS, "default_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "stoch_k", "name": "Stochastic %K", "type": "stochastic", "column": "Stoch.K", "input_options": self.STOCHASTIC_INPUTS, "default_input": "14,1,3", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "stoch_d", "name": "Stochastic %D", "type": "stochastic", "column": "Stoch.D", "input_options": self.STOCHASTIC_INPUTS, "default_input": "14,1,3", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "cci", "name": "Commodity Channel Index", "type": "fixed_period_with_num", "column": "CCI", "fixed_period": 20, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "cci", "name": "Commodity Channel Index", "type": "fixed_period", "column": "CCI20", "fixed_period": 20, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "adx", "name": "Average Directional Index", "type": "predefined_period", "column": "ADX", "period_options": self.ADX_PERIODS, "default_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "ao", "name": "Awesome Oscillator", "type": "timeframe_only", "column": "AO", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "momentum", "name": "Momentum", "type": "predefined_period", "column": "Mom", "period_options": self.MOMENTUM_PERIODS, "default_period": 10, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "macd", "name": "MACD", "type": "macd", "column": "MACD", "fixed_periods": [12, 26], "plot_options": ["Level", "Signal"], "default_plot": "Level", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "stoch_rsi", "name": "Stochastic RSI", "type": "locked_inputs", "column": "Stoch.RSI.K", "locked_inputs": "3,3,14,14", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "williams_r", "name": "Williams %R", "type": "timeframe_only", "column": "W.R", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "williams_r", "name": "Williams Percent Range", "type": "timeframe_only", "column": "W.R", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "bbpower", "name": "Bull Bear Power", "type": "fixed_period", "column": "BBPower", "fixed_period": 13, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "uo", "name": "Ultimate Oscillator", "type": "locked_inputs", "column": "UO", "locked_inputs": "7,14,28", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "roc", "name": "Rate of Change", "type": "fixed_period", "column": "ROC", "fixed_period": 9, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                # Moving Averages - require period in field name
                 {"id": "sma", "name": "Simple Moving Average", "type": "moving_average", "column": "SMA", "period_options": self.SMA_EMA_PERIODS, "default_period": 50, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "ema", "name": "Exponential Moving Average", "type": "moving_average", "column": "EMA", "period_options": self.SMA_EMA_PERIODS, "default_period": 50, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "hull_ma", "name": "Hull Moving Average", "type": "moving_average", "column": "HullMA", "period_options": self.HULL_MA_PERIODS, "default_period": 9, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "vwma", "name": "Volume Weighted MA", "type": "fixed_period", "column": "VWMA", "fixed_period": 20, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "vwap", "name": "VWAP", "type": "timeframe_only", "column": "VWAP", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                # Channels & Bands
+                {"id": "hullma", "name": "Hull Moving Average", "type": "moving_average", "column": "HullMA", "period_options": self.HULL_MA_PERIODS, "default_period": 9, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
+                {"id": "vwma", "name": "Volume Weighted Moving Average", "type": "fixed_period", "column": "VWMA", "fixed_period": 20, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
+                {"id": "vwap", "name": "Volume Weighted Average Price", "type": "timeframe_only", "column": "VWAP", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "bb", "name": "Bollinger Bands", "type": "channel", "column": "BB", "period_options": self.BOLLINGER_PERIODS, "default_period": 20, "channels": ["Upper", "Basis", "Lower"], "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "kc", "name": "Keltner Channels", "type": "fixed_channel", "column": "Kltner", "fixed_period": 20, "channels": ["upper", "basis", "lower"], "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "donch", "name": "Donchian Channels", "type": "fixed_channel", "column": "Donch", "fixed_period": 20, "channels": ["upper", "basis", "lower"], "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                {"id": "ichimoku", "name": "Ichimoku Cloud", "type": "ichimoku", "column": "Ichimoku", "input_options": self.ICHIMOKU_INPUTS, "default_input": "9,26,52,26", "plot_options": ["Base Line", "Conversion Line", "Leading Span A", "Leading Span B"], "default_plot": "Base Line", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                # Volatility & Range
+                {"id": "kc", "name": "Keltner Channels", "type": "fixed_channel", "column": "KC", "fixed_period": 20, "channels": ["Upper", "Basis", "Lower"], "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
+                {"id": "donch", "name": "Donchian Channels", "type": "fixed_channel", "column": "DonchCh", "fixed_period": 20, "channels": ["Upper", "Basis", "Lower"], "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
+                {"id": "ichimoku", "name": "Ichimoku Cloud", "type": "ichimoku", "column": "Ichimoku", "input_options": self.ICHIMOKU_INPUTS, "default_input": "9,26,52,26", "plot_options": ["Conversion Line", "Base Line", "Leading Span A", "Leading Span B", "Lagging Span"], "default_plot": "Base Line", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "atr", "name": "Average True Range", "type": "fixed_period", "column": "ATR", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
                 {"id": "adr", "name": "Average Daily Range", "type": "range", "column": "ADR", "unit": "USD"},
-                {"id": "adr_percent", "name": "Average Daily Range %", "type": "range", "column": "average_daily_range", "unit": "%"},
-                # Directional & Trend
-                {"id": "aroon_up", "name": "Aroon Up", "type": "fixed_period", "column": "Aroon.Up", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "aroon_down", "name": "Aroon Down", "type": "fixed_period", "column": "Aroon.Down", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "dmi_plus", "name": "DMI +DI", "type": "fixed_period", "column": "DI.plus", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "dmi_minus", "name": "DMI -DI", "type": "fixed_period", "column": "DI.minus", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "adr_percent", "name": "Average Daily Range %", "type": "range", "column": "ADR_percent", "unit": "%"},
+                {"id": "cmf", "name": "Chaikin Money Flow", "type": "fixed_period", "column": "CMF", "fixed_period": 20, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "mfi", "name": "Money Flow Index", "type": "fixed_period", "column": "MFI", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "aroon_up", "name": "Aroon Up", "type": "fixed_period", "column": "Aroon.Up", "fixed_period": 25, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "aroon_down", "name": "Aroon Down", "type": "fixed_period", "column": "Aroon.Down", "fixed_period": 25, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "di_plus", "name": "Directional Movement Index +DI", "type": "fixed_period", "column": "DI.plus", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "di_minus", "name": "Directional Movement Index -DI", "type": "fixed_period", "column": "DI.minus", "fixed_period": 14, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
                 {"id": "psar", "name": "Parabolic SAR", "type": "timeframe_only", "column": "P.SAR", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "USD"},
-                # Patterns & Ratings
-                {"id": "technical_rating", "name": "Technical Rating", "type": "rating", "column": "Recommend.All", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "oscillators_rating", "name": "Oscillators Rating", "type": "rating", "column": "Recommend.Other", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
-                {"id": "ma_rating", "name": "Moving Averages Rating", "type": "rating", "column": "Recommend.MA", "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day", "unit": "numeric"},
+                {"id": "candlestick_pattern", "name": "Candlestick Pattern", "type": "checkbox_list", "column": "candle_pattern", "options": self.CANDLESTICK_PATTERNS},
+                {"id": "oscillators_rating", "name": "Oscillators Rating", "type": "checkbox_list", "column": "Recommend.Other", "options": self.RATING_OPTIONS, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day"},
+                {"id": "ma_rating", "name": "Moving Averages Rating", "type": "checkbox_list", "column": "Recommend.MA", "options": self.RATING_OPTIONS, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day"},
+                {"id": "technical_rating", "name": "Technical Rating", "type": "checkbox_list", "column": "Recommend.All", "options": self.RATING_OPTIONS, "timeframes": self.TIMEFRAMES, "default_timeframe": "1 day"},
             ],
             
-            # ==================== FINANCIALS ====================
             "Financials": [
-                # Income Statement
-                {"id": "eps_diluted", "name": "EPS Diluted", "type": "fiscal", "column": "earnings_per_share_diluted", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly", "Semi-annual"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "eps_diluted", "name": "EPS Diluted", "type": "fiscal", "column": "earnings_per_share_diluted", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
                 {"id": "eps_basic", "name": "EPS Basic", "type": "fiscal", "column": "earnings_per_share_basic", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
-                {"id": "eps_estimate", "name": "EPS Estimate", "type": "fiscal", "column": "earnings_per_share_estimate", "fiscal_periods": ["Quarterly", "Semi-annual", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
                 {"id": "total_revenue", "name": "Total Revenue", "type": "fiscal", "column": "total_revenue", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "revenue_estimate", "name": "Revenue Estimate", "type": "fiscal", "column": "revenue_estimate", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "gross_profit", "name": "Gross Profit", "type": "fiscal", "column": "gross_profit", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "operating_income", "name": "Operating Income", "type": "fiscal", "column": "operating_income", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "operating_income", "name": "Operating Income", "type": "fiscal", "column": "operating_income", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "pretax_income", "name": "Pre-tax Income", "type": "fiscal", "column": "pre_tax_income", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
                 {"id": "net_income", "name": "Net Income", "type": "fiscal", "column": "net_income", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "ebitda", "name": "EBITDA", "type": "fiscal", "column": "ebitda", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
-                {"id": "r_and_d", "name": "Research & Development", "type": "fiscal", "column": "research_and_development", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "USD"},
-                # Balance Sheet - Assets
+                {"id": "ebitda", "name": "EBITDA", "type": "fiscal", "column": "ebitda", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "ebit", "name": "EBIT", "type": "fiscal", "column": "ebit", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "interest_expense", "name": "Interest Expense", "type": "fiscal", "column": "interest_expense", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "r_and_d", "name": "Research & Development", "type": "fiscal", "column": "research_and_development", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
+                {"id": "selling_admin", "name": "Selling & Admin Expenses", "type": "fiscal", "column": "selling_and_administrative_expenses", "fiscal_periods": self.FISCAL_PERIODS, "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
                 {"id": "total_assets", "name": "Total Assets", "type": "fiscal", "column": "total_assets", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
                 {"id": "total_current_assets", "name": "Total Current Assets", "type": "fiscal", "column": "total_current_assets", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
-                {"id": "cash_equivalents", "name": "Cash & Equivalents", "type": "fiscal", "column": "cash_and_equivalents", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "cash_short_term", "name": "Cash and Short Term Investments", "type": "fiscal", "column": "cash_and_short_term_investments", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "goodwill", "name": "Goodwill, Net", "type": "fiscal", "column": "goodwill", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
-                # Balance Sheet - Liabilities & Equity
+                {"id": "cash_short_term", "name": "Cash & Short Term Investments", "type": "fiscal", "column": "cash_and_short_term_investments", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
                 {"id": "total_liabilities", "name": "Total Liabilities", "type": "fiscal", "column": "total_liabilities", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "total_current_liabilities", "name": "Total Current Liabilities", "type": "fiscal", "column": "total_current_liabilities", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
                 {"id": "total_equity", "name": "Total Equity", "type": "fiscal", "column": "total_equity", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
                 {"id": "total_debt", "name": "Total Debt", "type": "fiscal", "column": "total_debt", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "long_term_debt", "name": "Long Term Debt", "type": "fiscal", "column": "long_term_debt", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "short_term_debt", "name": "Short Term Debt", "type": "fiscal", "column": "short_term_debt", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "net_debt", "name": "Net Debt", "type": "fiscal", "column": "net_debt", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
-                # Cash Flow
+                {"id": "short_term_debt", "name": "Short Term Debt", "type": "fiscal", "column": "short_term_debt", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
+                {"id": "goodwill", "name": "Goodwill", "type": "fiscal", "column": "goodwill", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
+                {"id": "intangibles", "name": "Intangible Assets", "type": "fiscal", "column": "intangible_assets", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
+                {"id": "book_value", "name": "Book Value per Share", "type": "fiscal", "column": "book_value_per_share", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "USD"},
                 {"id": "free_cash_flow", "name": "Free Cash Flow", "type": "fiscal", "column": "free_cash_flow", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "cash_from_ops", "name": "Cash from Operating Activities", "type": "fiscal", "column": "cash_from_operating_activities", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
                 {"id": "cash_from_investing", "name": "Cash from Investing Activities", "type": "fiscal", "column": "cash_from_investing_activities", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
                 {"id": "cash_from_financing", "name": "Cash from Financing Activities", "type": "fiscal", "column": "cash_from_financing_activities", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
                 {"id": "capex", "name": "Capital Expenditures", "type": "fiscal", "column": "capital_expenditures", "fiscal_periods": ["Trailing 12 months", "Annual", "Quarterly"], "default_fiscal_period": "Trailing 12 months", "unit": "USD"},
-                # Per Employee Metrics
                 {"id": "employees", "name": "Number of Employees", "type": "locked_fiscal", "column": "number_of_employees", "locked_fiscal_period": "Annual", "unit": "count"},
                 {"id": "revenue_per_employee", "name": "Revenue per Employee", "type": "locked_fiscal", "column": "revenue_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "net_income_per_employee", "name": "Net Income per Employee", "type": "locked_fiscal", "column": "net_income_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "operating_income_per_employee", "name": "Operating Income per Employee", "type": "locked_fiscal", "column": "operating_income_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "ebitda_per_employee", "name": "EBITDA per Employee", "type": "locked_fiscal", "column": "ebitda_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "fcf_per_employee", "name": "Free Cash Flow per Employee", "type": "locked_fiscal", "column": "free_cash_flow_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
-                {"id": "r_and_d_per_employee", "name": "R&D per Employee", "type": "locked_fiscal", "column": "r_and_d_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "assets_per_employee", "name": "Total Assets per Employee", "type": "locked_fiscal", "column": "total_assets_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
                 {"id": "debt_per_employee", "name": "Total Debt per Employee", "type": "locked_fiscal", "column": "total_debt_per_employee", "locked_fiscal_period": "Annual", "unit": "USD"},
             ],
             
-            # ==================== MARGIN & RATIOS ====================
             "Margin & Ratios": [
-                # Return metrics - use base names (TradingView API)
-                {"id": "roe", "name": "Return on Equity %", "type": "range", "column": "return_on_equity", "unit": "%"},
-                {"id": "roa", "name": "Return on Assets %", "type": "range", "column": "return_on_assets", "unit": "%"},
-                {"id": "roic", "name": "Return on Invested Capital %", "type": "range", "column": "return_on_invested_capital", "unit": "%"},
-                # Margin Ratios
+                {"id": "roe", "name": "Return on Equity %", "type": "fiscal", "column": "return_on_equity", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
+                {"id": "roa", "name": "Return on Assets %", "type": "fiscal", "column": "return_on_assets", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
+                {"id": "roic", "name": "Return on Invested Capital %", "type": "fiscal", "column": "return_on_invested_capital", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
                 {"id": "gross_margin", "name": "Gross Margin %", "type": "fiscal", "column": "gross_margin", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "%"},
                 {"id": "operating_margin", "name": "Operating Margin %", "type": "fiscal", "column": "operating_margin", "fiscal_periods": ["Annual", "Trailing 12 months", "Quarterly"], "default_fiscal_period": "Annual", "unit": "%"},
                 {"id": "net_margin", "name": "Net Margin %", "type": "fiscal", "column": "net_margin", "fiscal_periods": ["Annual", "Quarterly", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "%"},
                 {"id": "ebitda_margin", "name": "EBITDA Margin %", "type": "fiscal", "column": "ebitda_margin", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
                 {"id": "pretax_margin", "name": "Pre-tax Margin %", "type": "fiscal", "column": "pre_tax_margin", "fiscal_periods": ["Annual", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "%"},
                 {"id": "fcf_margin", "name": "Free Cash Flow Margin %", "type": "fiscal", "column": "free_cash_flow_margin", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
-                # Liquidity Ratios
                 {"id": "current_ratio", "name": "Current Ratio", "type": "fiscal", "column": "current_ratio", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "ratio"},
                 {"id": "quick_ratio", "name": "Quick Ratio", "type": "fiscal", "column": "quick_ratio", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "ratio"},
                 {"id": "debt_to_equity", "name": "Debt to Equity", "type": "fiscal", "column": "debt_to_equity", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "ratio"},
                 {"id": "debt_to_assets", "name": "Debt to Assets", "type": "fiscal", "column": "debt_to_assets", "fiscal_periods": ["Quarterly", "Annual"], "default_fiscal_period": "Quarterly", "unit": "ratio"},
-                # Valuation Ratios
+                {"id": "interest_coverage", "name": "Interest Coverage", "type": "fiscal", "column": "interest_coverage", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "ratio"},
+            ],
+            
+            "Valuation & Growth": [
                 {"id": "pe_ratio", "name": "Price to Earnings Ratio", "type": "range", "column": "price_earnings_ttm", "unit": "ratio"},
+                {"id": "forward_pe", "name": "Forward P/E", "type": "locked_fiscal", "column": "forward_pe", "locked_fiscal_period": "Annual", "unit": "ratio"},
+                {"id": "peg_ratio", "name": "PEG Ratio", "type": "locked_fiscal", "column": "peg_ratio", "locked_fiscal_period": "Trailing 12 months", "unit": "ratio"},
                 {"id": "pb_ratio", "name": "Price to Book Ratio", "type": "range", "column": "price_book_ratio", "unit": "ratio"},
                 {"id": "ps_ratio", "name": "Price to Sales Ratio", "type": "range", "column": "price_sales_ratio", "unit": "ratio"},
+                {"id": "pcf_ratio", "name": "Price to Cash Flow", "type": "locked_fiscal", "column": "price_to_cash_flow", "locked_fiscal_period": "Trailing 12 months", "unit": "ratio"},
+                {"id": "pfcf_ratio", "name": "Price to Free Cash Flow", "type": "locked_fiscal", "column": "price_to_free_cash_flow", "locked_fiscal_period": "Trailing 12 months", "unit": "ratio"},
+                {"id": "market_cap", "name": "Market Capitalization", "type": "range", "column": "market_cap_basic", "unit": "USD"},
                 {"id": "enterprise_value", "name": "Enterprise Value", "type": "range", "column": "enterprise_value_fq", "unit": "USD"},
                 {"id": "ev_to_ebitda", "name": "EV/EBITDA", "type": "locked_fiscal", "column": "enterprise_value_to_ebitda", "locked_fiscal_period": "Trailing 12 months", "unit": "ratio"},
                 {"id": "ev_to_revenue", "name": "EV/Revenue", "type": "locked_fiscal", "column": "enterprise_value_to_revenue", "locked_fiscal_period": "Trailing 12 months", "unit": "ratio"},
                 {"id": "ev_to_fcf", "name": "EV/Free Cash Flow", "type": "fiscal", "column": "enterprise_value_to_free_cash_flow", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "ratio"},
-                {"id": "market_cap", "name": "Market Capitalization", "type": "range", "column": "market_cap_basic", "unit": "USD"},
-                {"id": "forward_pe", "name": "Forward P/E", "type": "locked_fiscal", "column": "forward_pe", "locked_fiscal_period": "Annual", "unit": "ratio"},
-                {"id": "peg_ratio", "name": "PEG Ratio", "type": "locked_fiscal", "column": "peg_ratio", "locked_fiscal_period": "Trailing 12 months", "unit": "ratio"},
                 {"id": "earnings_yield", "name": "Earnings Yield %", "type": "locked_fiscal", "column": "earnings_yield", "locked_fiscal_period": "Trailing 12 months", "unit": "%"},
-                # Growth Metrics
                 {"id": "revenue_growth", "name": "Revenue Growth %", "type": "growth", "column": "revenue_growth", "growth_periods": self.GROWTH_PERIODS, "default_growth_period": "TTM YoY", "unit": "%"},
                 {"id": "gross_profit_growth", "name": "Gross Profit Growth %", "type": "growth", "column": "gross_profit_growth", "growth_periods": self.GROWTH_PERIODS, "default_growth_period": "TTM YoY", "unit": "%"},
+                {"id": "operating_income_growth", "name": "Operating Income Growth %", "type": "growth", "column": "operating_income_growth", "growth_periods": ["TTM YoY", "Annual YoY"], "default_growth_period": "TTM YoY", "unit": "%"},
                 {"id": "net_income_growth", "name": "Net Income Growth %", "type": "growth", "column": "net_income_growth", "growth_periods": ["TTM YoY", "Annual YoY"], "default_growth_period": "TTM YoY", "unit": "%"},
                 {"id": "ebitda_growth", "name": "EBITDA Growth %", "type": "growth", "column": "ebitda_growth", "growth_periods": ["TTM YoY", "Annual YoY"], "default_growth_period": "TTM YoY", "unit": "%"},
                 {"id": "eps_growth", "name": "EPS Diluted Growth %", "type": "growth", "column": "eps_diluted_growth", "growth_periods": ["TTM YoY", "Annual YoY"], "default_growth_period": "TTM YoY", "unit": "%"},
@@ -412,15 +404,21 @@ class TradingViewScreenerAPI:
                 {"id": "capex_growth", "name": "Capital Expenditures Growth %", "type": "growth", "column": "capex_growth", "growth_periods": ["TTM YoY", "Annual YoY"], "default_growth_period": "TTM YoY", "unit": "%"},
                 {"id": "debt_growth", "name": "Total Debt Growth %", "type": "growth", "column": "total_debt_growth", "growth_periods": ["Annual YoY"], "default_growth_period": "Annual YoY", "unit": "%"},
                 {"id": "assets_growth", "name": "Total Assets Growth %", "type": "growth", "column": "total_assets_growth", "growth_periods": ["Annual YoY"], "default_growth_period": "Annual YoY", "unit": "%"},
+                {"id": "equity_growth", "name": "Total Equity Growth %", "type": "growth", "column": "total_equity_growth", "growth_periods": ["Annual YoY"], "default_growth_period": "Annual YoY", "unit": "%"},
+                {"id": "cash_growth", "name": "Cash & Equivalents Growth %", "type": "growth", "column": "cash_and_equivalents_growth", "growth_periods": ["Annual YoY"], "default_growth_period": "Annual YoY", "unit": "%"},
+                {"id": "book_value_growth", "name": "Book Value per Share Growth %", "type": "growth", "column": "book_value_per_share_growth", "growth_periods": ["Annual YoY"], "default_growth_period": "Annual YoY", "unit": "%"},
+                {"id": "employees_growth", "name": "Employees Growth %", "type": "locked_growth", "column": "employees_growth", "locked_growth_period": "Annual YoY", "unit": "%"},
             ],
             
-            # ==================== DIVIDENDS ====================
             "Dividends": [
-                {"id": "dividend_yield", "name": "Dividend Yield %", "type": "range", "column": "dividends_yield", "unit": "%"},
-                {"id": "dps", "name": "Dividends per Share (Annual)", "type": "range", "column": "dps_fy", "unit": "USD"},
-                {"id": "payout_ratio", "name": "Dividend Payout Ratio %", "type": "range", "column": "dividend_payout_ratio_ttm", "unit": "%"},
+                {"id": "dividend_yield_indicated", "name": "Dividend Yield % (Indicated)", "type": "range", "column": "dividend_yield_indicated", "unit": "%"},
+                {"id": "dividend_yield", "name": "Dividend Yield %", "type": "fiscal", "column": "dividend_yield", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
+                {"id": "dps", "name": "Dividends per Share", "type": "fiscal", "column": "dividends_per_share", "fiscal_periods": ["Annual", "Quarterly", "Semi-annual", "Trailing 12 months"], "default_fiscal_period": "Annual", "unit": "USD"},
+                {"id": "payout_ratio", "name": "Dividend Payout Ratio %", "type": "fiscal", "column": "dividend_payout_ratio", "fiscal_periods": ["Trailing 12 months", "Annual"], "default_fiscal_period": "Trailing 12 months", "unit": "%"},
+                {"id": "dps_growth", "name": "Dividends per Share Growth %", "type": "locked_growth", "column": "dividends_growth", "locked_growth_period": "Annual YoY", "unit": "%"},
                 {"id": "continuous_dividend_growth", "name": "Continuous Dividend Growth", "type": "range", "column": "continuous_dividend_growth", "unit": "years"},
                 {"id": "continuous_dividend_payout", "name": "Continuous Dividend Payout", "type": "range", "column": "continuous_dividend_payout", "unit": "years"},
+                {"id": "total_dividends_paid", "name": "Total Cash Dividends Paid", "type": "fiscal", "column": "total_cash_dividends_paid", "fiscal_periods": ["Annual", "Quarterly"], "default_fiscal_period": "Annual", "unit": "USD"},
             ],
         }
     
@@ -657,9 +655,10 @@ class TradingViewScreenerAPI:
             "technicals": "Technicals",
             "financials": "Financials",
             "margin_ratios": "Margin & Ratios",
+            "valuation_growth": "Valuation & Growth",
             "dividends": "Dividends",
         }
-        return name_map.get(category.lower().replace(" ", "_"), category)
+        return name_map.get(category.lower().replace(" ", "_").replace("&", "").replace("  ", "_"), category)
     
     def _build_column_name(self, filter_def: Dict, config: Dict) -> str:
         """Build the column name for TradingView API"""
@@ -711,7 +710,7 @@ class TradingViewScreenerAPI:
         # Ichimoku - TradingView uses Ichimoku.BLine, etc
         elif filter_type == "ichimoku":
             plot = config.get("plot", filter_def.get("default_plot", "Base Line"))
-            plot_map = {"Base Line": "BLine", "Conversion Line": "CLine", "Leading Span A": "Lead1", "Leading Span B": "Lead2"}
+            plot_map = {"Base Line": "BLine", "Conversion Line": "CLine", "Leading Span A": "Lead1", "Leading Span B": "Lead2", "Lagging Span": "Lagging"}
             plot_suffix = plot_map.get(plot, "BLine")
             return f"Ichimoku.{plot_suffix}{tf_suffix}"
         
@@ -815,9 +814,17 @@ class TradingViewScreenerAPI:
         filter_type = filter_def.get("type", "range")
         condition = config.get("condition", "above")
         
-        # Checkbox list
-        if filter_type in ["checkbox_list", "date_preset"]:
+        if filter_type in ["checkbox_list"]:
             selected = config.get("selected_values", [])
+            if selected:
+                return col(column_name).isin(selected)
+            return None
+
+        if filter_type in ["date_preset", "predefined_ranges"]:
+            selected = config.get("selected_values", [])
+            selected_option = config.get("selected_option")
+            if selected_option:
+                selected = [selected_option]
             if selected:
                 return col(column_name).isin(selected)
             return None

@@ -77,6 +77,7 @@ var IPO_DATE_OPTIONS = ["Current trading day", "Previous day", "This week", "Thi
 var IPO_DEAL_AMOUNTS = ["1B and above", "500M to 1B", "250M to 500M", "100M to 250M", "50M to 100M", "50M and below"];
 var IPO_OFFER_PRICES = ["Above 1000", "500 to 1000", "100 to 500", "25 to 100", "5 to 25", "Below 5"];
 var EARNINGS_DATE_OPTIONS = ["Current trading day", "Next day", "Next 5 days", "This week", "Next week", "This month"];
+var RECENT_EARNINGS_OPTIONS = ["Current trading day", "Previous day", "Previous 5 days", "This week", "Previous week", "This month"];
 
 var RSI_PERIODS = [2, 3, 4, 5, 7, 9, 10, 14, 20, 21, 30];
 var ADX_PERIODS = [9, 14, 20, 50, 100];
@@ -105,8 +106,10 @@ var FILTERS = {
         { id: "ipo_price", name: "IPO Offer Price", type: "predefined_ranges", column: "ipo_price", options: IPO_OFFER_PRICES },
         { id: "number_of_shareholders", name: "Number of Shareholders", type: "locked_fiscal", column: "number_of_shareholders", locked_fiscal_period: "Annual", unit: "count" },
         { id: "earnings_release_date", name: "Upcoming Earnings Date", type: "date_preset", column: "earnings_release_date", options: EARNINGS_DATE_OPTIONS },
-        { id: "earnings_release_date_recent", name: "Recent Earnings Date", type: "date_preset", column: "earnings_release_date_recent", options: IPO_DATE_OPTIONS },
-        { id: "analyst_rating", name: "Analyst Rating", type: "checkbox_list", column: "Recommend.All", options: RATING_OPTIONS }
+        { id: "earnings_release_date_recent", name: "Recent Earnings Date", type: "date_preset", column: "earnings_release_date_recent", options: RECENT_EARNINGS_OPTIONS },
+        { id: "analyst_rating", name: "Analyst Rating", type: "checkbox_list", column: "Recommend.All", options: RATING_OPTIONS },
+        { id: "target_price", name: "Target Price", type: "range", column: "price_target_mean", unit: "USD" },
+        { id: "number_of_employees", name: "Number of Employees", type: "range", column: "number_of_employees", unit: "count" }
     ],
 
     // ==================== MARKET DATA (35 filters) ====================
@@ -412,7 +415,6 @@ function renderFilterList(filters, searchTerm) {
     if (filters.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <span class="material-icons">filter_list_off</span>
                 <p>${searchTerm ? 'No filters match your search' : 'No filters available'}</p>
             </div>
         `;
@@ -663,7 +665,6 @@ function renderSelectedFilters() {
     if (state.selectedFilters.length === 0) {
         container.innerHTML = `
             <div class="empty-state" id="emptyConfigState">
-                <span class="material-icons">playlist_add</span>
                 <p>Click on filters to add them here</p>
             </div>
         `;
@@ -918,7 +919,7 @@ function renderResults(data) {
     
     var results = data.results || [];
     if (results.length === 0) {
-        document.getElementById('resultsBody').innerHTML = `<tr><td colspan="${columns.length}" class="empty-state"><span class="material-icons">search_off</span><p>No results found</p></td></tr>`;
+        document.getElementById('resultsBody').innerHTML = `<tr><td colspan="${columns.length}" class="empty-state"><p>No results found</p></td></tr>`;
         return;
     }
     

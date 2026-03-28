@@ -5570,7 +5570,8 @@ def get_all_screener_filters():
         return jsonify({"success": False, "error": "Screener not available"}), 503
     try:
         filters = screener.get_all_filters()
-        return jsonify({"success": True, "filters": filters})
+        categories = screener.get_categories()
+        return jsonify({"success": True, "filters": filters, "categories": categories})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

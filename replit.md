@@ -35,7 +35,7 @@ The architecture employs a Wrapper Pattern for API-to-engine communication, Lazy
 -   **Public Pages**: Landing, terms, privacy, FAQ, and contact.
 -   **Subscription Management**: Stripe integration for billing and plan management.
 -   **Settings Page**: Account, password, and notification preferences.
--   **Stock Screener**: Filters stocks by technical/fundamental criteria; supports saved filters for logged-in users.
+-   **Stock Screener**: Filters stocks by technical/fundamental criteria across 7 categories (Security Info, Market Data, Technicals, Financials, Margin & Ratios, Valuation & Growth, Dividends) with 170+ filter IDs aligned between frontend and backend; supports saved filters for logged-in users.
 -   **Notification System**: Automated stock scanners with alerts via Email or Telegram, scheduled via APScheduler.
 -   **Ticker Detail Page**: Dedicated page showing real-time price, stats, interactive Chart.js price chart, news, and tabbed financial statements from yfinance. Supports various market and economic symbols.
 -   **Backtester Templates**: Allows saving and reusing backtest configurations.
