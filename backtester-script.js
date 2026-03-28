@@ -43,6 +43,7 @@ const OPERATORS = [
 ];
 
 const METRICS = [
+    { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
@@ -115,13 +116,13 @@ function addPriceCondition() {
                         ${METRICS.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-2" id="leftDayGroup${conditionId}">
                     <label class="form-label small">Day</label>
                     <select class="form-select form-select-sm" id="leftDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-2" id="leftCandleTypeGroup${conditionId}">
                     <label class="form-label small">Candle Type</label>
                     <select class="form-select form-select-sm" id="leftCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
@@ -301,9 +302,24 @@ function updateConditionFields(conditionId) {
     if (leftMacdSignalGroup) leftMacdSignalGroup.style.display = 'none';
     if (leftMacdComponentGroup) leftMacdComponentGroup.style.display = 'none';
     
+    var leftDayGroup = document.getElementById(`leftDayGroup${conditionId}`);
+    var leftCandleTypeGroup = document.getElementById(`leftCandleTypeGroup${conditionId}`);
+
     // Update based on metric
     switch (metric) {
+        case 'current_price':
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
+            if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
+            if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            break;
         case 'price':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
@@ -312,6 +328,8 @@ function updateConditionFields(conditionId) {
             
         case 'sma':
         case 'ema':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
@@ -320,6 +338,8 @@ function updateConditionFields(conditionId) {
             break;
             
         case 'rsi':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
@@ -328,6 +348,8 @@ function updateConditionFields(conditionId) {
             break;
             
         case 'macd':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
@@ -518,12 +540,13 @@ function collectPriceConditions() {
         const metric = document.getElementById(`metric${id}`)?.value;
         const comparator = document.getElementById(`comparator${id}`)?.value;
         
+        var effectiveMetric = metric === 'current_price' ? 'price' : metric;
         const condition = {
-            metric: metric,
+            metric: effectiveMetric,
             left: {
-                day: document.getElementById(`leftDay${id}`)?.value,
-                candle_type: document.getElementById(`leftCandleType${id}`)?.value,
-                series_type: document.getElementById(`leftSeriesType${id}`)?.value
+                day: metric === 'current_price' ? '0' : (document.getElementById(`leftDay${id}`)?.value || '0'),
+                candle_type: metric === 'current_price' ? 'minute' : (document.getElementById(`leftCandleType${id}`)?.value || 'minute'),
+                series_type: metric === 'current_price' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
             },
             operator: document.getElementById(`operator${id}`)?.value,
             comparator: comparator
@@ -1560,7 +1583,8 @@ function buildOptConfigSummaryHtml(config) {
             var leftCandle = left.candle_type || 'minute';
             var leftSeries = left.series_type || 'close';
             var leftWindow = left.window ? '(' + left.window + ')' : '';
-            var leftDesc = metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + leftCandle + ']';
+            var isCurrentPrice = metric === 'PRICE' && leftDay === 0 && leftCandle === 'minute' && leftSeries === 'vwap';
+            var leftDesc = isCurrentPrice ? 'Current Price' : (metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + leftCandle + ']');
 
             var op = pc.operator || '>';
 
@@ -2410,6 +2434,11 @@ function applyOptionsConfig(rawConfig) {
     config.netPremiumMin = rawConfig.netPremiumMin || (rawConfig.net_premium_min != null ? String(rawConfig.net_premium_min) : '');
     config.netPremiumMax = rawConfig.netPremiumMax || (rawConfig.net_premium_max != null ? String(rawConfig.net_premium_max) : '');
     config.priceConditions = rawConfig.priceConditions || rawConfig.price_conditions || [];
+    config.optionsEntryType = rawConfig.optionsEntryType || rawConfig.options_entry_type || 'none';
+    config.presetCondition = rawConfig.presetCondition || rawConfig.preset_condition || '';
+    config.presetOperator = rawConfig.presetOperator || rawConfig.preset_operator || '>';
+    config.presetThreshold = rawConfig.presetThreshold || rawConfig.preset_threshold || '';
+    config.velocityLookback = rawConfig.velocityLookback || rawConfig.velocity_lookback || '5';
 
     if (document.getElementById('backtestName') && config.backtestName) {
         document.getElementById('backtestName').value = config.backtestName;
@@ -2534,8 +2563,38 @@ function applyOptionsConfig(rawConfig) {
             document.getElementById('netPremiumMax').value = config.netPremiumMax;
         }
 
+        // Apply entry type
+        var entryType = config.optionsEntryType || 'none';
+        if (config.priceConditions && config.priceConditions.length > 0 && entryType === 'none') {
+            entryType = 'custom';
+        }
+        if (config.presetCondition && entryType === 'none') {
+            entryType = 'preset';
+        }
+        var entryTypeRadio = document.querySelector('input[name="optionsEntryType"][value="' + entryType + '"]');
+        if (entryTypeRadio) {
+            entryTypeRadio.checked = true;
+            if (typeof updateOptionsEntryType === 'function') updateOptionsEntryType();
+        }
+
+        if (entryType === 'preset') {
+            if (document.getElementById('optionsPresetCondition') && config.presetCondition) {
+                document.getElementById('optionsPresetCondition').value = config.presetCondition;
+                var presetChangeEvent = new Event('change');
+                document.getElementById('optionsPresetCondition').dispatchEvent(presetChangeEvent);
+            }
+            if (config.presetCondition === '5') {
+                if (document.getElementById('optionsVelocityLookback')) document.getElementById('optionsVelocityLookback').value = config.velocityLookback || '5';
+                if (document.getElementById('optionsVelocityOperator')) document.getElementById('optionsVelocityOperator').value = config.presetOperator || '>';
+                if (document.getElementById('optionsVelocityThreshold')) document.getElementById('optionsVelocityThreshold').value = config.presetThreshold || '';
+            } else {
+                if (document.getElementById('optionsPresetOperator')) document.getElementById('optionsPresetOperator').value = config.presetOperator || '>';
+                if (document.getElementById('optionsPresetThreshold')) document.getElementById('optionsPresetThreshold').value = config.presetThreshold || '';
+            }
+        }
+
         // Apply price conditions
-        if (config.priceConditions && config.priceConditions.length > 0) {
+        if (entryType === 'custom' && config.priceConditions && config.priceConditions.length > 0) {
             applyPriceConditions(config.priceConditions);
         }
         
@@ -2560,9 +2619,20 @@ function applyPriceConditions(conditions) {
         addPriceCondition();
         const id = idx;
         
+        // Detect current_price pattern
+        var metricToSet = condition.metric || 'price';
+        if (metricToSet === 'price' && condition.left) {
+            var ld = String(condition.left.day || '0');
+            var lc = condition.left.candle_type || 'minute';
+            var ls = condition.left.series_type || 'close';
+            if (ld === '0' && lc === 'minute' && ls === 'vwap') {
+                metricToSet = 'current_price';
+            }
+        }
+
         // Apply left side values
         if (document.getElementById(`metric${id}`)) {
-            document.getElementById(`metric${id}`).value = condition.metric || 'price';
+            document.getElementById(`metric${id}`).value = metricToSet;
             updateConditionFields(id);
         }
         

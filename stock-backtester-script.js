@@ -544,9 +544,15 @@ function buildStockConfigSummaryHtml(config) {
     } else if (config.custom_conditions && config.custom_conditions.length > 0) {
         entryHtml = config.custom_conditions.map((c, i) => {
             const dayLabel = (d) => d === 0 ? 'Day (0)' : `Day (${d})`;
-            const candleLabel = (c) => c === 'min' ? '1min' : c === 'hr' ? '1hr' : 'day';
-            const left = `${dayLabel(c.left_day)} ${candleLabel(c.left_candle)} ${c.left_type}`;
-            const right = `${dayLabel(c.right_day)} ${candleLabel(c.right_candle)} ${c.right_type}`;
+            const candleLabel = (candle, mult) => {
+                const m = parseInt(mult) || 1;
+                if (candle === 'min') return m + 'min';
+                if (candle === 'hr') return m + 'hr';
+                if (candle === 'day') return m > 1 ? m + 'day' : 'day';
+                return candle || 'day';
+            };
+            const left = `${dayLabel(c.left_day)} ${candleLabel(c.left_candle, c.left_multiplier)} ${c.left_type}`;
+            const right = `${dayLabel(c.right_day)} ${candleLabel(c.right_candle, c.right_multiplier)} ${c.right_type}`;
             const threshold = c.threshold_value ? ` by ${c.threshold_value}${c.threshold_unit}` : '';
             const prefix = i === 0 ? '<span style="color:#3b7cff; font-weight:600;">Entry:</span>' : '<span style="color:#64748b; font-weight:600;">Prior:</span>';
             return `<div style="margin-bottom:4px;">${prefix} ${left} ${c.operation} ${right}${threshold}</div>`;
