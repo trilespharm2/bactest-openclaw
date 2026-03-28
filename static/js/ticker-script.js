@@ -7,6 +7,7 @@ let financialsData = {};
 let financialChart = null;
 let currentFinTab = 'income';
 let selectedRowLabel = null;
+let currentPrice = null;
 
 function esc(str) {
     const d = document.createElement('div');
@@ -47,6 +48,7 @@ async function loadInfo() {
         const info = data;
         const change = info.change || 0;
         const changePct = info.change_pct || 0;
+        currentPrice = info.price || null;
         const isUp = change >= 0;
         const color = isUp ? '#0fad6e' : '#d94452';
         const arrow = isUp ? '\u25B2' : '\u25BC';
@@ -417,103 +419,329 @@ document.getElementById('closeFinancialChart').addEventListener('click', () => {
 });
 
 // ── Options Chain ──────────────────────────────────────────────────────────
-let optionsData = null;
+let optionsData    = null;
 let currentOptType = 'calls';
+let optionsChart   = null;
 
-function renderOptionsTable(type) {
-    const container = document.getElementById('optionsContainer');
+// Custom Chart.js plugin: vertical price line
+const priceLine = {
+    id: 'priceLine',
+    afterDraw(chart, _args, opts) {
+        if (opts.price == null) return;
+        const { ctx, chartArea, scales } = chart;
+        const xScale = scales.x;
+        const labels = chart.data.labels || [];
+        if (!labels.length) return;
+        // Find the nearest label to current price
+        let nearestIdx = 0;
+        let minDiff = Infinity;
+        labels.forEach((lbl, i) => {
+            const diff = Math.abs(parseFloat(lbl.replace('$','')) - opts.price);
+            if (diff < minDiff) { minDiff = diff; nearestIdx = i; }
+        });
+        const x = xScale.getPixelForValue(nearestIdx);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.strokeStyle = '#3b6df0';
+        ctx.lineWidth   = 2;
+        ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Label
+        ctx.fillStyle    = '#3b6df0';
+        ctx.font         = '600 11px "Public Sans", sans-serif';
+        ctx.textAlign    = 'center';
+        ctx.fillRect(x - 28, chartArea.top - 1, 56, 16);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('$' + opts.price.toFixed(2), x, chartArea.top + 11);
+        ctx.restore();
+    }
+};
+
+function renderOptionsChart(type) {
+    const wrap  = document.getElementById('optionsChartWrap');
+    const msg   = document.getElementById('optionsChartMsg');
+    const canvas = document.getElementById('optionsVolumeChart');
     if (!optionsData) return;
 
-    const rows = optionsData[type] || [];
-    if (!rows.length) {
-        container.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:13px;">No options data available for this expiration.</div>';
+    // Build merged strike list across calls and puts
+    const allStrikes = new Set();
+    (optionsData.calls || []).forEach(r => { if (r.strike != null) allStrikes.add(r.strike); });
+    (optionsData.puts  || []).forEach(r => { if (r.strike != null) allStrikes.add(r.strike); });
+    const strikes = Array.from(allStrikes).sort((a, b) => a - b);
+
+    if (!strikes.length) {
+        canvas.style.display = 'none';
+        msg.style.display    = 'block';
+        msg.textContent      = 'No options data available for this expiration.';
+        return;
+    }
+    canvas.style.display = 'block';
+    msg.style.display    = 'none';
+
+    const callMap = {};
+    (optionsData.calls || []).forEach(r => { callMap[r.strike] = r.volume || 0; });
+    const putMap = {};
+    (optionsData.puts || []).forEach(r => { putMap[r.strike] = r.volume || 0; });
+
+    const labels = strikes.map(s => '$' + fmt(s, 0));
+
+    let datasets = [];
+    if (type === 'calls' || type === 'both') {
+        datasets.push({
+            label: 'Calls Volume',
+            data: strikes.map(s => callMap[s] ?? 0),
+            backgroundColor: 'rgba(15,173,110,0.75)',
+            borderColor: '#0fad6e',
+            borderWidth: 1,
+            borderRadius: 3,
+        });
+    }
+    if (type === 'puts' || type === 'both') {
+        datasets.push({
+            label: 'Puts Volume',
+            data: strikes.map(s => putMap[s] ?? 0),
+            backgroundColor: 'rgba(217,68,82,0.70)',
+            borderColor: '#d94452',
+            borderWidth: 1,
+            borderRadius: 3,
+        });
+    }
+
+    if (optionsChart) optionsChart.destroy();
+    const ctx = canvas.getContext('2d');
+    optionsChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: type === 'both',
+                    position: 'top',
+                    labels: { font: { size: 11 }, boxWidth: 12 },
+                },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => 'Strike: ' + items[0].label,
+                        label: (item) => item.dataset.label + ': ' + fmtLarge(item.parsed.y),
+                    }
+                },
+                priceLine: { price: currentPrice },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 10 }, color: '#888', maxRotation: 45, minRotation: 0,
+                        callback(val, idx) {
+                            const total = this.chart.data.labels.length;
+                            // Show fewer labels when many strikes
+                            if (total > 30 && idx % 3 !== 0) return '';
+                            if (total > 60 && idx % 6 !== 0) return '';
+                            return this.getLabelForValue(val);
+                        }
+                    },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: '#f0f2f5' },
+                    ticks: { font: { size: 10 }, color: '#888', callback: v => fmtLarge(v) },
+                    title: { display: true, text: 'Volume', font: { size: 11 }, color: '#888' },
+                }
+            },
+        },
+        plugins: [priceLine],
+    });
+}
+
+function renderButterflyTable() {
+    const body     = document.getElementById('butterflyBody');
+    const scroller = document.getElementById('chainScroller');
+    if (!optionsData || !body) return;
+
+    // Build sorted strike list
+    const allStrikes = new Set();
+    (optionsData.calls || []).forEach(r => { if (r.strike != null) allStrikes.add(r.strike); });
+    (optionsData.puts  || []).forEach(r => { if (r.strike != null) allStrikes.add(r.strike); });
+    const strikes = Array.from(allStrikes).sort((a, b) => a - b);
+
+    if (!strikes.length) {
+        body.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:13px;">No chain data available.</div>';
         return;
     }
 
-    const cols = [
-        { key: 'contractSymbol', label: 'Contract' },
-        { key: 'strike',         label: 'Strike',   fmt: v => v != null ? '$' + fmt(v) : '—' },
-        { key: 'lastPrice',      label: 'Last',     fmt: v => v != null ? '$' + fmt(v) : '—' },
-        { key: 'bid',            label: 'Bid',      fmt: v => v != null ? '$' + fmt(v) : '—' },
-        { key: 'ask',            label: 'Ask',      fmt: v => v != null ? '$' + fmt(v) : '—' },
-        { key: 'volume',         label: 'Volume',   fmt: v => v != null ? fmtLarge(v) : '—' },
-        { key: 'openInterest',   label: 'Open Int', fmt: v => v != null ? fmtLarge(v) : '—' },
-        { key: 'impliedVolatility', label: 'IV',   fmt: v => v != null ? fmt(v * 100) + '%' : '—' },
-        { key: 'inTheMoney',     label: 'ITM',      fmt: v => v === true ? '<span class="badge bg-success">ITM</span>' : '<span class="badge bg-secondary">OTM</span>' },
-    ];
+    const callMap = {};
+    (optionsData.calls || []).forEach(r => { callMap[r.strike] = r; });
+    const putMap = {};
+    (optionsData.puts || []).forEach(r => { putMap[r.strike] = r; });
 
-    const isCall = type === 'calls';
-    const headerColor = isCall ? '#0fad6e' : '#d94452';
+    // ATM strike = nearest to current price
+    let atmStrike = null;
+    if (currentPrice != null) {
+        atmStrike = strikes.reduce((best, s) =>
+            Math.abs(s - currentPrice) < Math.abs(best - currentPrice) ? s : best, strikes[0]);
+    }
 
-    let html = `<table class="table table-sm table-hover mb-0" style="font-size:12px;min-width:700px;">
-        <thead><tr style="background:${isCall ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)'};">`;
-    cols.forEach(c => {
-        html += `<th style="font-weight:600;color:${headerColor};white-space:nowrap;padding:6px 10px;">${c.label}</th>`;
-    });
-    html += '</tr></thead><tbody>';
+    function fv(val, prefix = '') { return val != null ? prefix + fmt(val) : '—'; }
+    function iv(val) { return val != null ? fmt(val * 100, 1) + '%' : '—'; }
+    function vl(val) { return val != null ? fmtLarge(val) : '—'; }
 
-    rows.forEach(row => {
-        const itm = row.inTheMoney === true;
-        const rowStyle = itm ? `background:${isCall ? 'rgba(15,173,110,0.04)' : 'rgba(217,68,82,0.04)'}` : '';
-        html += `<tr style="${rowStyle}">`;
-        cols.forEach(c => {
-            const val = row[c.key];
-            const display = c.fmt ? c.fmt(val) : (val != null ? esc(String(val)) : '—');
-            html += `<td style="white-space:nowrap;padding:5px 10px;vertical-align:middle;">${display}</td>`;
-        });
-        html += '</tr>';
+    // Table: 6 call cols + 1 strike + 6 put cols = 13 cols
+    // Total width = 6×80 + 96 + 6×80 = 1056px
+    let html = `<table style="width:1056px;">
+      <thead><tr>
+        <th style="color:#0fad6e;">IV</th>
+        <th style="color:#0fad6e;">OI</th>
+        <th style="color:#0fad6e;">Volume</th>
+        <th style="color:#0fad6e;">Ask</th>
+        <th style="color:#0fad6e;">Bid</th>
+        <th style="color:#0fad6e;">Last</th>
+        <th class="bf-strike-th">Strike</th>
+        <th style="color:#d94452;">Last</th>
+        <th style="color:#d94452;">Bid</th>
+        <th style="color:#d94452;">Ask</th>
+        <th style="color:#d94452;">Volume</th>
+        <th style="color:#d94452;">OI</th>
+        <th style="color:#d94452;">IV</th>
+      </tr></thead>
+      <tbody>`;
+
+    strikes.forEach(strike => {
+        const c   = callMap[strike] || {};
+        const p   = putMap[strike]  || {};
+        const isAtm = strike === atmStrike;
+        const isItm = currentPrice != null && strike < currentPrice; // call ITM
+        const rowCls = (isAtm ? ' bf-atm' : '') + (isItm ? ' bf-itm' : '');
+        const strikeLbl = isAtm
+            ? `<span style="font-size:9px;background:#3b6df0;color:#fff;border-radius:3px;padding:1px 4px;letter-spacing:.5px;">ATM</span><br>$${fmt(strike, 0)}`
+            : `$${fmt(strike, 0)}`;
+
+        html += `<tr class="${rowCls}">
+          <td style="color:#888;">${iv(c.impliedVolatility)}</td>
+          <td style="color:#888;">${vl(c.openInterest)}</td>
+          <td style="color:#0fad6e;font-weight:600;">${vl(c.volume)}</td>
+          <td>${fv(c.ask, '$')}</td>
+          <td>${fv(c.bid, '$')}</td>
+          <td style="font-weight:600;">${fv(c.lastPrice, '$')}</td>
+          <td class="bf-strike-td">${strikeLbl}</td>
+          <td style="font-weight:600;">${fv(p.lastPrice, '$')}</td>
+          <td>${fv(p.bid, '$')}</td>
+          <td>${fv(p.ask, '$')}</td>
+          <td style="color:#d94452;font-weight:600;">${vl(p.volume)}</td>
+          <td style="color:#888;">${vl(p.openInterest)}</td>
+          <td style="color:#888;">${iv(p.impliedVolatility)}</td>
+        </tr>`;
     });
 
     html += '</tbody></table>';
-    container.innerHTML = html;
+    body.innerHTML = html;
+
+    // Auto-scroll to center the strike column
+    // Strike column starts at 6 × 80 = 480px from table left
+    // We want scrollLeft such that strike is at center of visible viewport
+    requestAnimationFrame(() => {
+        if (!scroller) return;
+        const strikeStart = 480; // 6 call cols × 80px
+        const visibleCenter = scroller.clientWidth / 2;
+        scroller.scrollLeft = strikeStart - visibleCenter + 48; // 48 = half of 96px strike col
+        // Update range bar to reflect initial scroll
+        syncScrollBarToScroller();
+    });
+}
+
+function syncScrollBarToScroller() {
+    const scroller = document.getElementById('chainScroller');
+    const bar      = document.getElementById('butterflyScrollBar');
+    if (!scroller || !bar) return;
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    if (max <= 0) return;
+    bar.value = Math.round((scroller.scrollLeft / max) * 100);
+}
+
+function syncButterflyScroll(pct) {
+    const scroller = document.getElementById('chainScroller');
+    if (!scroller) return;
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    scroller.scrollLeft = (pct / 100) * max;
 }
 
 async function loadOptions(expiration) {
-    const container = document.getElementById('optionsContainer');
-    container.innerHTML = `<div class="text-center py-4">
+    const body = document.getElementById('butterflyBody');
+    if (body) body.innerHTML = `<div class="text-center py-4">
         <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-        <span class="ms-2 text-muted" style="font-size:13px;">Loading options…</span>
+        <span class="ms-2 text-muted" style="font-size:13px;">Loading options chain…</span>
     </div>`;
+
+    const msg = document.getElementById('optionsChartMsg');
+    if (msg) { msg.style.display = 'block'; msg.textContent = 'Loading…'; }
+    const canvas = document.getElementById('optionsVolumeChart');
+    if (canvas) canvas.style.display = 'none';
 
     try {
         const url = `${API}/ticker/${SYMBOL}/options` + (expiration ? `?expiration=${encodeURIComponent(expiration)}` : '');
-        const r = await fetch(url);
+        const r    = await fetch(url);
         const data = await r.json();
 
         if (data.error && !data.expirations?.length) {
-            container.innerHTML = `<div class="text-center py-4 text-muted" style="font-size:13px;">${esc(data.error || 'Options data unavailable.')}</div>`;
+            if (msg) { msg.style.display = 'block'; msg.textContent = data.error || 'Options data unavailable.'; }
+            if (body) body.innerHTML = `<div class="text-center py-4 text-muted" style="font-size:13px;">${esc(data.error || 'Options data unavailable.')}</div>`;
             return;
         }
 
-        // Populate expiry dropdown if first load
+        // Populate expiry dropdown
         const sel = document.getElementById('optionsExpiry');
-        if (data.expirations && data.expirations.length) {
+        if (sel && data.expirations && data.expirations.length) {
             sel.innerHTML = data.expirations.map(e =>
                 `<option value="${esc(e)}" ${e === data.expiration ? 'selected' : ''}>${esc(e)}</option>`
             ).join('');
         }
 
         optionsData = { calls: data.calls || [], puts: data.puts || [] };
-        renderOptionsTable(currentOptType);
+        renderOptionsChart(currentOptType);
+        renderButterflyTable();
 
     } catch (e) {
-        container.innerHTML = '<div class="text-center py-4 text-danger" style="font-size:13px;">Failed to load options data.</div>';
+        if (msg) { msg.style.display = 'block'; msg.textContent = 'Failed to load options data.'; }
+        if (body) body.innerHTML = '<div class="text-center py-4 text-danger" style="font-size:13px;">Failed to load options data.</div>';
         console.error('Options error:', e);
     }
 }
 
+// Toggle collapse
+document.getElementById('toggleChainBtn').addEventListener('click', () => {
+    const panel = document.getElementById('optionsChainCollapse');
+    const icon  = document.getElementById('toggleChainIcon');
+    const open  = panel.style.display === 'none';
+    panel.style.display = open ? 'block' : 'none';
+    icon.className = open ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
+    if (open) renderButterflyTable();
+});
+
+// Expiry change
 document.getElementById('optionsExpiry').addEventListener('change', function () {
     loadOptions(this.value);
 });
 
+// Toggle calls / puts / both
 document.getElementById('optionsTypeBtns').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-opt-type]');
     if (!btn) return;
     document.querySelectorAll('#optionsTypeBtns .btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentOptType = btn.dataset.optType;
-    if (optionsData) renderOptionsTable(currentOptType);
+    if (optionsData) renderOptionsChart(currentOptType);
 });
+
+// Scroll bar range → scroller
+document.getElementById('butterflyScrollBar').addEventListener('input', function () {
+    syncButterflyScroll(Number(this.value));
+});
+
+// Native scroll → keep range bar in sync
+document.getElementById('chainScroller').addEventListener('scroll', syncScrollBarToScroller, { passive: true });
 
 loadInfo();
 loadChart('3mo');
