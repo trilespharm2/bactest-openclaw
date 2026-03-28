@@ -458,28 +458,26 @@ async function loadPageContent(pageName) {
     // Hide all pages
     pages.forEach(page => page.classList.remove('active'));
     
-    // If authenticated and on home page, load dashboard content into home page
+    // If authenticated and on home page, show dashboard content
     if (pageName === 'home' && isAuthenticated) {
         const homePage = document.getElementById('homePage');
-        
-        if (homePage) {
+        const dashboardPage = document.getElementById('dashboardPage');
+
+        if (homePage && dashboardPage) {
+            // Copy the rich dashboard from dashboardPage into homePage so the
+            // landing-page markup is replaced with the dashboard widgets.
+            // We only do this once (first load); on subsequent SPA navigations
+            // the content is already present in homePage.
             if (!loadedScripts.has('dashboard')) {
-                // First load: fetch dashboard HTML directly into homePage
-                try {
-                    const response = await fetch('dashboard.html');
-                    if (response.ok) {
-                        const dashboardContent = await response.text();
-                        homePage.innerHTML = dashboardContent;
-                        await loadScript('dashboard-script.js?v=3', 'dashboard');
-                    }
-                } catch (error) {
-                    console.error('Error loading dashboard:', error);
-                }
+                homePage.innerHTML = dashboardPage.innerHTML;
+
+                // Load and initialise the dashboard widget script
+                await loadScript('dashboard-script.js?v=3', 'dashboard');
             }
-            
+
             homePage.classList.add('active');
-            
-            // Initialize dashboard widgets
+
+            // Re-initialise dashboard on every visit to refresh live data
             if (typeof initDashboard === 'function') {
                 initDashboard();
             }
@@ -1501,3 +1499,133 @@ async function loadWatchlist() {
         container.innerHTML = '<div class="watchlist-loading">Failed to load watchlist</div>';
     }
 }
+
+// ── Global Search Autocomplete ──────────────────────────────────────────────
+(function () {
+    const input    = document.getElementById('globalSearch');
+    const dropdown = document.getElementById('searchDropdown');
+    if (!input || !dropdown) return;
+
+    let debounceTimer = null;
+    let activeIndex   = -1;
+    let lastResults   = [];
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function typeLabel(t) {
+        const map = { EQUITY:'Stock', ETF:'ETF', INDEX:'Index', MUTUALFUND:'Fund', CURRENCY:'FX', CRYPTOCURRENCY:'Crypto', FUTURE:'Future' };
+        return map[t] || t || '';
+    }
+
+    function typeColor(t) {
+        const map = { EQUITY:'#4e73df', ETF:'#1cc88a', INDEX:'#36b9cc', CRYPTOCURRENCY:'#f6c23e', CURRENCY:'#858796' };
+        return map[t] || '#888';
+    }
+
+    function renderDropdown(results) {
+        lastResults = results;
+        activeIndex = -1;
+        if (!results.length) { closeDropdown(); return; }
+
+        dropdown.innerHTML = results.map((r, i) => `
+            <div class="search-ac-item" data-index="${i}" style="
+                display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;
+                border-bottom:1px solid #f0f2f5;transition:background .12s;
+            ">
+                <div style="display:flex;flex-direction:column;flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-weight:700;font-size:13px;color:#222;">${escHtml(r.symbol)}</span>
+                        <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${typeColor(r.type)};color:#fff;">${escHtml(typeLabel(r.type))}</span>
+                        ${r.exchange ? `<span style="font-size:10px;color:#aaa;">${escHtml(r.exchange)}</span>` : ''}
+                    </div>
+                    ${r.name ? `<div style="font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(r.name)}</div>` : ''}
+                </div>
+                <i class="fas fa-external-link-alt" style="color:#ccc;font-size:10px;flex-shrink:0;"></i>
+            </div>
+        `).join('');
+
+        dropdown.style.display = 'block';
+
+        dropdown.querySelectorAll('.search-ac-item').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                clearActive();
+                el.style.background = '#f5f8ff';
+                activeIndex = parseInt(el.dataset.index);
+            });
+            el.addEventListener('mouseleave', () => { el.style.background = ''; });
+            el.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();
+                selectResult(parseInt(el.dataset.index));
+            });
+        });
+    }
+
+    function clearActive() {
+        dropdown.querySelectorAll('.search-ac-item').forEach(el => { el.style.background = ''; });
+    }
+
+    function setActive(idx) {
+        clearActive();
+        activeIndex = idx;
+        const items = dropdown.querySelectorAll('.search-ac-item');
+        if (items[idx]) items[idx].style.background = '#f5f8ff';
+    }
+
+    function selectResult(idx) {
+        const r = lastResults[idx];
+        if (!r) return;
+        input.value = r.symbol;
+        closeDropdown();
+        window.location.href = `/ticker/${encodeURIComponent(r.symbol)}`;
+    }
+
+    function closeDropdown() {
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = '';
+        activeIndex = -1;
+    }
+
+    async function fetchSuggestions(q) {
+        try {
+            const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            renderDropdown(data.results || []);
+        } catch (_) { closeDropdown(); }
+    }
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < 1) { closeDropdown(); return; }
+        debounceTimer = setTimeout(() => fetchSuggestions(q), 220);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        const items = dropdown.querySelectorAll('.search-ac-item');
+        if (!items.length) {
+            if (e.key === 'Enter' && input.value.trim()) {
+                window.location.href = `/ticker/${encodeURIComponent(input.value.trim().toUpperCase())}`;
+            }
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActive(Math.min(activeIndex + 1, items.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActive(Math.max(activeIndex - 1, 0));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (activeIndex >= 0) selectResult(activeIndex);
+            else if (input.value.trim()) window.location.href = `/ticker/${encodeURIComponent(input.value.trim().toUpperCase())}`;
+        } else if (e.key === 'Escape') {
+            closeDropdown();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) closeDropdown();
+    });
+})();

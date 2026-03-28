@@ -416,7 +416,107 @@ document.getElementById('closeFinancialChart').addEventListener('click', () => {
     if (financialChart) { financialChart.destroy(); financialChart = null; }
 });
 
+// ── Options Chain ──────────────────────────────────────────────────────────
+let optionsData = null;
+let currentOptType = 'calls';
+
+function renderOptionsTable(type) {
+    const container = document.getElementById('optionsContainer');
+    if (!optionsData) return;
+
+    const rows = optionsData[type] || [];
+    if (!rows.length) {
+        container.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:13px;">No options data available for this expiration.</div>';
+        return;
+    }
+
+    const cols = [
+        { key: 'contractSymbol', label: 'Contract' },
+        { key: 'strike',         label: 'Strike',   fmt: v => v != null ? '$' + fmt(v) : '—' },
+        { key: 'lastPrice',      label: 'Last',     fmt: v => v != null ? '$' + fmt(v) : '—' },
+        { key: 'bid',            label: 'Bid',      fmt: v => v != null ? '$' + fmt(v) : '—' },
+        { key: 'ask',            label: 'Ask',      fmt: v => v != null ? '$' + fmt(v) : '—' },
+        { key: 'volume',         label: 'Volume',   fmt: v => v != null ? fmtLarge(v) : '—' },
+        { key: 'openInterest',   label: 'Open Int', fmt: v => v != null ? fmtLarge(v) : '—' },
+        { key: 'impliedVolatility', label: 'IV',   fmt: v => v != null ? fmt(v * 100) + '%' : '—' },
+        { key: 'inTheMoney',     label: 'ITM',      fmt: v => v === true ? '<span class="badge bg-success">ITM</span>' : '<span class="badge bg-secondary">OTM</span>' },
+    ];
+
+    const isCall = type === 'calls';
+    const headerColor = isCall ? '#0fad6e' : '#d94452';
+
+    let html = `<table class="table table-sm table-hover mb-0" style="font-size:12px;min-width:700px;">
+        <thead><tr style="background:${isCall ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)'};">`;
+    cols.forEach(c => {
+        html += `<th style="font-weight:600;color:${headerColor};white-space:nowrap;padding:6px 10px;">${c.label}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    rows.forEach(row => {
+        const itm = row.inTheMoney === true;
+        const rowStyle = itm ? `background:${isCall ? 'rgba(15,173,110,0.04)' : 'rgba(217,68,82,0.04)'}` : '';
+        html += `<tr style="${rowStyle}">`;
+        cols.forEach(c => {
+            const val = row[c.key];
+            const display = c.fmt ? c.fmt(val) : (val != null ? esc(String(val)) : '—');
+            html += `<td style="white-space:nowrap;padding:5px 10px;vertical-align:middle;">${display}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+async function loadOptions(expiration) {
+    const container = document.getElementById('optionsContainer');
+    container.innerHTML = `<div class="text-center py-4">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <span class="ms-2 text-muted" style="font-size:13px;">Loading options…</span>
+    </div>`;
+
+    try {
+        const url = `${API}/ticker/${SYMBOL}/options` + (expiration ? `?expiration=${encodeURIComponent(expiration)}` : '');
+        const r = await fetch(url);
+        const data = await r.json();
+
+        if (data.error && !data.expirations?.length) {
+            container.innerHTML = `<div class="text-center py-4 text-muted" style="font-size:13px;">${esc(data.error || 'Options data unavailable.')}</div>`;
+            return;
+        }
+
+        // Populate expiry dropdown if first load
+        const sel = document.getElementById('optionsExpiry');
+        if (data.expirations && data.expirations.length) {
+            sel.innerHTML = data.expirations.map(e =>
+                `<option value="${esc(e)}" ${e === data.expiration ? 'selected' : ''}>${esc(e)}</option>`
+            ).join('');
+        }
+
+        optionsData = { calls: data.calls || [], puts: data.puts || [] };
+        renderOptionsTable(currentOptType);
+
+    } catch (e) {
+        container.innerHTML = '<div class="text-center py-4 text-danger" style="font-size:13px;">Failed to load options data.</div>';
+        console.error('Options error:', e);
+    }
+}
+
+document.getElementById('optionsExpiry').addEventListener('change', function () {
+    loadOptions(this.value);
+});
+
+document.getElementById('optionsTypeBtns').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-opt-type]');
+    if (!btn) return;
+    document.querySelectorAll('#optionsTypeBtns .btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentOptType = btn.dataset.optType;
+    if (optionsData) renderOptionsTable(currentOptType);
+});
+
 loadInfo();
 loadChart('3mo');
 loadNews();
 loadFinancials();
+loadOptions();

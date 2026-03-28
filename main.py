@@ -5526,6 +5526,90 @@ def ticker_financials(symbol):
         return jsonify({'error': 'Failed to fetch financials'}), 500
 
 
+@app.route('/api/ticker/<symbol>/options')
+def ticker_options(symbol):
+    """Return options chain data from yfinance — calls and puts with open interest."""
+    if not _valid_symbol(symbol):
+        return jsonify({'error': 'Invalid ticker symbol'}), 400
+    try:
+        import yfinance as yf
+        import math
+
+        t = yf.Ticker(symbol.upper())
+        expirations = t.options
+        if not expirations:
+            return jsonify({'expirations': [], 'calls': [], 'puts': [], 'expiration': None})
+
+        # Default to the nearest expiration; allow client to request a specific one
+        requested_exp = request.args.get('expiration', expirations[0])
+        if requested_exp not in expirations:
+            requested_exp = expirations[0]
+
+        chain = t.option_chain(requested_exp)
+
+        def chain_to_list(df, option_type):
+            rows = []
+            if df is None or df.empty:
+                return rows
+            want = ['strike', 'lastPrice', 'bid', 'ask', 'volume', 'openInterest',
+                    'impliedVolatility', 'inTheMoney', 'percentChange', 'contractSymbol']
+            for _, row in df.iterrows():
+                entry = {'type': option_type}
+                for col in want:
+                    val = row.get(col)
+                    if val is None:
+                        entry[col] = None
+                    elif isinstance(val, float) and math.isnan(val):
+                        entry[col] = None
+                    elif isinstance(val, bool):
+                        entry[col] = bool(val)
+                    else:
+                        try:
+                            entry[col] = round(float(val), 4)
+                        except (TypeError, ValueError):
+                            entry[col] = str(val)
+                rows.append(entry)
+            return rows
+
+        calls = chain_to_list(chain.calls, 'call')
+        puts  = chain_to_list(chain.puts,  'put')
+        return jsonify({
+            'expirations': list(expirations),
+            'expiration': requested_exp,
+            'calls': calls,
+            'puts': puts,
+        })
+    except Exception as e:
+        logging.error(f'Ticker options error for {symbol}: {e}')
+        return jsonify({'error': 'Failed to fetch options data', 'expirations': [], 'calls': [], 'puts': []}), 500
+
+
+@app.route('/api/search')
+def ticker_search():
+    """Autocomplete endpoint — returns matching tickers and company names."""
+    query = (request.args.get('q') or '').strip()
+    if not query or len(query) < 1:
+        return jsonify({'results': []})
+    try:
+        import yfinance as yf
+        search = yf.Search(query, max_results=10, enable_fuzzy_query=True)
+        quotes = search.quotes or []
+        results = []
+        seen = set()
+        for q in quotes:
+            sym = (q.get('symbol') or '').strip().upper()
+            name = q.get('longname') or q.get('shortname') or q.get('name') or ''
+            qtype = q.get('quoteType') or ''
+            exchange = q.get('exchange') or ''
+            if sym and sym not in seen:
+                seen.add(sym)
+                results.append({'symbol': sym, 'name': name, 'type': qtype, 'exchange': exchange})
+        return jsonify({'results': results[:10]})
+    except Exception as e:
+        logging.error(f'Ticker search error: {e}')
+        return jsonify({'results': []})
+
+
 # =============================================================================
 # SCREENER API ROUTES
 # =============================================================================

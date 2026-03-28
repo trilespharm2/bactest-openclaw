@@ -502,13 +502,14 @@
           <nav class="navbar navbar-header navbar-header-transparent navbar-expand-lg border-bottom">
             <div class="container-fluid">
               <nav class="navbar navbar-header-left navbar-expand-lg navbar-form nav-search p-0 d-none d-lg-flex">
-                <div class="input-group">
+                <div class="input-group" style="position:relative;">
                   <div class="input-group-prepend">
                     <button type="submit" class="btn btn-search pe-1">
                       <i class="fa fa-search search-icon"></i>
                     </button>
                   </div>
-                  <input type="text" placeholder="Search ..." class="form-control" id="globalSearch" />
+                  <input type="text" placeholder="Search tickers or companies…" class="form-control" id="globalSearch" autocomplete="off" />
+                  <div id="searchDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1px solid #e1e5eb;border-radius:0 0 6px 6px;box-shadow:0 6px 18px rgba(0,0,0,0.12);max-height:340px;overflow-y:auto;"></div>
                 </div>
               </nav>
               <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
