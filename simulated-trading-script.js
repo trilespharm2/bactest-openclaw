@@ -48,6 +48,8 @@ let lwChart = null;
 let lwCandleSeries = null;
 let lwVolumeSeries = null;
 let lwPositionLines = [];
+let lwPnlShadingSeries = null;
+let simUserHasDragged = false;
 let simActiveSessionId = null;
 
 const SIM_API_RATE_LIMIT = 3;
@@ -601,6 +603,7 @@ function resetTradingState() {
     simTimeframeData = {};
     simCurrentTimeframe = '1m';
     simIsLoadingTimeframes = false;
+    simUserHasDragged = false;
 
     simInitialBalance = 100000;
     simRealizedPnl = 0;
@@ -759,9 +762,15 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
         updateTimeframeButtons();
     }
 
-    const tradingStartTs = new Date(tradingStartDate).getTime();
+    const tradingStartTs = tradingStartDate.includes('T')
+        ? new Date(tradingStartDate).getTime()
+        : parseETDateTime(tradingStartDate, '09:30');
     simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= tradingStartTs);
-    if (simTradingStartMinuteIndex === -1) simTradingStartMinuteIndex = simMinuteBarsCache.length;
+    if (simTradingStartMinuteIndex === -1) {
+        const dayStartTs = new Date(tradingStartDate + 'T00:00:00').getTime();
+        simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= dayStartTs);
+        if (simTradingStartMinuteIndex === -1) simTradingStartMinuteIndex = simMinuteBarsCache.length;
+    }
 
     if (restoreMinuteIndex !== null) {
         simCurrentMinuteIndex = Math.min(restoreMinuteIndex, simMinuteBarsCache.length);
@@ -776,6 +785,7 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
     updateSymbolDisplay();
     updateTradingDisplay();
     updatePositionLines();
+    updatePnlShading();
     showLoader(false);
 
     simIsLoadingTimeframes = false;
@@ -787,9 +797,15 @@ function rebuildBarsForCurrentTimeframe() {
     const targetMinutes = TIMEFRAME_MINUTES[simCurrentTimeframe];
     simAllBars = simTimeframeData[simCurrentTimeframe] || [];
     simVisibleBars = aggregateBarsUpToMinute(simMinuteBarsCache, targetMinutes, simCurrentMinuteIndex);
-    const tradingStartTs = new Date(simChartDates.tradingStart).getTime();
+    const tradingStartTs = simChartDates.tradingStart.includes('T')
+        ? new Date(simChartDates.tradingStart).getTime()
+        : parseETDateTime(simChartDates.tradingStart, '09:30');
     simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= tradingStartTs);
-    if (simTradingStartIndex === -1) simTradingStartIndex = 0;
+    if (simTradingStartIndex === -1) {
+        const dayStartTs = new Date(simChartDates.tradingStart + 'T00:00:00').getTime();
+        simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= dayStartTs);
+        if (simTradingStartIndex === -1) simTradingStartIndex = 0;
+    }
     simCurrentBarIndex = simVisibleBars.length;
 }
 
@@ -860,6 +876,18 @@ function createLWChart() {
         }
     });
 
+    lwChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (lwChart && lwChart._userScrolling) {
+            simUserHasDragged = true;
+        }
+    });
+
+    container.addEventListener('mousedown', () => { if (lwChart) lwChart._userScrolling = true; });
+    container.addEventListener('mouseup', () => { if (lwChart) lwChart._userScrolling = false; });
+    container.addEventListener('touchstart', () => { if (lwChart) lwChart._userScrolling = true; });
+    container.addEventListener('touchend', () => { if (lwChart) lwChart._userScrolling = false; });
+    container.addEventListener('wheel', () => { simUserHasDragged = true; }, { passive: true });
+
     new ResizeObserver(entries => {
         if (!lwChart) return;
         const { width, height } = entries[0].contentRect;
@@ -874,6 +902,7 @@ function destroyLWChart() {
         lwCandleSeries = null;
         lwVolumeSeries = null;
         lwPositionLines = [];
+        lwPnlShadingSeries = null;
     }
 }
 
@@ -933,6 +962,52 @@ function updatePositionLines() {
     }
 }
 
+function clearPnlShading() {
+    if (lwPnlShadingSeries && lwChart) {
+        try { lwChart.removeSeries(lwPnlShadingSeries.profit); } catch(e) {}
+        try { lwChart.removeSeries(lwPnlShadingSeries.loss); } catch(e) {}
+    }
+    lwPnlShadingSeries = null;
+}
+
+function updatePnlShading() {
+    clearPnlShading();
+
+    if (!lwChart || !lwCandleSeries || !simOpenPosition || simVisibleBars.length === 0) return;
+
+    const entryPrice = simOpenPosition.entryPrice;
+    const isBuy = simOpenPosition.side === 'buy';
+    const entryBarIdx = simVisibleBars.findIndex(bar => bar.timestamp >= simOpenPosition.entryTimestamp);
+    if (entryBarIdx === -1) return;
+
+    const baselineSeries = lwChart.addBaselineSeries({
+        baseValue: { type: 'price', price: entryPrice },
+        topLineColor: isBuy ? 'rgba(8, 153, 129, 0.6)' : 'rgba(242, 54, 69, 0.6)',
+        topFillColor1: isBuy ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)',
+        topFillColor2: isBuy ? 'rgba(8, 153, 129, 0.05)' : 'rgba(242, 54, 69, 0.05)',
+        bottomLineColor: isBuy ? 'rgba(242, 54, 69, 0.6)' : 'rgba(8, 153, 129, 0.6)',
+        bottomFillColor1: isBuy ? 'rgba(242, 54, 69, 0.05)' : 'rgba(8, 153, 129, 0.05)',
+        bottomFillColor2: isBuy ? 'rgba(242, 54, 69, 0.25)' : 'rgba(8, 153, 129, 0.25)',
+        lineWidth: 1,
+        priceScaleId: 'right',
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false
+    });
+
+    const data = [];
+    for (let i = entryBarIdx; i < simVisibleBars.length; i++) {
+        const bar = simVisibleBars[i];
+        data.push({
+            time: Math.floor(bar.timestamp / 1000),
+            value: bar.close
+        });
+    }
+
+    baselineSeries.setData(data);
+    lwPnlShadingSeries = { profit: baselineSeries, loss: null };
+}
+
 function switchTimeframe(timeframe) {
     if (!simTimeframeData[timeframe] || simTimeframeData[timeframe].length === 0) return;
     simCurrentTimeframe = timeframe;
@@ -941,8 +1016,8 @@ function switchTimeframe(timeframe) {
     updateChartData();
     updatePositionLines();
 
-    if (simVisibleBars.length > 0) {
-        const lastBar = simVisibleBars[simVisibleBars.length - 1];
+    updatePnlShading();
+    if (simVisibleBars.length > 0 && !simUserHasDragged) {
         lwChart?.timeScale().scrollToPosition(5, false);
     }
 }
@@ -970,7 +1045,10 @@ function showNextBar() {
         checkOptionTpSlThresholds();
         updateNavigationButtons();
         updatePositionLines();
-        lwChart?.timeScale().scrollToPosition(5, false);
+        updatePnlShading();
+        if (!simUserHasDragged) {
+            lwChart?.timeScale().scrollToPosition(5, false);
+        }
     }
 }
 
@@ -986,6 +1064,7 @@ function showPreviousBar() {
         checkOptionTpSlThresholds();
         updateNavigationButtons();
         updatePositionLines();
+        updatePnlShading();
     }
 }
 
@@ -1022,12 +1101,16 @@ function autoplayAdvance() {
     checkOptionTpSlThresholds();
     updateNavigationButtons();
     updatePositionLines();
-    lwChart?.timeScale().scrollToPosition(5, false);
+    updatePnlShading();
+    if (!simUserHasDragged) {
+        lwChart?.timeScale().scrollToPosition(5, false);
+    }
     if (simCurrentMinuteIndex >= simMinuteBarsCache.length) stopAutoplay();
 }
 
 function resetViewToCurrentCandle() {
     if (!lwChart || simVisibleBars.length === 0) return;
+    simUserHasDragged = false;
     lwChart.timeScale().scrollToPosition(5, true);
 }
 
@@ -1075,6 +1158,8 @@ function gotoDateTime() {
     checkOptionTpSlThresholds();
     updateNavigationButtons();
     updatePositionLines();
+    updatePnlShading();
+    simUserHasDragged = false;
     lwChart?.timeScale().scrollToPosition(5, false);
 }
 
@@ -1220,6 +1305,7 @@ function executeTrade(side) {
 
     updateTradingDisplay();
     updatePositionLines();
+    updatePnlShading();
 }
 
 function calculatePositionPnl(position, currentPrice) {
