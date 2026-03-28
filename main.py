@@ -409,6 +409,7 @@ def initialize_app_runtime(enable_scheduler=False):
 
 
 ensure_database_schema()
+bootstrap_admin_user()
 
 # Register Google OAuth blueprint
 try:
