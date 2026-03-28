@@ -572,14 +572,23 @@ async function collectFormData() {
         conditions.forEach((condItem, index) => {
             const id = condItem.id.split('-')[1];
             
+            const leftDaySelect = document.getElementById(`left-day-${id}`);
+            const leftDayVal = leftDaySelect.value === 'custom'
+                ? parseInt(document.getElementById(`left-day-custom-${id}`).value) || 0
+                : parseInt(leftDaySelect.value);
+            const rightDaySelect = document.getElementById(`right-day-${id}`);
+            const rightDayVal = rightDaySelect.value === 'custom'
+                ? parseInt(document.getElementById(`right-day-custom-${id}`).value) || 0
+                : parseInt(rightDaySelect.value);
+
             const condition = {
                 type: index === 0 ? 'entry' : 'prior',
-                left_day: parseInt(document.getElementById(`left-day-${id}`).value),
+                left_day: leftDayVal,
                 left_candle: document.getElementById(`left-candle-${id}`).value,
                 left_multiplier: parseInt(document.getElementById(`left-mult-${id}`).value),
                 left_type: document.getElementById(`left-type-${id}`).value,
                 operation: document.getElementById(`operator-${id}`).value,
-                right_day: parseInt(document.getElementById(`right-day-${id}`).value),
+                right_day: rightDayVal,
                 right_candle: document.getElementById(`right-candle-${id}`).value,
                 right_multiplier: parseInt(document.getElementById(`right-mult-${id}`).value),
                 right_type: document.getElementById(`right-type-${id}`).value,
@@ -1068,6 +1077,68 @@ function applyStockConfig(config) {
                 document.getElementById('presetThreshold').value = config.preset_threshold;
             }
         }
+    } else if (entryType === 'custom' && config.custom_conditions && config.custom_conditions.length > 0) {
+        var existingConditions = document.querySelectorAll('.condition-item');
+        existingConditions.forEach(function(el) { el.remove(); });
+        conditionCount = 0;
+
+        config.custom_conditions.forEach(function(cond, idx) {
+            if (typeof addCondition === 'function') addCondition();
+            var id = conditionCount;
+
+            var leftDayEl = document.getElementById('left-day-' + id);
+            if (leftDayEl) {
+                var leftDayVal = String(cond.left_day);
+                var leftDayOption = leftDayEl.querySelector('option[value="' + leftDayVal + '"]');
+                if (leftDayOption) {
+                    leftDayEl.value = leftDayVal;
+                } else {
+                    leftDayEl.value = 'custom';
+                    var customInput = document.getElementById('left-day-custom-' + id);
+                    if (customInput) { customInput.style.display = ''; customInput.value = leftDayVal; }
+                }
+            }
+
+            var leftCandleEl = document.getElementById('left-candle-' + id);
+            if (leftCandleEl && cond.left_candle) leftCandleEl.value = cond.left_candle;
+
+            var leftMultEl = document.getElementById('left-mult-' + id);
+            if (leftMultEl && cond.left_multiplier) leftMultEl.value = cond.left_multiplier;
+
+            var leftTypeEl = document.getElementById('left-type-' + id);
+            if (leftTypeEl && cond.left_type) leftTypeEl.value = cond.left_type;
+
+            var operatorEl = document.getElementById('operator-' + id);
+            if (operatorEl && cond.operation) operatorEl.value = cond.operation;
+
+            var rightDayEl = document.getElementById('right-day-' + id);
+            if (rightDayEl) {
+                var rightDayVal = String(cond.right_day);
+                var rightDayOption = rightDayEl.querySelector('option[value="' + rightDayVal + '"]');
+                if (rightDayOption) {
+                    rightDayEl.value = rightDayVal;
+                } else {
+                    rightDayEl.value = 'custom';
+                    var customInput2 = document.getElementById('right-day-custom-' + id);
+                    if (customInput2) { customInput2.style.display = ''; customInput2.value = rightDayVal; }
+                }
+            }
+
+            var rightCandleEl = document.getElementById('right-candle-' + id);
+            if (rightCandleEl && cond.right_candle) rightCandleEl.value = cond.right_candle;
+
+            var rightMultEl = document.getElementById('right-mult-' + id);
+            if (rightMultEl && cond.right_multiplier) rightMultEl.value = cond.right_multiplier;
+
+            var rightTypeEl = document.getElementById('right-type-' + id);
+            if (rightTypeEl && cond.right_type) rightTypeEl.value = cond.right_type;
+
+            var thresholdUnitEl = document.getElementById('threshold-unit-' + id);
+            if (thresholdUnitEl && cond.threshold_unit) thresholdUnitEl.value = cond.threshold_unit;
+
+            var thresholdValEl = document.getElementById('threshold-value-' + id);
+            if (thresholdValEl && cond.threshold_value != null) thresholdValEl.value = cond.threshold_value;
+        });
     }
 
     var direction = config.direction || 'long';

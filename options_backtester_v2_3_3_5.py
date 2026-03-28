@@ -3095,16 +3095,27 @@ def run_backtest(config: Dict, client: RESTClient):
     option_cache_1min = {}
     option_cache_detection = {}
     
-    # Pre-fetch ALL indicator data for the entire backtest range ONCE
-    # This uses only 1-2 API calls instead of N calls per trading day
     price_conditions = config.get('price_conditions', [])
     has_preset = config.get('options_entry_type') == 'preset'
     indicators_cache = {}
     if price_conditions:
+        max_day_offset = 0
+        for cond in price_conditions:
+            try:
+                left_offset = abs(int(cond.get('left', {}).get('day', 0) or 0))
+            except (ValueError, TypeError):
+                left_offset = 0
+            try:
+                right_offset = abs(int(cond.get('right', {}).get('day', 0) or 0))
+            except (ValueError, TypeError):
+                right_offset = 0
+            max_day_offset = max(max_day_offset, left_offset, right_offset)
+        buffer_days = max_day_offset * 2 + 5 if max_day_offset > 0 else 0
+        prefetch_start = trading_days[0] - timedelta(days=buffer_days)
         indicators_cache = prefetch_all_indicators_for_range(
             config,
-            trading_days[0],  # Start date
-            trading_days[-1]  # End date
+            prefetch_start,
+            trading_days[-1]
         )
     
     print("\nProcessing trades...\n" + "-"*80)
