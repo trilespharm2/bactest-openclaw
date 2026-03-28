@@ -527,6 +527,12 @@ def init_scheduler(app):
         except Exception as e:
             logger.warning(f"Could not load scanners: {e}")
     
+    try:
+        import spy_data_cache
+        spy_data_cache.setup_daily_scheduler(scheduler)
+    except Exception as e:
+        logger.warning(f"Could not setup SPY cache scheduler: {e}")
+
     with app.app_context():
         try:
             load_scanners()

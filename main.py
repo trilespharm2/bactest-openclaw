@@ -6891,6 +6891,66 @@ def test_notification_channel(channel_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+import spy_data_cache
+
+@app.route('/api/spy-cache/info', methods=['GET'])
+@login_required
+def spy_cache_info():
+    info = spy_data_cache.get_cache_info()
+    return jsonify(info)
+
+
+@app.route('/api/spy-cache/build', methods=['POST'])
+@login_required
+def spy_cache_build():
+    if current_user.email != os.environ.get('ADMIN_EMAIL', ''):
+        return jsonify({'error': 'Admin only'}), 403
+
+    import threading
+
+    def run_build():
+        with app.app_context():
+            spy_data_cache.build_full_cache(years=2)
+
+    t = threading.Thread(target=run_build, daemon=True)
+    t.start()
+    return jsonify({'status': 'started', 'message': 'Building SPY 2-year cache in background. This takes several minutes due to API rate limits.'})
+
+
+@app.route('/api/spy-cache/update', methods=['POST'])
+@login_required
+def spy_cache_update():
+    if current_user.email != os.environ.get('ADMIN_EMAIL', ''):
+        return jsonify({'error': 'Admin only'}), 403
+
+    import threading
+
+    def run_update():
+        with app.app_context():
+            spy_data_cache.daily_update()
+
+    t = threading.Thread(target=run_update, daemon=True)
+    t.start()
+    return jsonify({'status': 'started', 'message': 'Fetching latest SPY data in background.'})
+
+
+@app.route('/api/spy-cache/data', methods=['GET'])
+@login_required
+def spy_cache_data():
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    bars = spy_data_cache.load_cached_bars_as_list(start_date, end_date)
+    if bars is None:
+        return jsonify({'error': 'No cached data available. Build the cache first.'}), 404
+
+    return jsonify({
+        'symbol': 'SPY',
+        'total_bars': len(bars),
+        'bars': bars,
+    })
+
+
 # Start dashboard cache for gunicorn/wsgi (won't hit __main__ block)
 # Safe to call multiple times — timers are daemon threads
 start_dashboard_cache()
