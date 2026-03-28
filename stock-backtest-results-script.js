@@ -602,7 +602,7 @@ function displayTradesPage() {
 
 function downloadCSV() {
     if (!resultsData || !resultsData.csv_data) {
-        alert('No CSV data available');
+        appAlert('No CSV data available');
         return;
     }
     

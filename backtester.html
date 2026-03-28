@@ -560,6 +560,7 @@
 }
 </style>
 
+<script src="/static/js/app-dialogs.js"></script>
 <script>
 // Date validation - prevent end date before start date
 document.addEventListener('DOMContentLoaded', function() {
@@ -691,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const endDate = new Date(endDateInput.value);
         
         if (startDateInput.value && endDateInput.value && endDate < startDate) {
-            alert('Error: End date cannot be before start date!\n\nPlease correct the dates before running the backtest.');
+            appAlert('Error: End date cannot be before start date! Please correct the dates before running the backtest.');
             endDateInput.focus();
             return false;
         }

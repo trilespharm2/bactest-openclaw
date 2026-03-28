@@ -233,17 +233,17 @@ function resumeSession(index) {
     }
 }
 
-function endSessionFromCard(index) {
+async function endSessionFromCard(index) {
     let activeSessions = [];
     try { activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]'); } catch(e) {}
     if (index >= activeSessions.length) return;
 
     const session = activeSessions[index];
-    if (!confirm(`End session for ${session.symbol}? This will save results and remove the active session.`)) return;
+    if (!(await appConfirm('End session for ' + session.symbol + '? This will save results and remove the active session.'))) return;
 
     const hasOpenPositions = (session.openPosition != null) || (session.openOptionPositions && session.openOptionPositions.length > 0);
     if (hasOpenPositions) {
-        alert('This session has open positions. Please resume the session and close all positions before ending.');
+        await appAlert('This session has open positions. Please resume the session and close all positions before ending.');
         return;
     }
 
@@ -433,7 +433,7 @@ function handleBackToConfig() {
     if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
 }
 
-function handleEndSession() {
+async function handleEndSession() {
     stopAutoplay();
     const mode = window._simTradingMode || 'stock';
     const trades = mode === 'stock' ? simClosedTrades : simClosedOptionTrades;
@@ -441,14 +441,14 @@ function handleEndSession() {
     const hasOpenOptions = mode === 'options' && simOpenOptionPositions.length > 0;
 
     if (trades.length === 0 && !hasOpenStock && !hasOpenOptions) {
-        alert('No trades to analyze. Execute some trades first.');
+        await appAlert('No trades to analyze. Execute some trades first.');
         return;
     }
     if (hasOpenStock || hasOpenOptions) {
-        alert('Please close all open positions before ending the session.');
+        await appAlert('Please close all open positions before ending the session.');
         return;
     }
-    if (!confirm('End this session and save results?')) return;
+    if (!(await appConfirm('End this session and save results?'))) return;
 
     const sessionData = buildCurrentSessionData();
     saveCompletedSession(sessionData);
@@ -748,7 +748,7 @@ async function loadSimulatedChart(restoreMinuteIndex = null) {
         computeAllTimeframes(simChartDates.tradingStart, restoreMinuteIndex);
     } catch (error) {
         console.error('Error loading chart:', error);
-        alert('Error loading chart: ' + error.message);
+        appAlert('Error loading chart: ' + error.message);
         showLoader(false);
     }
 }
@@ -1123,18 +1123,18 @@ function gotoDateTime() {
 
     if (gotoDateValue) {
         const dateParts = gotoDateValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (!dateParts) { alert('Please enter date in MM/DD/YYYY format'); return; }
+        if (!dateParts) { appAlert('Please enter date in MM/DD/YYYY format'); return; }
         const month = dateParts[1].padStart(2, '0');
         const day = dateParts[2].padStart(2, '0');
         targetDateStr = `${dateParts[3]}-${month}-${day}`;
     } else if (simCurrentMinuteIndex > 0) {
         const currentBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
         targetDateStr = new Date(currentBar.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-    } else { alert('Please enter a date'); return; }
+    } else { appAlert('Please enter a date'); return; }
 
     if (gotoTimeValue) {
         const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})$/);
-        if (!timeParts) { alert('Please enter time in HH:MM format'); return; }
+        if (!timeParts) { appAlert('Please enter time in HH:MM format'); return; }
         targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
     }
 
@@ -1147,7 +1147,7 @@ function gotoDateTime() {
     if (targetMinuteIndex === -1) {
         if (simMinuteBarsCache.length > 0 && simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp < targetTimestamp) {
             targetMinuteIndex = simMinuteBarsCache.length;
-        } else { alert('Date/time not found in the available data range'); return; }
+        } else { appAlert('Date/time not found in the available data range'); return; }
     }
 
     simCurrentMinuteIndex = targetMinuteIndex;
@@ -1249,7 +1249,7 @@ function formatVolume(vol) {
 }
 
 function executeTrade(side) {
-    if (simVisibleBars.length === 0) { alert('Load chart data first'); return; }
+    if (simVisibleBars.length === 0) { appAlert('Load chart data first'); return; }
     const quantity = parseInt(document.getElementById('simQuantity')?.value) || 1;
     const currentBar = simVisibleBars[simVisibleBars.length - 1];
     const currentPrice = currentBar.vwap || currentBar.close;
@@ -1605,7 +1605,7 @@ function calculateStrikeFromLegConfig(leg, underlyingPrice, resolvedStrikes) {
 }
 
 async function executeOptionTrade() {
-    if (simVisibleBars.length === 0) { alert('Load chart data first'); return; }
+    if (simVisibleBars.length === 0) { appAlert('Load chart data first'); return; }
 
     const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
     if (currentMinuteBar) {
@@ -1614,7 +1614,7 @@ async function executeOptionTrade() {
         const [etHour, etMinute] = etTime.split(':').map(Number);
         const totalMinutes = etHour * 60 + etMinute;
         if (totalMinutes < 570 || totalMinutes > 959) {
-            alert('Options can only be traded between 9:30 AM and 3:59 PM ET');
+            appAlert('Options can only be traded between 9:30 AM and 3:59 PM ET');
             return;
         }
     }
@@ -1627,8 +1627,8 @@ async function executeOptionTrade() {
     const quantity = parseInt(document.getElementById('simOptionQuantity')?.value) || 10;
 
     const legConfigs = collectSimLegConfigurations();
-    if (legConfigs.length === 0) { alert('Please configure at least one leg'); return; }
-    if (!currentMinuteBar) { alert('No current bar data available'); return; }
+    if (legConfigs.length === 0) { appAlert('Please configure at least one leg'); return; }
+    if (!currentMinuteBar) { appAlert('No current bar data available'); return; }
 
     const underlyingPrice = currentMinuteBar.close;
     const entryTimestamp = currentMinuteBar.timestamp;
@@ -1637,7 +1637,7 @@ async function executeOptionTrade() {
     const etTimeStr = entryDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
     const [etHour, etMinute] = etTimeStr.split(':').map(Number);
     if (dte === 0 && (etHour * 60 + etMinute) >= 960) {
-        alert(`Cannot open 0DTE trades after 4:00 PM ET.`);
+        appAlert('Cannot open 0DTE trades after 4:00 PM ET.');
         return;
     }
 
@@ -1667,14 +1667,14 @@ async function executeOptionTrade() {
 
             const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, expDateStr, startDateStr, simChartDates.end, detectionBar, legConfig, underlyingPrice);
             if (!optionData.bars || optionData.bars.length === 0) {
-                alert(`No option data found for leg ${i + 1}: ${legConfig.name}`);
+                appAlert('No option data found for leg ' + (i + 1) + ': ' + legConfig.name);
                 return;
             }
 
             resolvedStrikes.push(optionData.actualStrike);
             let entryBar = findClosestOptionBar(optionData.bars, entryTimestamp);
             if (!entryBar) entryBar = optionData.bars.find(b => b.timestamp >= entryTimestamp);
-            if (!entryBar) { alert(`No option price data at entry time for leg ${i + 1}`); return; }
+            if (!entryBar) { appAlert('No option price data at entry time for leg ' + (i + 1)); return; }
 
             positionLegs.push({
                 legIndex: i, name: legConfig.name, type: legConfig.type, position: legConfig.position,
@@ -1703,7 +1703,7 @@ async function executeOptionTrade() {
         updatePositionLines();
     } catch (error) {
         console.error('Error opening option position:', error);
-        alert('Error opening option position: ' + error.message);
+        appAlert('Error opening option position: ' + error.message);
     } finally {
         if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.innerHTML = '<i class="fas fa-bolt me-1"></i>Trade'; }
     }
@@ -1816,7 +1816,7 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
     if (posIndex === -1) return;
     const pos = simOpenOptionPositions[posIndex];
     const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-    if (!currentMinuteBar) { alert('No current bar data available'); return; }
+    if (!currentMinuteBar) { appAlert('No current bar data available'); return; }
 
     const currentTimestamp = currentMinuteBar.timestamp;
     const qtyToClose = closeQuantity || pos.remainingQuantity;
@@ -1894,8 +1894,8 @@ function closePositionPartial(positionId) {
     const qtyInput = document.getElementById(`pos-close-qty-${positionId}`);
     if (!qtyInput) return;
     const closeQty = parseInt(qtyInput.value);
-    if (isNaN(closeQty) || closeQty < 1) { alert('Please enter a valid quantity'); return; }
-    if (closeQty > pos.remainingQuantity) { alert(`Only ${pos.remainingQuantity} remaining.`); return; }
+    if (isNaN(closeQty) || closeQty < 1) { appAlert('Please enter a valid quantity'); return; }
+    if (closeQty > pos.remainingQuantity) { appAlert('Only ' + pos.remainingQuantity + ' remaining.'); return; }
     closeOptionPosition(positionId, closeQty, 'Manual');
 }
 

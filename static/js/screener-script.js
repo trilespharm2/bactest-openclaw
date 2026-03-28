@@ -948,7 +948,7 @@ function clearAllFilters() {
 }
 
 async function exportResults() {
-    if (!state.results?.results) return alert('No results to export');
+    if (!state.results?.results) return appAlert('No results to export');
     
     var results = state.results.results;
     var columns = state.results.columns;
@@ -1076,12 +1076,12 @@ function updateSaveFilterButton() {
 
 async function saveCurrentFilter() {
     if (!state.isLoggedIn) {
-        alert('Please login to save filters');
+        appAlert('Please login to save filters');
         return;
     }
     
     if (state.selectedFilters.length === 0) {
-        alert('Please select at least one filter to save');
+        appAlert('Please select at least one filter to save');
         return;
     }
     
@@ -1104,12 +1104,12 @@ async function saveCurrentFilter() {
         const data = await response.json();
         if (data.success) {
             await loadSavedFilters();
-            alert('Filter saved successfully!');
+            appAlert('Filter saved successfully!');
         } else {
-            alert('Error saving filter: ' + (data.error || 'Unknown error'));
+            appAlert('Error saving filter: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
-        alert('Error saving filter: ' + error.message);
+        appAlert('Error saving filter: ' + error.message);
     }
 }
 
@@ -1162,7 +1162,7 @@ async function applyStoredFilter(filterId) {
 async function deleteStoredFilter(filterId, event) {
     event.stopPropagation();
     
-    if (!confirm('Are you sure you want to delete this saved filter?')) return;
+    if (!(await appConfirm('Are you sure you want to delete this saved filter?'))) return;
     
     try {
         const response = await authFetch(`${API_BASE_URL}/saved-filters/${filterId}`, {
@@ -1173,10 +1173,10 @@ async function deleteStoredFilter(filterId, event) {
         if (data.success) {
             await loadSavedFilters();
         } else {
-            alert('Error deleting filter: ' + (data.error || 'Unknown error'));
+            appAlert('Error deleting filter: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
-        alert('Error deleting filter: ' + error.message);
+        appAlert('Error deleting filter: ' + error.message);
     }
 }
 

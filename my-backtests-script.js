@@ -178,7 +178,7 @@ function displayBacktests() {
     
     if (!container) {
         console.error('❌ backtestsList container not found!');
-        alert('ERROR: backtestsList element missing from HTML!');
+        appAlert('ERROR: backtestsList element missing from HTML!');
         return;
     }
     
@@ -368,7 +368,7 @@ function viewBacktest(backtest) {
 }
 
 async function deleteBacktest(backtestId) {
-    if (!confirm('Are you sure you want to delete this backtest? This cannot be undone.')) {
+    if (!(await appConfirm('Are you sure you want to delete this backtest? This cannot be undone.'))) {
         return;
     }
     
@@ -400,5 +400,5 @@ function formatCurrency(value) {
 }
 
 function showError(message) {
-    alert(message); // Simple error display for now
+    appAlert(message);
 }

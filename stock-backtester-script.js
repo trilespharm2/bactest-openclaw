@@ -660,7 +660,7 @@ async function handleSubmit(e) {
                         const loadingEl = document.getElementById('loadingMessage');
                         if (loadingEl) loadingEl.style.display = 'none';
                         form.dataset.isSubmitting = 'false';
-                        alert(error.error || 'A backtest is already running.');
+                        appAlert(error.error || 'A backtest is already running.');
                         checkForRunningStockBacktests();
                         return;
                     }
@@ -678,7 +678,7 @@ async function handleSubmit(e) {
                 if (errorEl) { errorEl.textContent = `Error: ${err.message}`; errorEl.style.display = 'block'; }
                 if (loadingEl) loadingEl.style.display = 'none';
                 form.dataset.isSubmitting = 'false';
-                alert(`Error: ${err.message}`);
+                appAlert(`Error: ${err.message}`);
             }
         };
 
@@ -688,7 +688,7 @@ async function handleSubmit(e) {
         const errorEl = document.getElementById('errorMessage');
         if (errorEl) { errorEl.textContent = `Error: ${error.message}`; errorEl.style.display = 'block'; }
         form.dataset.isSubmitting = 'false';
-        alert(`Error: ${error.message}`);
+        appAlert(`Error: ${error.message}`);
     }
     
     return false;
@@ -984,7 +984,7 @@ function validateConfig(config) {
             errorMessage.innerHTML = errors.join('<br>');
             errorSection.style.display = 'block';
         } else {
-            alert(errors.join('\n'));
+            appAlert(errors.join('\n'));
         }
         return false;
     }
@@ -1054,7 +1054,7 @@ async function displayResults(backtestId, apiKey) {
         
     } catch (error) {
         console.error('Error displaying results:', error);
-        alert('Error loading results: ' + error.message);
+        appAlert('Error loading results: ' + error.message);
     }
 }
 
@@ -1175,7 +1175,7 @@ function setupDownloadButton(csvData, backtestId) {
     
     downloadBtn.onclick = () => {
         if (!csvData) {
-            alert('No CSV data available');
+            appAlert('No CSV data available');
             return;
         }
         
@@ -1579,7 +1579,7 @@ function pollRunningStockBacktest(backtestId, backtestType) {
 }
 
 async function cancelStockBacktest(backtestId) {
-    if (!confirm('Are you sure you want to cancel this backtest?')) return;
+    if (!(await appConfirm('Are you sure you want to cancel this backtest?'))) return;
     try {
         var response = await authFetch('/api/backtest/cancel/' + backtestId, { method: 'POST' });
         if (response.ok) {

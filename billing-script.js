@@ -283,7 +283,7 @@ async function openStripePortal(flowType) {
         }
     } catch (error) {
         console.error('Error opening Stripe portal:', error);
-        alert(error.message || 'Failed to open billing portal. Please try again.');
+        appAlert(error.message || 'Failed to open billing portal. Please try again.');
         
         const btn = event?.target?.closest('button');
         if (btn) {

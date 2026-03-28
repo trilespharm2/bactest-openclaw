@@ -387,8 +387,8 @@ function downloadTradeCsv(data) {
     URL.revokeObjectURL(url);
 }
 
-function deleteSimSession(sessionId) {
-    if (!confirm('Delete this session?')) return;
+async function deleteSimSession(sessionId) {
+    if (!(await appConfirm('Delete this session?'))) return;
     let sessions = [];
     try { sessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]'); } catch(e) {}
     sessions = sessions.filter(s => s.sessionId !== sessionId);

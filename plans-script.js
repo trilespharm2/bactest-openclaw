@@ -443,7 +443,7 @@ function closePaymentModal() {
 
 async function proceedToStripeCheckout() {
     if (!userSelectedPlan) {
-        alert('No plan selected');
+        appAlert('No plan selected');
         return;
     }
     
@@ -465,7 +465,7 @@ async function proceedToStripeCheckout() {
         if (data.checkout_url) {
             window.location.href = data.checkout_url;
         } else {
-            alert(data.error || 'Failed to create checkout session');
+            appAlert(data.error || 'Failed to create checkout session');
             if (checkoutBtn) {
                 checkoutBtn.disabled = false;
                 checkoutBtn.innerHTML = '<i class="material-symbols-rounded">lock</i> Proceed to Secure Checkout';
@@ -473,7 +473,7 @@ async function proceedToStripeCheckout() {
         }
     } catch (error) {
         console.error('Checkout error:', error);
-        alert('Failed to start checkout. Please try again.');
+        appAlert('Failed to start checkout. Please try again.');
         if (checkoutBtn) {
             checkoutBtn.disabled = false;
             checkoutBtn.innerHTML = '<i class="material-symbols-rounded">lock</i> Proceed to Secure Checkout';

@@ -164,7 +164,7 @@ function createScanner() {
     var channelType = document.querySelector('input[name="channelType"]:checked').value;
     
     if (!scannerName) {
-        alert('Please enter a name for your scanner');
+        appAlert('Please enter a name for your scanner');
         return;
     }
     
@@ -179,7 +179,7 @@ function createScanner() {
     if (symbolScope === 'specific') {
         data.symbols = getSymbolsList();
         if (data.symbols.length === 0) {
-            alert('Please enter at least one symbol');
+            appAlert('Please enter at least one symbol');
             return;
         }
     }
@@ -190,7 +190,7 @@ function createScanner() {
         var savedFilterId = document.getElementById('savedFilterSelect').value;
         var selectedCard = document.querySelector('.saved-filter-card.selected');
         if (!savedFilterId || !selectedCard) {
-            alert('Please select a saved filter from the list');
+            appAlert('Please select a saved filter from the list');
             return;
         }
         data.saved_filter_id = parseInt(savedFilterId);
@@ -199,7 +199,7 @@ function createScanner() {
     if (channelType === 'email') {
         data.channel_target = document.getElementById('emailAddress').value;
         if (!data.channel_target) {
-            alert('Please enter an email address');
+            appAlert('Please enter an email address');
             return;
         }
     } else {
@@ -207,7 +207,7 @@ function createScanner() {
         var chatId = document.getElementById('telegramChatId').value;
         
         if (!botToken || !chatId) {
-            alert('Please enter both Telegram bot token and chat ID');
+            appAlert('Please enter both Telegram bot token and chat ID');
             return;
         }
         
@@ -257,17 +257,17 @@ function createScanner() {
         btn.innerHTML = '<i class="fas fa-bolt"></i> Create Scanner';
         
         if (result.success) {
-            alert('Scanner created successfully!');
+            appAlert('Scanner created successfully!');
             resetForm();
             loadScanners();
         } else {
-            alert('Error: ' + (result.error || 'Failed to create scanner'));
+            appAlert('Error: ' + (result.error || 'Failed to create scanner'));
         }
     })
     .catch(function(error) {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-bolt"></i> Create Scanner';
-        alert('Error creating scanner: ' + error.message);
+        appAlert('Error creating scanner: ' + error.message);
     });
 }
 
@@ -391,7 +391,7 @@ function toggleScanner(scannerId) {
         if (result.success) {
             loadScanners();
         } else {
-            alert('Error: ' + (result.error || 'Failed to toggle scanner'));
+            appAlert('Error: ' + (result.error || 'Failed to toggle scanner'));
         }
     });
 }
@@ -401,15 +401,15 @@ function runScannerNow(scannerId) {
     .then(function(response) { return response.json(); })
     .then(function(result) {
         if (result.success) {
-            alert('Scanner run started! Results will be sent to your notification channel.');
+            appAlert('Scanner run started! Results will be sent to your notification channel.');
         } else {
-            alert('Error: ' + (result.error || 'Failed to run scanner'));
+            appAlert('Error: ' + (result.error || 'Failed to run scanner'));
         }
     });
 }
 
-function deleteScanner(scannerId) {
-    if (!confirm('Are you sure you want to delete this scanner?')) return;
+async function deleteScanner(scannerId) {
+    if (!(await appConfirm('Are you sure you want to delete this scanner?'))) return;
     
     authFetch('/api/scanners/' + scannerId, { method: 'DELETE' })
     .then(function(response) { return response.json(); })
@@ -417,7 +417,7 @@ function deleteScanner(scannerId) {
         if (result.success) {
             loadScanners();
         } else {
-            alert('Error: ' + (result.error || 'Failed to delete scanner'));
+            appAlert('Error: ' + (result.error || 'Failed to delete scanner'));
         }
     });
 }
@@ -577,8 +577,8 @@ function closeNotificationModal() {
     modal.style.display = 'none';
 }
 
-function clearAllNotifications() {
-    if (!confirm('Are you sure you want to delete ALL notifications? This cannot be undone.')) {
+async function clearAllNotifications() {
+    if (!(await appConfirm('Are you sure you want to delete ALL notifications? This cannot be undone.'))) {
         return;
     }
     
@@ -591,17 +591,17 @@ function clearAllNotifications() {
             renderNotificationsPage();
             updateClearAllButton();
         } else {
-            alert('Error: ' + (result.error || 'Failed to clear notifications'));
+            appAlert('Error: ' + (result.error || 'Failed to clear notifications'));
         }
     })
     .catch(function(error) {
         console.error('Error clearing notifications:', error);
-        alert('Failed to clear notifications');
+        appAlert('Failed to clear notifications');
     });
 }
 
-function deleteNotification(notificationId) {
-    if (!confirm('Are you sure you want to delete this notification?')) {
+async function deleteNotification(notificationId) {
+    if (!(await appConfirm('Are you sure you want to delete this notification?'))) {
         return;
     }
     
@@ -611,12 +611,12 @@ function deleteNotification(notificationId) {
         if (result.success) {
             loadRecentNotifications();
         } else {
-            alert('Error: ' + (result.error || 'Failed to delete notification'));
+            appAlert('Error: ' + (result.error || 'Failed to delete notification'));
         }
     })
     .catch(function(error) {
         console.error('Error deleting notification:', error);
-        alert('Failed to delete notification');
+        appAlert('Failed to delete notification');
     });
 }
 

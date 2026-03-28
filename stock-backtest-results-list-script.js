@@ -200,7 +200,7 @@ function viewBacktest(backtestId) {
 }
 
 async function deleteBacktest(backtestId) {
-    if (!confirm('Are you sure you want to delete this backtest? This action cannot be undone.')) {
+    if (!(await appConfirm('Are you sure you want to delete this backtest? This action cannot be undone.'))) {
         return;
     }
     
@@ -222,6 +222,6 @@ async function deleteBacktest(backtestId) {
         
     } catch (error) {
         console.error('Error deleting backtest:', error);
-        alert('Error deleting backtest: ' + error.message);
+        appAlert('Error deleting backtest: ' + error.message);
     }
 }

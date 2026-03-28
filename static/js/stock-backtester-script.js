@@ -522,7 +522,7 @@ async function handleSubmit(e) {
                         const loadingEl = document.getElementById('loadingMessage');
                         if (loadingEl) loadingEl.style.display = 'none';
                         form.dataset.isSubmitting = 'false';
-                        alert(error.error || 'A backtest is already running.');
+                        appAlert(error.error || 'A backtest is already running.');
                         checkForRunningStockBacktests();
                         return;
                     }
@@ -540,7 +540,7 @@ async function handleSubmit(e) {
                 if (errorEl) { errorEl.textContent = `Error: ${err.message}`; errorEl.style.display = 'block'; }
                 if (loadingEl) loadingEl.style.display = 'none';
                 form.dataset.isSubmitting = 'false';
-                alert(`Error: ${err.message}`);
+                appAlert(`Error: ${err.message}`);
             }
         };
 
@@ -550,7 +550,7 @@ async function handleSubmit(e) {
         const errorEl = document.getElementById('errorMessage');
         if (errorEl) { errorEl.textContent = `Error: ${error.message}`; errorEl.style.display = 'block'; }
         form.dataset.isSubmitting = 'false';
-        alert(`Error: ${error.message}`);
+        appAlert(`Error: ${error.message}`);
     }
     
     return false;
@@ -711,11 +711,11 @@ function validateConfig(config) {
         }
         for (const cond of config.custom_conditions) {
             if (cond.left_candle === 'day' && cond.left_day === 0 && ['close', 'high', 'low', 'vwap'].includes(cond.left_type)) {
-                alert(`Invalid condition: cannot use day candle "${cond.left_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
+                appAlert(`Invalid condition: cannot use day candle "${cond.left_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
                 return false;
             }
             if (cond.right_candle === 'day' && cond.right_day === 0 && ['close', 'high', 'low', 'vwap'].includes(cond.right_type)) {
-                alert(`Invalid condition: cannot use day candle "${cond.right_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
+                appAlert(`Invalid condition: cannot use day candle "${cond.right_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
                 return false;
             }
         }
@@ -800,7 +800,7 @@ async function displayResults(backtestId, apiKey) {
         
     } catch (error) {
         console.error('Error displaying results:', error);
-        alert('Error loading results: ' + error.message);
+        appAlert('Error loading results: ' + error.message);
     }
 }
 
@@ -921,7 +921,7 @@ function setupDownloadButton(csvData, backtestId) {
     
     downloadBtn.onclick = () => {
         if (!csvData) {
-            alert('No CSV data available');
+            appAlert('No CSV data available');
             return;
         }
         
@@ -1325,7 +1325,7 @@ function pollRunningStockBacktest(backtestId, backtestType) {
 }
 
 async function cancelStockBacktest(backtestId) {
-    if (!confirm('Are you sure you want to cancel this backtest?')) return;
+    if (!(await appConfirm('Are you sure you want to cancel this backtest?'))) return;
     try {
         var response = await authFetch('/api/backtest/cancel/' + backtestId, { method: 'POST' });
         if (response.ok) {

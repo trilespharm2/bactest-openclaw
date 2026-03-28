@@ -88,7 +88,7 @@ function addPriceCondition() {
     // Limit to max 3 conditions
     const existingConditions = container.querySelectorAll('.price-condition-row');
     if (existingConditions.length >= 3) {
-        alert('Maximum of 3 price conditions allowed.');
+        appAlert('Maximum of 3 price conditions allowed.');
         return;
     }
     
@@ -2125,12 +2125,12 @@ function displayResults(result) {
     
     if (!equityCurveSection) {
         console.error('❌ equityCurveSection element NOT FOUND!');
-        alert('ERROR: equityCurveSection element missing from HTML!');
+        appAlert('ERROR: equityCurveSection element missing from HTML!');
     }
     
     if (!equityCurveContainer) {
         console.error('❌ equityCurveContainer element NOT FOUND!');
-        alert('ERROR: equityCurveContainer element missing from HTML!');
+        appAlert('ERROR: equityCurveContainer element missing from HTML!');
     }
     
     if (result.equity_curve_image && equityCurveSection && equityCurveContainer) {
@@ -2143,7 +2143,7 @@ function displayResults(result) {
         img.onload = () => console.log('✓✓✓ Equity curve image loaded successfully!');
         img.onerror = (e) => {
             console.error('❌❌❌ Failed to load equity curve image', e);
-            alert('Failed to load equity curve image!');
+            appAlert('Failed to load equity curve image!');
         };
         equityCurveContainer.innerHTML = '';
         equityCurveContainer.appendChild(img);
@@ -2303,7 +2303,7 @@ function showError(message) {
     const errorDiv = document.getElementById('backtestError');
     if (!errorDiv) {
         console.error('Error div not found:', message);
-        alert(message); // Fallback to alert
+        appAlert(message); // Fallback to alert
         return;
     }
     errorDiv.textContent = message;
@@ -2344,7 +2344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 a.click();
                 window.URL.revokeObjectURL(url);
             } else {
-                alert('No CSV data available');
+                appAlert('No CSV data available');
             }
         });
     }
@@ -2732,7 +2732,7 @@ function pollRunningBacktest(backtestId, backtestType) {
 }
 
 async function cancelRunningBacktest(backtestId) {
-    if (!confirm('Are you sure you want to cancel this backtest?')) return;
+    if (!(await appConfirm('Are you sure you want to cancel this backtest?'))) return;
     try {
         var response = await authFetch(API_BASE_URL + '/backtest/cancel/' + backtestId, { method: 'POST' });
         if (response.ok) {

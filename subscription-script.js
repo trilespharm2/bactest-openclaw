@@ -478,11 +478,11 @@ async function cancelPendingDowngrade(planId) {
             // Close the pricing modal if open
             closePricingModal();
         } else {
-            alert(result.error || 'Failed to cancel downgrade');
+            appAlert(result.error || 'Failed to cancel downgrade');
         }
     } catch (error) {
         console.error('Error canceling downgrade:', error);
-        alert('Failed to cancel downgrade. Please try again.');
+        appAlert('Failed to cancel downgrade. Please try again.');
     }
 }
 
@@ -869,7 +869,7 @@ async function confirmDowngrade(planId) {
             btn.disabled = false;
             btn.textContent = 'Confirm Downgrade';
         }
-        alert('Failed to downgrade: ' + error.message);
+        appAlert('Failed to downgrade: ' + error.message);
     }
 }
 
@@ -1126,7 +1126,7 @@ async function openStripePortal(flowType, clickEvent) {
         }
     } catch (error) {
         console.error('Error opening Stripe portal:', error);
-        alert(error.message || 'Failed to open billing portal.');
+        appAlert(error.message || 'Failed to open billing portal.');
     } finally {
         if (btn) {
             btn.disabled = false;
