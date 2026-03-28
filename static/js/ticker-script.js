@@ -639,16 +639,32 @@ function renderButterflyTable() {
     html += '</tbody></table>';
     body.innerHTML = html;
 
-    // Auto-scroll to center the strike column
-    // Strike column starts at 6 × 80 = 480px from table left
-    // We want scrollLeft such that strike is at center of visible viewport
+    // Auto-scroll to center the strike column and apply the correct sticky left value.
+    // Strike column starts at 6 × 80 = 480px from table left.
+    // We wait one frame so the DOM has laid out and clientWidth is correct.
     requestAnimationFrame(() => {
         if (!scroller) return;
-        const strikeStart = 480; // 6 call cols × 80px
+        // 1. Set sticky left in px (CSS % is relative to table, not viewport)
+        applyStrikeCenter();
+        // 2. Scroll so the strike column appears centred on first open
+        const strikeStart  = 480; // 6 call cols × 80px
         const visibleCenter = scroller.clientWidth / 2;
         scroller.scrollLeft = strikeStart - visibleCenter + 48; // 48 = half of 96px strike col
-        // Update range bar to reflect initial scroll
         syncScrollBarToScroller();
+    });
+}
+
+function applyStrikeCenter() {
+    // CSS percentages for `left` on sticky table cells are resolved against the
+    // table's containing block (the table itself, ~1056px), NOT the scroll
+    // container's visible width. We must set the pixel value in JS.
+    const scroller = document.getElementById('chainScroller');
+    if (!scroller) return;
+    const visibleW  = scroller.clientWidth;
+    const strikeW   = 96; // matches CSS width for .bf-strike-th/.bf-strike-td
+    const stickyLeft = Math.max(0, Math.floor(visibleW / 2 - strikeW / 2));
+    document.querySelectorAll('.bf-strike-th, .bf-strike-td').forEach(el => {
+        el.style.left = stickyLeft + 'px';
     });
 }
 
@@ -667,6 +683,9 @@ function syncButterflyScroll(pct) {
     const max = scroller.scrollWidth - scroller.clientWidth;
     scroller.scrollLeft = (pct / 100) * max;
 }
+
+// Re-apply sticky left on resize so the strike column stays centred
+window.addEventListener('resize', applyStrikeCenter, { passive: true });
 
 async function loadOptions(expiration) {
     const body = document.getElementById('butterflyBody');
