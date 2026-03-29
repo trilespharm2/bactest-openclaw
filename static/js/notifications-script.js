@@ -133,13 +133,183 @@ function removeSymbolInput(btn) {
     }
 }
 
+var pendingScannerData = null;
+
 function setupFormSubmission() {
     var form = document.getElementById('scannerSetupForm');
     
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-        createScanner();
+        showScannerConfirmation();
     });
+}
+
+function showScannerConfirmation() {
+    var scannerName = document.getElementById('scannerName').value.trim();
+    var symbolScope = document.querySelector('input[name="symbolScope"]:checked').value;
+    var filterType = document.querySelector('input[name="filterType"]:checked').value;
+    var frequency = document.querySelector('input[name="frequency"]:checked').value;
+    var channelType = document.querySelector('input[name="channelType"]:checked').value;
+
+    if (!scannerName) {
+        appAlert('Please enter a name for your scanner');
+        return;
+    }
+
+    var data = {
+        name: scannerName,
+        symbol_scope: symbolScope,
+        filter_type: filterType,
+        frequency: frequency,
+        channel_type: channelType
+    };
+
+    if (symbolScope === 'specific') {
+        data.symbols = getSymbolsList();
+        if (data.symbols.length === 0) {
+            appAlert('Please enter at least one symbol');
+            return;
+        }
+    }
+
+    if (filterType === 'preset') {
+        data.preset_filter_id = document.getElementById('presetFilterSelect').value;
+    } else {
+        var savedFilterId = document.getElementById('savedFilterSelect').value;
+        var selectedCard = document.querySelector('.saved-filter-card.selected');
+        if (!savedFilterId || !selectedCard) {
+            appAlert('Please select a saved filter from the list');
+            return;
+        }
+        data.saved_filter_id = parseInt(savedFilterId);
+    }
+
+    if (channelType === 'email') {
+        data.channel_target = document.getElementById('emailAddress').value;
+        if (!data.channel_target) {
+            appAlert('Please enter an email address');
+            return;
+        }
+    } else {
+        var botToken = document.getElementById('telegramBotToken').value;
+        var chatId = document.getElementById('telegramChatId').value;
+        if (!botToken || !chatId) {
+            appAlert('Please enter both Telegram bot token and chat ID');
+            return;
+        }
+        data._telegramBotToken = botToken;
+        data.channel_target = chatId;
+    }
+
+    var activeFromTime = document.getElementById('activeFromTime').value.trim();
+    var activeFromAmPm = document.getElementById('activeFromAmPm').value;
+    var activeToTime = document.getElementById('activeToTime').value.trim();
+    var activeToAmPm = document.getElementById('activeToAmPm').value;
+    var durationValue = document.querySelector('input[name="duration"]:checked').value;
+
+    if (activeFromTime) {
+        data.active_from_time = activeFromTime + ' ' + activeFromAmPm;
+    }
+    if (activeToTime) {
+        data.active_to_time = activeToTime + ' ' + activeToAmPm;
+    }
+    if (durationValue === 'until') {
+        var expiresAt = document.getElementById('expiresAt').value;
+        if (expiresAt) {
+            data.expires_at = expiresAt;
+        }
+    }
+
+    var repeatFilterValue = document.querySelector('input[name="repeatFilter"]:checked');
+    if (repeatFilterValue && repeatFilterValue.value === 'on') {
+        data.filter_repeat_symbols = true;
+        data.repeat_threshold = parseInt(document.getElementById('repeatThreshold').value) || 5;
+    } else {
+        data.filter_repeat_symbols = false;
+    }
+
+    pendingScannerData = data;
+
+    var freqLabels = {
+        '1min': '1 Minute', '5min': '5 Minutes', '30min': '30 Minutes',
+        '1hr': '1 Hour', '4hr': '4 Hours', '1day': '1 Day', '1week': '1 Week'
+    };
+
+    var filterLabel = '';
+    if (filterType === 'preset') {
+        var sel = document.getElementById('presetFilterSelect');
+        filterLabel = sel.options[sel.selectedIndex].text;
+    } else {
+        var card = document.querySelector('.saved-filter-card.selected .saved-filter-name');
+        filterLabel = card ? card.textContent : 'Stored Filter #' + data.saved_filter_id;
+    }
+
+    var rows = [
+        ['Scanner Name', data.name],
+        ['Symbols', symbolScope === 'any' ? 'All Symbols' : data.symbols.join(', ')],
+        ['Filter', filterLabel],
+        ['Frequency', freqLabels[frequency] || frequency],
+        ['Notification', channelType === 'email' ? 'Email: ' + data.channel_target : 'Telegram: Chat ' + data.channel_target]
+    ];
+
+    if (data.active_from_time) rows.push(['Active From', data.active_from_time]);
+    if (data.active_to_time) rows.push(['Active Until', data.active_to_time]);
+    if (data.expires_at) rows.push(['Expires', data.expires_at]);
+    if (data.filter_repeat_symbols) rows.push(['Repeat Filter', 'Skip after ' + data.repeat_threshold + ' consecutive hits']);
+
+    var tableHtml = rows.map(function(r) {
+        return '<tr style="border-bottom:1px solid #f0f2f6;">' +
+            '<td style="padding:10px 12px;font-weight:600;color:#3b4758;white-space:nowrap;width:140px;">' + r[0] + '</td>' +
+            '<td style="padding:10px 12px;color:#1a1e2e;">' + r[1] + '</td></tr>';
+    }).join('');
+
+    document.getElementById('scannerConfirmTable').innerHTML = tableHtml;
+    document.getElementById('scannerConfirmModal').style.display = 'flex';
+}
+
+function closeScannerConfirmModal() {
+    document.getElementById('scannerConfirmModal').style.display = 'none';
+}
+
+function confirmAndCreateScanner() {
+    if (!pendingScannerData) return;
+    closeScannerConfirmModal();
+
+    var data = Object.assign({}, pendingScannerData);
+    if (data._telegramBotToken) {
+        saveTelegramChannel(data._telegramBotToken, data.channel_target);
+        delete data._telegramBotToken;
+    }
+
+    var btn = document.getElementById('createScannerBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+    authFetch('/api/scanners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(result) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Create Scanner';
+
+        if (result.success) {
+            appAlert('Scanner created successfully!');
+            resetForm();
+            loadScanners();
+        } else {
+            appAlert('Error: ' + (result.error || 'Failed to create scanner'));
+        }
+    })
+    .catch(function(error) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Create Scanner';
+        appAlert('Network error creating scanner');
+    });
+
+    pendingScannerData = null;
 }
 
 function getSymbolsList() {
@@ -156,120 +326,6 @@ function getSymbolsList() {
     return symbols;
 }
 
-function createScanner() {
-    var scannerName = document.getElementById('scannerName').value.trim();
-    var symbolScope = document.querySelector('input[name="symbolScope"]:checked').value;
-    var filterType = document.querySelector('input[name="filterType"]:checked').value;
-    var frequency = document.querySelector('input[name="frequency"]:checked').value;
-    var channelType = document.querySelector('input[name="channelType"]:checked').value;
-    
-    if (!scannerName) {
-        appAlert('Please enter a name for your scanner');
-        return;
-    }
-    
-    var data = {
-        name: scannerName,
-        symbol_scope: symbolScope,
-        filter_type: filterType,
-        frequency: frequency,
-        channel_type: channelType
-    };
-    
-    if (symbolScope === 'specific') {
-        data.symbols = getSymbolsList();
-        if (data.symbols.length === 0) {
-            appAlert('Please enter at least one symbol');
-            return;
-        }
-    }
-    
-    if (filterType === 'preset') {
-        data.preset_filter_id = document.getElementById('presetFilterSelect').value;
-    } else {
-        var savedFilterId = document.getElementById('savedFilterSelect').value;
-        var selectedCard = document.querySelector('.saved-filter-card.selected');
-        if (!savedFilterId || !selectedCard) {
-            appAlert('Please select a saved filter from the list');
-            return;
-        }
-        data.saved_filter_id = parseInt(savedFilterId);
-    }
-    
-    if (channelType === 'email') {
-        data.channel_target = document.getElementById('emailAddress').value;
-        if (!data.channel_target) {
-            appAlert('Please enter an email address');
-            return;
-        }
-    } else {
-        var botToken = document.getElementById('telegramBotToken').value;
-        var chatId = document.getElementById('telegramChatId').value;
-        
-        if (!botToken || !chatId) {
-            appAlert('Please enter both Telegram bot token and chat ID');
-            return;
-        }
-        
-        saveTelegramChannel(botToken, chatId);
-        data.channel_target = chatId;
-    }
-    
-    var activeFromTime = document.getElementById('activeFromTime').value.trim();
-    var activeFromAmPm = document.getElementById('activeFromAmPm').value;
-    var activeToTime = document.getElementById('activeToTime').value.trim();
-    var activeToAmPm = document.getElementById('activeToAmPm').value;
-    var durationValue = document.querySelector('input[name="duration"]:checked').value;
-    
-    if (activeFromTime) {
-        data.active_from_time = activeFromTime + ' ' + activeFromAmPm;
-    }
-    if (activeToTime) {
-        data.active_to_time = activeToTime + ' ' + activeToAmPm;
-    }
-    if (durationValue === 'until') {
-        var expiresAt = document.getElementById('expiresAt').value;
-        if (expiresAt) {
-            data.expires_at = expiresAt;
-        }
-    }
-    
-    var repeatFilterValue = document.querySelector('input[name="repeatFilter"]:checked');
-    if (repeatFilterValue && repeatFilterValue.value === 'on') {
-        data.filter_repeat_symbols = true;
-        data.repeat_threshold = parseInt(document.getElementById('repeatThreshold').value) || 5;
-    } else {
-        data.filter_repeat_symbols = false;
-    }
-    
-    var btn = document.getElementById('createScannerBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
-    
-    authFetch('/api/scanners', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(result) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-bolt"></i> Create Scanner';
-        
-        if (result.success) {
-            appAlert('Scanner created successfully!');
-            resetForm();
-            loadScanners();
-        } else {
-            appAlert('Error: ' + (result.error || 'Failed to create scanner'));
-        }
-    })
-    .catch(function(error) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-bolt"></i> Create Scanner';
-        appAlert('Error creating scanner: ' + error.message);
-    });
-}
 
 function generateScannerName(filterType, frequency) {
     var filterName = filterType === 'preset' ? 'NASDAQ Movers' : 'Custom Filter';
