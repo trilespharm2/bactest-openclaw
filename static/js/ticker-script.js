@@ -557,76 +557,125 @@ function renderOptionsChart(type) {
     });
 }
 
-function renderButterflyTable() {
-    const body     = document.getElementById('butterflyBody');
-    const scroller = document.getElementById('chainScroller');
-    if (!optionsData || !body) return;
+// ─── 3-panel butterfly ────────────────────────────────────────────────────────
+// Layout: [Calls panel | Strike panel (fixed) | Puts panel]
+// Calls columns (L→R in DOM): IV | OI | Volume | Ask | Bid | Last
+//   → slider=0: show Last (scrollLeft=max); slider=100: show IV (scrollLeft=0)
+// Puts columns  (L→R in DOM): Last | Bid | Ask | Volume | OI | IV
+//   → slider=0: show Last (scrollLeft=0); slider=100: show IV (scrollLeft=max)
+// Vertical scroll: the three panels stay in sync via JS.
 
-    // Build sorted strike list
+let bfVScrollLock = false;
+
+function bfSyncVertical(src) {
+    if (bfVScrollLock) return;
+    bfVScrollLock = true;
+    const top = src.scrollTop;
+    ['bfCallsPanel', 'bfStrikePanel', 'bfPutsPanel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el !== src) el.scrollTop = top;
+    });
+    bfVScrollLock = false;
+}
+
+function bfSyncHorizontal(pct) {
+    // Calls panel: slider=0 → max scrollLeft (shows Last); slider=100 → 0 (shows IV)
+    const calls = document.getElementById('bfCallsPanel');
+    if (calls) {
+        const maxC = calls.scrollWidth - calls.clientWidth;
+        calls.scrollLeft = maxC * (1 - pct / 100);
+    }
+    // Puts panel: slider=0 → 0 (shows Last); slider=100 → max (shows IV)
+    const puts = document.getElementById('bfPutsPanel');
+    if (puts) {
+        const maxP = puts.scrollWidth - puts.clientWidth;
+        puts.scrollLeft = maxP * (pct / 100);
+    }
+}
+
+function renderButterflyTable() {
+    const callsWrap  = document.getElementById('bfCallsWrap');
+    const strikeWrap = document.getElementById('bfStrikeWrap');
+    const putsWrap   = document.getElementById('bfPutsWrap');
+    if (!optionsData || !callsWrap || !strikeWrap || !putsWrap) return;
+
     const allStrikes = new Set();
     (optionsData.calls || []).forEach(r => { if (r.strike != null) allStrikes.add(r.strike); });
     (optionsData.puts  || []).forEach(r => { if (r.strike != null) allStrikes.add(r.strike); });
     const strikes = Array.from(allStrikes).sort((a, b) => a - b);
 
+    const noData = '<div class="text-center py-4 text-muted" style="font-size:13px;">No chain data available.</div>';
     if (!strikes.length) {
-        body.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:13px;">No chain data available.</div>';
+        callsWrap.innerHTML = noData; strikeWrap.innerHTML = ''; putsWrap.innerHTML = '';
         return;
     }
 
     const callMap = {};
     (optionsData.calls || []).forEach(r => { callMap[r.strike] = r; });
     const putMap = {};
-    (optionsData.puts || []).forEach(r => { putMap[r.strike] = r; });
+    (optionsData.puts  || []).forEach(r => { putMap[r.strike] = r; });
 
-    // ATM strike = nearest to current price
     let atmStrike = null;
+    let atmIdx    = 0;
     if (currentPrice != null) {
         atmStrike = strikes.reduce((best, s) =>
             Math.abs(s - currentPrice) < Math.abs(best - currentPrice) ? s : best, strikes[0]);
+        atmIdx = strikes.indexOf(atmStrike);
     }
 
     function fv(val, prefix = '') { return val != null ? prefix + fmt(val) : '—'; }
     function iv(val) { return val != null ? fmt(val * 100, 1) + '%' : '—'; }
     function vl(val) { return val != null ? fmtLarge(val) : '—'; }
 
-    // Table: 6 call cols + 1 strike + 6 put cols = 13 cols
-    // Total width = 6×80 + 96 + 6×80 = 1056px
-    let html = `<table style="width:1056px;">
-      <thead><tr>
-        <th style="color:#0fad6e;">IV</th>
-        <th style="color:#0fad6e;">OI</th>
-        <th style="color:#0fad6e;">Volume</th>
-        <th style="color:#0fad6e;">Ask</th>
-        <th style="color:#0fad6e;">Bid</th>
-        <th style="color:#0fad6e;">Last</th>
-        <th class="bf-strike-th">Strike</th>
-        <th style="color:#d94452;">Last</th>
-        <th style="color:#d94452;">Bid</th>
-        <th style="color:#d94452;">Ask</th>
-        <th style="color:#d94452;">Volume</th>
-        <th style="color:#d94452;">OI</th>
-        <th style="color:#d94452;">IV</th>
-      </tr></thead>
-      <tbody>`;
+    // Build calls table (IV | OI | Volume | Ask | Bid | Last — outermost left, inner right)
+    let callsHtml = `<table><thead><tr>
+        <th style="color:#0fad6e;width:80px;">IV</th>
+        <th style="color:#0fad6e;width:80px;">OI</th>
+        <th style="color:#0fad6e;width:80px;">Volume</th>
+        <th style="color:#0fad6e;width:80px;">Ask</th>
+        <th style="color:#0fad6e;width:80px;">Bid</th>
+        <th style="color:#0fad6e;width:80px;">Last</th>
+      </tr></thead><tbody>`;
 
-    strikes.forEach(strike => {
-        const c   = callMap[strike] || {};
-        const p   = putMap[strike]  || {};
+    // Build strike table (Strike only)
+    let strikeHtml = `<table><thead><tr>
+        <th style="color:#3b6df0;width:96px;">Strike</th>
+      </tr></thead><tbody>`;
+
+    // Build puts table (Last | Bid | Ask | Volume | OI | IV — inner left, outer right)
+    let putsHtml = `<table><thead><tr>
+        <th style="color:#d94452;width:80px;">Last</th>
+        <th style="color:#d94452;width:80px;">Bid</th>
+        <th style="color:#d94452;width:80px;">Ask</th>
+        <th style="color:#d94452;width:80px;">Volume</th>
+        <th style="color:#d94452;width:80px;">OI</th>
+        <th style="color:#d94452;width:80px;">IV</th>
+      </tr></thead><tbody>`;
+
+    strikes.forEach((strike, idx) => {
+        const c     = callMap[strike] || {};
+        const p     = putMap[strike]  || {};
         const isAtm = strike === atmStrike;
-        const isItm = currentPrice != null && strike < currentPrice; // call ITM
-        const rowCls = (isAtm ? ' bf-atm' : '') + (isItm ? ' bf-itm' : '');
-        const strikeLbl = isAtm
-            ? `<span style="font-size:9px;background:#3b6df0;color:#fff;border-radius:3px;padding:1px 4px;letter-spacing:.5px;">ATM</span><br>$${fmt(strike, 0)}`
-            : `$${fmt(strike, 0)}`;
+        const isItm = currentPrice != null && strike < currentPrice;
+        const rowCls = isAtm ? 'bf-atm-row' : (isItm ? 'bf-itm-row' : '');
 
-        html += `<tr class="${rowCls}">
+        callsHtml += `<tr class="${rowCls}">
           <td style="color:#888;">${iv(c.impliedVolatility)}</td>
           <td style="color:#888;">${vl(c.openInterest)}</td>
           <td style="color:#0fad6e;font-weight:600;">${vl(c.volume)}</td>
           <td>${fv(c.ask, '$')}</td>
           <td>${fv(c.bid, '$')}</td>
           <td style="font-weight:600;">${fv(c.lastPrice, '$')}</td>
-          <td class="bf-strike-td">${strikeLbl}</td>
+        </tr>`;
+
+        const atmBadge = isAtm
+            ? `<span style="font-size:9px;background:#3b6df0;color:#fff;border-radius:3px;padding:0 4px;margin-right:3px;">ATM</span>`
+            : '';
+        strikeHtml += `<tr class="${rowCls}">
+          <td style="color:${isAtm ? '#fff' : '#3b6df0'};font-weight:700;">${atmBadge}$${fmt(strike, 0)}</td>
+        </tr>`;
+
+        putsHtml += `<tr class="${rowCls}">
           <td style="font-weight:600;">${fv(p.lastPrice, '$')}</td>
           <td>${fv(p.bid, '$')}</td>
           <td>${fv(p.ask, '$')}</td>
@@ -636,81 +685,73 @@ function renderButterflyTable() {
         </tr>`;
     });
 
-    html += '</tbody></table>';
-    body.innerHTML = html;
+    callsHtml  += '</tbody></table>';
+    strikeHtml += '</tbody></table>';
+    putsHtml   += '</tbody></table>';
 
-    // Auto-scroll to center the strike column and apply the correct sticky left value.
-    // Strike column starts at 6 × 80 = 480px from table left.
-    // We wait one frame so the DOM has laid out and clientWidth is correct.
+    callsWrap.innerHTML  = callsHtml;
+    strikeWrap.innerHTML = strikeHtml;
+    putsWrap.innerHTML   = putsHtml;
+
+    // Wait one frame for layout, then:
+    // 1. Set horizontal slider to 0 (show Last on both sides)
+    // 2. Scroll vertically so ATM row is near the top
     requestAnimationFrame(() => {
-        if (!scroller) return;
-        // 1. Set sticky left in px (CSS % is relative to table, not viewport)
-        applyStrikeCenter();
-        // 2. Scroll so the strike column appears centred on first open
-        const strikeStart  = 480; // 6 call cols × 80px
-        const visibleCenter = scroller.clientWidth / 2;
-        scroller.scrollLeft = strikeStart - visibleCenter + 48; // 48 = half of 96px strike col
-        syncScrollBarToScroller();
+        const bar = document.getElementById('butterflyScrollBar');
+        if (bar) bar.value = 0;
+        bfSyncHorizontal(0);
+
+        // Scroll ATM row near the top (header=36px, each row=35px)
+        if (atmIdx > 0) {
+            const rowH   = 35;
+            const headerH = 36;
+            const target  = headerH + atmIdx * rowH - 20; // 20px margin above ATM
+            ['bfCallsPanel', 'bfStrikePanel', 'bfPutsPanel'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.scrollTop = Math.max(0, target);
+            });
+        }
+
+        // Wire up vertical scroll sync (only once; flag guards re-entry)
+        ['bfCallsPanel', 'bfStrikePanel', 'bfPutsPanel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && !el._bfVScrollBound) {
+                el.addEventListener('scroll', () => bfSyncVertical(el), { passive: true });
+                el._bfVScrollBound = true;
+            }
+        });
     });
 }
-
-function applyStrikeCenter() {
-    // CSS percentages for `left` on sticky table cells are resolved against the
-    // table's containing block (the table itself, ~1056px), NOT the scroll
-    // container's visible width. We must set the pixel value in JS.
-    const scroller = document.getElementById('chainScroller');
-    if (!scroller) return;
-    const visibleW  = scroller.clientWidth;
-    const strikeW   = 96; // matches CSS width for .bf-strike-th/.bf-strike-td
-    const stickyLeft = Math.max(0, Math.floor(visibleW / 2 - strikeW / 2));
-    document.querySelectorAll('.bf-strike-th, .bf-strike-td').forEach(el => {
-        el.style.left = stickyLeft + 'px';
-    });
-}
-
-function syncScrollBarToScroller() {
-    const scroller = document.getElementById('chainScroller');
-    const bar      = document.getElementById('butterflyScrollBar');
-    if (!scroller || !bar) return;
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    if (max <= 0) return;
-    bar.value = Math.round((scroller.scrollLeft / max) * 100);
-}
-
-function syncButterflyScroll(pct) {
-    const scroller = document.getElementById('chainScroller');
-    if (!scroller) return;
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    scroller.scrollLeft = (pct / 100) * max;
-}
-
-// Re-apply sticky left on resize so the strike column stays centred
-window.addEventListener('resize', applyStrikeCenter, { passive: true });
 
 async function loadOptions(expiration) {
-    const body = document.getElementById('butterflyBody');
-    if (body) body.innerHTML = `<div class="text-center py-4">
+    // Show loading spinners in all three panels
+    const loadingHtml = `<div class="text-center py-4">
         <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
         <span class="ms-2 text-muted" style="font-size:13px;">Loading options chain…</span>
     </div>`;
+    const cw = document.getElementById('bfCallsWrap');
+    const sw = document.getElementById('bfStrikeWrap');
+    const pw = document.getElementById('bfPutsWrap');
+    if (cw) cw.innerHTML = loadingHtml;
+    if (sw) sw.innerHTML = '';
+    if (pw) pw.innerHTML = '';
 
-    const msg = document.getElementById('optionsChartMsg');
-    if (msg) { msg.style.display = 'block'; msg.textContent = 'Loading…'; }
+    const msg    = document.getElementById('optionsChartMsg');
     const canvas = document.getElementById('optionsVolumeChart');
+    if (msg)    { msg.style.display = 'block'; msg.textContent = 'Loading…'; }
     if (canvas) canvas.style.display = 'none';
 
     try {
-        const url = `${API}/ticker/${SYMBOL}/options` + (expiration ? `?expiration=${encodeURIComponent(expiration)}` : '');
+        const url  = `${API}/ticker/${SYMBOL}/options` + (expiration ? `?expiration=${encodeURIComponent(expiration)}` : '');
         const r    = await fetch(url);
         const data = await r.json();
 
         if (data.error && !data.expirations?.length) {
             if (msg) { msg.style.display = 'block'; msg.textContent = data.error || 'Options data unavailable.'; }
-            if (body) body.innerHTML = `<div class="text-center py-4 text-muted" style="font-size:13px;">${esc(data.error || 'Options data unavailable.')}</div>`;
+            if (cw)  cw.innerHTML = `<div class="text-center py-4 text-muted" style="font-size:13px;">${esc(data.error || 'Options data unavailable.')}</div>`;
             return;
         }
 
-        // Populate expiry dropdown
         const sel = document.getElementById('optionsExpiry');
         if (sel && data.expirations && data.expirations.length) {
             sel.innerHTML = data.expirations.map(e =>
@@ -724,12 +765,12 @@ async function loadOptions(expiration) {
 
     } catch (e) {
         if (msg) { msg.style.display = 'block'; msg.textContent = 'Failed to load options data.'; }
-        if (body) body.innerHTML = '<div class="text-center py-4 text-danger" style="font-size:13px;">Failed to load options data.</div>';
+        if (cw)  cw.innerHTML = '<div class="text-center py-4 text-danger" style="font-size:13px;">Failed to load options data.</div>';
         console.error('Options error:', e);
     }
 }
 
-// Toggle collapse
+// Toggle chain collapse
 document.getElementById('toggleChainBtn').addEventListener('click', () => {
     const panel = document.getElementById('optionsChainCollapse');
     const icon  = document.getElementById('toggleChainIcon');
@@ -754,13 +795,10 @@ document.getElementById('optionsTypeBtns').addEventListener('click', (e) => {
     if (optionsData) renderOptionsChart(currentOptType);
 });
 
-// Scroll bar range → scroller
+// Horizontal slider → reveal calls or puts metrics
 document.getElementById('butterflyScrollBar').addEventListener('input', function () {
-    syncButterflyScroll(Number(this.value));
+    bfSyncHorizontal(Number(this.value));
 });
-
-// Native scroll → keep range bar in sync
-document.getElementById('chainScroller').addEventListener('scroll', syncScrollBarToScroller, { passive: true });
 
 loadInfo();
 loadChart('3mo');

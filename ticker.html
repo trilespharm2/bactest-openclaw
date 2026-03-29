@@ -24,24 +24,26 @@
     <link rel="stylesheet" href="/static/css/fonts.min.css" />
     <link rel="stylesheet" href="/static/css/ticker.css" />
     <style>
-      /* Butterfly options chain table */
-      #chainScroller table { border-collapse: collapse; table-layout: fixed; }
-      #chainScroller th, #chainScroller td {
-        width: 80px; min-width: 80px; text-align: center;
-        padding: 5px 6px; font-size: 11px; white-space: nowrap;
-        border-bottom: 1px solid #f0f2f5;
+      /* 3-panel butterfly layout */
+      .bf-panel { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; }
+      .bf-panel table, #bfStrikePanel table {
+        border-collapse: collapse; width: 100%;
       }
-      #chainScroller thead th { font-weight: 700; background: #f8f9fc; padding: 7px 6px; border-bottom: 2px solid #e5e9f0; }
-      #chainScroller tr:hover td { background: #f9fbff; }
-      .bf-strike-th, .bf-strike-td {
-        width: 96px !important; min-width: 96px !important;
-        position: sticky; left: 0; z-index: 2;
-        background: #eef2ff !important; color: #3b6df0;
-        font-weight: 700; border-left: 2px solid #c7d4f8; border-right: 2px solid #c7d4f8;
-        transition: left 0s;
+      .bf-panel th, .bf-panel td,
+      #bfStrikePanel th, #bfStrikePanel td {
+        height: 34px; line-height: 34px; padding: 0 8px;
+        font-size: 11px; white-space: nowrap; border-bottom: 1px solid #f0f2f5;
+        text-align: center; box-sizing: border-box;
       }
-      .bf-itm td { background: rgba(59,109,240,0.03); }
-      .bf-atm .bf-strike-td { background: #3b6df0 !important; color: #fff !important; border-color: #3b6df0 !important; }
+      .bf-panel thead th, #bfStrikePanel thead th {
+        font-weight: 700; background: #f8f9fc; height: 36px; line-height: 36px;
+        border-bottom: 2px solid #e5e9f0; position: sticky; top: 0; z-index: 3;
+      }
+      #bfStrikePanel { width: 96px; flex-shrink: 0; overflow-x: hidden; overflow-y: auto;
+        background: #eef2ff; border-left: 2px solid #c7d4f8; border-right: 2px solid #c7d4f8; }
+      #bfStrikePanel thead th { background: #dde8ff; color: #3b6df0; }
+      .bf-atm-row td, .bf-atm-row { background: #3b6df0 !important; color: #fff !important; font-weight: 700; }
+      .bf-itm-row td { background: rgba(59,109,240,0.04); }
     </style>
   </head>
   <body>
@@ -190,20 +192,28 @@
                       <i class="fas fa-chevron-down" id="toggleChainIcon"></i>
                     </button>
                     <div id="optionsChainCollapse" style="display:none;margin-top:8px;">
-                      <!-- Single scrollable butterfly table -->
-                      <div id="chainScroller" style="overflow-x:auto;border:1px solid #e5e9f0;border-radius:6px;">
-                        <div id="butterflyBody">
-                          <div class="text-center py-4">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                            <span class="ms-2 text-muted" style="font-size:13px;">Loading options chain…</span>
+                      <!-- 3-panel butterfly layout: Calls | Strike (fixed center) | Puts -->
+                      <div style="display:flex;max-height:400px;border:1px solid #e5e9f0;border-radius:6px;overflow:hidden;" id="bfWrapper">
+                        <div class="bf-panel" id="bfCallsPanel">
+                          <div id="bfCallsWrap" style="width:480px;">
+                            <div class="text-center py-4">
+                              <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                              <span class="ms-2 text-muted" style="font-size:13px;">Loading…</span>
+                            </div>
                           </div>
                         </div>
+                        <div id="bfStrikePanel">
+                          <div id="bfStrikeWrap" style="width:96px;"></div>
+                        </div>
+                        <div class="bf-panel" id="bfPutsPanel">
+                          <div id="bfPutsWrap" style="width:480px;"></div>
+                        </div>
                       </div>
-                      <!-- Scroll control bar -->
+                      <!-- Horizontal reveal slider -->
                       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:0 4px;">
-                        <span style="font-size:10px;color:#aaa;flex:0 0 auto;"><i class="fas fa-arrow-left me-1"></i>Calls</span>
-                        <input type="range" id="butterflyScrollBar" min="0" max="100" value="50" style="flex:1;height:4px;accent-color:#3b6df0;">
-                        <span style="font-size:10px;color:#aaa;flex:0 0 auto;">Puts<i class="fas fa-arrow-right ms-1"></i></span>
+                        <span style="font-size:10px;color:#888;flex:0 0 auto;"><i class="fas fa-arrow-left me-1"></i>Calls</span>
+                        <input type="range" id="butterflyScrollBar" min="0" max="100" value="0" style="flex:1;height:4px;accent-color:#3b6df0;">
+                        <span style="font-size:10px;color:#888;flex:0 0 auto;">Puts<i class="fas fa-arrow-right ms-1"></i></span>
                       </div>
                     </div>
                   </div>
