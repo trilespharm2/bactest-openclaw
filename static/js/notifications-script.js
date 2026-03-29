@@ -430,6 +430,9 @@ function renderScanners(scanners) {
                 '<button class="btn-run" onclick="runScannerNow(' + scanner.id + ')">' +
                     '<i class="fas fa-bolt"></i> Run Now' +
                 '</button>' +
+                '<button class="btn-edit" onclick="editScanner(' + scanner.id + ')" style="background:#f0f4ff;color:#3b6df0;border:1px solid #d0dbf0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;">' +
+                    '<i class="fas fa-pen"></i> Edit' +
+                '</button>' +
                 '<button class="btn-delete" onclick="deleteScanner(' + scanner.id + ')">' +
                     '<i class="fas fa-trash"></i>' +
                 '</button>' +
@@ -461,6 +464,105 @@ function runScannerNow(scannerId) {
         } else {
             appAlert('Error: ' + (result.error || 'Failed to run scanner'));
         }
+    });
+}
+
+function editScanner(scannerId) {
+    authFetch('/api/scanners/' + scannerId)
+    .then(function(response) { return response.json(); })
+    .then(function(result) {
+        if (!result.success) {
+            appAlert('Error loading scanner: ' + (result.error || 'Not found'));
+            return;
+        }
+        var s = result.scanner;
+        document.getElementById('editScannerId').value = s.id;
+        document.getElementById('editScannerName').value = s.name || '';
+        document.getElementById('editFrequency').value = s.frequency || '5min';
+        document.getElementById('editChannelType').value = s.channel_type || 'email';
+        document.getElementById('editChannelTarget').value = s.channel_target || '';
+        document.getElementById('editActiveFromTime').value = s.active_from_time ? s.active_from_time.replace(/ (AM|PM)$/, '') : '';
+        document.getElementById('editActiveFromAmPm').value = s.active_from_time && s.active_from_time.includes('PM') ? 'PM' : 'AM';
+        document.getElementById('editActiveToTime').value = s.active_to_time ? s.active_to_time.replace(/ (AM|PM)$/, '') : '';
+        document.getElementById('editActiveToAmPm').value = s.active_to_time && s.active_to_time.includes('PM') ? 'PM' : 'AM';
+        document.getElementById('editExpiresAt').value = s.expires_at ? s.expires_at.split('T')[0] : '';
+        document.getElementById('editRepeatFilter').checked = !!s.filter_repeat_symbols;
+        document.getElementById('editRepeatThreshold').value = s.repeat_threshold || 5;
+        document.getElementById('editRepeatThresholdGroup').style.display = s.filter_repeat_symbols ? 'flex' : 'none';
+
+        var channelLabel = document.getElementById('editChannelLabel');
+        if (s.channel_type === 'email') {
+            channelLabel.textContent = 'Email Address';
+        } else {
+            channelLabel.textContent = 'Telegram Chat ID';
+        }
+
+        document.getElementById('editScannerModal').style.display = 'flex';
+    })
+    .catch(function(error) {
+        appAlert('Error loading scanner details');
+        console.error(error);
+    });
+}
+
+function closeEditScannerModal() {
+    document.getElementById('editScannerModal').style.display = 'none';
+}
+
+function saveEditScanner() {
+    var scannerId = document.getElementById('editScannerId').value;
+    var data = {
+        name: document.getElementById('editScannerName').value.trim(),
+        frequency: document.getElementById('editFrequency').value,
+        channel_type: document.getElementById('editChannelType').value,
+        channel_target: document.getElementById('editChannelTarget').value.trim()
+    };
+
+    var fromTime = document.getElementById('editActiveFromTime').value.trim();
+    var fromAmPm = document.getElementById('editActiveFromAmPm').value;
+    var toTime = document.getElementById('editActiveToTime').value.trim();
+    var toAmPm = document.getElementById('editActiveToAmPm').value;
+
+    data.active_from_time = fromTime ? fromTime + ' ' + fromAmPm : '';
+    data.active_to_time = toTime ? toTime + ' ' + toAmPm : '';
+    data.expires_at = document.getElementById('editExpiresAt').value || '';
+    data.filter_repeat_symbols = document.getElementById('editRepeatFilter').checked;
+    data.repeat_threshold = parseInt(document.getElementById('editRepeatThreshold').value) || 5;
+
+    if (!data.name) {
+        appAlert('Scanner name is required');
+        return;
+    }
+    if (!data.channel_target) {
+        appAlert('Notification target is required');
+        return;
+    }
+
+    var btn = document.getElementById('saveEditScannerBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+    authFetch('/api/scanners/' + scannerId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(result) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+        if (result.success) {
+            appAlert('Scanner updated successfully!');
+            closeEditScannerModal();
+            loadScanners();
+        } else {
+            appAlert('Error: ' + (result.error || 'Failed to update scanner'));
+        }
+    })
+    .catch(function(error) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+        appAlert('Network error updating scanner');
     });
 }
 

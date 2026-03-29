@@ -6720,6 +6720,19 @@ def update_scanner(scanner_id):
             scanner.channel_target = data['channel_target']
         if 'is_active' in data:
             scanner.is_active = data['is_active']
+        if 'active_from_time' in data:
+            scanner.active_from_time = data['active_from_time'] or None
+        if 'active_to_time' in data:
+            scanner.active_to_time = data['active_to_time'] or None
+        if 'expires_at' in data:
+            if data['expires_at']:
+                scanner.expires_at = datetime.strptime(data['expires_at'], '%Y-%m-%d')
+            else:
+                scanner.expires_at = None
+        if 'filter_repeat_symbols' in data:
+            scanner.filter_repeat_symbols = data['filter_repeat_symbols']
+        if 'repeat_threshold' in data:
+            scanner.repeat_threshold = data['repeat_threshold']
         
         db.session.commit()
         

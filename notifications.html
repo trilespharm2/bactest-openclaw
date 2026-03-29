@@ -1262,6 +1262,101 @@
     </div>
 </div>
 
+<!-- Edit Scanner Modal -->
+<div class="notification-modal-overlay" id="editScannerModal" style="display: none;">
+    <div class="notification-modal" style="max-width:560px;">
+        <div class="notification-modal-header" style="background:linear-gradient(135deg,#3b6df0,#6a3de8);color:#fff;">
+            <h4><i class="fas fa-pen me-2"></i>Edit Scanner</h4>
+            <button class="modal-close-btn" onclick="closeEditScannerModal()" style="color:#fff;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="notification-modal-body" style="padding:20px;max-height:70vh;overflow-y:auto;">
+            <input type="hidden" id="editScannerId" />
+
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Scanner Name</label>
+                <input type="text" id="editScannerName" class="form-control" style="border-radius:8px;" />
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Scan Frequency</label>
+                <select id="editFrequency" class="form-control" style="border-radius:8px;">
+                    <option value="1min">1 Minute</option>
+                    <option value="5min">5 Minutes</option>
+                    <option value="30min">30 Minutes</option>
+                    <option value="1hr">1 Hour</option>
+                    <option value="4hr">4 Hours</option>
+                    <option value="1day">1 Day</option>
+                    <option value="1week">1 Week</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Notification Method</label>
+                <select id="editChannelType" class="form-control" style="border-radius:8px;" onchange="document.getElementById('editChannelLabel').textContent = this.value === 'email' ? 'Email Address' : 'Telegram Chat ID';">
+                    <option value="email">Email</option>
+                    <option value="telegram">Telegram</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label id="editChannelLabel" style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Email Address</label>
+                <input type="text" id="editChannelTarget" class="form-control" style="border-radius:8px;" />
+            </div>
+
+            <div style="margin-bottom:16px;display:flex;gap:12px;">
+                <div style="flex:1;">
+                    <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Active From</label>
+                    <div style="display:flex;gap:6px;">
+                        <input type="text" id="editActiveFromTime" class="form-control" placeholder="9:30" style="border-radius:8px;flex:1;" />
+                        <select id="editActiveFromAmPm" class="form-control" style="border-radius:8px;width:70px;">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="flex:1;">
+                    <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Active Until</label>
+                    <div style="display:flex;gap:6px;">
+                        <input type="text" id="editActiveToTime" class="form-control" placeholder="4:00" style="border-radius:8px;flex:1;" />
+                        <select id="editActiveToAmPm" class="form-control" style="border-radius:8px;width:70px;">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Expires On</label>
+                <input type="date" id="editExpiresAt" class="form-control" style="border-radius:8px;" />
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <input type="checkbox" id="editRepeatFilter" onchange="document.getElementById('editRepeatThresholdGroup').style.display = this.checked ? 'flex' : 'none';" />
+                    <label for="editRepeatFilter" style="font-weight:600;font-size:13px;color:#3b4758;margin:0;">Filter Repeat Symbols</label>
+                </div>
+                <div id="editRepeatThresholdGroup" style="display:none;align-items:center;gap:8px;">
+                    <span style="font-size:13px;color:#6b7689;">Skip after</span>
+                    <input type="number" id="editRepeatThreshold" class="form-control" value="5" min="1" max="100" style="width:70px;border-radius:8px;" />
+                    <span style="font-size:13px;color:#6b7689;">consecutive hits</span>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:20px;">
+                <button class="btn btn-outline-secondary" style="flex:1;padding:10px;border-radius:8px;font-weight:600;" onclick="closeEditScannerModal()">
+                    Cancel
+                </button>
+                <button class="btn btn-primary" style="flex:1;padding:10px;border-radius:8px;font-weight:600;background:linear-gradient(135deg,#3b6df0,#6a3de8);border:none;" id="saveEditScannerBtn" onclick="saveEditScanner()">
+                    <i class="fas fa-save me-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Scanner Confirmation Modal -->
 <div class="notification-modal-overlay" id="scannerConfirmModal" style="display: none;">
     <div class="notification-modal" style="max-width:520px;">
