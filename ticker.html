@@ -90,29 +90,29 @@
                   <p>Screener</p>
                 </a>
               </li>
-              <li class="nav-item" id="nav-notifications">
+              <li class="nav-item auth-only" id="nav-notifications">
                 <a href="/#notifications">
                   <i class="fas fa-bell"></i>
                   <p>Notifications</p>
                 </a>
               </li>
-              <li class="nav-section">
+              <li class="nav-section auth-only">
                 <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
                 <h4 class="text-section">Backtesting</h4>
               </li>
-              <li class="nav-item" id="nav-backtester">
+              <li class="nav-item auth-only" id="nav-backtester">
                 <a href="/#backtester">
                   <i class="fas fa-flask"></i>
                   <p>Option Backtest</p>
                 </a>
               </li>
-              <li class="nav-item" id="nav-stockBacktester">
+              <li class="nav-item auth-only" id="nav-stockBacktester">
                 <a href="/#stockBacktester">
                   <i class="fas fa-chart-line"></i>
                   <p>Stock Backtest</p>
                 </a>
               </li>
-              <li class="nav-item" id="nav-simulatedTrading">
+              <li class="nav-item auth-only" id="nav-simulatedTrading">
                 <a href="/#simulatedTrading">
                   <i class="fas fa-gamepad"></i>
                   <p>Simulated Trading</p>
@@ -134,7 +134,7 @@
                   <p>FAQ</p>
                 </a>
               </li>
-              <li class="nav-item" id="nav-settings">
+              <li class="nav-item auth-only" id="nav-settings">
                 <a href="/#settings">
                   <i class="fas fa-cog"></i>
                   <p>Settings</p>
@@ -237,7 +237,7 @@
         <div class="container">
           <div class="page-inner">
           <!-- Ticker Header Info Bar -->
-          <div id="tickerHeaderInfo" class="d-flex align-items-center gap-3 mb-3 flex-wrap" style="min-height:40px;">
+          <div id="tickerHeaderInfo" class="ticker-headline text-center mb-3" style="min-height:40px;">
             <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
           </div>
           <!-- Ticker Stats Card -->
@@ -436,6 +436,9 @@
             if (nameEl) nameEl.textContent = uname;
             if (nameDisp) nameDisp.textContent = uname;
             if (emailDisp) emailDisp.textContent = (d.user && d.user.email) || '';
+            document.querySelectorAll('.auth-only').forEach(function(el) { el.style.display = ''; });
+          } else {
+            document.querySelectorAll('.auth-only').forEach(function(el) { el.style.display = 'none'; });
           }
         } catch(e) { console.error('Auth check error:', e); }
 
