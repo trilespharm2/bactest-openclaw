@@ -6885,7 +6885,7 @@ def get_recent_notifications():
                 'scanner_id': run.scanner_id,
                 'time': run.finished_at.isoformat() if run.finished_at else None,
                 'symbols_found': run.symbols_found,
-                'results': run.get_results()[:10],
+                'results': run.get_results(),
                 'filter_config': filter_config,
                 'status': run.status
             })

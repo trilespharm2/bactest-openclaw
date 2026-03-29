@@ -307,7 +307,7 @@ def execute_scan(filter_config, specific_symbols=None):
             cleaned_results = [r for r in cleaned_results if r.get('name', '').upper() in specific_symbols_upper or 
                       r.get('ticker', '').upper() in specific_symbols_upper]
         
-        return cleaned_results[:50]
+        return cleaned_results
         
     except Exception as e:
         logger.error(f"Scan execution error: {str(e)}")
@@ -376,7 +376,7 @@ def send_email_notification(scanner, run, results):
     msg['To'] = email_to
     
     symbols_list = '\n'.join([f"- {r.get('name', r.get('ticker', 'N/A'))}: {r.get('close', 'N/A')} ({r.get('change', 0):.2f}%)" 
-                              for r in results[:20]])
+                              for r in results])
     
     text_body = f"""
 BacktestPro Scanner Alert
@@ -388,11 +388,11 @@ Matches Found: {run.symbols_found}
 Results:
 {symbols_list}
 
-{'... and more' if len(results) > 20 else ''}
-
 ---
 Manage your scanners at BacktestPro
 """
+    
+    rows_html = ''.join([f"<tr><td style='padding: 8px; border: 1px solid #ddd;'>{r.get('name', r.get('ticker', 'N/A'))}</td><td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>${r.get('close', 0):.2f}</td><td style='padding: 8px; text-align: right; border: 1px solid #ddd; color: {'green' if r.get('change', 0) > 0 else 'red'};'>{r.get('change', 0):.2f}%</td></tr>" for r in results])
     
     html_body = f"""
 <html>
@@ -409,7 +409,7 @@ Manage your scanners at BacktestPro
             <th style="padding: 8px; text-align: right; border: 1px solid #ddd;">Price</th>
             <th style="padding: 8px; text-align: right; border: 1px solid #ddd;">Change %</th>
         </tr>
-        {''.join([f"<tr><td style='padding: 8px; border: 1px solid #ddd;'>{r.get('name', r.get('ticker', 'N/A'))}</td><td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>${r.get('close', 0):.2f}</td><td style='padding: 8px; text-align: right; border: 1px solid #ddd; color: {'green' if r.get('change', 0) > 0 else 'red'};'>{r.get('change', 0):.2f}%</td></tr>" for r in results[:20]])}
+        {rows_html}
     </table>
     
     <p style="margin-top: 20px; color: #666;">Manage your scanners at BacktestPro</p>
@@ -452,30 +452,43 @@ def send_telegram_notification(scanner, run, results):
         logger.error("Telegram bot_token or chat_id not configured")
         return False
     
-    symbols_text = '\n'.join([f"• {r.get('name', r.get('ticker', 'N/A'))}: ${r.get('close', 0):.2f} ({r.get('change', 0):+.2f}%)" 
-                              for r in results[:15]])
-    
-    message = f"""
-🔔 *BacktestPro Scanner Alert*
+    header = f"""🔔 *BacktestPro Scanner Alert*
 
 📊 *Scanner:* {scanner.name}
 ⏰ *Time:* {run.finished_at.strftime('%Y-%m-%d %H:%M:%S')} UTC
 ✅ *Matches:* {run.symbols_found}
 
 *Results:*
-{symbols_text}
-{'_... and more_' if len(results) > 15 else ''}
 """
+    
+    symbol_lines = [f"• {r.get('name', r.get('ticker', 'N/A'))}: ${r.get('close', 0):.2f} ({r.get('change', 0):+.2f}%)" 
+                    for r in results]
+    
+    messages = []
+    current_msg = header
+    for line in symbol_lines:
+        if len(current_msg) + len(line) + 1 > 4000:
+            messages.append(current_msg)
+            current_msg = f"*Results (continued):*\n{line}\n"
+        else:
+            current_msg += line + '\n'
+    if current_msg.strip():
+        messages.append(current_msg)
     
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        response = requests.post(url, json={
-            'chat_id': chat_id,
-            'text': message,
-            'parse_mode': 'Markdown'
-        })
+        all_sent = True
+        for msg_text in messages:
+            response = requests.post(url, json={
+                'chat_id': chat_id,
+                'text': msg_text,
+                'parse_mode': 'Markdown'
+            })
+            if response.status_code != 200:
+                all_sent = False
+                logger.error(f"Telegram send error for chunk: {response.text}")
         
-        if response.status_code == 200:
+        if all_sent:
             logger.info(f"Telegram message sent to chat {chat_id}")
             return True
         else:
