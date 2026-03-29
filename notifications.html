@@ -793,12 +793,23 @@
         border-radius: 8px;
         padding: 12px;
         text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    
+    .modal-result-item:hover {
+        background: #e8f0fe;
+        border-color: #1b55e2;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(27,85,226,0.12);
     }
     
     .modal-result-item .symbol {
         font-weight: 600;
         font-size: 14px;
-        color: #333;
+        color: #1b55e2;
+        text-decoration: underline;
     }
     
     .modal-result-item .change {

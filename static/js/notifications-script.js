@@ -811,7 +811,7 @@ function expandNotification(index) {
             var price = r.close || 0;
             var changeClass = change >= 0 ? 'positive' : 'negative';
             
-            resultsHtml += '<div class="modal-result-item">' +
+            resultsHtml += '<div class="modal-result-item" onclick="closeNotificationModal();navigateToTicker(\'' + escapeHtml(symbol) + '\')">' +
                 '<div class="symbol">' + escapeHtml(symbol) + '</div>' +
                 '<div class="change ' + changeClass + '">' + (change >= 0 ? '+' : '') + change.toFixed(2) + '%</div>' +
                 '<div class="price">$' + price.toFixed(2) + '</div>' +
@@ -1040,6 +1040,12 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function navigateToTicker(symbol) {
+    if (symbol) {
+        window.location.href = '/ticker/' + encodeURIComponent(symbol.trim().toUpperCase());
+    }
+}
+
 function filterScanners(query) {
     var items = document.querySelectorAll('#scannersGrid .scanner-card');
     var q = (query || '').toLowerCase();
@@ -1087,4 +1093,5 @@ if (typeof window.initNotificationsPage === 'undefined') {
     window.filterScanners = filterScanners;
     window.filterNotifications = filterNotifications;
     window.filterSavedFilterCards = filterSavedFilterCards;
+    window.navigateToTicker = navigateToTicker;
 }
