@@ -869,7 +869,7 @@ async function saveCurrentFilter() {
         return;
     }
     
-    var filterName = prompt('Enter a name for this filter configuration:');
+    var filterName = await appPrompt('Enter a name for this filter configuration:');
     if (!filterName || !filterName.trim()) return;
     
     var filterConfig = state.selectedFilters.map(filter => ({
