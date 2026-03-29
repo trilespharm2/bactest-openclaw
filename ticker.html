@@ -48,35 +48,188 @@
   </head>
   <body>
     <div class="wrapper">
-      <div class="main-panel" style="width:100%;">
-        <div class="main-header" style="position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid #eee;">
-          <nav class="navbar navbar-expand-lg" style="padding:8px 24px;">
-            <div class="d-flex align-items-center w-100">
-              <a href="/" class="btn btn-sm btn-outline-primary me-3" style="font-size:13px;flex-shrink:0;">
-                <i class="fas fa-arrow-left me-1"></i> Dashboard
+      <div class="sidebar" data-background-color="dark">
+        <div class="sidebar-logo">
+          <div class="logo-header" data-background-color="dark">
+            <a href="/" class="logo">
+              <span class="logo-text" style="color: #fff;">BacktestPro</span>
+            </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+                <i class="fas fa-bars"></i>
+              </button>
+              <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+                <i class="fas fa-bars"></i>
+              </button>
+            </div>
+            <button class="topbar-toggler more">
+              <i class="gg-more-vertical-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-wrapper scrollbar scrollbar-inner">
+          <div class="sidebar-content">
+            <ul class="nav nav-secondary">
+              <li class="nav-item" id="nav-home">
+                <a href="/">
+                  <i class="fas fa-home"></i>
+                  <p>Home</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-screener">
+                <a href="/#screener">
+                  <i class="fas fa-search-dollar"></i>
+                  <p>Screener</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-notifications">
+                <a href="/#notifications">
+                  <i class="fas fa-bell"></i>
+                  <p>Notifications</p>
+                </a>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Backtesting</h4>
+              </li>
+              <li class="nav-item" id="nav-backtester">
+                <a href="/#backtester">
+                  <i class="fas fa-flask"></i>
+                  <p>Option Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-stockBacktester">
+                <a href="/#stockBacktester">
+                  <i class="fas fa-chart-line"></i>
+                  <p>Stock Backtest</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-simulatedTrading">
+                <a href="/#simulatedTrading">
+                  <i class="fas fa-gamepad"></i>
+                  <p>Simulated Trading</p>
+                </a>
+              </li>
+              <li class="nav-section">
+                <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+                <h4 class="text-section">Account</h4>
+              </li>
+              <li class="nav-item" id="nav-subscription">
+                <a href="/#subscription">
+                  <i class="fas fa-credit-card"></i>
+                  <p>Pricing</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-faq">
+                <a href="/faq">
+                  <i class="fas fa-question-circle"></i>
+                  <p>FAQ</p>
+                </a>
+              </li>
+              <li class="nav-item" id="nav-settings">
+                <a href="/#settings">
+                  <i class="fas fa-cog"></i>
+                  <p>Settings</p>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-panel">
+        <div class="main-header">
+          <div class="main-header-logo">
+            <div class="logo-header" data-background-color="dark">
+              <a href="/" class="logo">
+                <span class="logo-text" style="color: #fff;">BacktestPro</span>
               </a>
-              <div id="tickerHeaderInfo" class="d-flex align-items-center gap-3 flex-grow-1 overflow-hidden">
-                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-              </div>
-              <div class="dropdown ms-3" style="flex-shrink:0;">
-                <button class="btn btn-sm btn-light" type="button" id="tickerMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" style="border:1px solid #e0e0e0;">
+              <div class="nav-toggle">
+                <button class="btn btn-toggle toggle-sidebar">
+                  <i class="gg-menu-right"></i>
                   <i class="fas fa-bars"></i>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="tickerMenuBtn">
-                  <li><a class="dropdown-item" href="/"><i class="fas fa-home me-2 text-primary"></i>Dashboard</a></li>
-                  <li><a class="dropdown-item" href="/#watchlist"><i class="fas fa-eye me-2 text-primary"></i>Watchlist</a></li>
-                  <li><a class="dropdown-item" href="/#backtests"><i class="fas fa-flask me-2 text-primary"></i>Backtests</a></li>
-                  <li><a class="dropdown-item" href="/#strategies"><i class="fas fa-chess me-2 text-primary"></i>Strategies</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="/#subscription"><i class="fas fa-credit-card me-2 text-primary"></i>Subscription</a></li>
-                  <li><a class="dropdown-item" href="/#settings"><i class="fas fa-cog me-2 text-primary"></i>Settings</a></li>
-                </ul>
+                <button class="btn btn-toggle sidenav-toggler">
+                  <i class="gg-menu-left"></i>
+                  <i class="fas fa-bars"></i>
+                </button>
               </div>
+              <button class="topbar-toggler more">
+                <i class="gg-more-vertical-alt"></i>
+              </button>
+            </div>
+          </div>
+          <nav class="navbar navbar-header navbar-header-transparent navbar-expand-lg border-bottom">
+            <div class="container-fluid">
+              <nav class="navbar navbar-header-left navbar-expand-lg navbar-form nav-search p-0 d-none d-lg-flex">
+                <div class="input-group" style="position:relative;">
+                  <div class="input-group-prepend">
+                    <button type="submit" class="btn btn-search pe-1">
+                      <i class="fa fa-search search-icon"></i>
+                    </button>
+                  </div>
+                  <input type="text" placeholder="Search tickers or companies…" class="form-control" id="tickerGlobalSearch" autocomplete="off" />
+                  <div id="tickerSearchDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1px solid #e1e5eb;border-radius:0 0 6px 6px;box-shadow:0 6px 18px rgba(0,0,0,0.12);max-height:340px;overflow-y:auto;"></div>
+                </div>
+              </nav>
+              <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+                <li class="nav-item topbar-icon dropdown hidden-caret d-flex d-lg-none">
+                  <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false" aria-haspopup="true">
+                    <i class="fa fa-search"></i>
+                  </a>
+                  <ul class="dropdown-menu dropdown-search animated fadeIn">
+                    <form class="navbar-left navbar-form nav-search">
+                      <div class="input-group">
+                        <input type="text" placeholder="Search ..." class="form-control" />
+                      </div>
+                    </form>
+                  </ul>
+                </li>
+                <li class="nav-item topbar-user dropdown hidden-caret" id="tickerUserProfileNav" style="display: none;">
+                  <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
+                    <div class="avatar-sm">
+                      <img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" />
+                    </div>
+                    <span class="profile-username">
+                      <span class="op-7">Hi,</span>
+                      <span class="fw-bold" id="tickerUserName">User</span>
+                    </span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-user animated fadeIn">
+                    <div class="dropdown-user-scroll scrollbar-outer">
+                      <li>
+                        <div class="user-box">
+                          <div class="avatar-lg"><img src="/static/img/profile.jpg" alt="image profile" class="avatar-img rounded" /></div>
+                          <div class="u-text">
+                            <h4 id="tickerUserNameDisplay">User</h4>
+                            <p class="text-muted" id="tickerUserEmailDisplay">user@email.com</p>
+                            <a href="/#settings" class="btn btn-xs btn-secondary btn-sm">View Profile</a>
+                          </div>
+                        </div>
+                      </li>
+                      <li>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="/#settings">My Profile</a>
+                        <a class="dropdown-item" href="/#subscription">Subscription</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="/logout">Logout</a>
+                      </li>
+                    </div>
+                  </ul>
+                </li>
+                <li class="nav-item d-flex align-items-center gap-2" id="tickerGuestNav">
+                  <a href="/login" class="btn btn-outline-primary btn-sm">Sign In</a>
+                  <a href="/register" class="btn btn-primary btn-sm">Sign Up</a>
+                </li>
+              </ul>
             </div>
           </nav>
         </div>
 
-        <div class="container-fluid" style="padding:20px 24px;">
+        <div class="container">
+          <div class="page-inner">
           <!-- Ticker Info Bar -->
           <div class="row mb-3">
             <div class="col-12">
@@ -230,6 +383,7 @@
               </div>
             </div>
           </div>
+          </div>
         </div>
       </div>
     </div>
@@ -237,8 +391,60 @@
     <script src="/static/js/core/jquery-3.7.1.min.js"></script>
     <script src="/static/js/core/popper.min.js"></script>
     <script src="/static/js/core/bootstrap.min.js"></script>
+    <script src="/static/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+    <script src="/static/js/kaiadmin.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
     <script src="/static/js/ticker-script.js"></script>
+    <script>
+      (async function() {
+        try {
+          const r = await fetch('/api/auth/status', {credentials:'include'});
+          const d = await r.json();
+          if (d.authenticated) {
+            const profileNav = document.getElementById('tickerUserProfileNav');
+            const guestNav = document.getElementById('tickerGuestNav');
+            const nameEl = document.getElementById('tickerUserName');
+            const nameDisp = document.getElementById('tickerUserNameDisplay');
+            const emailDisp = document.getElementById('tickerUserEmailDisplay');
+            if (profileNav) profileNav.style.display = '';
+            if (guestNav) guestNav.style.display = 'none';
+            if (nameEl) nameEl.textContent = d.user.username || 'User';
+            if (nameDisp) nameDisp.textContent = d.user.username || 'User';
+            if (emailDisp) emailDisp.textContent = d.user.email || '';
+          }
+        } catch(e) {}
+
+        var searchInput = document.getElementById('tickerGlobalSearch');
+        var searchDrop = document.getElementById('tickerSearchDropdown');
+        if (searchInput && searchDrop) {
+          var debounce;
+          searchInput.addEventListener('input', function() {
+            clearTimeout(debounce);
+            var q = searchInput.value.trim();
+            if (q.length < 1) { searchDrop.style.display = 'none'; return; }
+            debounce = setTimeout(async function() {
+              try {
+                var res = await fetch('/api/search?q=' + encodeURIComponent(q));
+                var data = await res.json();
+                var results = data.results || [];
+                if (!results.length) { searchDrop.innerHTML = '<div style="padding:12px;color:#999;font-size:13px;">No results</div>'; }
+                else {
+                  searchDrop.innerHTML = results.slice(0,8).map(function(r) {
+                    return '<a href="/ticker/' + encodeURIComponent(r.symbol) + '" style="display:flex;justify-content:space-between;padding:10px 14px;text-decoration:none;color:#1a1e2e;border-bottom:1px solid #f0f2f6;font-size:13px;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'#fff\'">' +
+                      '<span style="font-weight:600;color:#3b6df0;">' + r.symbol + '</span>' +
+                      '<span style="color:#6b7689;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">' + (r.name || '') + '</span></a>';
+                  }).join('');
+                }
+                searchDrop.style.display = 'block';
+              } catch(e) { searchDrop.style.display = 'none'; }
+            }, 250);
+          });
+          document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchDrop.contains(e.target)) searchDrop.style.display = 'none';
+          });
+        }
+      })();
+    </script>
   </body>
 </html>
