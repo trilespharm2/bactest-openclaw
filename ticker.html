@@ -118,6 +118,20 @@
                   <p>Simulated Trading</p>
                 </a>
               </li>
+              <li class="nav-item" id="nav-results" style="display: none;">
+                <a data-bs-toggle="collapse" href="#tickerResultsMenu">
+                  <i class="fas fa-chart-area"></i>
+                  <p>Results</p>
+                  <span class="caret"></span>
+                </a>
+                <div class="collapse" id="tickerResultsMenu">
+                  <ul class="nav nav-collapse">
+                    <li><a href="/#optionsResults"><span class="sub-item">Option Results</span></a></li>
+                    <li><a href="/#stockResults"><span class="sub-item">Stock Results</span></a></li>
+                    <li><a href="/#simResults"><span class="sub-item">Simulated Trading</span></a></li>
+                  </ul>
+                </div>
+              </li>
               <li class="nav-section">
                 <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
                 <h4 class="text-section">Account</h4>
@@ -125,7 +139,7 @@
               <li class="nav-item" id="nav-subscription">
                 <a href="/#subscription">
                   <i class="fas fa-credit-card"></i>
-                  <p>Pricing</p>
+                  <p id="tickerSubscriptionNavText">Pricing</p>
                 </a>
               </li>
               <li class="nav-item" id="nav-faq">
@@ -237,7 +251,7 @@
         <div class="container">
           <div class="page-inner">
           <!-- Ticker Header Info Bar -->
-          <div id="tickerHeaderInfo" class="d-flex align-items-center gap-3 mb-3 flex-wrap" style="min-height:40px;">
+          <div id="tickerHeaderInfo" class="d-flex align-items-center justify-content-center gap-3 mb-3 flex-wrap" style="min-height:40px;">
             <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
           </div>
           <!-- Ticker Stats Card -->
@@ -438,6 +452,10 @@
             if (emailDisp) emailDisp.textContent = (d.user && d.user.email) || '';
             var settingsNav = document.getElementById('nav-settings');
             if (settingsNav) settingsNav.style.display = '';
+            var resultsNav = document.getElementById('nav-results');
+            if (resultsNav) resultsNav.style.display = '';
+            var subNavText = document.getElementById('tickerSubscriptionNavText');
+            if (subNavText) subNavText.textContent = 'Subscription';
           }
         } catch(e) { console.error('Auth check error:', e); }
 
