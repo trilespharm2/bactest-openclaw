@@ -130,4 +130,25 @@ body {
 @media (max-width: 768px) {
   .ticker-info-grid { grid-template-columns: repeat(2, 1fr); }
   #chartContainer { height: 280px !important; }
+  #tickerHeaderInfo {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+  #tickerHeaderInfo .ticker-name { font-size: 18px; }
+  #tickerHeaderInfo .ticker-price-header { font-size: 18px; }
+  .chart-header-mobile {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px;
+  }
+  .chart-header-mobile .btn-group {
+    width: 100%;
+    display: flex;
+  }
+  .chart-header-mobile .btn-group .btn {
+    flex: 1;
+    padding: 4px 2px;
+    font-size: 11px;
+  }
 }
