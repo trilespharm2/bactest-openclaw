@@ -69,11 +69,11 @@ function renderIndices(indices) {
             : (isUp ? '#0fad6e' : '#d94452');
         const arrow = isUp ? '▲' : '▼';
         const sign = isUp ? '+' : '';
-        return `<div class="text-center" style="flex:1;min-width:90px;">
+        return `<a href="/ticker/${encodeURIComponent(idx.symbol || '')}" class="text-center" style="flex:1;min-width:90px;cursor:pointer;text-decoration:none;display:block;border-radius:6px;padding:4px 2px;transition:background 0.12s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='transparent'">
             <div style="font-size:11px;font-weight:600;color:#6b7689;">${idx.symbol}</div>
             <div style="font-size:15px;font-weight:700;color:#1a1e2e;">${idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '—'}</div>
             <div style="font-size:11px;font-weight:600;color:${color};">${arrow} ${sign}${idx.change_pct.toFixed(2)}%</div>
-        </div>`;
+        </a>`;
     }).join('');
 }
 
@@ -118,10 +118,10 @@ function renderMoversTable(elementId, items, isGainers) {
         const pct = item.change_pct || item.change_percent || item.todaysChangePerc || 0;
         const color = isGainers ? '#0fad6e' : '#d94452';
         const arrow = isGainers ? '▲' : '▼';
-        return `<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">
+        return `<a href="/ticker/${encodeURIComponent(item.symbol || '')}" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='#f5f7ff'" onmouseout="this.style.background='transparent'">
             <span style="font-weight:600;color:#3b6df0;">${item.symbol || 'N/A'}</span>
             <span style="font-weight:600;color:${color};">${arrow} ${Math.abs(pct).toFixed(2)}%</span>
-        </div>`;
+        </a>`;
     }).join('');
 }
 
@@ -147,11 +147,11 @@ function renderMostActive(items) {
         const color = pct >= 0 ? '#0fad6e' : '#d94452';
         const arrow = pct >= 0 ? '▲' : '▼';
         const vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
-        return `<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">
-            <span style="font-weight:600;color:#3b6df0;">${item.symbol}</span>
+        return `<a href="/ticker/${encodeURIComponent(item.symbol || '')}" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='#f5f7ff'" onmouseout="this.style.background='transparent'">
+            <span style="font-weight:600;color:#3b6df0;">${item.symbol || ''}</span>
             <span style="color:#6b7689;font-size:11px;">${vol}</span>
             <span style="font-weight:600;color:${color};">${arrow} ${Math.abs(pct).toFixed(2)}%</span>
-        </div>`;
+        </a>`;
     }).join('');
 }
 
@@ -176,11 +176,11 @@ function renderTrending(items) {
         const pct = item.change_pct || 0;
         const color = pct >= 0 ? '#0fad6e' : '#d94452';
         const arrow = pct >= 0 ? '▲' : '▼';
-        return `<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">
+        return `<a href="/ticker/${encodeURIComponent(item.symbol || '')}" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='#f5f7ff'" onmouseout="this.style.background='transparent'">
             <span style="color:#6b7689;font-size:11px;width:18px;">${i + 1}</span>
-            <span style="font-weight:600;color:#3b6df0;flex:1;">${item.symbol}</span>
+            <span style="font-weight:600;color:#3b6df0;flex:1;">${item.symbol || ''}</span>
             <span style="font-weight:600;color:${color};">${arrow} ${Math.abs(pct).toFixed(2)}%</span>
-        </div>`;
+        </a>`;
     }).join('');
 }
 

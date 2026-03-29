@@ -472,7 +472,7 @@ async function loadPageContent(pageName) {
                 homePage.innerHTML = dashboardPage.innerHTML;
 
                 // Load and initialise the dashboard widget script
-                await loadScript('dashboard-script.js?v=3', 'dashboard');
+                await loadScript('dashboard-script.js?v=4', 'dashboard');
             }
 
             homePage.classList.add('active');
@@ -887,10 +887,10 @@ async function _loadIndices() {
                 : (isUp ? '#0fad6e' : '#d94452');
             const arrow = isUp ? '\u25B2' : '\u25BC';
             const sign = isUp ? '+' : '';
-            return '<div class="text-center" style="flex:1;min-width:90px;cursor:pointer;">' +
-                '<div style="font-size:11px;">' + _tickerLink(idx.symbol, 'font-weight:600;color:#6b7689;') + '</div>' +
+            return '<a href="/ticker/' + encodeURIComponent(idx.symbol || '') + '" class="text-center" style="flex:1;min-width:90px;cursor:pointer;text-decoration:none;display:block;border-radius:6px;padding:4px 2px;transition:background 0.12s;" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (idx.symbol || '') + '</div>' +
                 '<div style="font-size:15px;font-weight:700;color:#1a1e2e;">' + (idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '\u2014') + '</div>' +
-                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + _fmt(idx.change_pct) + '%</div></div>';
+                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + _fmt(idx.change_pct) + '%</div></a>';
         }).join('');
     } catch (e) { console.error('Indices error:', e); }
 }
@@ -907,10 +907,10 @@ async function _loadMostActive() {
             const color = pct >= 0 ? '#0fad6e' : '#d94452';
             const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
             const vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
-            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
-                _tickerLink(item.symbol) +
+            return '<a href="/ticker/' + encodeURIComponent(item.symbol || '') + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                '<span style="font-weight:600;color:#3b6df0;">' + (item.symbol || '') + '</span>' +
                 '<span style="color:#6b7689;font-size:11px;">' + vol + '</span>' +
-                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></a>';
         }).join('');
     } catch (e) { console.error('Most active error:', e); }
 }
@@ -926,10 +926,10 @@ async function _loadTrending() {
             const pct = item.change_pct || 0;
             const color = pct >= 0 ? '#0fad6e' : '#d94452';
             const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
-            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+            return '<a href="/ticker/' + encodeURIComponent(item.symbol || '') + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
                 '<span style="color:#6b7689;font-size:11px;width:18px;">' + (i + 1) + '</span>' +
-                '<span style="flex:1;">' + _tickerLink(item.symbol) + '</span>' +
-                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+                '<span style="flex:1;font-weight:600;color:#3b6df0;">' + (item.symbol || '') + '</span>' +
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></a>';
         }).join('');
     } catch (e) { console.error('Trending error:', e); }
 }
