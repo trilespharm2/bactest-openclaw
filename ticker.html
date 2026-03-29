@@ -49,18 +49,29 @@
   <body>
     <div class="wrapper">
       <div class="main-panel" style="width:100%;">
-        <div class="main-header">
-          <div class="main-header-logo d-block d-lg-none">
-            <div class="nav-toggle">
-              <button class="btn btn-toggle toggle-sidebar"><i class="gg-menu-right"></i></button>
-            </div>
-          </div>
-          <nav class="navbar navbar-header navbar-header-left navbar-expand-lg" style="padding:8px 24px;">
-            <a href="/" class="btn btn-sm btn-outline-primary me-3" style="font-size:13px;">
-              <i class="fas fa-arrow-left me-1"></i> Dashboard
-            </a>
-            <div id="tickerHeaderInfo" class="d-flex align-items-center gap-3">
-              <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <div class="main-header" style="position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid #eee;">
+          <nav class="navbar navbar-expand-lg" style="padding:8px 24px;">
+            <div class="d-flex align-items-center w-100">
+              <a href="/" class="btn btn-sm btn-outline-primary me-3" style="font-size:13px;flex-shrink:0;">
+                <i class="fas fa-arrow-left me-1"></i> Dashboard
+              </a>
+              <div id="tickerHeaderInfo" class="d-flex align-items-center gap-3 flex-grow-1 overflow-hidden">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+              </div>
+              <div class="dropdown ms-3" style="flex-shrink:0;">
+                <button class="btn btn-sm btn-light" type="button" id="tickerMenuBtn" data-bs-toggle="dropdown" aria-expanded="false" style="border:1px solid #e0e0e0;">
+                  <i class="fas fa-bars"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="tickerMenuBtn">
+                  <li><a class="dropdown-item" href="/"><i class="fas fa-home me-2 text-primary"></i>Dashboard</a></li>
+                  <li><a class="dropdown-item" href="/#watchlist"><i class="fas fa-eye me-2 text-primary"></i>Watchlist</a></li>
+                  <li><a class="dropdown-item" href="/#backtests"><i class="fas fa-flask me-2 text-primary"></i>Backtests</a></li>
+                  <li><a class="dropdown-item" href="/#strategies"><i class="fas fa-chess me-2 text-primary"></i>Strategies</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="/#subscription"><i class="fas fa-credit-card me-2 text-primary"></i>Subscription</a></li>
+                  <li><a class="dropdown-item" href="/#settings"><i class="fas fa-cog me-2 text-primary"></i>Settings</a></li>
+                </ul>
+              </div>
             </div>
           </nav>
         </div>
@@ -86,6 +97,7 @@
                 <div class="card-header py-2 d-flex justify-content-between align-items-center">
                   <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-chart-line text-primary me-2"></i>Price Chart</div>
                   <div class="btn-group btn-group-sm" id="chartPeriodBtns">
+                    <button class="btn btn-outline-primary" data-period="1d">1D</button>
                     <button class="btn btn-outline-primary" data-period="5d">5D</button>
                     <button class="btn btn-outline-primary" data-period="1mo">1M</button>
                     <button class="btn btn-outline-primary active" data-period="3mo">3M</button>
@@ -209,11 +221,8 @@
                           <div id="bfPutsWrap" style="width:480px;"></div>
                         </div>
                       </div>
-                      <!-- Horizontal reveal slider -->
-                      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:0 4px;">
-                        <span style="font-size:10px;color:#888;flex:0 0 auto;"><i class="fas fa-arrow-left me-1"></i>Calls</span>
-                        <input type="range" id="butterflyScrollBar" min="0" max="100" value="0" style="flex:1;height:4px;accent-color:#3b6df0;">
-                        <span style="font-size:10px;color:#888;flex:0 0 auto;">Puts<i class="fas fa-arrow-right ms-1"></i></span>
+                      <div style="padding:4px 4px 0;">
+                        <input type="range" id="butterflyScrollBar" min="0" max="100" value="0" style="width:100%;height:4px;accent-color:#3b6df0;">
                       </div>
                     </div>
                   </div>

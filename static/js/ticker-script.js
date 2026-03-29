@@ -93,6 +93,31 @@ async function loadInfo() {
     }
 }
 
+const candleWickPlugin = {
+    id: 'candleWick',
+    afterDatasetsDraw(chart) {
+        if (!chart._candlePrices) return;
+        const meta = chart.getDatasetMeta(0);
+        const ctx  = chart.ctx;
+        const yScale = chart.scales.y;
+        meta.data.forEach((bar, i) => {
+            const p = chart._candlePrices[i];
+            if (!p) return;
+            const x    = bar.x;
+            const high = yScale.getPixelForValue(p.high);
+            const low  = yScale.getPixelForValue(p.low);
+            ctx.save();
+            ctx.strokeStyle = p.close >= p.open ? '#0fad6e' : '#d94452';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, high);
+            ctx.lineTo(x, low);
+            ctx.stroke();
+            ctx.restore();
+        });
+    }
+};
+
 async function loadChart(period = '3mo') {
     const loading = document.getElementById('chartLoading');
     loading.classList.remove('hidden');
@@ -107,33 +132,32 @@ async function loadChart(period = '3mo') {
             return;
         }
 
-        const labels = prices.map(p => p.date);
-        const closes = prices.map(p => p.close);
-        const highs = prices.map(p => p.high);
-        const lows = prices.map(p => p.low);
+        const labels  = prices.map(p => p.date);
+        const opens   = prices.map(p => p.open);
+        const closes  = prices.map(p => p.close);
+        const highs   = prices.map(p => p.high);
+        const lows    = prices.map(p => p.low);
         const volumes = prices.map(p => p.volume);
-
-        const isUp = closes[closes.length - 1] >= closes[0];
-        const lineColor = isUp ? '#0fad6e' : '#d94452';
-        const bgColor = isUp ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)';
 
         if (priceChart) priceChart.destroy();
 
         const ctx = document.getElementById('priceChart').getContext('2d');
+
+        const bodyData = prices.map(p => [Math.min(p.open, p.close), Math.max(p.open, p.close)]);
+        const bodyColors = prices.map(p => p.close >= p.open ? '#0fad6e' : '#d94452');
+
         priceChart = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Close',
-                    data: closes,
-                    borderColor: lineColor,
-                    backgroundColor: bgColor,
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 0,
-                    pointHitRadius: 10,
-                    borderWidth: 2,
+                    label: 'Price',
+                    data: bodyData,
+                    backgroundColor: bodyColors,
+                    borderColor: bodyColors,
+                    borderWidth: 1,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9,
                 }]
             },
             options: {
@@ -148,17 +172,15 @@ async function loadChart(period = '3mo') {
                         bodyFont: { size: 12 },
                         padding: 10,
                         callbacks: {
-                            title: (items) => {
-                                const idx = items[0].dataIndex;
-                                return labels[idx];
-                            },
+                            title: (items) => labels[items[0].dataIndex],
                             label: (ctx) => {
-                                const idx = ctx.dataIndex;
+                                const i = ctx.dataIndex;
                                 return [
-                                    `Close: $${fmt(closes[idx])}`,
-                                    `High: $${fmt(highs[idx])}`,
-                                    `Low: $${fmt(lows[idx])}`,
-                                    `Vol: ${fmtLarge(volumes[idx])}`
+                                    `Open: $${fmt(opens[i])}`,
+                                    `High: $${fmt(highs[i])}`,
+                                    `Low: $${fmt(lows[i])}`,
+                                    `Close: $${fmt(closes[i])}`,
+                                    `Vol: ${fmtLarge(volumes[i])}`
                                 ];
                             }
                         }
@@ -172,6 +194,9 @@ async function loadChart(period = '3mo') {
                     y: {
                         position: 'right',
                         grid: { color: '#f0f1f4' },
+                        beginAtZero: false,
+                        min: Math.min(...lows.filter(v => v != null)) * 0.998,
+                        max: Math.max(...highs.filter(v => v != null)) * 1.002,
                         ticks: {
                             font: { size: 10 },
                             color: '#6b7689',
@@ -179,8 +204,10 @@ async function loadChart(period = '3mo') {
                         }
                     }
                 }
-            }
+            },
+            plugins: [candleWickPlugin],
         });
+        priceChart._candlePrices = prices;
         loading.classList.add('hidden');
     } catch (e) {
         loading.innerHTML = '<span class="text-muted">Failed to load chart</span>';
@@ -701,11 +728,10 @@ function renderButterflyTable() {
         if (bar) bar.value = 0;
         bfSyncHorizontal(0);
 
-        // Scroll ATM row near the top (header=36px, each row=35px)
         if (atmIdx > 0) {
             const rowH   = 35;
             const headerH = 36;
-            const target  = headerH + atmIdx * rowH - 20; // 20px margin above ATM
+            const target  = headerH + (atmIdx - 2) * rowH;
             ['bfCallsPanel', 'bfStrikePanel', 'bfPutsPanel'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.scrollTop = Math.max(0, target);

@@ -5380,10 +5380,10 @@ def ticker_chart(symbol):
     try:
         import yfinance as yf
         period = request.args.get('period', '3mo')
-        valid_periods = ['5d', '1mo', '3mo', '6mo', '1y', '2y', '5y']
+        valid_periods = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y']
         if period not in valid_periods:
             period = '3mo'
-        interval_map = {'5d': '15m', '1mo': '1h', '3mo': '1d', '6mo': '1d', '1y': '1d', '2y': '1wk', '5y': '1wk'}
+        interval_map = {'1d': '5m', '5d': '15m', '1mo': '1h', '3mo': '1d', '6mo': '1d', '1y': '1d', '2y': '1wk', '5y': '1wk'}
         interval = interval_map.get(period, '1d')
         t = yf.Ticker(symbol.upper())
         hist = t.history(period=period, interval=interval)

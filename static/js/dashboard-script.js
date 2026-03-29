@@ -170,10 +170,10 @@ function renderMoversTable(elementId, items, isGainers) {
         var pct = item.change_pct || item.change_percent || item.todaysChangePerc || 0;
         var color = isGainers ? '#0fad6e' : '#d94452';
         var arrow = isGainers ? '▲' : '▼';
-        return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
-            tickerLink(item.symbol) +
+        return '<a href="/ticker/' + encodeURIComponent(item.symbol) + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
+            '<span style="font-weight:600;color:#3b6df0;">' + (item.symbol || 'N/A') + '</span>' +
             '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span>' +
-        '</div>';
+        '</a>';
     }).join('');
 }
 
@@ -200,11 +200,11 @@ function renderMostActive(items) {
         var color = pct >= 0 ? '#0fad6e' : '#d94452';
         var arrow = pct >= 0 ? '▲' : '▼';
         var vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
-        return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
-            tickerLink(item.symbol) +
+        return '<a href="/ticker/' + encodeURIComponent(item.symbol) + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
+            '<span style="font-weight:600;color:#3b6df0;">' + (item.symbol || '') + '</span>' +
             '<span style="color:#6b7689;font-size:11px;">' + vol + '</span>' +
             '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span>' +
-        '</div>';
+        '</a>';
     }).join('');
 }
 
@@ -230,11 +230,11 @@ function renderTrending(items) {
         var pct = item.change_pct || 0;
         var color = pct >= 0 ? '#0fad6e' : '#d94452';
         var arrow = pct >= 0 ? '▲' : '▼';
-        return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+        return '<a href="/ticker/' + encodeURIComponent(item.symbol) + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
             '<span style="color:#6b7689;font-size:11px;width:18px;">' + (i + 1) + '</span>' +
-            '<span style="flex:1;">' + tickerLink(item.symbol) + '</span>' +
+            '<span style="flex:1;font-weight:600;color:#3b6df0;">' + (item.symbol || '') + '</span>' +
             '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span>' +
-        '</div>';
+        '</a>';
     }).join('');
 }
 
