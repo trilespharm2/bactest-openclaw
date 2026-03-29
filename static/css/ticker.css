@@ -124,18 +124,16 @@ body {
 .text-up { color: #0fad6e; }
 .text-down { color: #d94452; }
 .ticker-name { font-size: 22px; font-weight: 700; color: #1a1e2e; }
-.ticker-symbol-header { font-size: 14px; font-weight: 600; color: #3b6df0; }
+.ticker-symbol-header { font-size: 18px; font-weight: 700; color: #3b6df0; }
 .ticker-price-header { font-size: 22px; font-weight: 700; }
 .ticker-change-header { font-size: 14px; font-weight: 600; }
 @media (max-width: 768px) {
   .ticker-info-grid { grid-template-columns: repeat(2, 1fr); }
   #chartContainer { height: 280px !important; }
   #tickerHeaderInfo {
-    flex-direction: column;
-    align-items: flex-start !important;
-    gap: 4px !important;
+    flex-wrap: wrap;
   }
-  #tickerHeaderInfo .ticker-name { font-size: 18px; }
+  .ticker-symbol-header { font-size: 16px; }
   #tickerHeaderInfo .ticker-price-header { font-size: 18px; }
   .chart-header-mobile {
     flex-direction: column !important;

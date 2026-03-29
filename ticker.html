@@ -134,7 +134,7 @@
                   <p>FAQ</p>
                 </a>
               </li>
-              <li class="nav-item" id="nav-settings">
+              <li class="nav-item" id="nav-settings" style="display: none;">
                 <a href="/#settings">
                   <i class="fas fa-cog"></i>
                   <p>Settings</p>
@@ -436,6 +436,8 @@
             if (nameEl) nameEl.textContent = uname;
             if (nameDisp) nameDisp.textContent = uname;
             if (emailDisp) emailDisp.textContent = (d.user && d.user.email) || '';
+            var settingsNav = document.getElementById('nav-settings');
+            if (settingsNav) settingsNav.style.display = '';
           }
         } catch(e) { console.error('Auth check error:', e); }
 

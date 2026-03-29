@@ -56,16 +56,11 @@ async function loadInfo() {
         const headerEl = document.getElementById('tickerHeaderInfo');
         if (headerEl) {
             headerEl.innerHTML =
-                `<div>
-                    <span class="ticker-symbol-header">${esc(SYMBOL)}</span>
-                    <span class="ticker-name ms-2">${esc(info.name || '')}</span>
-                </div>
-                <div class="ms-3">
-                    <span class="ticker-price-header">$${fmt(info.price)}</span>
-                    <span class="ticker-change-header ms-2" style="color:${color};">
-                        ${arrow} ${isUp ? '+' : ''}${fmt(change)} (${isUp ? '+' : ''}${fmt(changePct)}%)
-                    </span>
-                </div>`;
+                `<span class="ticker-symbol-header">${esc(SYMBOL)}</span>
+                <span class="ticker-price-header ms-3">$${fmt(info.price)}</span>
+                <span class="ticker-change-header ms-2" style="color:${color};">
+                    ${arrow} ${isUp ? '+' : ''}${fmt(change)} (${isUp ? '+' : ''}${fmt(changePct)}%)
+                </span>`;
         }
 
         const stats = [
