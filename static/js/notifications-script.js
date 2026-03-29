@@ -467,6 +467,30 @@ function runScannerNow(scannerId) {
     });
 }
 
+function toggleEditChannelFields() {
+    var type = document.getElementById('editChannelType').value;
+    document.getElementById('editEmailGroup').style.display = type === 'email' ? 'block' : 'none';
+    document.getElementById('editTelegramGroup').style.display = type === 'telegram' ? 'block' : 'none';
+}
+
+function loadEditSavedFilters(selectedId) {
+    authFetch('/api/screener/filters')
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        var sel = document.getElementById('editSavedFilterSelect');
+        if (!result.success || !result.filters || result.filters.length === 0) {
+            sel.innerHTML = '<option value="">No saved filters available</option>';
+            return;
+        }
+        sel.innerHTML = result.filters.map(function(f) {
+            return '<option value="' + f.id + '"' + (f.id == selectedId ? ' selected' : '') + '>' + escapeHtml(f.name) + '</option>';
+        }).join('');
+    })
+    .catch(function() {
+        document.getElementById('editSavedFilterSelect').innerHTML = '<option value="">Error loading filters</option>';
+    });
+}
+
 function editScanner(scannerId) {
     authFetch('/api/scanners/' + scannerId)
     .then(function(response) { return response.json(); })
@@ -479,23 +503,54 @@ function editScanner(scannerId) {
         document.getElementById('editScannerId').value = s.id;
         document.getElementById('editScannerName').value = s.name || '';
         document.getElementById('editFrequency').value = s.frequency || '5min';
+
+        var filterType = s.filter_type || 'preset';
+        var presetRadio = document.querySelector('input[name="editFilterType"][value="preset"]');
+        var savedRadio = document.querySelector('input[name="editFilterType"][value="saved"]');
+        if (filterType === 'saved') {
+            savedRadio.checked = true;
+            document.getElementById('editPresetContainer').style.display = 'none';
+            document.getElementById('editSavedContainer').style.display = 'block';
+            loadEditSavedFilters(s.saved_filter_id);
+        } else {
+            presetRadio.checked = true;
+            document.getElementById('editPresetContainer').style.display = 'block';
+            document.getElementById('editSavedContainer').style.display = 'none';
+            if (s.preset_filter_id) {
+                document.getElementById('editPresetFilterSelect').value = s.preset_filter_id;
+            }
+        }
+
         document.getElementById('editChannelType').value = s.channel_type || 'email';
-        document.getElementById('editChannelTarget').value = s.channel_target || '';
+        if (s.channel_type === 'telegram') {
+            document.getElementById('editEmailGroup').style.display = 'none';
+            document.getElementById('editTelegramGroup').style.display = 'block';
+            document.getElementById('editTelegramChatId').value = s.channel_target || '';
+            document.getElementById('editTelegramBotToken').value = '';
+        } else {
+            document.getElementById('editEmailGroup').style.display = 'block';
+            document.getElementById('editTelegramGroup').style.display = 'none';
+            document.getElementById('editChannelTarget').value = s.channel_target || '';
+        }
+
         document.getElementById('editActiveFromTime').value = s.active_from_time ? s.active_from_time.replace(/ (AM|PM)$/, '') : '';
         document.getElementById('editActiveFromAmPm').value = s.active_from_time && s.active_from_time.includes('PM') ? 'PM' : 'AM';
         document.getElementById('editActiveToTime').value = s.active_to_time ? s.active_to_time.replace(/ (AM|PM)$/, '') : '';
         document.getElementById('editActiveToAmPm').value = s.active_to_time && s.active_to_time.includes('PM') ? 'PM' : 'AM';
-        document.getElementById('editExpiresAt').value = s.expires_at ? s.expires_at.split('T')[0] : '';
+
+        if (s.expires_at) {
+            document.querySelector('input[name="editDuration"][value="until"]').checked = true;
+            document.getElementById('editExpiresAtGroup').style.display = 'block';
+            document.getElementById('editExpiresAt').value = s.expires_at.split('T')[0];
+        } else {
+            document.querySelector('input[name="editDuration"][value="indefinite"]').checked = true;
+            document.getElementById('editExpiresAtGroup').style.display = 'none';
+            document.getElementById('editExpiresAt').value = '';
+        }
+
         document.getElementById('editRepeatFilter').checked = !!s.filter_repeat_symbols;
         document.getElementById('editRepeatThreshold').value = s.repeat_threshold || 5;
         document.getElementById('editRepeatThresholdGroup').style.display = s.filter_repeat_symbols ? 'flex' : 'none';
-
-        var channelLabel = document.getElementById('editChannelLabel');
-        if (s.channel_type === 'email') {
-            channelLabel.textContent = 'Email Address';
-        } else {
-            channelLabel.textContent = 'Telegram Chat ID';
-        }
 
         document.getElementById('editScannerModal').style.display = 'flex';
     })
@@ -511,12 +566,45 @@ function closeEditScannerModal() {
 
 function saveEditScanner() {
     var scannerId = document.getElementById('editScannerId').value;
+    var channelType = document.getElementById('editChannelType').value;
+    var filterType = document.querySelector('input[name="editFilterType"]:checked').value;
+
     var data = {
         name: document.getElementById('editScannerName').value.trim(),
         frequency: document.getElementById('editFrequency').value,
-        channel_type: document.getElementById('editChannelType').value,
-        channel_target: document.getElementById('editChannelTarget').value.trim()
+        channel_type: channelType,
+        filter_type: filterType
     };
+
+    if (filterType === 'preset') {
+        data.preset_filter_id = document.getElementById('editPresetFilterSelect').value;
+    } else {
+        var savedVal = document.getElementById('editSavedFilterSelect').value;
+        if (!savedVal) {
+            appAlert('Please select a saved filter');
+            return;
+        }
+        data.saved_filter_id = parseInt(savedVal);
+    }
+
+    if (channelType === 'email') {
+        data.channel_target = document.getElementById('editChannelTarget').value.trim();
+        if (!data.channel_target) {
+            appAlert('Please enter an email address');
+            return;
+        }
+    } else {
+        var botToken = document.getElementById('editTelegramBotToken').value.trim();
+        var chatId = document.getElementById('editTelegramChatId').value.trim();
+        if (!chatId) {
+            appAlert('Please enter a Telegram Chat ID');
+            return;
+        }
+        data.channel_target = chatId;
+        if (botToken) {
+            saveTelegramChannel(botToken, chatId);
+        }
+    }
 
     var fromTime = document.getElementById('editActiveFromTime').value.trim();
     var fromAmPm = document.getElementById('editActiveFromAmPm').value;
@@ -525,16 +613,19 @@ function saveEditScanner() {
 
     data.active_from_time = fromTime ? fromTime + ' ' + fromAmPm : '';
     data.active_to_time = toTime ? toTime + ' ' + toAmPm : '';
-    data.expires_at = document.getElementById('editExpiresAt').value || '';
+
+    var durationVal = document.querySelector('input[name="editDuration"]:checked').value;
+    if (durationVal === 'until') {
+        data.expires_at = document.getElementById('editExpiresAt').value || '';
+    } else {
+        data.expires_at = '';
+    }
+
     data.filter_repeat_symbols = document.getElementById('editRepeatFilter').checked;
     data.repeat_threshold = parseInt(document.getElementById('editRepeatThreshold').value) || 5;
 
     if (!data.name) {
         appAlert('Scanner name is required');
-        return;
-    }
-    if (!data.channel_target) {
-        appAlert('Notification target is required');
         return;
     }
 
@@ -550,9 +641,9 @@ function saveEditScanner() {
     .then(function(response) { return response.json(); })
     .then(function(result) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save & Restart';
         if (result.success) {
-            appAlert('Scanner updated successfully!');
+            appAlert('Scanner updated and restarted!');
             closeEditScannerModal();
             loadScanners();
         } else {
@@ -561,7 +652,7 @@ function saveEditScanner() {
     })
     .catch(function(error) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save & Restart';
         appAlert('Network error updating scanner');
     });
 }

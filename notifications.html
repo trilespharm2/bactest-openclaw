@@ -1280,6 +1280,28 @@
             </div>
 
             <div style="margin-bottom:16px;">
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Filter Configuration</label>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #d0dbf0;border-radius:8px;cursor:pointer;font-size:13px;">
+                        <input type="radio" name="editFilterType" value="preset" onchange="document.getElementById('editPresetContainer').style.display='block';document.getElementById('editSavedContainer').style.display='none';" /> Preset Filter
+                    </label>
+                    <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #d0dbf0;border-radius:8px;cursor:pointer;font-size:13px;">
+                        <input type="radio" name="editFilterType" value="saved" onchange="document.getElementById('editPresetContainer').style.display='none';document.getElementById('editSavedContainer').style.display='block';loadEditSavedFilters();" /> Stored Filter
+                    </label>
+                </div>
+                <div id="editPresetContainer">
+                    <select id="editPresetFilterSelect" class="form-control" style="border-radius:8px;">
+                        <option value="nasdaq_high_movers">NASDAQ High Movers (&gt;75% 1-day change)</option>
+                    </select>
+                </div>
+                <div id="editSavedContainer" style="display:none;">
+                    <select id="editSavedFilterSelect" class="form-control" style="border-radius:8px;">
+                        <option value="">Loading saved filters...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
                 <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Scan Frequency</label>
                 <select id="editFrequency" class="form-control" style="border-radius:8px;">
                     <option value="1min">1 Minute</option>
@@ -1294,15 +1316,26 @@
 
             <div style="margin-bottom:16px;">
                 <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Notification Method</label>
-                <select id="editChannelType" class="form-control" style="border-radius:8px;" onchange="document.getElementById('editChannelLabel').textContent = this.value === 'email' ? 'Email Address' : 'Telegram Chat ID';">
+                <select id="editChannelType" class="form-control" style="border-radius:8px;" onchange="toggleEditChannelFields()">
                     <option value="email">Email</option>
                     <option value="telegram">Telegram</option>
                 </select>
             </div>
 
-            <div style="margin-bottom:16px;">
-                <label id="editChannelLabel" style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Email Address</label>
+            <div id="editEmailGroup" style="margin-bottom:16px;">
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Email Address</label>
                 <input type="text" id="editChannelTarget" class="form-control" style="border-radius:8px;" />
+            </div>
+
+            <div id="editTelegramGroup" style="margin-bottom:16px;display:none;">
+                <div style="margin-bottom:10px;">
+                    <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Telegram Bot Token</label>
+                    <input type="text" id="editTelegramBotToken" class="form-control" placeholder="123456:ABC-DEF..." style="border-radius:8px;" />
+                </div>
+                <div>
+                    <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Telegram Chat ID</label>
+                    <input type="text" id="editTelegramChatId" class="form-control" placeholder="-100123456789" style="border-radius:8px;" />
+                </div>
             </div>
 
             <div style="margin-bottom:16px;display:flex;gap:12px;">
@@ -1329,8 +1362,18 @@
             </div>
 
             <div style="margin-bottom:16px;">
-                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:4px;">Expires On</label>
-                <input type="date" id="editExpiresAt" class="form-control" style="border-radius:8px;" />
+                <label style="font-weight:600;font-size:13px;color:#3b4758;display:block;margin-bottom:8px;">Duration</label>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #d0dbf0;border-radius:8px;cursor:pointer;font-size:13px;">
+                        <input type="radio" name="editDuration" value="indefinite" checked onchange="document.getElementById('editExpiresAtGroup').style.display='none';" /> Indefinitely
+                    </label>
+                    <label style="flex:1;display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #d0dbf0;border-radius:8px;cursor:pointer;font-size:13px;">
+                        <input type="radio" name="editDuration" value="until" onchange="document.getElementById('editExpiresAtGroup').style.display='block';" /> Until Date
+                    </label>
+                </div>
+                <div id="editExpiresAtGroup" style="display:none;">
+                    <input type="date" id="editExpiresAt" class="form-control" style="border-radius:8px;" />
+                </div>
             </div>
 
             <div style="margin-bottom:16px;">
@@ -1350,7 +1393,7 @@
                     Cancel
                 </button>
                 <button class="btn btn-primary" style="flex:1;padding:10px;border-radius:8px;font-weight:600;background:linear-gradient(135deg,#3b6df0,#6a3de8);border:none;" id="saveEditScannerBtn" onclick="saveEditScanner()">
-                    <i class="fas fa-save me-1"></i> Save Changes
+                    <i class="fas fa-save me-1"></i> Save & Restart
                 </button>
             </div>
         </div>

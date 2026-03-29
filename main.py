@@ -6736,14 +6736,13 @@ def update_scanner(scanner_id):
         
         db.session.commit()
         
+        unschedule_scanner(scanner.id)
         if scanner.is_active:
             schedule_scanner(scanner, app)
-        else:
-            unschedule_scanner(scanner.id)
         
         return jsonify({
             "success": True,
-            "message": "Scanner updated successfully",
+            "message": "Scanner updated and restarted",
             "scanner": scanner.to_dict()
         })
     except Exception as e:
