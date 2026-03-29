@@ -664,6 +664,63 @@
         color: #666;
     }
     
+    .section-search-bar {
+        padding: 10px 16px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .section-search-bar input {
+        width: 100%;
+        padding: 9px 14px 9px 36px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+        outline: none;
+        background: #fafbfc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.867-3.834zm-5.44.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+    }
+    .section-search-bar input:focus { border-color: #3b6df0; }
+
+    .scrollable-section {
+        max-height: 420px;
+        overflow-y: auto;
+    }
+
+    .saved-filter-cards.scrollable {
+        max-height: 260px;
+        overflow-y: auto;
+    }
+
+    .notification-item { cursor: pointer; }
+    .notification-item:hover {
+        background: #f0f4ff;
+    }
+
+    .notif-detail-params {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .notif-detail-param {
+        background: #f8f9fa;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: 10px 14px;
+    }
+    .notif-detail-param .param-label {
+        font-size: 11px;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 3px;
+    }
+    .notif-detail-param .param-value {
+        font-size: 14px;
+        color: #1e293b;
+        font-weight: 500;
+    }
+
     .notification-modal-overlay {
         position: fixed;
         top: 0;
@@ -1038,10 +1095,13 @@
                                 <i class="fas fa-info-circle"></i>
                                 <div>
                                     <strong>Using Stored Filters</strong>
-                                    <p>Select a filter you previously saved from the Screener. Your scanner will use these filter criteria to find matching stocks and send you notifications.</p>
+                                    <p>Select a filter you previously saved from the Screener.</p>
                                 </div>
                             </div>
-                            <div id="savedFilterCards" class="saved-filter-cards">
+                            <div id="savedFilterSearchBar" class="section-search-bar" style="display:none;padding:8px 0;">
+                                <input type="text" placeholder="Search saved filters..." oninput="filterSavedFilterCards(this.value)" />
+                            </div>
+                            <div id="savedFilterCards" class="saved-filter-cards scrollable">
                                 <div class="saved-filter-empty">
                                     <i class="fas fa-filter"></i>
                                     <h4>No Filters Saved</h4>
@@ -1221,8 +1281,11 @@
                 <h5><i class="fas fa-satellite-dish"></i> Live Scanners</h5>
                 <span id="scannerCount" class="badge bg-primary">0</span>
             </div>
+            <div class="section-search-bar" id="scannerSearchBar" style="display:none;">
+                <input type="text" placeholder="Search scanners..." oninput="filterScanners(this.value)" />
+            </div>
             <div class="section-body">
-                <div id="scannersGrid" class="scanner-grid">
+                <div id="scannersGrid" class="scanner-grid scrollable-section">
                     <div class="empty-state" id="noScannersMessage">
                         <i class="fas fa-satellite-dish"></i>
                         <h4>No Scanners Yet</h4>
@@ -1240,8 +1303,11 @@
                     <i class="fas fa-trash-alt"></i> Clear All
                 </button>
             </div>
+            <div class="section-search-bar" id="notifSearchBar" style="display:none;">
+                <input type="text" placeholder="Search notifications by scanner name or symbol..." oninput="filterNotifications(this.value)" />
+            </div>
             <div class="section-body" style="padding: 0;">
-                <div id="notificationsList">
+                <div id="notificationsList" class="scrollable-section">
                     <div class="empty-state" id="noNotificationsMessage">
                         <i class="fas fa-inbox"></i>
                         <h4>No Notifications Yet</h4>

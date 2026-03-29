@@ -7,6 +7,13 @@
 // CONSTANTS (use var to allow SPA reloads)
 // =============================================================================
 
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 var CATEGORIES = [
     { id: "security_info", name: "Security Info", icon: "info" },
     { id: "market_data", name: "Market Data", icon: "trending_up" },
@@ -351,13 +358,6 @@ function setupEventListeners() {
     document.getElementById('exportBtn').addEventListener('click', exportResults);
     document.getElementById('saveFilterBtn').addEventListener('click', saveCurrentFilter);
     
-    document.addEventListener('click', (e) => {
-        const menu = document.getElementById('storedFiltersMenu');
-        const btn = document.getElementById('storedFiltersBtn');
-        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
-            menu.style.display = 'none';
-        }
-    });
 }
 
 // =============================================================================
@@ -1017,45 +1017,69 @@ async function loadSavedFilters() {
     }
 }
 
-function toggleStoredFiltersMenu() {
-    var menu = document.getElementById('storedFiltersMenu');
-    if (menu.style.display === 'none') {
-        menu.style.display = 'block';
-    } else {
-        menu.style.display = 'none';
+function openStoredFiltersModal() {
+    var modal = document.getElementById('storedFiltersModal');
+    modal.style.display = 'flex';
+    renderStoredFiltersMenu();
+    var searchInput = document.getElementById('storedFiltersSearch');
+    if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+}
+
+function closeStoredFiltersModal() {
+    document.getElementById('storedFiltersModal').style.display = 'none';
+}
+
+function filterStoredFiltersList(query) {
+    var items = document.querySelectorAll('#storedFiltersList .stored-filter-item');
+    var q = (query || '').toLowerCase();
+    var shown = 0;
+    items.forEach(function(item) {
+        var name = (item.getAttribute('data-name') || '').toLowerCase();
+        var visible = !q || name.indexOf(q) !== -1;
+        item.style.display = visible ? 'flex' : 'none';
+        if (visible) shown++;
+    });
+    var countEl = document.getElementById('storedFiltersCount');
+    if (countEl && q) {
+        countEl.textContent = shown + ' of ' + state.savedFilters.length + ' filter' + (state.savedFilters.length !== 1 ? 's' : '');
     }
 }
 
 function renderStoredFiltersMenu() {
     var container = document.getElementById('storedFiltersList');
+    var countEl = document.getElementById('storedFiltersCount');
     if (!container) return;
     
     if (!state.isLoggedIn) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">
-                Login to save and view filters
-            </div>
-        `;
+        container.innerHTML = '<div class="stored-filters-empty"><i class="fas fa-lock"></i><p>Login to save and view filters</p></div>';
+        if (countEl) countEl.textContent = '';
         return;
     }
     
     if (state.savedFilters.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">
-                No saved filters yet
-            </div>
-        `;
+        container.innerHTML = '<div class="stored-filters-empty"><i class="fas fa-filter"></i><p>No saved filters yet</p><p style="font-size:12px;margin-top:4px;">Save filters from the screener to see them here.</p></div>';
+        if (countEl) countEl.textContent = '';
         return;
     }
     
-    container.innerHTML = state.savedFilters.map(filter => `
-        <div class="stored-filter-item" onclick="applyStoredFilter(${filter.id})">
-            <span class="stored-filter-name">${filter.name}</span>
-            <button class="stored-filter-delete" onclick="deleteStoredFilter(${filter.id}, event)" title="Delete filter">
-                <span class="material-symbols-rounded">delete</span>
-            </button>
-        </div>
-    `).join('');
+    container.innerHTML = state.savedFilters.map(function(filter) {
+        var filterCount = 0;
+        try {
+            var config = typeof filter.filter_config === 'string' ? JSON.parse(filter.filter_config) : filter.filter_config;
+            filterCount = Array.isArray(config) ? config.length : 0;
+        } catch(e) {}
+        return '<div class="stored-filter-item" data-name="' + escapeHtml(filter.name) + '" onclick="applyStoredFilter(' + filter.id + ');closeStoredFiltersModal();">' +
+            '<div class="stored-filter-info">' +
+                '<div class="stored-filter-name">' + escapeHtml(filter.name) + '</div>' +
+                '<div class="stored-filter-meta">' + filterCount + ' filter' + (filterCount !== 1 ? 's' : '') + ' configured</div>' +
+            '</div>' +
+            '<button class="stored-filter-delete" onclick="deleteStoredFilter(' + filter.id + ', event)" title="Delete filter">' +
+                '<span class="material-symbols-rounded">delete</span>' +
+            '</button>' +
+        '</div>';
+    }).join('');
+    
+    if (countEl) countEl.textContent = state.savedFilters.length + ' saved filter' + (state.savedFilters.length !== 1 ? 's' : '');
 }
 
 function updateSaveFilterButton() {
@@ -1154,7 +1178,7 @@ async function applyStoredFilter(filterId) {
         }
     }
     
-    document.getElementById('storedFiltersMenu').style.display = 'none';
+    closeStoredFiltersModal();
     updateUI();
     updateSaveFilterButton();
 }

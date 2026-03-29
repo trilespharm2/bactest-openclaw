@@ -392,6 +392,9 @@ function renderScanners(scanners) {
     
     countBadge.textContent = scanners.length;
     
+    var scannerSearchBar = document.getElementById('scannerSearchBar');
+    if (scannerSearchBar) scannerSearchBar.style.display = scanners.length > 2 ? '' : 'none';
+    
     if (scanners.length === 0) {
         grid.innerHTML = '<div class="empty-state" id="noScannersMessage"><i class="fas fa-satellite-dish"></i><h4>No Scanners Yet</h4><p>Create your first scanner above to start receiving automated alerts.</p></div>';
         return;
@@ -707,11 +710,19 @@ function renderNotificationsPage() {
         return;
     }
     
+    var notifSearchBar = document.getElementById('notifSearchBar');
+    var clearAllBtn = document.getElementById('clearAllBtn');
+    
     if (allNotifications.length === 0) {
         container.innerHTML = '<div class="empty-state" id="noNotificationsMessage"><i class="fas fa-inbox"></i><h4>No Notifications Yet</h4><p>Notifications will appear here once your scanners find matches.</p></div>';
         if (paginationContainer) paginationContainer.style.display = 'none';
+        if (notifSearchBar) notifSearchBar.style.display = 'none';
+        if (clearAllBtn) clearAllBtn.style.display = 'none';
         return;
     }
+    
+    if (notifSearchBar) notifSearchBar.style.display = allNotifications.length > 3 ? '' : 'none';
+    if (clearAllBtn) clearAllBtn.style.display = '';
     
     var totalPages = Math.ceil(allNotifications.length / notificationsPerPage);
     var startIndex = (currentNotificationPage - 1) * notificationsPerPage;
@@ -737,7 +748,7 @@ function renderNotificationsPage() {
         
         var notifIndex = startIndex + index;
         
-        html += '<div class="notification-item" data-notification-id="' + notif.id + '">' +
+        html += '<div class="notification-item" data-notification-id="' + notif.id + '" data-scanner-name="' + escapeHtml(notif.scanner_name) + '" onclick="expandNotification(' + notifIndex + ')">' +
             '<div class="notification-icon"><i class="fas fa-chart-line"></i></div>' +
             '<div class="notification-content">' +
                 '<div class="notification-header">' +
@@ -747,8 +758,8 @@ function renderNotificationsPage() {
                 '<div class="notification-filter">Filter: ' + escapeHtml(notif.filter_config) + ' | Found: ' + notif.symbols_found + ' symbols</div>' +
                 '<div class="notification-symbols">' + symbolsHtml + '</div>' +
             '</div>' +
-            '<button class="notification-expand-btn" onclick="expandNotification(' + notifIndex + ')" title="View details"><i class="fas fa-expand-alt"></i></button>' +
-            '<button class="notification-delete-btn" onclick="deleteNotification(' + notif.id + ')" title="Delete notification"><i class="fas fa-trash"></i></button>' +
+            '<button class="notification-expand-btn" onclick="event.stopPropagation();expandNotification(' + notifIndex + ')" title="View details"><i class="fas fa-expand-alt"></i></button>' +
+            '<button class="notification-delete-btn" onclick="event.stopPropagation();deleteNotification(' + notif.id + ')" title="Delete notification"><i class="fas fa-trash"></i></button>' +
         '</div>';
     });
     
@@ -811,10 +822,40 @@ function expandNotification(index) {
         resultsHtml = '<p>No results data available.</p>';
     }
     
+    var filterParamsHtml = '';
+    try {
+        var filterConfig = notif.filter_config;
+        if (typeof filterConfig === 'string') {
+            try { filterConfig = JSON.parse(filterConfig); } catch(e) {}
+        }
+        if (Array.isArray(filterConfig)) {
+            filterParamsHtml = '<div class="notif-detail-params">';
+            filterConfig.forEach(function(f) {
+                filterParamsHtml += '<div class="notif-detail-param">' +
+                    '<div class="param-label">' + escapeHtml(f.column || f.field || 'Filter') + '</div>' +
+                    '<div class="param-value">' + escapeHtml((f.operator || '') + ' ' + (f.value != null ? f.value : '')) + '</div>' +
+                '</div>';
+            });
+            filterParamsHtml += '</div>';
+        } else if (typeof filterConfig === 'string') {
+            filterParamsHtml = '<p style="margin-bottom:12px;"><strong>Filter:</strong> ' + escapeHtml(filterConfig) + '</p>';
+        }
+    } catch(e) {
+        filterParamsHtml = '<p style="margin-bottom:12px;"><strong>Filter:</strong> ' + escapeHtml(String(notif.filter_config)) + '</p>';
+    }
+
     modalBody.innerHTML = 
-        '<p><strong>Filter:</strong> ' + escapeHtml(notif.filter_config) + '</p>' +
-        '<p><strong>Time:</strong> ' + timeStr + '</p>' +
-        '<p><strong>Symbols Found:</strong> ' + notif.symbols_found + '</p>' +
+        '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">' +
+            '<div style="background:#f0f4ff;border-radius:8px;padding:10px 16px;flex:1;min-width:120px;">' +
+                '<div style="font-size:11px;color:#64748b;text-transform:uppercase;">Time</div>' +
+                '<div style="font-size:14px;font-weight:500;color:#1e293b;">' + timeStr + '</div>' +
+            '</div>' +
+            '<div style="background:#f0fdf4;border-radius:8px;padding:10px 16px;flex:1;min-width:120px;">' +
+                '<div style="font-size:11px;color:#64748b;text-transform:uppercase;">Symbols Found</div>' +
+                '<div style="font-size:14px;font-weight:500;color:#1e293b;">' + notif.symbols_found + '</div>' +
+            '</div>' +
+        '</div>' +
+        (filterParamsHtml ? '<h5 style="margin-bottom:10px;font-size:14px;color:#475569;">Filter Parameters</h5>' + filterParamsHtml : '') +
         '<h5 style="margin-top: 20px; margin-bottom: 12px;">All Results</h5>' +
         resultsHtml;
     
@@ -885,6 +926,9 @@ function loadSavedFilters() {
 function renderSavedFilterCards(filters) {
     var container = document.getElementById('savedFilterCards');
     if (!container) return;
+
+    var savedFilterSearchBar = document.getElementById('savedFilterSearchBar');
+    if (savedFilterSearchBar) savedFilterSearchBar.style.display = filters.length > 3 ? '' : 'none';
 
     if (filters.length === 0) {
         container.innerHTML = '<div class="saved-filter-empty">' +
@@ -996,6 +1040,34 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function filterScanners(query) {
+    var items = document.querySelectorAll('#scannersGrid .scanner-card');
+    var q = (query || '').toLowerCase();
+    items.forEach(function(item) {
+        var name = (item.querySelector('.scanner-name') || {}).textContent || '';
+        item.style.display = (!q || name.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+    });
+}
+
+function filterNotifications(query) {
+    var items = document.querySelectorAll('#notificationsList .notification-item');
+    var q = (query || '').toLowerCase();
+    items.forEach(function(item) {
+        var name = (item.getAttribute('data-scanner-name') || '').toLowerCase();
+        var symbols = (item.querySelector('.notification-symbols') || {}).textContent || '';
+        item.style.display = (!q || name.indexOf(q) !== -1 || symbols.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+    });
+}
+
+function filterSavedFilterCards(query) {
+    var items = document.querySelectorAll('#savedFilterCards .saved-filter-card');
+    var q = (query || '').toLowerCase();
+    items.forEach(function(item) {
+        var name = (item.querySelector('.filter-name') || {}).textContent || '';
+        item.style.display = (!q || name.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+    });
+}
+
 if (typeof window.initNotificationsPage === 'undefined') {
     window.initNotificationsPage = initNotificationsPage;
     window.addSymbolInput = addSymbolInput;
@@ -1012,4 +1084,7 @@ if (typeof window.initNotificationsPage === 'undefined') {
     window.selectSavedFilter = selectSavedFilter;
     window.goToScreener = goToScreener;
     window.renderSavedFilterCards = renderSavedFilterCards;
+    window.filterScanners = filterScanners;
+    window.filterNotifications = filterNotifications;
+    window.filterSavedFilterCards = filterSavedFilterCards;
 }

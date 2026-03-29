@@ -668,67 +668,112 @@
         margin-bottom: 16px;
     }
     
-    .stored-filters-menu {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        min-width: 250px;
+    .stored-filters-modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        padding: 20px;
+    }
+    .stored-filters-modal {
         background: #fff;
-        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 480px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        overflow: hidden;
+    }
+    .stored-filters-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 22px;
+        border-bottom: 1px solid #eee;
+        background: linear-gradient(135deg, #3b6df0, #6a3de8);
+        color: #fff;
+    }
+    .stored-filters-modal-header h4 { margin: 0; font-size: 16px; font-weight: 600; }
+    .stored-filters-modal-close {
+        background: transparent; border: none; color: rgba(255,255,255,0.85);
+        cursor: pointer; font-size: 20px; padding: 4px;
+    }
+    .stored-filters-modal-close:hover { color: #fff; }
+    .stored-filters-search {
+        padding: 14px 18px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .stored-filters-search input {
+        width: 100%;
+        padding: 10px 14px 10px 36px;
+        border: 1px solid #d1d5db;
         border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 1000;
-        margin-top: 4px;
+        font-size: 14px;
+        outline: none;
+        background: #fafbfc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.867-3.834zm-5.44.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
+        box-sizing: border-box;
     }
-    
+    .stored-filters-search input:focus { border-color: #3b6df0; }
     .stored-filters-list {
-        max-height: 300px;
+        flex: 1;
         overflow-y: auto;
+        max-height: 400px;
+        padding: 6px 0;
     }
-    
     .stored-filter-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 10px 14px;
+        padding: 12px 18px;
         cursor: pointer;
         border-bottom: 1px solid #f1f5f9;
-        transition: background 0.2s;
+        transition: background 0.15s;
     }
-    
-    .stored-filter-item:hover {
-        background: #f8f9fa;
-    }
-    
-    .stored-filter-item:last-child {
-        border-bottom: none;
-    }
-    
-    .stored-filter-name {
-        font-size: 13px;
-        color: #1e293b;
+    .stored-filter-item:hover { background: #f0f4ff; }
+    .stored-filter-item:last-child { border-bottom: none; }
+    .stored-filter-info {
         flex: 1;
+        min-width: 0;
     }
-    
+    .stored-filter-name {
+        font-size: 14px;
+        color: #1e293b;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .stored-filter-meta {
+        font-size: 12px;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
     .stored-filter-delete {
-        background: none;
-        border: none;
-        color: #f97066;
-        cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        display: flex;
-        align-items: center;
-        opacity: 0.7;
+        background: none; border: none; color: #f97066;
+        cursor: pointer; padding: 6px; border-radius: 6px;
+        display: flex; align-items: center; opacity: 0.6;
+        flex-shrink: 0; margin-left: 8px;
     }
-    
-    .stored-filter-delete:hover {
-        opacity: 1;
-        background: rgba(249, 112, 102, 0.1);
+    .stored-filter-delete:hover { opacity: 1; background: rgba(249, 112, 102, 0.1); }
+    .stored-filter-delete .material-symbols-rounded { font-size: 18px; }
+    .stored-filters-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: #94a3b8;
     }
-    
-    .stored-filter-delete .material-symbols-rounded {
-        font-size: 18px;
+    .stored-filters-empty i { font-size: 32px; margin-bottom: 10px; display: block; }
+    .stored-filters-count {
+        padding: 10px 18px;
+        border-top: 1px solid #f0f0f0;
+        font-size: 12px;
+        color: #94a3b8;
+        text-align: center;
+        background: #fafbfc;
     }
 </style>
 
@@ -810,18 +855,10 @@
                         Save Filter
                     </button>
                     <div class="stored-filters-wrapper" style="position: relative;">
-                        <button class="screener-btn screener-btn-secondary" id="storedFiltersBtn" onclick="toggleStoredFiltersMenu()">
+                        <button class="screener-btn screener-btn-secondary" id="storedFiltersBtn" onclick="openStoredFiltersModal()">
                             <span class="material-symbols-rounded">bookmarks</span>
                             Stored Filters
-                            <span class="material-symbols-rounded" style="font-size: 16px;">expand_more</span>
                         </button>
-                        <div id="storedFiltersMenu" class="stored-filters-menu" style="display: none;">
-                            <div class="stored-filters-list" id="storedFiltersList">
-                                <div class="empty-state" style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">
-                                    No saved filters yet
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -852,5 +889,19 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="stored-filters-modal-overlay" id="storedFiltersModal" onclick="if(event.target===this)closeStoredFiltersModal()">
+    <div class="stored-filters-modal">
+        <div class="stored-filters-modal-header">
+            <h4><i class="fas fa-bookmarks" style="margin-right:8px;"></i>Stored Filters</h4>
+            <button class="stored-filters-modal-close" onclick="closeStoredFiltersModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="stored-filters-search">
+            <input type="text" id="storedFiltersSearch" placeholder="Search filters..." oninput="filterStoredFiltersList(this.value)" />
+        </div>
+        <div class="stored-filters-list" id="storedFiltersList"></div>
+        <div class="stored-filters-count" id="storedFiltersCount"></div>
     </div>
 </div>

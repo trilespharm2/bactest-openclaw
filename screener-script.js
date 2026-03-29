@@ -7,6 +7,13 @@
 // CONSTANTS (use var to allow SPA reloads)
 // =============================================================================
 
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 var CATEGORIES = [
     { id: "security_info", name: "Security Info", icon: "info" },
     { id: "market_data", name: "Market Data", icon: "trending_up" },
@@ -23,8 +30,46 @@ var CONDITIONS = [
     { id: "above_or_equal", name: "Above or Equal", symbol: ">=" },
     { id: "below_or_equal", name: "Below or Equal", symbol: "<=" },
     { id: "between", name: "Between", symbol: "↔" },
+    { id: "outside", name: "Outside", symbol: "⇕" },
     { id: "equals", name: "Equals", symbol: "=" }
 ];
+
+var ADVANCED_CONDITIONS = [
+    { id: "above_pct", name: "Above %", symbol: "%↑" },
+    { id: "below_pct", name: "Below %", symbol: "%↓" },
+    { id: "between_pct", name: "Between %", symbol: "%↔" },
+    { id: "crosses", name: "Crosses", symbol: "✕" },
+    { id: "crosses_above", name: "Crosses Above", symbol: "↗" },
+    { id: "crosses_below", name: "Crosses Below", symbol: "↘" }
+];
+
+var PERCENTAGE_RANGES = [
+    { id: "0_3", name: "0% to 3%", min: 0, max: 3 },
+    { id: "0_5", name: "0% to 5%", min: 0, max: 5 },
+    { id: "0_10", name: "0% to 10%", min: 0, max: 10 },
+    { id: "0_20", name: "0% to 20%", min: 0, max: 20 },
+    { id: "3_plus", name: "3% or more", min: 3, max: null },
+    { id: "5_plus", name: "5% or more", min: 5, max: null },
+    { id: "10_plus", name: "10% or more", min: 10, max: null },
+    { id: "20_plus", name: "20% or more", min: 20, max: null },
+    { id: "custom", name: "Custom", min: null, max: null }
+];
+
+var TARGET_FIELDS = [
+    { id: "open", name: "Open", type: "price", column: "open" },
+    { id: "high", name: "High", type: "price", column: "high" },
+    { id: "low", name: "Low", type: "price", column: "low" },
+    { id: "close", name: "Close", type: "price", column: "close" },
+    { id: "sma", name: "Simple Moving Average", type: "moving_average", column: "SMA", periods: [5, 10, 20, 50, 100, 200] },
+    { id: "ema", name: "Exponential Moving Average", type: "moving_average", column: "EMA", periods: [5, 10, 20, 50, 100, 200] },
+    { id: "vwap", name: "VWAP", type: "indicator", column: "VWAP" },
+    { id: "psar", name: "Parabolic SAR", type: "indicator", column: "P.SAR" },
+    { id: "bb_upper", name: "Bollinger Upper", type: "channel", column: "BB.upper" },
+    { id: "bb_lower", name: "Bollinger Lower", type: "channel", column: "BB.lower" },
+    { id: "bb_basis", name: "Bollinger Basis", type: "channel", column: "BB.basis" }
+];
+
+var FILTERS_WITH_ADVANCED_COMPARISON = ['price', 'open', 'high', 'low', 'sma', 'ema', 'hullma', 'vwma', 'vwap', 'bb', 'kc', 'donch', 'psar', 'ichimoku'];
 
 var TIMEFRAMES = ["1 minute", "5 minutes", "15 minutes", "30 minutes", "1 hour", "2 hours", "4 hours", "1 day", "1 week", "1 month"];
 var FISCAL_PERIODS = ["Quarterly", "Semi-annual", "Annual", "Trailing 12 months"];
@@ -55,6 +100,7 @@ var CANDLESTICK_PATTERNS = ["Abandoned Baby Bearish", "Abandoned Baby Bullish", 
 // =============================================================================
 
 var FILTERS = {
+    // ==================== SECURITY INFO (13 filters) ====================
     "Security Info": [
         { id: "exchange", name: "Exchange", type: "checkbox_list", column: "exchange", options: EXCHANGES },
         { id: "sector", name: "Sector", type: "checkbox_list", column: "sector", options: SECTORS },
@@ -131,7 +177,7 @@ var FILTERS = {
         { id: "vwap", name: "Volume Weighted Average Price", type: "timeframe_only", column: "VWAP", timeframes: TIMEFRAMES, default_timeframe: "1 day", unit: "USD" },
         // Bands & Channels
         { id: "bb", name: "Bollinger Bands", type: "channel", column: "BB", period_options: BB_PERIODS, default_period: 20, channels: ["Upper", "Basis", "Lower"], timeframes: TIMEFRAMES, default_timeframe: "1 day", unit: "USD" },
-        { id: "donch", name: "Donchian Channels", type: "fixed_channel", column: "DonchCh20", fixed_period: 20, channels: ["Upper", "Middle", "Lower"], timeframes: TIMEFRAMES, default_timeframe: "1 day", unit: "USD" },
+        { id: "donch", name: "Donchian Channels", type: "fixed_channel", column: "DonchCh", fixed_period: 20, channels: ["Upper", "Middle", "Lower"], timeframes: TIMEFRAMES, default_timeframe: "1 day", unit: "USD" },
         { id: "ichimoku", name: "Ichimoku Cloud", type: "ichimoku", column: "Ichimoku", input_options: ["9,26,52,26", "20,60,120,30"], default_input: "9,26,52,26", plot_options: ["Conversion Line", "Base Line", "Leading Span A", "Leading Span B"], timeframes: TIMEFRAMES, default_timeframe: "1 day", unit: "USD" },
         // Volatility & Volume
         { id: "atr", name: "Average True Range", type: "fixed_period", column: "ATR", fixed_period: 14, timeframes: TIMEFRAMES, default_timeframe: "1 day", unit: "USD" },
@@ -257,7 +303,8 @@ var state = {
     results: null,
     isLoading: false,
     isLoggedIn: false,
-    savedFilters: []
+    savedFilters: [],
+    searchTerm: null
 };
 
 // =============================================================================
@@ -281,7 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initializeTabs() {
     var tabsContainer = document.getElementById('categoryTabs');
-    tabsContainer.innerHTML = '';
+    
+    // Remove existing tab buttons but keep the search container
+    var existingTabs = tabsContainer.querySelectorAll('.tab-btn');
+    existingTabs.forEach(tab => tab.remove());
     
     CATEGORIES.forEach((cat, index) => {
         const filterCount = FILTERS[cat.name]?.length || 0;
@@ -308,13 +358,6 @@ function setupEventListeners() {
     document.getElementById('exportBtn').addEventListener('click', exportResults);
     document.getElementById('saveFilterBtn').addEventListener('click', saveCurrentFilter);
     
-    document.addEventListener('click', (e) => {
-        const menu = document.getElementById('storedFiltersMenu');
-        const btn = document.getElementById('storedFiltersBtn');
-        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
-            menu.style.display = 'none';
-        }
-    });
 }
 
 // =============================================================================
@@ -323,6 +366,13 @@ function setupEventListeners() {
 
 function selectCategory(categoryName) {
     state.currentCategory = categoryName;
+    state.searchTerm = null;
+    
+    // Clear search input when selecting a category
+    var searchInput = document.getElementById('filterSearchInput');
+    if (searchInput) searchInput.value = '';
+    var clearBtn = document.getElementById('searchClearBtn');
+    if (clearBtn) clearBtn.classList.remove('visible');
     
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.category === categoryName);
@@ -336,13 +386,13 @@ function selectCategory(categoryName) {
     renderFilterList(filters);
 }
 
-function renderFilterList(filters) {
+function renderFilterList(filters, searchTerm) {
     var container = document.getElementById('filterList');
     
     if (filters.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <p>No filters available</p>
+                <p>${searchTerm ? 'No filters match your search' : 'No filters available'}</p>
             </div>
         `;
         return;
@@ -350,15 +400,78 @@ function renderFilterList(filters) {
     
     container.innerHTML = filters.map(filter => {
         const isSelected = state.selectedFilters.some(f => f.id === filter.id);
+        let displayName = filter.name;
+        if (searchTerm) {
+            const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+            displayName = filter.name.replace(regex, '<span class="search-highlight">$1</span>');
+        }
         return `
             <div class="filter-item ${isSelected ? 'selected' : ''}" 
                  data-filter-id="${filter.id}" 
                  onclick="toggleFilter('${filter.id}')">
                 <div class="checkbox"></div>
-                <span>${filter.name}</span>
+                <span>${displayName}</span>
+                ${filter._category ? `<span style="font-size: 11px; color: #94a3b8; margin-left: auto;">${filter._category}</span>` : ''}
             </div>
         `;
     }).join('');
+}
+
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// =============================================================================
+// FILTER SEARCH
+// =============================================================================
+
+function handleFilterSearch(searchTerm) {
+    var clearBtn = document.getElementById('searchClearBtn');
+    
+    if (searchTerm.trim()) {
+        clearBtn.classList.add('visible');
+        state.searchTerm = searchTerm.trim().toLowerCase();
+        
+        // Search across all categories
+        var allMatches = [];
+        for (const [category, filters] of Object.entries(FILTERS)) {
+            filters.forEach(filter => {
+                if (filter.name.toLowerCase().includes(state.searchTerm)) {
+                    allMatches.push({ ...filter, _category: category });
+                }
+            });
+        }
+        
+        // Clear category selection visual
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('currentCategoryName').textContent = `Search Results: "${searchTerm}"`;
+        document.getElementById('filterCount').textContent = `${allMatches.length} matches`;
+        
+        renderFilterList(allMatches, searchTerm);
+    } else {
+        clearBtn.classList.remove('visible');
+        state.searchTerm = null;
+        
+        // Restore current category view
+        if (state.currentCategory) {
+            selectCategory(state.currentCategory);
+        } else {
+            document.getElementById('currentCategoryName').textContent = 'Select a Category';
+            document.getElementById('filterCount').textContent = '0 filters';
+            document.getElementById('filterList').innerHTML = `
+                <div class="empty-state">
+                    <p>Select a category tab to view available filters</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function clearFilterSearch() {
+    var searchInput = document.getElementById('filterSearchInput');
+    searchInput.value = '';
+    handleFilterSearch('');
+    searchInput.focus();
 }
 
 // =============================================================================
@@ -416,6 +529,89 @@ function updateFilterConfig(filterId, field, value) {
     var filter = state.selectedFilters.find(f => f.id === filterId);
     if (filter) filter.config[field] = value;
     updateButtonStates();
+}
+
+function handleConditionChange(filterId, condition) {
+    var filter = state.selectedFilters.find(f => f.id === filterId);
+    if (filter) {
+        filter.config.condition = condition;
+        var isAdvanced = ADVANCED_CONDITIONS.some(c => c.id === condition);
+        if (isAdvanced) {
+            filter.config.target = filter.config.target || 'sma';
+            filter.config.target_period = filter.config.target_period || 50;
+            filter.config.pct_min = filter.config.pct_min || 0;
+            filter.config.pct_max = filter.config.pct_max || 3;
+        }
+        updateUI();
+    }
+}
+
+function handleTargetChange(filterId, targetId) {
+    var filter = state.selectedFilters.find(f => f.id === filterId);
+    if (filter) {
+        filter.config.target = targetId;
+        var targetDef = TARGET_FIELDS.find(t => t.id === targetId);
+        if (targetDef && targetDef.periods) {
+            filter.config.target_period = filter.config.target_period || targetDef.periods[2] || targetDef.periods[0];
+        }
+        updateUI();
+    }
+}
+
+function handlePercentageRangeChange(filterId, rangeId) {
+    var filter = state.selectedFilters.find(f => f.id === filterId);
+    if (filter) {
+        var range = PERCENTAGE_RANGES.find(r => r.id === rangeId);
+        if (range) {
+            filter.config.pct_range = rangeId;
+            filter.config.pct_min = range.min;
+            filter.config.pct_max = range.max;
+        }
+        updateUI();
+    }
+}
+
+function renderAdvancedComparisonFields(filter, config) {
+    var condition = config.condition;
+    var isCrossCondition = ['crosses', 'crosses_above', 'crosses_below'].includes(condition);
+    var isPctCondition = ['above_pct', 'below_pct', 'between_pct'].includes(condition);
+    var selectedTarget = TARGET_FIELDS.find(t => t.id === config.target);
+    
+    var fields = '';
+    
+    if (isPctCondition) {
+        var currentRange = config.pct_range || '0_3';
+        fields += `
+            <div class="field-group">
+                <label>Percentage</label>
+                <select onchange="handlePercentageRangeChange('${filter.id}', this.value)">
+                    ${PERCENTAGE_RANGES.map(r => `<option value="${r.id}" ${currentRange === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                </select>
+            </div>
+        `;
+    }
+    
+    fields += `
+        <div class="field-group">
+            <label>Compare To</label>
+            <select onchange="handleTargetChange('${filter.id}', this.value)">
+                ${TARGET_FIELDS.map(t => `<option value="${t.id}" ${config.target === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+            </select>
+        </div>
+    `;
+    
+    if (selectedTarget && selectedTarget.periods) {
+        fields += `
+            <div class="field-group">
+                <label>Period</label>
+                <select onchange="updateFilterConfig('${filter.id}', 'target_period', parseInt(this.value))">
+                    ${selectedTarget.periods.map(p => `<option value="${p}" ${config.target_period == p ? 'selected' : ''}>${p}</option>`).join('')}
+                </select>
+            </div>
+        `;
+    }
+    
+    return fields;
 }
 
 function toggleCheckboxOption(filterId, optionValue) {
@@ -577,19 +773,37 @@ function renderConfigFields(filter) {
             </div>
         `;
     } else if (filter.type !== 'date_preset' && filter.type !== 'predefined_ranges') {
-        // Condition and value for numeric filters
+        var supportsAdvanced = FILTERS_WITH_ADVANCED_COMPARISON.includes(filter.id);
+        var allConditions = supportsAdvanced ? [...CONDITIONS, ...ADVANCED_CONDITIONS] : CONDITIONS;
+        var isAdvancedCondition = ADVANCED_CONDITIONS.some(c => c.id === config.condition);
+        
         fields += `
             <div class="field-group">
                 <label>Condition</label>
-                <select onchange="updateFilterConfig('${filter.id}', 'condition', this.value)">
-                    ${CONDITIONS.map(c => `<option value="${c.id}" ${config.condition === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                <select onchange="handleConditionChange('${filter.id}', this.value)">
+                    ${allConditions.map(c => `<option value="${c.id}" ${config.condition === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
                 </select>
             </div>
-            <div class="field-group">
-                <label>Value ${filter.unit ? `(${filter.unit})` : ''}</label>
-                <input type="number" step="any" value="${config.value || ''}" placeholder="Enter value" onchange="updateFilterConfig('${filter.id}', 'value', this.value)">
-            </div>
         `;
+        
+        if (isAdvancedCondition && supportsAdvanced) {
+            fields += renderAdvancedComparisonFields(filter, config);
+        } else {
+            fields += `
+                <div class="field-group">
+                    <label>Value ${filter.unit ? `(${filter.unit})` : ''}</label>
+                    <input type="number" step="any" value="${config.value || ''}" placeholder="Enter value" onchange="updateFilterConfig('${filter.id}', 'value', this.value)">
+                </div>
+            `;
+            if (config.condition === 'between' || config.condition === 'outside') {
+                fields += `
+                    <div class="field-group">
+                        <label>To Value</label>
+                        <input type="number" step="any" value="${config.value_to || ''}" placeholder="Max value" onchange="updateFilterConfig('${filter.id}', 'value_to', this.value)">
+                    </div>
+                `;
+            }
+        }
     }
     
     // Date preset / predefined ranges
@@ -614,6 +828,8 @@ function updateButtonStates() {
     var hasValidFilter = state.selectedFilters.some(f => {
         if (f.type === 'checkbox_list') return f.config.selected_values?.length > 0;
         if (f.type === 'date_preset' || f.type === 'predefined_ranges') return !!f.config.selected_option;
+        var isAdvanced = ADVANCED_CONDITIONS.some(c => c.id === f.config.condition);
+        if (isAdvanced) return !!f.config.target;
         return f.config.value !== '' && f.config.value !== undefined;
     });
     
@@ -801,45 +1017,69 @@ async function loadSavedFilters() {
     }
 }
 
-function toggleStoredFiltersMenu() {
-    var menu = document.getElementById('storedFiltersMenu');
-    if (menu.style.display === 'none') {
-        menu.style.display = 'block';
-    } else {
-        menu.style.display = 'none';
+function openStoredFiltersModal() {
+    var modal = document.getElementById('storedFiltersModal');
+    modal.style.display = 'flex';
+    renderStoredFiltersMenu();
+    var searchInput = document.getElementById('storedFiltersSearch');
+    if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+}
+
+function closeStoredFiltersModal() {
+    document.getElementById('storedFiltersModal').style.display = 'none';
+}
+
+function filterStoredFiltersList(query) {
+    var items = document.querySelectorAll('#storedFiltersList .stored-filter-item');
+    var q = (query || '').toLowerCase();
+    var shown = 0;
+    items.forEach(function(item) {
+        var name = (item.getAttribute('data-name') || '').toLowerCase();
+        var visible = !q || name.indexOf(q) !== -1;
+        item.style.display = visible ? 'flex' : 'none';
+        if (visible) shown++;
+    });
+    var countEl = document.getElementById('storedFiltersCount');
+    if (countEl && q) {
+        countEl.textContent = shown + ' of ' + state.savedFilters.length + ' filter' + (state.savedFilters.length !== 1 ? 's' : '');
     }
 }
 
 function renderStoredFiltersMenu() {
     var container = document.getElementById('storedFiltersList');
+    var countEl = document.getElementById('storedFiltersCount');
     if (!container) return;
     
     if (!state.isLoggedIn) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">
-                Login to save and view filters
-            </div>
-        `;
+        container.innerHTML = '<div class="stored-filters-empty"><i class="fas fa-lock"></i><p>Login to save and view filters</p></div>';
+        if (countEl) countEl.textContent = '';
         return;
     }
     
     if (state.savedFilters.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">
-                No saved filters yet
-            </div>
-        `;
+        container.innerHTML = '<div class="stored-filters-empty"><i class="fas fa-filter"></i><p>No saved filters yet</p><p style="font-size:12px;margin-top:4px;">Save filters from the screener to see them here.</p></div>';
+        if (countEl) countEl.textContent = '';
         return;
     }
     
-    container.innerHTML = state.savedFilters.map(filter => `
-        <div class="stored-filter-item" onclick="applyStoredFilter(${filter.id})">
-            <span class="stored-filter-name">${filter.name}</span>
-            <button class="stored-filter-delete" onclick="deleteStoredFilter(${filter.id}, event)" title="Delete filter">
-                <span class="material-symbols-rounded">delete</span>
-            </button>
-        </div>
-    `).join('');
+    container.innerHTML = state.savedFilters.map(function(filter) {
+        var filterCount = 0;
+        try {
+            var config = typeof filter.filter_config === 'string' ? JSON.parse(filter.filter_config) : filter.filter_config;
+            filterCount = Array.isArray(config) ? config.length : 0;
+        } catch(e) {}
+        return '<div class="stored-filter-item" data-name="' + escapeHtml(filter.name) + '" onclick="applyStoredFilter(' + filter.id + ');closeStoredFiltersModal();">' +
+            '<div class="stored-filter-info">' +
+                '<div class="stored-filter-name">' + escapeHtml(filter.name) + '</div>' +
+                '<div class="stored-filter-meta">' + filterCount + ' filter' + (filterCount !== 1 ? 's' : '') + ' configured</div>' +
+            '</div>' +
+            '<button class="stored-filter-delete" onclick="deleteStoredFilter(' + filter.id + ', event)" title="Delete filter">' +
+                '<span class="material-symbols-rounded">delete</span>' +
+            '</button>' +
+        '</div>';
+    }).join('');
+    
+    if (countEl) countEl.textContent = state.savedFilters.length + ' saved filter' + (state.savedFilters.length !== 1 ? 's' : '');
 }
 
 function updateSaveFilterButton() {
@@ -938,7 +1178,7 @@ async function applyStoredFilter(filterId) {
         }
     }
     
-    document.getElementById('storedFiltersMenu').style.display = 'none';
+    closeStoredFiltersModal();
     updateUI();
     updateSaveFilterButton();
 }
