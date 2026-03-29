@@ -24,6 +24,11 @@
     <link rel="stylesheet" href="/static/css/fonts.min.css" />
     <link rel="stylesheet" href="/static/css/ticker.css" />
     <style>
+      .btn-toggle .fa-bars { font-size: 18px; color: #fff; }
+      .nav-toggle .toggle-sidebar { display: none !important; }
+      .nav-toggle .sidenav-toggler { display: inline-flex !important; }
+    </style>
+    <style>
       /* 3-panel butterfly layout */
       .bf-panel { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; }
       .bf-panel table, #bfStrikePanel table {
@@ -54,6 +59,16 @@
             <a href="/" class="logo">
               <span class="logo-text" style="color: #fff;">BacktestPro</span>
             </a>
+            <div class="nav-toggle">
+              <button class="btn btn-toggle toggle-sidebar">
+                <i class="gg-menu-right"></i>
+                <i class="fas fa-bars"></i>
+              </button>
+              <button class="btn btn-toggle sidenav-toggler">
+                <i class="gg-menu-left"></i>
+                <i class="fas fa-bars"></i>
+              </button>
+            </div>
             <button class="topbar-toggler more">
               <i class="gg-more-vertical-alt"></i>
             </button>
@@ -136,6 +151,16 @@
               <a href="/" class="logo">
                 <span class="logo-text" style="color: #fff;">BacktestPro</span>
               </a>
+              <div class="nav-toggle">
+                <button class="btn btn-toggle toggle-sidebar">
+                  <i class="gg-menu-right"></i>
+                  <i class="fas fa-bars"></i>
+                </button>
+                <button class="btn btn-toggle sidenav-toggler">
+                  <i class="gg-menu-left"></i>
+                  <i class="fas fa-bars"></i>
+                </button>
+              </div>
               <button class="topbar-toggler more">
                 <i class="gg-more-vertical-alt"></i>
               </button>
@@ -381,6 +406,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
     <script src="/static/js/ticker-script.js"></script>
     <script>
+      document.addEventListener('click', function(e) {
+        var sidebar = document.querySelector('.sidebar');
+        var isSidebarOpen = document.documentElement.classList.contains('nav_open');
+        if (isSidebarOpen && sidebar && !sidebar.contains(e.target)) {
+          var isToggler = e.target.closest('.sidenav-toggler') || e.target.closest('.topbar-toggler');
+          if (!isToggler) {
+            document.documentElement.classList.remove('nav_open');
+            var toggler = document.querySelector('.sidenav-toggler');
+            if (toggler) toggler.classList.remove('toggled');
+          }
+        }
+      });
+
       (async function() {
         try {
           const r = await fetch('/api/auth/status', {credentials:'include'});
