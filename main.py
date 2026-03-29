@@ -7134,6 +7134,19 @@ start_dashboard_cache()
 ensure_database_schema()
 bootstrap_admin_user()
 
+# Initialize scanner scheduler for gunicorn/wsgi (won't hit __main__ block)
+import sys
+try:
+    if env_bool('ENABLE_SCHEDULER', True):
+        init_scheduler(app)
+        print("✅ Scanner scheduler initialized", flush=True)
+    else:
+        print("⚠️ Scanner scheduler disabled", flush=True)
+except Exception as exc:
+    import traceback
+    print(f"❌ Could not initialize scanner scheduler: {exc}", flush=True)
+    traceback.print_exc()
+
 
 if __name__ == '__main__':
     startup_state = initialize_app_runtime(

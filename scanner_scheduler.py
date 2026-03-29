@@ -65,14 +65,18 @@ def parse_time_string(time_str):
         return None
 
 def is_within_active_hours(scanner):
-    """Check if current time is within scanner's active hours"""
+    """Check if current time is within scanner's active hours (US Eastern / market time)"""
     if not scanner.active_from_time and not scanner.active_to_time:
         return True
     
     from datetime import datetime
-    import pytz
+    try:
+        import pytz
+        eastern = pytz.timezone('US/Eastern')
+        now = datetime.now(eastern)
+    except Exception:
+        now = datetime.utcnow()
     
-    now = datetime.now()
     current_hour = now.hour + (now.minute / 60)
     
     from_hour = parse_time_string(scanner.active_from_time)
@@ -80,6 +84,8 @@ def is_within_active_hours(scanner):
     
     if from_hour is None and to_hour is None:
         return True
+    
+    logger.info(f"Active hours check: now={now.strftime('%I:%M %p')} ET (hour={current_hour:.2f}), from={from_hour}, to={to_hour}")
     
     if from_hour is not None and to_hour is not None:
         if from_hour <= to_hour:
@@ -162,9 +168,11 @@ def run_scanner_job(scanner_id, app=None):
             return
         
         if not is_within_active_hours(scanner):
+            print(f"📋 Scanner {scanner.name} is outside active hours, skipping")
             logger.info(f"Scanner {scanner.name} is outside active hours, skipping")
             return
         
+        print(f"📋 Running scanner: {scanner.name} (ID: {scanner_id})")
         logger.info(f"Running scanner: {scanner.name} (ID: {scanner_id})")
         
         run = ScannerRun(
@@ -515,16 +523,21 @@ def init_scheduler(app):
     
     if not scheduler.running:
         scheduler.start()
+        print("📋 Background scheduler started")
         logger.info("Background scheduler started")
     
     def load_scanners():
         try:
             from models import Scanner
             active_scanners = Scanner.query.filter_by(is_active=True).all()
+            print(f"📋 Found {len(active_scanners)} active scanner(s) to schedule")
             for scanner in active_scanners:
+                print(f"📋 Scheduling scanner: {scanner.name} (ID={scanner.id}, freq={scanner.frequency})")
+                print(f"   active_from={scanner.active_from_time}, active_to={scanner.active_to_time}")
                 schedule_scanner(scanner, app)
             logger.info(f"Initialized {len(active_scanners)} active scanners")
         except Exception as e:
+            print(f"❌ Could not load scanners: {e}")
             logger.warning(f"Could not load scanners: {e}")
     
     try:
@@ -537,6 +550,7 @@ def init_scheduler(app):
         try:
             load_scanners()
         except Exception as e:
+            print(f"❌ Scheduler initialization warning: {e}")
             logger.warning(f"Scheduler initialization warning: {e}")
 
 
