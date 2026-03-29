@@ -230,7 +230,11 @@
 
         <div class="container">
           <div class="page-inner">
-          <!-- Ticker Info Bar -->
+          <!-- Ticker Header Info Bar -->
+          <div id="tickerHeaderInfo" class="d-flex align-items-center gap-3 mb-3 flex-wrap" style="min-height:40px;">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+          </div>
+          <!-- Ticker Stats Card -->
           <div class="row mb-3">
             <div class="col-12">
               <div class="card" id="tickerInfoCard">
@@ -409,11 +413,12 @@
             const emailDisp = document.getElementById('tickerUserEmailDisplay');
             if (profileNav) profileNav.style.display = '';
             if (guestNav) guestNav.style.display = 'none';
-            if (nameEl) nameEl.textContent = d.user.username || 'User';
-            if (nameDisp) nameDisp.textContent = d.user.username || 'User';
-            if (emailDisp) emailDisp.textContent = d.user.email || '';
+            var uname = (d.user && (d.user.name || d.user.username)) || 'User';
+            if (nameEl) nameEl.textContent = uname;
+            if (nameDisp) nameDisp.textContent = uname;
+            if (emailDisp) emailDisp.textContent = (d.user && d.user.email) || '';
           }
-        } catch(e) {}
+        } catch(e) { console.error('Auth check error:', e); }
 
         var searchInput = document.getElementById('tickerGlobalSearch');
         var searchDrop = document.getElementById('tickerSearchDropdown');

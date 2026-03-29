@@ -53,17 +53,20 @@ async function loadInfo() {
         const color = isUp ? '#0fad6e' : '#d94452';
         const arrow = isUp ? '\u25B2' : '\u25BC';
 
-        document.getElementById('tickerHeaderInfo').innerHTML =
-            `<div>
-                <span class="ticker-symbol-header">${esc(SYMBOL)}</span>
-                <span class="ticker-name ms-2">${esc(info.name || '')}</span>
-            </div>
-            <div class="ms-3">
-                <span class="ticker-price-header">$${fmt(info.price)}</span>
-                <span class="ticker-change-header ms-2" style="color:${color};">
-                    ${arrow} ${isUp ? '+' : ''}${fmt(change)} (${isUp ? '+' : ''}${fmt(changePct)}%)
-                </span>
-            </div>`;
+        const headerEl = document.getElementById('tickerHeaderInfo');
+        if (headerEl) {
+            headerEl.innerHTML =
+                `<div>
+                    <span class="ticker-symbol-header">${esc(SYMBOL)}</span>
+                    <span class="ticker-name ms-2">${esc(info.name || '')}</span>
+                </div>
+                <div class="ms-3">
+                    <span class="ticker-price-header">$${fmt(info.price)}</span>
+                    <span class="ticker-change-header ms-2" style="color:${color};">
+                        ${arrow} ${isUp ? '+' : ''}${fmt(change)} (${isUp ? '+' : ''}${fmt(changePct)}%)
+                    </span>
+                </div>`;
+        }
 
         const stats = [
             { label: 'Market Cap', value: fmtLarge(info.market_cap) },
@@ -86,9 +89,12 @@ async function loadInfo() {
         ).join('');
 
     } catch (e) {
-        document.getElementById('tickerHeaderInfo').innerHTML =
-            `<span class="ticker-symbol-header">${esc(SYMBOL)}</span>
-             <span class="text-danger ms-3">Failed to load ticker data</span>`;
+        const headerEl2 = document.getElementById('tickerHeaderInfo');
+        if (headerEl2) {
+            headerEl2.innerHTML =
+                `<span class="ticker-symbol-header">${esc(SYMBOL)}</span>
+                 <span class="text-danger ms-3">Failed to load ticker data</span>`;
+        }
         console.error('Info error:', e);
     }
 }
