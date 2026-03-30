@@ -177,6 +177,7 @@ class User(UserMixin, db.Model):
     # API key storage (encrypted)
     polygon_api_key = db.Column(db.String(256), nullable=True)
     profile_picture = db.Column(db.String(500), nullable=True)
+    notifications_viewed_at = db.Column(db.DateTime, nullable=True)
     auth_token = db.Column(db.String(100), nullable=True, index=True)
     auth_token_expires = db.Column(db.DateTime, nullable=True)
     
@@ -324,15 +325,22 @@ def ensure_database_schema():
         return False
     with app.app_context():
         db.create_all()
-        try:
-            db.session.execute(text("SELECT profile_picture FROM users LIMIT 1"))
-        except Exception:
+        is_sqlite = 'sqlite' in str(db.engine.url)
+        col_defs = [
+            ("profile_picture", "VARCHAR(500)"),
+            ("notifications_viewed_at", "TIMESTAMP" if not is_sqlite else "DATETIME"),
+        ]
+        for col_name, col_type in col_defs:
             try:
-                db.session.execute(text("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(500)"))
-                db.session.commit()
-                logging.info("Added profile_picture column to users table")
+                db.session.execute(text(f"SELECT {col_name} FROM users LIMIT 1"))
             except Exception:
                 db.session.rollback()
+                try:
+                    db.session.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"))
+                    db.session.commit()
+                    logging.info(f"Added {col_name} column to users table")
+                except Exception:
+                    db.session.rollback()
     return True
 
 
@@ -6930,24 +6938,18 @@ def get_recent_notifications():
     """Get recent notifications for current user"""
     try:
         from sqlalchemy import or_
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        logger.info(f"Loading notifications for user_id={current_user.id} ({current_user.email})")
         
         scanner_ids = [s.id for s in Scanner.query.filter_by(user_id=current_user.id).all()]
-        logger.info(f"User's scanner_ids: {scanner_ids}")
         
         conditions = [ScannerRun.user_id == current_user.id]
         if scanner_ids:
             conditions.append(ScannerRun.scanner_id.in_(scanner_ids))
         
+        limit = min(max(request.args.get('limit', 50, type=int), 1), 50)
         runs = ScannerRun.query.filter(
             or_(*conditions),
             ScannerRun.status == 'completed'
-        ).order_by(ScannerRun.finished_at.desc()).limit(50).all()
-        
-        logger.info(f"Found {len(runs)} notification runs")
+        ).order_by(ScannerRun.finished_at.desc()).limit(limit).all()
         
         notifications = []
         for run in runs:
@@ -6975,6 +6977,43 @@ def get_recent_notifications():
             "notifications": notifications
         })
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+@login_required
+def get_unread_notification_count():
+    """Get count of notifications the user has not yet viewed"""
+    try:
+        from sqlalchemy import or_
+        
+        scanner_ids = [s.id for s in Scanner.query.filter_by(user_id=current_user.id).all()]
+        conditions = [ScannerRun.user_id == current_user.id]
+        if scanner_ids:
+            conditions.append(ScannerRun.scanner_id.in_(scanner_ids))
+        
+        query = ScannerRun.query.filter(
+            or_(*conditions),
+            ScannerRun.status == 'completed'
+        )
+        
+        if current_user.notifications_viewed_at:
+            query = query.filter(ScannerRun.finished_at > current_user.notifications_viewed_at)
+        
+        count = query.count()
+        return jsonify({"success": True, "count": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e), "count": 0}), 500
+
+@app.route('/api/notifications/mark-viewed', methods=['POST'])
+@login_required
+def mark_notifications_viewed():
+    """Mark all notifications as viewed by updating the user's last-viewed timestamp"""
+    try:
+        current_user.notifications_viewed_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
 
 

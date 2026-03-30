@@ -539,19 +539,24 @@
                     </form>
                   </ul>
                 </li>
-                <li class="nav-item topbar-icon dropdown hidden-caret">
+                <li class="nav-item topbar-icon dropdown hidden-caret" id="notifDropdownWrapper">
                   <a class="nav-link" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i class="fa fa-bell"></i>
-                    <span class="notification" id="notificationBadge">0</span>
+                    <span class="notification" id="notificationBadge" style="display:none;">0</span>
                   </a>
-                  <ul class="dropdown-menu notif-box animated fadeIn" aria-labelledby="notifDropdown">
+                  <ul class="dropdown-menu notif-box animated fadeIn" aria-labelledby="notifDropdown" style="width:340px;max-width:90vw;">
                     <li><div class="dropdown-title">Notifications</div></li>
                     <li>
-                      <div class="notif-scroll scrollbar-outer">
+                      <div class="notif-scroll scrollbar-outer" style="max-height:380px;overflow-y:auto;">
                         <div class="notif-center" id="headerNotificationsList">
-                          <a href="#"><div class="notif-content"><span class="block">No new notifications</span></div></a>
+                          <div style="padding:20px;text-align:center;color:#8d9498;font-size:13px;">Loading...</div>
                         </div>
                       </div>
+                    </li>
+                    <li id="notifViewMoreRow" style="display:none;">
+                      <a href="#" onclick="event.preventDefault();navigateToPage('notifications');bootstrap.Dropdown.getInstance(document.getElementById('notifDropdown'))?.hide();" class="see-all" style="display:block;text-align:center;padding:10px;font-size:13px;font-weight:600;color:#1b55e2;border-top:1px solid #eee;">
+                        View More <i class="fa fa-angle-right"></i>
+                      </a>
                     </li>
                   </ul>
                 </li>

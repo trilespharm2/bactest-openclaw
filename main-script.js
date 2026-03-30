@@ -178,6 +178,7 @@ function applyAuthUIState() {
         }
         
         renderNavAvatars(currentUser);
+        if (typeof loadUnreadNotifCount === 'function') loadUnreadNotifCount();
     } else {
         // Show guest nav, hide user profile
         if (userProfileNav) userProfileNav.style.display = 'none';
@@ -1660,4 +1661,114 @@ async function loadWatchlist() {
     document.addEventListener('click', (e) => {
         if (!input.contains(e.target) && !dropdown.contains(e.target)) closeDropdown();
     });
+})();
+
+// ── Header Notifications Dropdown ───────────────────────────────────────────
+(function () {
+    const NOTIF_HEADER_LIMIT = 10;
+    let headerNotifsLoaded = false;
+
+    function timeAgo(isoStr) {
+        if (!isoStr) return '';
+        const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+        return new Date(isoStr).toLocaleDateString();
+    }
+
+    function notifIcon(count) {
+        if (count > 0) return '<i class="fas fa-chart-line" style="color:#31cb9e;"></i>';
+        return '<i class="fas fa-search" style="color:#1b55e2;"></i>';
+    }
+
+    async function loadUnreadCount() {
+        if (!isAuthenticated) return;
+        try {
+            const res = await authFetch('/api/notifications/unread-count');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data.success) return;
+            const badge = document.getElementById('notificationBadge');
+            if (!badge) return;
+            const count = data.count || 0;
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (e) { }
+    }
+
+    async function loadHeaderNotifications() {
+        const container = document.getElementById('headerNotificationsList');
+        const viewMoreRow = document.getElementById('notifViewMoreRow');
+        if (!container) return;
+        
+        try {
+            const res = await authFetch('/api/notifications/recent?limit=11');
+            const data = await res.json();
+            
+            if (!data.success || !data.notifications || data.notifications.length === 0) {
+                container.innerHTML = '<div style="padding:20px;text-align:center;color:#8d9498;font-size:13px;">No notifications yet</div>';
+                if (viewMoreRow) viewMoreRow.style.display = 'none';
+                return;
+            }
+
+            const hasMore = data.notifications.length > NOTIF_HEADER_LIMIT;
+            const items = data.notifications.slice(0, NOTIF_HEADER_LIMIT);
+
+            container.innerHTML = items.map(n => {
+                const symbolCount = n.symbols_found || 0;
+                const symbolPreview = (n.results || []).slice(0, 3).map(r => r.symbol || r.ticker || '').filter(Boolean).join(', ');
+                const moreCount = symbolCount > 3 ? ` +${symbolCount - 3} more` : '';
+                return `<a href="#" onclick="event.preventDefault();navigateToPage('notifications');bootstrap.Dropdown.getInstance(document.getElementById('notifDropdown'))?.hide();" style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #f0f2f5;text-decoration:none;color:inherit;transition:background .12s;" onmouseenter="this.style.background='#f8f9fa'" onmouseleave="this.style.background=''">
+                    <div style="width:34px;height:34px;border-radius:50%;background:#f0f4ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        ${notifIcon(symbolCount)}
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(n.scanner_name)}</div>
+                        <div style="font-size:12px;color:#666;margin-top:2px;">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''} found${symbolPreview ? ': ' + _escH(symbolPreview) + _escH(moreCount) : ''}</div>
+                        <div style="font-size:11px;color:#aaa;margin-top:2px;">${timeAgo(n.time)}</div>
+                    </div>
+                </a>`;
+            }).join('');
+
+            if (viewMoreRow) viewMoreRow.style.display = hasMore ? '' : 'none';
+        } catch (e) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:#8d9498;font-size:13px;">Failed to load notifications</div>';
+        }
+        headerNotifsLoaded = true;
+    }
+
+    function _escH(s) {
+        if (!s) return '';
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(String(s)));
+        return d.innerHTML;
+    }
+
+    async function markNotificationsViewed() {
+        try {
+            await authFetch('/api/notifications/mark-viewed', { method: 'POST' });
+            const badge = document.getElementById('notificationBadge');
+            if (badge) badge.style.display = 'none';
+        } catch (e) { }
+    }
+
+    const wrapper = document.getElementById('notifDropdownWrapper');
+    if (wrapper) {
+        wrapper.addEventListener('show.bs.dropdown', () => {
+            if (isAuthenticated) {
+                loadHeaderNotifications();
+                markNotificationsViewed();
+            }
+        });
+    }
+
+    window.loadUnreadNotifCount = loadUnreadCount;
+
+    setInterval(() => { if (isAuthenticated) loadUnreadCount(); }, 60000);
 })();
