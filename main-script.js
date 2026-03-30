@@ -1775,8 +1775,9 @@ function showHeaderNotifDetail(index) {
     if (n.results && n.results.length > 0) {
         resultsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
         n.results.forEach(r => {
-            const ticker = r.ticker || r.symbol || r.name || 'N/A';
-            const displayName = r.name || r.ticker || r.symbol || 'N/A';
+            const rawTicker = r.ticker || r.symbol || r.name || 'N/A';
+            const ticker = rawTicker.includes(':') ? rawTicker.split(':').pop() : rawTicker;
+            const displayName = r.name || ticker;
             const change = r.change || 0;
             const price = r.close || 0;
             const cls = change >= 0 ? '#2e7d32' : '#c62828';
