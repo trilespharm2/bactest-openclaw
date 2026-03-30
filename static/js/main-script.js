@@ -1663,112 +1663,259 @@ async function loadWatchlist() {
     });
 })();
 
-// ── Header Notifications Dropdown ───────────────────────────────────────────
-(function () {
-    const NOTIF_HEADER_LIMIT = 10;
-    let headerNotifsLoaded = false;
+// ── Header Notifications Modal ──────────────────────────────────────────────
+let _headerNotifs = [];
 
-    function timeAgo(isoStr) {
-        if (!isoStr) return '';
-        const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
-        if (diff < 60) return 'Just now';
-        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-        if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
-        return new Date(isoStr).toLocaleDateString();
-    }
+function _hEsc(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(s)));
+    return d.innerHTML;
+}
 
-    function notifIcon(count) {
-        if (count > 0) return '<i class="fas fa-chart-line" style="color:#31cb9e;"></i>';
-        return '<i class="fas fa-search" style="color:#1b55e2;"></i>';
-    }
+function _timeAgo(isoStr) {
+    if (!isoStr) return '';
+    const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+    return new Date(isoStr).toLocaleDateString();
+}
 
-    async function loadUnreadCount() {
-        if (!isAuthenticated) return;
-        try {
-            const res = await authFetch('/api/notifications/unread-count');
-            if (!res.ok) return;
-            const data = await res.json();
-            if (!data.success) return;
-            const badge = document.getElementById('notificationBadge');
-            if (!badge) return;
-            const count = data.count || 0;
-            if (count > 0) {
-                badge.textContent = count > 99 ? '99+' : count;
-                badge.style.display = '';
-            } else {
-                badge.style.display = 'none';
-            }
-        } catch (e) { }
-    }
+function _formatFullTime(isoStr) {
+    if (!isoStr) return 'Unknown';
+    const d = new Date(isoStr);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+}
 
-    async function loadHeaderNotifications() {
-        const container = document.getElementById('headerNotificationsList');
-        const viewMoreRow = document.getElementById('notifViewMoreRow');
-        if (!container) return;
-        
-        try {
-            const res = await authFetch('/api/notifications/recent?limit=11');
-            const data = await res.json();
-            
-            if (!data.success || !data.notifications || data.notifications.length === 0) {
-                container.innerHTML = '<div style="padding:20px;text-align:center;color:#8d9498;font-size:13px;">No notifications yet</div>';
-                if (viewMoreRow) viewMoreRow.style.display = 'none';
-                return;
-            }
-
-            const hasMore = data.notifications.length > NOTIF_HEADER_LIMIT;
-            const items = data.notifications.slice(0, NOTIF_HEADER_LIMIT);
-
-            container.innerHTML = items.map(n => {
-                const symbolCount = n.symbols_found || 0;
-                const symbolPreview = (n.results || []).slice(0, 3).map(r => r.symbol || r.ticker || '').filter(Boolean).join(', ');
-                const moreCount = symbolCount > 3 ? ` +${symbolCount - 3} more` : '';
-                return `<a href="#" onclick="event.preventDefault();navigateToPage('notifications');bootstrap.Dropdown.getInstance(document.getElementById('notifDropdown'))?.hide();" style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #f0f2f5;text-decoration:none;color:inherit;transition:background .12s;" onmouseenter="this.style.background='#f8f9fa'" onmouseleave="this.style.background=''">
-                    <div style="width:34px;height:34px;border-radius:50%;background:#f0f4ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        ${notifIcon(symbolCount)}
-                    </div>
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-size:13px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(n.scanner_name)}</div>
-                        <div style="font-size:12px;color:#666;margin-top:2px;">${symbolCount} symbol${symbolCount !== 1 ? 's' : ''} found${symbolPreview ? ': ' + _escH(symbolPreview) + _escH(moreCount) : ''}</div>
-                        <div style="font-size:11px;color:#aaa;margin-top:2px;">${timeAgo(n.time)}</div>
-                    </div>
-                </a>`;
-            }).join('');
-
-            if (viewMoreRow) viewMoreRow.style.display = hasMore ? '' : 'none';
-        } catch (e) {
-            container.innerHTML = '<div style="padding:20px;text-align:center;color:#8d9498;font-size:13px;">Failed to load notifications</div>';
+async function loadUnreadNotifCount() {
+    if (!isAuthenticated) return;
+    try {
+        const res = await authFetch('/api/notifications/unread-count');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success) return;
+        const badge = document.getElementById('notificationBadge');
+        if (!badge) return;
+        const count = data.count || 0;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
         }
-        headerNotifsLoaded = true;
+    } catch (e) { }
+}
+
+window.loadUnreadNotifCount = loadUnreadNotifCount;
+setInterval(() => { if (isAuthenticated) loadUnreadNotifCount(); }, 60000);
+
+async function openHeaderNotifModal() {
+    if (!isAuthenticated) { navigateToPage('notifications'); return; }
+    const modal = document.getElementById('headerNotifModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    document.getElementById('headerNotifBackBtn').style.display = 'none';
+    document.getElementById('headerNotifTitle').textContent = 'Notifications';
+    document.getElementById('headerNotifBody').innerHTML = '<div style="padding:30px;text-align:center;color:#8d9498;">Loading...</div>';
+
+    authFetch('/api/notifications/mark-viewed', { method: 'POST' }).catch(() => {});
+    const badge = document.getElementById('notificationBadge');
+    if (badge) badge.style.display = 'none';
+
+    try {
+        const res = await authFetch('/api/notifications/recent?limit=50');
+        const data = await res.json();
+        _headerNotifs = (data.success && data.notifications) ? data.notifications : [];
+        renderHeaderNotifList();
+    } catch (e) {
+        document.getElementById('headerNotifBody').innerHTML = '<div style="padding:30px;text-align:center;color:#999;">Failed to load notifications</div>';
+    }
+}
+
+function renderHeaderNotifList() {
+    const body = document.getElementById('headerNotifBody');
+    document.getElementById('headerNotifBackBtn').style.display = 'none';
+    document.getElementById('headerNotifTitle').textContent = 'Notifications';
+
+    if (!_headerNotifs.length) {
+        body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#8d9498;"><i class="fas fa-bell-slash" style="font-size:28px;margin-bottom:10px;display:block;opacity:0.4;"></i>No notifications yet</div>';
+        return;
     }
 
-    function _escH(s) {
-        if (!s) return '';
-        const d = document.createElement('div');
-        d.appendChild(document.createTextNode(String(s)));
-        return d.innerHTML;
+    body.innerHTML = _headerNotifs.map((n, i) => {
+        const count = n.symbols_found || 0;
+        const preview = (n.results || []).slice(0, 3).map(r => r.symbol || r.ticker || '').filter(Boolean).join(', ');
+        const more = count > 3 ? ` +${count - 3} more` : '';
+        const iconBg = count > 0 ? '#f0fdf4' : '#f0f4ff';
+        const icon = count > 0
+            ? '<i class="fas fa-chart-line" style="color:#31cb9e;font-size:14px;"></i>'
+            : '<i class="fas fa-search" style="color:#1b55e2;font-size:14px;"></i>';
+        return `<div onclick="showHeaderNotifDetail(${i})" style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:1px solid #f0f2f5;cursor:pointer;transition:background .12s;" onmouseenter="this.style.background='#f8f9fa'" onmouseleave="this.style.background=''">
+            <div style="width:36px;height:36px;border-radius:50%;background:${iconBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;">${icon}</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_hEsc(n.scanner_name)}</div>
+                <div style="font-size:12px;color:#666;margin-top:2px;">${count} symbol${count !== 1 ? 's' : ''} found${preview ? ': ' + _hEsc(preview) + _hEsc(more) : ''}</div>
+                <div style="font-size:11px;color:#aaa;margin-top:3px;">${_timeAgo(n.time)}</div>
+            </div>
+            <i class="fas fa-chevron-right" style="color:#ccc;font-size:11px;margin-top:4px;flex-shrink:0;"></i>
+        </div>`;
+    }).join('');
+}
+
+function showHeaderNotifDetail(index) {
+    const n = _headerNotifs[index];
+    if (!n) return;
+    const body = document.getElementById('headerNotifBody');
+    document.getElementById('headerNotifBackBtn').style.display = '';
+    document.getElementById('headerNotifTitle').textContent = n.scanner_name;
+
+    let resultsHtml = '';
+    if (n.results && n.results.length > 0) {
+        resultsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+        n.results.forEach(r => {
+            const ticker = r.ticker || r.symbol || r.name || 'N/A';
+            const displayName = r.name || r.ticker || r.symbol || 'N/A';
+            const change = r.change || 0;
+            const price = r.close || 0;
+            const cls = change >= 0 ? '#2e7d32' : '#c62828';
+            const encodedTicker = encodeURIComponent(ticker);
+            resultsHtml += `<div data-ticker="${_hEsc(encodedTicker)}" class="hdr-notif-ticker-item" style="background:#f8f9fa;border-radius:8px;padding:12px;text-align:center;cursor:pointer;border:1px solid transparent;transition:all .2s;" onmouseenter="this.style.background='#e8f0fe';this.style.borderColor='#1b55e2'" onmouseleave="this.style.background='#f8f9fa';this.style.borderColor='transparent'">
+                <div style="font-weight:600;font-size:14px;color:#1b55e2;text-decoration:underline;">${_hEsc(displayName)}</div>
+                <div style="font-size:13px;margin-top:4px;color:${cls}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</div>
+                ${price ? `<div style="font-size:12px;color:#888;margin-top:2px;">$${price.toFixed(2)}</div>` : ''}
+            </div>`;
+        });
+        resultsHtml += '</div>';
+    } else {
+        resultsHtml = '<p style="color:#888;">No results data available.</p>';
     }
 
-    async function markNotificationsViewed() {
-        try {
-            await authFetch('/api/notifications/mark-viewed', { method: 'POST' });
-            const badge = document.getElementById('notificationBadge');
-            if (badge) badge.style.display = 'none';
-        } catch (e) { }
-    }
+    setTimeout(() => {
+        document.querySelectorAll('.hdr-notif-ticker-item').forEach(el => {
+            el.addEventListener('click', () => {
+                closeHeaderNotifModal();
+                window.location.href = '/ticker/' + el.getAttribute('data-ticker');
+            });
+        });
+    }, 0);
 
-    const wrapper = document.getElementById('notifDropdownWrapper');
-    if (wrapper) {
-        wrapper.addEventListener('show.bs.dropdown', () => {
-            if (isAuthenticated) {
-                loadHeaderNotifications();
-                markNotificationsViewed();
-            }
+    let filterHtml = '';
+    try {
+        let fc = n.filter_config;
+        if (typeof fc === 'string') { try { fc = JSON.parse(fc); } catch(e) {} }
+        if (Array.isArray(fc)) {
+            filterHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">';
+            fc.forEach(f => {
+                filterHtml += `<div style="background:#f0f4ff;border-radius:6px;padding:6px 12px;"><span style="font-size:11px;color:#64748b;display:block;">${_hEsc(f.column || f.field || 'Filter')}</span><span style="font-size:13px;font-weight:500;color:#1e293b;">${_hEsc((f.operator || '') + ' ' + (f.value != null ? f.value : ''))}</span></div>`;
+            });
+            filterHtml += '</div>';
+        } else if (typeof fc === 'string') {
+            filterHtml = `<p style="margin-bottom:12px;"><strong>Filter:</strong> ${_hEsc(fc)}</p>`;
+        }
+    } catch(e) {}
+
+    body.innerHTML = `<div style="padding:20px;">
+        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+            <div style="background:#f0f4ff;border-radius:8px;padding:10px 16px;flex:1;min-width:120px;">
+                <div style="font-size:11px;color:#64748b;text-transform:uppercase;">Time</div>
+                <div style="font-size:14px;font-weight:500;color:#1e293b;">${_formatFullTime(n.time)}</div>
+            </div>
+            <div style="background:#f0fdf4;border-radius:8px;padding:10px 16px;flex:1;min-width:120px;">
+                <div style="font-size:11px;color:#64748b;text-transform:uppercase;">Symbols Found</div>
+                <div style="font-size:14px;font-weight:500;color:#1e293b;">${n.symbols_found || 0}</div>
+            </div>
+        </div>
+        ${filterHtml ? '<h5 style="margin-bottom:10px;font-size:14px;color:#475569;">Filter Parameters</h5>' + filterHtml : ''}
+        <h5 style="margin-top:16px;margin-bottom:12px;font-size:14px;color:#475569;">All Results</h5>
+        ${resultsHtml}
+    </div>`;
+}
+
+function headerNotifGoBack() {
+    renderHeaderNotifList();
+}
+
+function closeHeaderNotifModal() {
+    const modal = document.getElementById('headerNotifModal');
+    if (modal) modal.style.display = 'none';
+}
+
+// ── Mobile Search ───────────────────────────────────────────────────────────
+function openMobileSearch() {
+    const overlay = document.getElementById('mobileSearchOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'block';
+    const input = document.getElementById('mobileSearchInput');
+    if (input) { input.value = ''; input.focus(); }
+    document.getElementById('mobileSearchResults').innerHTML = '';
+}
+
+function closeMobileSearch() {
+    const overlay = document.getElementById('mobileSearchOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+(function() {
+    const input = document.getElementById('mobileSearchInput');
+    const results = document.getElementById('mobileSearchResults');
+    const overlay = document.getElementById('mobileSearchOverlay');
+    if (!input || !results) return;
+
+    let debounce = null;
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounce);
+        const q = input.value.trim();
+        if (q.length < 1) { results.innerHTML = ''; return; }
+        debounce = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                const items = data.results || [];
+                if (!items.length) {
+                    results.innerHTML = '<div style="padding:12px;color:#888;font-size:13px;text-align:center;">No results</div>';
+                    return;
+                }
+                results.innerHTML = items.map(r => {
+                    const typeMap = { EQUITY:'Stock', ETF:'ETF', INDEX:'Index', MUTUALFUND:'Fund', CURRENCY:'FX', CRYPTOCURRENCY:'Crypto' };
+                    const colorMap = { EQUITY:'#4e73df', ETF:'#1cc88a', INDEX:'#36b9cc', CRYPTOCURRENCY:'#f6c23e' };
+                    return `<div onclick="closeMobileSearch();window.location.href='/ticker/${encodeURIComponent(r.symbol)}'" style="display:flex;align-items:center;gap:10px;padding:10px 4px;cursor:pointer;border-bottom:1px solid #f0f2f5;" onmouseenter="this.style.background='#f5f8ff'" onmouseleave="this.style.background=''">
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-weight:700;font-size:13px;color:#222;">${_hEsc(r.symbol)}</span>
+                                <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${colorMap[r.type]||'#888'};color:#fff;">${_hEsc(typeMap[r.type]||r.type||'')}</span>
+                            </div>
+                            ${r.name ? `<div style="font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_hEsc(r.name)}</div>` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) { results.innerHTML = ''; }
+        }, 250);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMobileSearch();
+        if (e.key === 'Enter') {
+            const q = input.value.trim();
+            if (q) { closeMobileSearch(); window.location.href = `/ticker/${encodeURIComponent(q)}`; }
+        }
+    });
+
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeMobileSearch();
         });
     }
+})();
 
-    window.loadUnreadNotifCount = loadUnreadCount;
-
-    setInterval(() => { if (isAuthenticated) loadUnreadCount(); }, 60000);
+// Close header notif modal on overlay click
+(function() {
+    const modal = document.getElementById('headerNotifModal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeHeaderNotifModal();
+        });
+    }
 })();
