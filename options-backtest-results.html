@@ -33,6 +33,8 @@
         .search-input-wrapper { position: relative; }
         .search-input-wrapper i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #8d9498; }
         .search-input-wrapper input { padding-left: 40px; }
+        .avatar-initial{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3b6df0,#6c5ce7);color:#fff;font-weight:700;font-size:15px;text-transform:uppercase;user-select:none;}
+        .avatar-initial img{width:100%;height:100%;object-fit:cover;border-radius:inherit;}
     </style>
 </head>
 <body>
@@ -116,7 +118,7 @@
             <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
               <li class="nav-item topbar-user dropdown hidden-caret">
                 <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
-                  <div class="avatar-sm"><img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" /></div>
+                  <div class="avatar-sm"><div class="avatar-initial rounded-circle" id="navAvatarSmall">?</div></div>
                   <span class="profile-username"><span class="fw-bold" id="userName">User</span></span>
                 </a>
                 <ul class="dropdown-menu dropdown-user animated fadeIn">
@@ -282,6 +284,7 @@
         setupSearch();
         await loadBacktests();
         checkRunningOptionsBacktests();
+        try{const r=await fetch('/api/auth/status',{credentials:'include'});const d=await r.json();if(d.authenticated){const u=d.user;document.getElementById('userName').textContent=u.name;const _AC=[["#667eea","#764ba2"],["#f093fb","#f5576c"],["#4facfe","#00f2fe"],["#43e97b","#38f9d7"],["#fa709a","#fee140"],["#a18cd1","#fbc2eb"],["#fccb90","#d57eeb"],["#e0c3fc","#8ec5fc"],["#f5576c","#ff9a9e"],["#667eea","#5fc3e4"]];const ini=(u.name||u.email||"?")[0].toUpperCase(),ci=(u.name||u.email||"?").charCodeAt(0)%_AC.length,[c1,c2]=_AC[ci];const el=document.getElementById('navAvatarSmall');if(el){if(u.profile_picture){el.innerHTML='<img src="'+u.profile_picture+'" alt="Avatar">';el.style.background="none";}else{el.textContent=ini;el.style.background="linear-gradient(135deg,"+c1+","+c2+")";}}}}catch(e){}
       });
 
       function setupSearch() {

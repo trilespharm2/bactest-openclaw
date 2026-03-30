@@ -63,6 +63,7 @@
         margin-bottom: 8px;
       }
     </style>
+    <style>.avatar-initial{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3b6df0,#6c5ce7);color:#fff;font-weight:700;font-size:15px;text-transform:uppercase;user-select:none;}.avatar-initial-lg{width:64px;height:64px;font-size:26px;}.avatar-initial img,.avatar-initial-lg img{width:100%;height:100%;object-fit:cover;border-radius:inherit;}</style>
   </head>
   <body>
     <div class="wrapper">
@@ -228,7 +229,7 @@
                 <li class="nav-item topbar-user dropdown hidden-caret">
                   <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
                     <div class="avatar-sm">
-                      <img src="/static/img/profile.jpg" alt="..." class="avatar-img rounded-circle" />
+                      <div class="avatar-initial rounded-circle" id="navAvatarSmall">?</div>
                     </div>
                     <span class="profile-username">
                       <span class="op-7">Hi,</span>
@@ -239,7 +240,7 @@
                     <div class="dropdown-user-scroll scrollbar-outer">
                       <li>
                         <div class="user-box">
-                          <div class="avatar-lg"><img src="/static/img/profile.jpg" alt="image profile" class="avatar-img rounded" /></div>
+                          <div class="avatar-lg"><div class="avatar-initial avatar-initial-lg rounded" id="navAvatarLarge">?</div></div>
                           <div class="u-text">
                             <h4 id="userNameDisplay">Guest</h4>
                             <p class="text-muted" id="userEmailDisplay"></p>
@@ -355,7 +356,6 @@
             document.getElementById('profileBtn').textContent = 'View Profile';
             document.getElementById('userMenuItems').innerHTML = `
               <div class="dropdown-divider"></div>
-              <a class="dropdown-item" href="/dashboard?section=settings">My Profile</a>
               <a class="dropdown-item" href="/dashboard?section=subscription">Subscription</a>
               <div class="dropdown-divider"></div>
               <a class="dropdown-item" href="/logout">Logout</a>
@@ -365,6 +365,9 @@
             const subscriptionNav = document.getElementById('subscriptionNavText');
             if (settingsNav) settingsNav.style.display = '';
             if (subscriptionNav) subscriptionNav.textContent = 'Subscription';
+            const _AC=[["#667eea","#764ba2"],["#f093fb","#f5576c"],["#4facfe","#00f2fe"],["#43e97b","#38f9d7"],["#fa709a","#fee140"],["#a18cd1","#fbc2eb"],["#fccb90","#d57eeb"],["#e0c3fc","#8ec5fc"],["#f5576c","#ff9a9e"],["#667eea","#5fc3e4"]];
+            const u=data.user,ini=(u.name||u.email||"?")[0].toUpperCase(),ci=(u.name||u.email||"?").charCodeAt(0)%_AC.length,[c1,c2]=_AC[ci];
+            ["navAvatarSmall","navAvatarLarge"].forEach(id=>{const el=document.getElementById(id);if(!el)return;if(u.profile_picture){el.innerHTML='<img src="'+u.profile_picture+'" alt="Avatar">';el.style.background="none";}else{el.textContent=ini;el.style.background="linear-gradient(135deg,"+c1+","+c2+")";el.style.color="#fff";}});
           }
         } catch (error) {
           console.log('Auth check failed');

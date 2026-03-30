@@ -34,8 +34,90 @@ async function loadUserInfo() {
             if (changeEmailBtn) changeEmailBtn.style.display = 'inline-block';
             if (emailHelp) emailHelp.style.display = 'none';
         }
+        
+        updateSettingsAvatar(data);
     } catch (error) {
         console.error('Error loading user info:', error);
+    }
+}
+
+function updateSettingsAvatar(user) {
+    const preview = document.getElementById('settingsAvatarPreview');
+    const removeBtn = document.getElementById('removeAvatarBtn');
+    if (!preview) return;
+    
+    if (user.profile_picture) {
+        preview.innerHTML = `<img src="${user.profile_picture}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+        preview.style.background = 'none';
+        if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else {
+        const initial = (user.name || user.email || '?')[0].toUpperCase();
+        const [c1, c2] = getAvatarColor(user.name || user.email);
+        preview.textContent = initial;
+        preview.innerHTML = initial;
+        preview.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+        preview.style.color = '#fff';
+        if (removeBtn) removeBtn.style.display = 'none';
+    }
+}
+
+async function uploadAvatar(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const statusEl = document.getElementById('avatarSaveStatus');
+    
+    if (file.size > 5 * 1024 * 1024) {
+        if (statusEl) { statusEl.textContent = 'File too large. Maximum 5MB.'; statusEl.className = 'save-status error'; }
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('avatar', file);
+    
+    try {
+        if (statusEl) { statusEl.textContent = 'Uploading...'; statusEl.className = 'save-status saving'; }
+        
+        const response = await authFetch('/api/user/upload-avatar', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (statusEl) { statusEl.textContent = 'Photo updated!'; statusEl.className = 'save-status success'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+            if (currentUser) currentUser.profile_picture = data.profile_picture;
+            updateSettingsAvatar({ name: currentUser?.name, email: currentUser?.email, profile_picture: data.profile_picture });
+            renderNavAvatars(currentUser);
+        } else {
+            throw new Error(data.error || 'Upload failed');
+        }
+    } catch (error) {
+        if (statusEl) { statusEl.textContent = error.message; statusEl.className = 'save-status error'; }
+    }
+    
+    input.value = '';
+}
+
+async function removeAvatar() {
+    const statusEl = document.getElementById('avatarSaveStatus');
+    try {
+        if (statusEl) { statusEl.textContent = 'Removing...'; statusEl.className = 'save-status saving'; }
+        
+        const response = await authFetch('/api/user/remove-avatar', { method: 'POST' });
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (statusEl) { statusEl.textContent = 'Photo removed!'; statusEl.className = 'save-status success'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+            if (currentUser) currentUser.profile_picture = null;
+            updateSettingsAvatar({ name: currentUser?.name, email: currentUser?.email, profile_picture: null });
+            renderNavAvatars(currentUser);
+        } else {
+            throw new Error(data.error || 'Failed to remove');
+        }
+    } catch (error) {
+        if (statusEl) { statusEl.textContent = error.message; statusEl.className = 'save-status error'; }
     }
 }
 

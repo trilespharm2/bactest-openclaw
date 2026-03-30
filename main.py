@@ -95,7 +95,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 2 * 1024 * 1024))
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 5 * 1024 * 1024))
 db.init_app(app)
 migrate = Migrate(app, db, compare_type=True) if MIGRATIONS_ENABLED else None
 
@@ -176,6 +176,7 @@ class User(UserMixin, db.Model):
     
     # API key storage (encrypted)
     polygon_api_key = db.Column(db.String(256), nullable=True)
+    profile_picture = db.Column(db.String(500), nullable=True)
     auth_token = db.Column(db.String(100), nullable=True, index=True)
     auth_token_expires = db.Column(db.DateTime, nullable=True)
     
@@ -323,6 +324,15 @@ def ensure_database_schema():
         return False
     with app.app_context():
         db.create_all()
+        try:
+            db.session.execute(text("SELECT profile_picture FROM users LIMIT 1"))
+        except Exception:
+            try:
+                db.session.execute(text("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(500)"))
+                db.session.commit()
+                logging.info("Added profile_picture column to users table")
+            except Exception:
+                db.session.rollback()
     return True
 
 
@@ -672,7 +682,8 @@ def api_auth_status():
             'authenticated': True,
             'user': {
                 'name': current_user.name or current_user.email.split('@')[0],
-                'email': current_user.email
+                'email': current_user.email,
+                'profile_picture': current_user.profile_picture
             },
         }), 200
     return jsonify({'authenticated': False}), 200
@@ -685,7 +696,8 @@ def api_auth_user():
             'name': current_user.name or current_user.email.split('@')[0],
             'email': current_user.email,
             'plan': current_user.selected_plan or 'free',
-            'is_admin': bool(getattr(current_user, 'is_admin', False))
+            'is_admin': bool(getattr(current_user, 'is_admin', False)),
+            'profile_picture': current_user.profile_picture
         }), 200
     return jsonify({'error': 'Not authenticated'}), 401
 
@@ -2584,7 +2596,8 @@ def get_user_info():
         'stripe_customer_id': current_user.stripe_customer_id,
         'stripe_subscription_id': current_user.stripe_subscription_id,
         'auth_provider': current_user.auth_provider or 'email',
-        'is_admin': bool(getattr(current_user, 'is_admin', False))
+        'is_admin': bool(getattr(current_user, 'is_admin', False)),
+        'profile_picture': current_user.profile_picture
     })
 
 @app.route('/api/user/update-plan', methods=['POST'])
@@ -2619,6 +2632,73 @@ def update_user_info():
         
         db.session.commit()
         return jsonify({'success': True, 'name': current_user.name})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/user/upload-avatar', methods=['POST'])
+@login_required
+def upload_avatar():
+    """Upload or update user's profile picture"""
+    try:
+        if 'avatar' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['avatar']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+        if ext not in allowed_extensions:
+            return jsonify({'error': 'Invalid file type. Use PNG, JPG, GIF, or WebP'}), 400
+        
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+        if file_size > 5 * 1024 * 1024:
+            return jsonify({'error': 'File too large. Maximum 5MB'}), 400
+        
+        import uuid
+        filename = f"avatar_{current_user.id}_{uuid.uuid4().hex[:8]}.{ext}"
+        upload_dir = os.path.join('static', 'uploads', 'avatars')
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        if current_user.profile_picture:
+            old_path = current_user.profile_picture.lstrip('/')
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+        
+        filepath = os.path.join(upload_dir, filename)
+        file.save(filepath)
+        
+        url_path = f"/static/uploads/avatars/{filename}"
+        current_user.profile_picture = url_path
+        db.session.commit()
+        
+        return jsonify({'success': True, 'profile_picture': url_path})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/user/remove-avatar', methods=['POST'])
+@login_required
+def remove_avatar():
+    """Remove user's profile picture"""
+    try:
+        if current_user.profile_picture:
+            old_path = current_user.profile_picture.lstrip('/')
+            if os.path.exists(old_path):
+                try:
+                    os.remove(old_path)
+                except Exception:
+                    pass
+            current_user.profile_picture = None
+            db.session.commit()
+        return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

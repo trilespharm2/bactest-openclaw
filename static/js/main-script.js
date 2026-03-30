@@ -3,6 +3,37 @@
 // API Configuration - Dynamic to work with any port
 const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
+const AVATAR_COLORS = [
+    ['#667eea','#764ba2'],['#f093fb','#f5576c'],['#4facfe','#00f2fe'],
+    ['#43e97b','#38f9d7'],['#fa709a','#fee140'],['#a18cd1','#fbc2eb'],
+    ['#fccb90','#d57eeb'],['#e0c3fc','#8ec5fc'],['#f5576c','#ff9a9e'],
+    ['#667eea','#5fc3e4']
+];
+
+function getAvatarColor(name) {
+    const idx = (name || '?').charCodeAt(0) % AVATAR_COLORS.length;
+    return AVATAR_COLORS[idx];
+}
+
+function renderNavAvatars(user) {
+    if (!user) return;
+    const initial = (user.name || user.email || '?')[0].toUpperCase();
+    const [c1, c2] = getAvatarColor(user.name || user.email);
+    
+    ['navAvatarSmall', 'navAvatarLarge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (user.profile_picture) {
+            el.innerHTML = `<img src="${user.profile_picture}" alt="Avatar">`;
+            el.style.background = 'none';
+        } else {
+            el.textContent = initial;
+            el.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+            el.style.color = '#fff';
+        }
+    });
+}
+
 function _fmt(val, decimals = 2, fallback = '\u2014') {
     if (val === null || val === undefined || isNaN(val)) return fallback;
     return Number(val).toFixed(decimals);
@@ -140,12 +171,13 @@ function applyAuthUIState() {
         if (userMenuItems) {
             userMenuItems.innerHTML = `
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/?section=settings">My Profile</a>
                 <a class="dropdown-item" href="/?section=subscription">Subscription</a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="localStorage.removeItem('authToken'); window.location.href='/logout';">Logout</a>
             `;
         }
+        
+        renderNavAvatars(currentUser);
     } else {
         // Show guest nav, hide user profile
         if (userProfileNav) userProfileNav.style.display = 'none';

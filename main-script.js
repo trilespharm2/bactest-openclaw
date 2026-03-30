@@ -3,6 +3,54 @@
 // API Configuration - Dynamic to work with any port
 const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
+const AVATAR_COLORS = [
+    ['#667eea','#764ba2'],['#f093fb','#f5576c'],['#4facfe','#00f2fe'],
+    ['#43e97b','#38f9d7'],['#fa709a','#fee140'],['#a18cd1','#fbc2eb'],
+    ['#fccb90','#d57eeb'],['#e0c3fc','#8ec5fc'],['#f5576c','#ff9a9e'],
+    ['#667eea','#5fc3e4']
+];
+
+function getAvatarColor(name) {
+    const idx = (name || '?').charCodeAt(0) % AVATAR_COLORS.length;
+    return AVATAR_COLORS[idx];
+}
+
+function renderNavAvatars(user) {
+    if (!user) return;
+    const initial = (user.name || user.email || '?')[0].toUpperCase();
+    const [c1, c2] = getAvatarColor(user.name || user.email);
+    
+    ['navAvatarSmall', 'navAvatarLarge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (user.profile_picture) {
+            el.innerHTML = `<img src="${user.profile_picture}" alt="Avatar">`;
+            el.style.background = 'none';
+        } else {
+            el.textContent = initial;
+            el.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+            el.style.color = '#fff';
+        }
+    });
+}
+
+function _fmt(val, decimals = 2, fallback = '\u2014') {
+    if (val === null || val === undefined || isNaN(val)) return fallback;
+    return Number(val).toFixed(decimals);
+}
+
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
+
+function _tickerLink(symbol, extraStyle) {
+    const style = extraStyle || 'font-weight:600;color:#3b6df0;';
+    return '<a href="/ticker/' + encodeURIComponent(symbol || '') + '" style="' + style + 'text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + symbol + '</a>';
+}
+
 function getAuthHeaders() {
     const token = localStorage.getItem('authToken');
     const headers = {};
@@ -21,7 +69,6 @@ function authFetch(url, options = {}) {
 
 // State
 let currentPage = 'home';
-let apiKeyConfigured = false;
 let isAuthenticated = false;
 let currentUser = null;
 
@@ -30,6 +77,7 @@ const sidebar = document.querySelector('.sidebar');
 const navItems = document.querySelectorAll('.nav-item');
 const pages = document.querySelectorAll('.page');
 const pageTitle = document.getElementById('pageTitle');
+
 // Track loaded scripts to prevent duplicates
 const loadedScripts = new Set();
 
@@ -123,12 +171,13 @@ function applyAuthUIState() {
         if (userMenuItems) {
             userMenuItems.innerHTML = `
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/?section=settings">My Profile</a>
                 <a class="dropdown-item" href="/?section=subscription">Subscription</a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="localStorage.removeItem('authToken'); window.location.href='/logout';">Logout</a>
             `;
         }
+        
+        renderNavAvatars(currentUser);
     } else {
         // Show guest nav, hide user profile
         if (userProfileNav) userProfileNav.style.display = 'none';
@@ -313,16 +362,15 @@ function setupMobileMenu() {
 
 // Setup Navigation
 function setupNavigation() {
-    // Handle all links with data-page attribute
-    document.querySelectorAll('[data-page]').forEach(element => {
-        element.addEventListener('click', (e) => {
+    document.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-page]');
+        if (el) {
             e.preventDefault();
-            const pageName = element.getAttribute('data-page');
+            const pageName = el.getAttribute('data-page');
             console.log('Navigating to:', pageName);
             navigateToPage(pageName);
-        });
+        }
     });
-    
 }
 
 // Navigate to Page
@@ -345,6 +393,14 @@ async function navigateToPage(pageName, skipPushState = false) {
     if (_mov) _mov.classList.remove('active');
 
     if (pageName === currentPage && !skipPushState) return;
+
+    if (currentPage === 'simTradingActive' && pageName !== 'simTradingActive') {
+        try {
+            if (typeof stopAutoplay === 'function') stopAutoplay();
+            if (typeof saveCurrentSessionState === 'function') saveCurrentSessionState();
+            console.log('Auto-saved sim trading session before navigating away');
+        } catch(e) { console.error('Error auto-saving sim session:', e); }
+    }
     
     // Update current page
     currentPage = pageName;
@@ -434,39 +490,26 @@ async function loadPageContent(pageName) {
     // Hide all pages
     pages.forEach(page => page.classList.remove('active'));
     
-    // If authenticated and on home page, load dashboard content into home page
+    // If authenticated and on home page, show dashboard content
     if (pageName === 'home' && isAuthenticated) {
         const homePage = document.getElementById('homePage');
         const dashboardPage = document.getElementById('dashboardPage');
-        
+
         if (homePage && dashboardPage) {
-            // Check if dashboard content is loaded
-            let dashboardContent = dashboardPage.innerHTML.trim();
-            if (!dashboardContent || dashboardContent.includes('error-message')) {
-                // Need to load dashboard content
-                try {
-                    const response = await fetch('dashboard.html');
-                    if (response.ok) {
-                        dashboardContent = await response.text();
-                        dashboardPage.innerHTML = dashboardContent;
-                        
-                        // Load dashboard script
-                        if (!loadedScripts.has('dashboard')) {
-                            await loadScript('dashboard-script.js?v=3', 'dashboard');
-                        } else {
-                            initializePage('dashboard');
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error loading dashboard:', error);
-                }
+            // Copy the rich dashboard from dashboardPage into homePage so the
+            // landing-page markup is replaced with the dashboard widgets.
+            // We only do this once (first load); on subsequent SPA navigations
+            // the content is already present in homePage.
+            if (!loadedScripts.has('dashboard')) {
+                homePage.innerHTML = dashboardPage.innerHTML;
+
+                // Load and initialise the dashboard widget script
+                await loadScript('dashboard-script.js?v=4', 'dashboard');
             }
-            
-            // Replace home page with dashboard content
-            homePage.innerHTML = dashboardPage.innerHTML;
+
             homePage.classList.add('active');
-            
-            // Initialize dashboard widgets
+
+            // Re-initialise dashboard on every visit to refresh live data
             if (typeof initDashboard === 'function') {
                 initDashboard();
             }
@@ -502,7 +545,7 @@ async function loadPageContent(pageName) {
                     fileName = 'stock-backtester';
                     scriptName = 'stock-backtester-script.js';
                 }
-                if (pageName === 'simulatedTrading') {
+                if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
                     scriptName = 'simulated-trading-script.js';
                 }
@@ -559,8 +602,13 @@ async function loadPageContent(pageName) {
                 if (pageName === 'stockBacktester') {
                     scriptName = 'stock-backtester-script.js';
                 }
-                if (pageName === 'simulatedTrading') {
+                if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     scriptName = 'simulated-trading-script.js';
+                    if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
+                        loadedScripts.add(pageName);
+                        initializePage(pageName);
+                        scriptName = null;
+                    }
                 }
                 if (pageName === 'screener') {
                     scriptName = 'static/js/screener-script.js';
@@ -653,6 +701,8 @@ function initializePage(pageName) {
             setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
+        } else if (pageName === 'simTradingActive' && typeof initSimTradingActive === 'function') {
+            initSimTradingActive();
         } else if (pageName === 'simResults' && typeof initSimResultsPage === 'function') {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
@@ -837,7 +887,11 @@ function initDashboardCharts() {
         _loadMostActive(),
         _loadTrending(),
         _loadSectors(),
-        _loadEarnings()
+        _loadEarnings(),
+        _loadNews(),
+        _loadTreasury(),
+        _loadEconomicIndicators(),
+        _loadFredData()
     ]);
 
     _dashCardIntervals.push(setInterval(_loadIndices, 30000));
@@ -845,6 +899,10 @@ function initDashboardCharts() {
     _dashCardIntervals.push(setInterval(_loadTrending, 60000));
     _dashCardIntervals.push(setInterval(_loadSectors, 60000));
     _dashCardIntervals.push(setInterval(_loadEarnings, 300000));
+    _dashCardIntervals.push(setInterval(_loadNews, 300000));
+    _dashCardIntervals.push(setInterval(_loadTreasury, 120000));
+    _dashCardIntervals.push(setInterval(_loadEconomicIndicators, 120000));
+    _dashCardIntervals.push(setInterval(_loadFredData, 600000));
 }
 
 async function _loadIndices() {
@@ -861,10 +919,10 @@ async function _loadIndices() {
                 : (isUp ? '#0fad6e' : '#d94452');
             const arrow = isUp ? '\u25B2' : '\u25BC';
             const sign = isUp ? '+' : '';
-            return '<div class="text-center" style="flex:1;min-width:90px;">' +
-                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + idx.symbol + '</div>' +
+            return '<a href="/ticker/' + encodeURIComponent(idx.symbol || '') + '" class="text-center" style="flex:1;min-width:90px;cursor:pointer;text-decoration:none;display:block;border-radius:6px;padding:4px 2px;transition:background 0.12s;" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (idx.symbol || '') + '</div>' +
                 '<div style="font-size:15px;font-weight:700;color:#1a1e2e;">' + (idx.price ? '$' + idx.price.toLocaleString(undefined, {minimumFractionDigits:2}) : '\u2014') + '</div>' +
-                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + idx.change_pct.toFixed(2) + '%</div></div>';
+                '<div style="font-size:11px;font-weight:600;color:' + color + ';">' + arrow + ' ' + sign + _fmt(idx.change_pct) + '%</div></a>';
         }).join('');
     } catch (e) { console.error('Indices error:', e); }
 }
@@ -881,10 +939,10 @@ async function _loadMostActive() {
             const color = pct >= 0 ? '#0fad6e' : '#d94452';
             const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
             const vol = item.volume >= 1e6 ? (item.volume / 1e6).toFixed(1) + 'M' : item.volume >= 1e3 ? (item.volume / 1e3).toFixed(0) + 'K' : item.volume;
-            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
-                '<span style="font-weight:600;color:#3b6df0;">' + item.symbol + '</span>' +
+            return '<a href="/ticker/' + encodeURIComponent(item.symbol || '') + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
+                '<span style="font-weight:600;color:#3b6df0;">' + (item.symbol || '') + '</span>' +
                 '<span style="color:#6b7689;font-size:11px;">' + vol + '</span>' +
-                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></a>';
         }).join('');
     } catch (e) { console.error('Most active error:', e); }
 }
@@ -900,10 +958,10 @@ async function _loadTrending() {
             const pct = item.change_pct || 0;
             const color = pct >= 0 ? '#0fad6e' : '#d94452';
             const arrow = pct >= 0 ? '\u25B2' : '\u25BC';
-            return '<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;">' +
+            return '<a href="/ticker/' + encodeURIComponent(item.symbol || '') + '" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background=\'#f5f7ff\'" onmouseout="this.style.background=\'transparent\'">' +
                 '<span style="color:#6b7689;font-size:11px;width:18px;">' + (i + 1) + '</span>' +
-                '<span style="font-weight:600;color:#3b6df0;flex:1;">' + item.symbol + '</span>' +
-                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></div>';
+                '<span style="flex:1;font-weight:600;color:#3b6df0;">' + (item.symbol || '') + '</span>' +
+                '<span style="font-weight:600;color:' + color + ';">' + arrow + ' ' + Math.abs(pct).toFixed(2) + '%</span></a>';
         }).join('');
     } catch (e) { console.error('Trending error:', e); }
 }
@@ -922,8 +980,8 @@ async function _loadSectors() {
             const bg = isUp ? 'rgba(15,173,110,0.08)' : 'rgba(217,68,82,0.08)';
             return '<div style="padding:8px 10px;border-radius:8px;background:' + bg + ';text-align:center;">' +
                 '<div style="font-size:12px;font-weight:600;color:#1a1e2e;">' + s.name + '</div>' +
-                '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + pct.toFixed(2) + '%</div>' +
-                '<div style="font-size:9px;color:#6b7689;">' + s.symbol + '</div></div>';
+                '<div style="font-size:15px;font-weight:700;color:' + color + ';margin-top:2px;">' + (isUp ? '+' : '') + _fmt(pct) + '%</div>' +
+                '<div style="font-size:9px;">' + _tickerLink(s.symbol, 'color:#6b7689;') + '</div></div>';
         }).join('');
     } catch (e) { console.error('Sectors error:', e); }
 }
@@ -933,21 +991,122 @@ async function _loadEarnings() {
         const data = await _fetchCached('/api/dashboard/earnings');
         const el = document.getElementById('earningsTable');
         if (!el) return;
-        const earnings = data.earnings || [];
+        const earnings = (data.earnings || []).filter(e => {
+            if (!e.symbol || e.symbol === 'NA' || e.symbol === 'N/A') return false;
+            if (!e.date || e.date === 'NA' || e.date === 'N/A') return false;
+            if (e.name === 'NA' || e.name === 'N/A') e.name = '';
+            return true;
+        });
         if (!earnings.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No upcoming earnings</div>'; return; }
         el.innerHTML = '<div class="d-flex flex-wrap gap-2">' + earnings.slice(0, 12).map(e => {
-            const timing = e.time === 'before' ? 'BMO' : e.time === 'after' ? 'AMC' : e.time || '';
+            let timing = e.time === 'before' ? 'BMO' : e.time === 'after' ? 'AMC' : '';
+            if (e.time && e.time !== 'before' && e.time !== 'after' && e.time !== 'NA' && e.time !== 'N/A' && e.time !== 'TAS') timing = e.time;
             const timingBg = timing === 'BMO' ? '#fff7ed' : timing === 'AMC' ? '#eff6ff' : '#f8f9fc';
             const timingColor = timing === 'BMO' ? '#e5873a' : timing === 'AMC' ? '#3b6df0' : '#6b7689';
-            return '<div style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;">' +
+            const displayName = (e.name && e.name !== 'NA' && e.name !== 'N/A') ? e.name : '';
+            const displayDate = (e.date && e.date !== 'NA' && e.date !== 'N/A') ? e.date : '';
+            return '<a href="/ticker/' + encodeURIComponent(e.symbol) + '" style="padding:8px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;min-width:100px;flex:1;text-decoration:none;display:block;transition:border-color 0.15s,box-shadow 0.15s;" onmouseover="this.style.borderColor=\'#3b6df0\';this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.08)\'" onmouseout="this.style.borderColor=\'#e2e6ee\';this.style.boxShadow=\'none\'">' +
                 '<div style="font-size:13px;font-weight:700;color:#3b6df0;">' + e.symbol + '</div>' +
-                '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + (e.name || '') + '</div>' +
+                (displayName ? '<div style="font-size:10px;color:#6b7689;margin:2px 0;">' + displayName + '</div>' : '') +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<span style="font-size:10px;color:#6b7689;">' + (e.date || '') + '</span>' +
+                (displayDate ? '<span style="font-size:10px;color:#6b7689;">' + displayDate + '</span>' : '') +
                 (timing ? '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:' + timingBg + ';color:' + timingColor + ';">' + timing + '</span>' : '') +
-                '</div></div>';
+                '</div></a>';
         }).join('') + '</div>';
     } catch (e) { console.error('Earnings error:', e); }
+}
+
+async function _loadNews() {
+    try {
+        const data = await _fetchCached('/api/dashboard/news');
+        const el = document.getElementById('newsContainer');
+        if (!el) return;
+        const articles = data.articles || [];
+        if (!articles.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No news available</div>'; return; }
+        el.innerHTML = articles.slice(0, 8).map(a => {
+            const date = a.published ? new Date(a.published).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+            const thumb = a.thumbnail ? '<img src="' + a.thumbnail + '" style="width:48px;height:48px;border-radius:6px;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'" />' : '';
+            return '<a href="' + (a.link || '#') + '" target="_blank" rel="noopener" style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #f0f1f4;text-decoration:none;color:inherit;">' +
+                thumb +
+                '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:12px;font-weight:600;color:#1a1e2e;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">' + (a.title || '') + '</div>' +
+                '<div style="font-size:10px;color:#6b7689;margin-top:2px;">' + (a.publisher || '') + (date ? ' \u00B7 ' + date : '') + '</div>' +
+                '</div></a>';
+        }).join('');
+    } catch (e) { console.error('News error:', e); }
+}
+
+async function _loadTreasury() {
+    try {
+        const data = await _fetchCached('/api/dashboard/treasury');
+        const el = document.getElementById('treasuryGrid');
+        if (!el) return;
+        const rates = data.rates || [];
+        if (!rates.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = rates.map(r => {
+            const change = r.change || 0;
+            const isUp = change >= 0;
+            const color = isUp ? '#0fad6e' : '#d94452';
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            return '<a href="/ticker/' + encodeURIComponent(r.symbol || '') + '" style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;display:block;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'#f8f9fc\'">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (r.name || r.maturity || '') + '</div>' +
+                '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">' + _fmt(r.rate, 3, '\u2014') + '%</div>' +
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(change), 3, '0.000') + '</div></a>';
+        }).join('');
+    } catch (e) { console.error('Treasury error:', e); }
+}
+
+async function _loadEconomicIndicators() {
+    try {
+        const data = await _fetchCached('/api/dashboard/economic');
+        const el = document.getElementById('economicGrid');
+        if (!el) return;
+        const indicators = data.indicators || [];
+        if (!indicators.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = indicators.map(ind => {
+            const pct = ind.change_pct || 0;
+            const isUp = pct >= 0;
+            const color = ind.symbol === '^VIX' ? (isUp ? '#d94452' : '#0fad6e') : (isUp ? '#0fad6e' : '#d94452');
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            const formatted = ind.format === 'percent' ? _fmt(ind.price) + '%' : _fmt(ind.price);
+            return '<a href="/ticker/' + encodeURIComponent(ind.symbol || '') + '" style="padding:8px 10px;border-radius:8px;background:#f8f9fc;text-align:center;display:block;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'#f8f9fc\'">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7689;">' + (ind.name || ind.symbol || '') + '</div>' +
+                '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">' + formatted + '</div>' +
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + _fmt(Math.abs(pct)) + '%</div></a>';
+        }).join('');
+    } catch (e) { console.error('Economic indicators error:', e); }
+}
+
+const _fredCategoryColors = {
+    'rates': '#3b82f6',
+    'labor': '#8b5cf6',
+    'inflation': '#ef4444',
+    'output': '#10b981',
+    'consumer': '#f59e0b',
+    'housing': '#06b6d4'
+};
+
+async function _loadFredData() {
+    try {
+        const data = await _fetchCached('/api/dashboard/fred');
+        const el = document.getElementById('fredGrid');
+        if (!el) return;
+        const series = data.series || [];
+        if (!series.length) { el.innerHTML = '<div class="text-muted text-center py-2" style="grid-column:1/-1;font-size:12px;">No data</div>'; return; }
+        el.innerHTML = series.map(s => {
+            const chg = s.change || 0;
+            const isUp = chg >= 0;
+            const arrow = isUp ? '\u25B2' : '\u25BC';
+            const color = isUp ? '#0fad6e' : '#d94452';
+            const catColor = _fredCategoryColors[s.category] || '#6b7689';
+            return '<div style="padding:10px 12px;border-radius:8px;background:#f8f9fc;text-align:center;border-left:3px solid ' + catColor + ';transition:background 0.15s;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'#f8f9fc\'">' +
+                '<div style="font-size:10px;font-weight:600;color:#6b7689;text-transform:uppercase;letter-spacing:0.5px;">' + esc(s.name) + '</div>' +
+                '<div style="font-size:18px;font-weight:700;color:#1a1e2e;margin:3px 0;">' + esc(s.display) + '</div>' +
+                '<div style="font-size:10px;font-weight:600;color:' + color + ';">' + arrow + ' ' + esc(s.change_display || '') + '</div>' +
+                '<div style="font-size:9px;color:#9aa5b4;margin-top:2px;">' + esc(s.date) + '</div>' +
+                '</div>';
+        }).join('');
+    } catch (e) { console.error('FRED data error:', e); }
 }
 
 // Setup clickable chart cards
@@ -1283,16 +1442,16 @@ async function loadGainersLosers() {
         // Render gainers
         if (data.gainers && data.gainers.length > 0) {
             gainersContainer.innerHTML = data.gainers.map(item => `
-                <div class="stock-item">
+                <a href="/ticker/${encodeURIComponent(item.symbol)}" class="stock-item" style="text-decoration:none;color:inherit;display:flex;">
                     <div class="stock-info">
                         <span class="symbol">${item.symbol}</span>
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
-                        <span class="price">$${item.price.toFixed(2)}</span>
-                        <span class="change positive">+${item.change_pct.toFixed(2)}%</span>
+                        <span class="price">$${_fmt(item.price)}</span>
+                        <span class="change positive">+${_fmt(item.change_pct)}%</span>
                     </div>
-                </div>
+                </a>
             `).join('');
         } else {
             gainersContainer.innerHTML = '<div class="gainers-empty"><i class="material-symbols-rounded">trending_up</i><p>No gainers data</p></div>';
@@ -1301,16 +1460,16 @@ async function loadGainersLosers() {
         // Render losers
         if (data.losers && data.losers.length > 0) {
             losersContainer.innerHTML = data.losers.map(item => `
-                <div class="stock-item">
+                <a href="/ticker/${encodeURIComponent(item.symbol)}" class="stock-item" style="text-decoration:none;color:inherit;display:flex;">
                     <div class="stock-info">
                         <span class="symbol">${item.symbol}</span>
                         <span class="volume">Vol: ${formatVolume(item.volume)}</span>
                     </div>
                     <div class="stock-price">
-                        <span class="price">$${item.price.toFixed(2)}</span>
-                        <span class="change negative">${item.change_pct.toFixed(2)}%</span>
+                        <span class="price">$${_fmt(item.price)}</span>
+                        <span class="change negative">${_fmt(item.change_pct)}%</span>
                     </div>
-                </div>
+                </a>
             `).join('');
         } else {
             losersContainer.innerHTML = '<div class="losers-empty"><i class="material-symbols-rounded">trending_down</i><p>No losers data</p></div>';
@@ -1360,9 +1519,9 @@ async function loadWatchlist() {
                     <span class="name">${item.name}</span>
                 </div>
                 <div class="watchlist-price">
-                    <span class="price">$${item.price.toFixed(2)}</span>
+                    <span class="price">$${_fmt(item.price)}</span>
                     <span class="change ${item.change >= 0 ? 'positive' : 'negative'}">
-                        ${item.change >= 0 ? '+' : ''}${item.change.toFixed(2)} (${item.change >= 0 ? '+' : ''}${item.change_pct.toFixed(2)}%)
+                        ${item.change >= 0 ? '+' : ''}${_fmt(item.change)} (${item.change >= 0 ? '+' : ''}${_fmt(item.change_pct)}%)
                     </span>
                 </div>
             </div>
@@ -1372,3 +1531,133 @@ async function loadWatchlist() {
         container.innerHTML = '<div class="watchlist-loading">Failed to load watchlist</div>';
     }
 }
+
+// ── Global Search Autocomplete ──────────────────────────────────────────────
+(function () {
+    const input    = document.getElementById('globalSearch');
+    const dropdown = document.getElementById('searchDropdown');
+    if (!input || !dropdown) return;
+
+    let debounceTimer = null;
+    let activeIndex   = -1;
+    let lastResults   = [];
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function typeLabel(t) {
+        const map = { EQUITY:'Stock', ETF:'ETF', INDEX:'Index', MUTUALFUND:'Fund', CURRENCY:'FX', CRYPTOCURRENCY:'Crypto', FUTURE:'Future' };
+        return map[t] || t || '';
+    }
+
+    function typeColor(t) {
+        const map = { EQUITY:'#4e73df', ETF:'#1cc88a', INDEX:'#36b9cc', CRYPTOCURRENCY:'#f6c23e', CURRENCY:'#858796' };
+        return map[t] || '#888';
+    }
+
+    function renderDropdown(results) {
+        lastResults = results;
+        activeIndex = -1;
+        if (!results.length) { closeDropdown(); return; }
+
+        dropdown.innerHTML = results.map((r, i) => `
+            <div class="search-ac-item" data-index="${i}" style="
+                display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;
+                border-bottom:1px solid #f0f2f5;transition:background .12s;
+            ">
+                <div style="display:flex;flex-direction:column;flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-weight:700;font-size:13px;color:#222;">${escHtml(r.symbol)}</span>
+                        <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${typeColor(r.type)};color:#fff;">${escHtml(typeLabel(r.type))}</span>
+                        ${r.exchange ? `<span style="font-size:10px;color:#aaa;">${escHtml(r.exchange)}</span>` : ''}
+                    </div>
+                    ${r.name ? `<div style="font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(r.name)}</div>` : ''}
+                </div>
+                <i class="fas fa-external-link-alt" style="color:#ccc;font-size:10px;flex-shrink:0;"></i>
+            </div>
+        `).join('');
+
+        dropdown.style.display = 'block';
+
+        dropdown.querySelectorAll('.search-ac-item').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                clearActive();
+                el.style.background = '#f5f8ff';
+                activeIndex = parseInt(el.dataset.index);
+            });
+            el.addEventListener('mouseleave', () => { el.style.background = ''; });
+            el.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();
+                selectResult(parseInt(el.dataset.index));
+            });
+        });
+    }
+
+    function clearActive() {
+        dropdown.querySelectorAll('.search-ac-item').forEach(el => { el.style.background = ''; });
+    }
+
+    function setActive(idx) {
+        clearActive();
+        activeIndex = idx;
+        const items = dropdown.querySelectorAll('.search-ac-item');
+        if (items[idx]) items[idx].style.background = '#f5f8ff';
+    }
+
+    function selectResult(idx) {
+        const r = lastResults[idx];
+        if (!r) return;
+        input.value = r.symbol;
+        closeDropdown();
+        window.location.href = `/ticker/${encodeURIComponent(r.symbol)}`;
+    }
+
+    function closeDropdown() {
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = '';
+        activeIndex = -1;
+    }
+
+    async function fetchSuggestions(q) {
+        try {
+            const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            renderDropdown(data.results || []);
+        } catch (_) { closeDropdown(); }
+    }
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < 1) { closeDropdown(); return; }
+        debounceTimer = setTimeout(() => fetchSuggestions(q), 220);
+    });
+
+    input.addEventListener('keydown', (e) => {
+        const items = dropdown.querySelectorAll('.search-ac-item');
+        if (!items.length) {
+            if (e.key === 'Enter' && input.value.trim()) {
+                window.location.href = `/ticker/${encodeURIComponent(input.value.trim().toUpperCase())}`;
+            }
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActive(Math.min(activeIndex + 1, items.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActive(Math.max(activeIndex - 1, 0));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (activeIndex >= 0) selectResult(activeIndex);
+            else if (input.value.trim()) window.location.href = `/ticker/${encodeURIComponent(input.value.trim().toUpperCase())}`;
+        } else if (e.key === 'Escape') {
+            closeDropdown();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) closeDropdown();
+    });
+})();
