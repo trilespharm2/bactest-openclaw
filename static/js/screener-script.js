@@ -237,21 +237,19 @@ var FILTERS = {
 
     // ==================== MARGIN & RATIOS (14 filters) ====================
     "Margin & Ratios": [
-        // Profitability Ratios
-        { id: "roe", name: "Return on Equity %", type: "fiscal", column: "return_on_equity", fiscal_periods: ["Trailing 12 months", "Annual"], default_fiscal_period: "Trailing 12 months", unit: "%" },
-        { id: "roa", name: "Return on Assets %", type: "fiscal", column: "return_on_assets", fiscal_periods: ["Trailing 12 months", "Annual"], default_fiscal_period: "Trailing 12 months", unit: "%" },
-        { id: "roic", name: "Return on Invested Capital %", type: "fiscal", column: "return_on_invested_capital", fiscal_periods: ["Trailing 12 months", "Annual"], default_fiscal_period: "Trailing 12 months", unit: "%" },
-        // Margin Ratios
-        { id: "gross_margin", name: "Gross Margin %", type: "fiscal", column: "gross_margin", fiscal_periods: ["Annual", "Quarterly", "Trailing 12 months"], default_fiscal_period: "Annual", unit: "%" },
-        { id: "operating_margin", name: "Operating Margin %", type: "fiscal", column: "operating_margin", fiscal_periods: ["Annual", "Trailing 12 months", "Quarterly"], default_fiscal_period: "Annual", unit: "%" },
-        { id: "net_margin", name: "Net Margin %", type: "fiscal", column: "net_margin", fiscal_periods: ["Annual", "Quarterly", "Trailing 12 months"], default_fiscal_period: "Annual", unit: "%" },
-        { id: "ebitda_margin", name: "EBITDA Margin %", type: "fiscal", column: "ebitda_margin", fiscal_periods: ["Trailing 12 months", "Annual"], default_fiscal_period: "Trailing 12 months", unit: "%" },
+        { id: "roe", name: "Return on Equity %", type: "fiscal", column: "return_on_equity", fiscal_periods: ["Annual", "Quarterly"], default_fiscal_period: "Annual", unit: "%" },
+        { id: "roa", name: "Return on Assets %", type: "fiscal", column: "return_on_assets", fiscal_periods: ["Annual"], default_fiscal_period: "Annual", unit: "%" },
+        { id: "roic", name: "Return on Invested Capital %", type: "range", column: "return_on_invested_capital", unit: "%" },
+        { id: "gross_margin", name: "Gross Margin %", type: "fiscal", column: "gross_margin", fiscal_periods: ["Annual", "Trailing 12 months"], default_fiscal_period: "Annual", unit: "%" },
+        { id: "operating_margin", name: "Operating Margin %", type: "fiscal", column: "operating_margin", fiscal_periods: ["Annual", "Trailing 12 months"], default_fiscal_period: "Annual", unit: "%" },
+        { id: "net_margin", name: "Net Margin %", type: "fiscal", column: "net_margin", fiscal_periods: ["Annual", "Trailing 12 months"], default_fiscal_period: "Annual", unit: "%" },
+        { id: "ebitda_margin", name: "EBITDA Margin %", type: "range", column: "ebitda_margin_ttm", unit: "%" },
         { id: "pretax_margin", name: "Pre-tax Margin %", type: "range", column: "pre_tax_margin_ttm", unit: "%" },
         { id: "fcf_margin", name: "Free Cash Flow Margin %", type: "range", column: "free_cash_flow_margin_ttm", unit: "%" },
         { id: "current_ratio", name: "Current Ratio", type: "fiscal", column: "current_ratio", fiscal_periods: ["Quarterly", "Annual"], default_fiscal_period: "Quarterly", unit: "ratio" },
         { id: "quick_ratio", name: "Quick Ratio", type: "fiscal", column: "quick_ratio", fiscal_periods: ["Quarterly", "Annual"], default_fiscal_period: "Quarterly", unit: "ratio" },
         { id: "debt_to_equity", name: "Debt to Equity", type: "fiscal", column: "debt_to_equity", fiscal_periods: ["Quarterly", "Annual"], default_fiscal_period: "Quarterly", unit: "ratio" },
-        { id: "debt_to_assets", name: "Debt to Assets", type: "fiscal", column: "debt_to_asset", fiscal_periods: ["Quarterly"], default_fiscal_period: "Quarterly", unit: "ratio" }
+        { id: "debt_to_assets", name: "Debt to Assets", type: "locked_fiscal", column: "debt_to_asset", locked_fiscal_period: "Quarterly", unit: "ratio" }
     ],
 
     // ==================== VALUATION & GROWTH (27 filters) ====================
