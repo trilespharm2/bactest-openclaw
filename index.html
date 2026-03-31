@@ -121,34 +121,45 @@
       .stat-card.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
       .stat-card.danger { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
       .stat-card.info { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
-      .landing-hero { padding: 48px 32px; text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); color: white; border-radius: 16px; margin-bottom: 28px; position: relative; overflow: hidden; }
-      .landing-hero::before { content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%; background:radial-gradient(circle at 30% 50%, rgba(99,102,241,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(14,165,233,0.1) 0%, transparent 50%); pointer-events:none; }
-      .hero-title { font-size: 2.4rem; font-weight: 800; margin-bottom: 16px; line-height: 1.2; position: relative; }
-      .hero-subtitle { font-size: 1.05rem; opacity: 0.85; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; position: relative; }
-      .hero-stats { display: flex; justify-content: center; gap: 40px; margin-top: 32px; position: relative; }
-      .hero-stats .stat-item { text-align: center; }
-      .hero-stats .stat-value { font-size: 1.8rem; font-weight: 700; }
-      .hero-stats .stat-label { font-size: 0.85rem; opacity: 0.7; }
-      .guest-product-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+      @keyframes heroGlow { 0%,100%{opacity:0.4;} 50%{opacity:0.8;} }
+      @keyframes gridPulse { 0%,100%{opacity:0.03;} 50%{opacity:0.06;} }
+      @keyframes borderGlow { 0%,100%{border-color:rgba(99,102,241,0.2);} 50%{border-color:rgba(99,102,241,0.5);} }
+      @keyframes statPulse { 0%,100%{text-shadow:0 0 8px rgba(251,191,36,0.3);} 50%{text-shadow:0 0 20px rgba(251,191,36,0.6);} }
+      .landing-hero { padding: 52px 32px; text-align: center; background: linear-gradient(160deg, #020617 0%, #0c1929 30%, #0f172a 60%, #091428 100%); color: white; border-radius: 18px; margin-bottom: 28px; position: relative; overflow: hidden; border: 1px solid rgba(99,102,241,0.15); }
+      .landing-hero::before { content:''; position:absolute; top:-60%; left:-60%; width:220%; height:220%; background:radial-gradient(circle at 25% 40%, rgba(99,102,241,0.18) 0%, transparent 45%), radial-gradient(circle at 75% 25%, rgba(14,165,233,0.12) 0%, transparent 40%), radial-gradient(circle at 50% 80%, rgba(251,191,36,0.06) 0%, transparent 35%); pointer-events:none; animation:heroGlow 6s ease-in-out infinite; }
+      .landing-hero::after { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background-image:linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px); background-size:40px 40px; pointer-events:none; animation:gridPulse 4s ease-in-out infinite; }
+      .hero-title { font-size: 2.5rem; font-weight: 800; margin-bottom: 16px; line-height: 1.15; position: relative; letter-spacing: -0.5px; }
+      .hero-subtitle { font-size: 1.05rem; opacity: 0.75; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; position: relative; font-weight: 300; }
+      .hero-stats { display: flex; justify-content: center; gap: 40px; margin-top: 36px; position: relative; }
+      .hero-stats .stat-item { text-align: center; padding: 12px 20px; background: rgba(255,255,255,0.04); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(4px); }
+      .hero-stats .stat-value { font-size: 1.8rem; font-weight: 700; color: #fbbf24; animation: statPulse 3s ease-in-out infinite; }
+      .hero-stats .stat-label { font-size: 0.8rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; margin-top: 2px; }
+      .guest-product-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
       @media (max-width: 768px) { .guest-product-row { grid-template-columns: 1fr; } }
-      .guest-product-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: transform 0.3s, box-shadow 0.3s; display: flex; flex-direction: column; border: 1px solid #e8ecf1; }
-      .guest-product-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+      .guest-product-card { background: linear-gradient(145deg, #0d1520, #111b2b); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s; display: flex; flex-direction: column; border: 1px solid rgba(99,102,241,0.12); position: relative; }
+      .guest-product-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent); opacity:0; transition:opacity 0.3s; }
+      .guest-product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.3); }
+      .guest-product-card:hover::before { opacity:1; }
       .guest-card-body { padding: 18px 20px; flex: 1; display: flex; flex-direction: column; }
-      .guest-card-body h3 { font-size: 1.05rem; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
-      .guest-card-body p { font-size: 0.82rem; color: #64748b; line-height: 1.5; margin-bottom: 10px; }
+      .guest-card-body h3 { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; }
+      .guest-card-body p { font-size: 0.82rem; color: #94a3b8; line-height: 1.5; margin-bottom: 10px; }
       .guest-card-features { list-style: none; padding: 0; margin: 0 0 12px; }
-      .guest-card-features li { font-size: 0.78rem; color: #475569; padding: 3px 0; display: flex; align-items: center; gap: 7px; }
-      .guest-card-features li i { color: #31cb9e; font-size: 10px; flex-shrink: 0; }
+      .guest-card-features li { font-size: 0.78rem; color: #8b9dc3; padding: 3px 0; display: flex; align-items: center; gap: 7px; }
+      .guest-card-features li i { color: #34d399; font-size: 10px; flex-shrink: 0; text-shadow: 0 0 6px rgba(52,211,153,0.4); }
       .guest-card-footer { margin-top: auto; }
-      .btn-test-now { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: linear-gradient(135deg, #1b55e2, #6366f1); color: #fff; border: none; border-radius: 7px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
-      .btn-test-now:hover { background: linear-gradient(135deg, #1544b8, #4f46e5); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(27,85,226,0.3); }
-      .sim-banner { background: linear-gradient(135deg, #059669, #10b981); border-radius: 14px; padding: 28px 32px; color: #fff; margin-bottom: 24px; display: flex; align-items: center; gap: 24px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
-      .sim-banner:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(5,150,105,0.3); }
+      .btn-test-now { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); border-radius: 7px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.25s; text-decoration: none; }
+      .btn-test-now:hover { background: rgba(99,102,241,0.3); color: #c7d2fe; border-color: rgba(99,102,241,0.6); box-shadow: 0 0 16px rgba(99,102,241,0.2); transform: translateY(-1px); }
+      .sim-banner { background: linear-gradient(135deg, #052e21, #064e36); border-radius: 14px; padding: 24px 28px; color: #fff; margin-bottom: 20px; display: flex; align-items: center; gap: 22px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border: 1px solid rgba(16,185,129,0.2); position: relative; overflow: hidden; }
+      .sim-banner::after { content:''; position:absolute; top:0; right:0; width:200px; height:100%; background:radial-gradient(circle at right center, rgba(16,185,129,0.1), transparent 70%); pointer-events:none; }
+      .sim-banner:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); }
       @media (max-width: 768px) { .sim-banner { flex-direction: column; text-align: center; } }
-      .sim-banner-icon { width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-      .sim-banner-icon i { font-size: 28px; }
-      .sim-banner-text h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
-      .sim-banner-text p { font-size: 0.9rem; opacity: 0.9; margin: 0; }
+      .sim-banner-icon { width: 56px; height: 56px; background: rgba(16,185,129,0.15); border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid rgba(16,185,129,0.2); }
+      .sim-banner-icon i { font-size: 24px; color: #34d399; text-shadow: 0 0 10px rgba(52,211,153,0.4); }
+      .sim-banner-text h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; color: #d1fae5; }
+      .sim-banner-text p { font-size: 0.85rem; opacity: 0.75; margin: 0; color: #a7f3d0; }
+      #guestDataFeeds .card { background: linear-gradient(145deg, #0d1520, #111b2b); border: 1px solid rgba(99,102,241,0.1); }
+      #guestDataFeeds .card-header { background: rgba(99,102,241,0.05); border-bottom: 1px solid rgba(99,102,241,0.08); }
+      #guestDataFeeds .card-title { color: #cbd5e1; }
       .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-top: 30px; }
       .feature-card { background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); transition: transform 0.3s; }
       .feature-card:hover { transform: translateY(-5px); }
@@ -165,7 +176,9 @@
       .section-header { text-align: center; margin-bottom: 40px; }
       .section-label { background: rgba(27, 85, 226, 0.1); color: #1b55e2; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
       .section-title { font-size: 2rem; font-weight: 700; margin: 15px 0; }
-      .cta-section { background: linear-gradient(135deg, #1b55e2 0%, #764ba2 100%); color: white; padding: 60px; border-radius: 15px; text-align: center; margin: 40px 0; }
+      .cta-section { background: linear-gradient(160deg, #020617 0%, #0f172a 50%, #1e1b4b 100%); color: white; padding: 60px; border-radius: 18px; text-align: center; margin: 40px 0; border: 1px solid rgba(99,102,241,0.2); position: relative; overflow: hidden; }
+      .cta-section::before { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background-image:linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px); background-size:40px 40px; pointer-events:none; }
+      .cta-section::after { content:''; position:absolute; top:50%; left:50%; width:300px; height:300px; transform:translate(-50%,-50%); background:radial-gradient(circle, rgba(99,102,241,0.12), transparent 70%); pointer-events:none; }
 
       /* Subscription Page Styles */
       .subscription-page { padding: 24px; max-width: 1200px; margin: 0 auto; }
@@ -607,15 +620,15 @@
               <!-- Sign Up Banner -->
               <div class="landing-hero">
                 <div style="position:relative;">
-                  <div class="hero-badge mb-3">
-                    <span class="badge bg-light text-primary">What's new</span>
-                    <span class="ms-2">AI-Powered Strategy Analysis</span>
+                  <div class="hero-badge mb-3" style="position:relative;">
+                    <span class="badge" style="background:rgba(99,102,241,0.2);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);font-size:0.7rem;padding:4px 12px;">What's new</span>
+                    <span class="ms-2" style="color:#94a3b8;font-size:0.88rem;">AI-Powered Strategy Analysis</span>
                   </div>
                   <h1 class="hero-title">Backtest. Analyze. <span style="color:#fbbf24;">Trade Smarter.</span></h1>
                   <p class="hero-subtitle">Options &amp; stock backtesting, real-time screeners, and simulated trading — all in one platform built for serious traders.</p>
                   <div class="d-flex justify-content-center gap-3 flex-wrap" style="position:relative;">
-                    <a href="/register" class="btn btn-lg" style="background:#fbbf24;color:#0f172a;font-weight:700;padding:12px 36px;border-radius:10px;">Create Free Account</a>
-                    <a href="/login" class="btn btn-outline-light btn-lg" style="padding:12px 28px;border-radius:10px;">Sign In <i class="fas fa-arrow-right ms-2"></i></a>
+                    <a href="/register" class="btn btn-lg" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#0f172a;font-weight:700;padding:12px 36px;border-radius:10px;box-shadow:0 0 20px rgba(251,191,36,0.25);transition:all 0.3s;">Create Free Account</a>
+                    <a href="/login" class="btn btn-lg" style="padding:12px 28px;border-radius:10px;border:1px solid rgba(99,102,241,0.4);color:#a5b4fc;background:rgba(99,102,241,0.1);backdrop-filter:blur(4px);transition:all 0.3s;">Sign In <i class="fas fa-arrow-right ms-2"></i></a>
                   </div>
                   <div class="hero-stats">
                     <div class="stat-item">
@@ -641,7 +654,7 @@
                   <h3>Simulated Trading</h3>
                   <p>Practice trading with virtual capital in real-time market conditions. Build confidence before risking real money.</p>
                 </div>
-                <a href="#" onclick="event.stopPropagation();navigateToPage('simulatedTrading');" class="btn btn-light" style="font-weight:600;border-radius:8px;white-space:nowrap;color:#059669;">Test Now <i class="fas fa-arrow-right ms-1"></i></a>
+                <a href="#" onclick="event.stopPropagation();navigateToPage('simulatedTrading');" class="btn" style="font-weight:600;border-radius:8px;white-space:nowrap;color:#34d399;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);padding:8px 20px;transition:all 0.25s;">Test Now <i class="fas fa-arrow-right ms-1"></i></a>
               </div>
 
               <!-- Row 1: Options Backtester + Stock Backtester -->
@@ -795,9 +808,9 @@
               </div>
 
               <div class="cta-section">
-                <h2>Ready to start backtesting?</h2>
-                <p class="mb-4">Join thousands of traders using BacktestPro to validate their strategies.</p>
-                <a href="/register" class="btn btn-light btn-lg" style="font-weight:700;padding:12px 36px;border-radius:10px;">Get Started Free</a>
+                <h2 style="position:relative;font-weight:800;letter-spacing:-0.5px;">Ready to start backtesting?</h2>
+                <p class="mb-4" style="position:relative;opacity:0.75;font-weight:300;">Join thousands of traders using BacktestPro to validate their strategies.</p>
+                <a href="/register" class="btn btn-lg" style="position:relative;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#0f172a;font-weight:700;padding:12px 36px;border-radius:10px;box-shadow:0 0 24px rgba(251,191,36,0.25);transition:all 0.3s;">Get Started Free</a>
               </div>
             </section>
 
