@@ -121,14 +121,14 @@
       .stat-card.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
       .stat-card.danger { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
       .stat-card.info { background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); }
-      .landing-hero { padding: 32px 32px 28px; text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); color: white; border-radius: 16px; margin-bottom: 20px; position: relative; overflow: hidden; }
-      .landing-hero::before { content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%; background:radial-gradient(circle at 30% 50%, rgba(99,102,241,0.15) 0%, transparent 50%), radial-gradient(circle at 70% 30%, rgba(14,165,233,0.1) 0%, transparent 50%); pointer-events:none; }
-      .hero-title { font-size: 2rem; font-weight: 800; margin-bottom: 12px; line-height: 1.2; position: relative; }
-      .hero-subtitle { font-size: 0.95rem; opacity: 0.85; max-width: 520px; margin: 0 auto 20px; line-height: 1.5; position: relative; }
+      .landing-hero { padding: 32px 32px 28px; text-align: center; background: #fff; color: #1e293b; border-radius: 12px; margin-bottom: 20px; position: relative; overflow: hidden; border: 1px solid #e8ecf1; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+      .landing-hero::before { display: none; }
+      .hero-title { font-size: 2rem; font-weight: 800; margin-bottom: 12px; line-height: 1.2; position: relative; color: #1e293b; }
+      .hero-subtitle { font-size: 0.95rem; color: #64748b; max-width: 520px; margin: 0 auto 20px; line-height: 1.5; position: relative; }
       .hero-stats { display: flex; justify-content: center; gap: 36px; margin-top: 22px; position: relative; }
       .hero-stats .stat-item { text-align: center; }
-      .hero-stats .stat-value { font-size: 1.5rem; font-weight: 700; }
-      .hero-stats .stat-label { font-size: 0.8rem; opacity: 0.7; }
+      .hero-stats .stat-value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+      .hero-stats .stat-label { font-size: 0.8rem; color: #94a3b8; }
       .guest-product-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
       @media (max-width: 768px) { .guest-product-row { grid-template-columns: 1fr; } }
       .guest-product-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: transform 0.3s, box-shadow 0.3s; display: flex; flex-direction: column; border: 1px solid #e8ecf1; }
@@ -140,22 +140,22 @@
       .guest-card-features li { font-size: 0.78rem; color: #475569; padding: 3px 0; display: flex; align-items: center; gap: 7px; }
       .guest-card-features li i { color: #31cb9e; font-size: 10px; flex-shrink: 0; }
       .guest-card-footer { margin-top: auto; }
-      .sim-banner { background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; padding: 18px 24px; color: #fff; margin-bottom: 20px; display: flex; align-items: center; gap: 18px; transition: box-shadow 0.2s; }
-      .sim-banner:hover { box-shadow: 0 4px 18px rgba(5,150,105,0.25); }
+      .sim-banner { background: #fff; border-radius: 12px; padding: 18px 24px; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 18px; transition: transform 0.3s, box-shadow 0.3s; border: 1px solid #e8ecf1; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+      .sim-banner:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
       @media (max-width: 768px) { .sim-banner { flex-direction: column; text-align: left; } }
-      .sim-banner-icon { width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+      .sim-banner-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
       .sim-banner-icon i { font-size: 22px; }
-      .sim-banner-text h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
-      .sim-banner-text p { font-size: 0.82rem; opacity: 0.9; margin: 0; }
-      .btn-video-usecase { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
-      .btn-video-usecase:hover { background: rgba(255,255,255,0.25); color: #fff; }
-      .btn-try-now { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; background: #fff; color: #059669; border: none; border-radius: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-decoration: none; }
-      .btn-try-now:hover { background: #f0fdf4; color: #047857; }
+      .sim-banner-text h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; color: #1e293b; }
+      .sim-banner-text p { font-size: 0.82rem; color: #64748b; margin: 0; }
+      .btn-video-usecase { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: transparent; color: #475569; border: 1px solid #d1d5db; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+      .btn-video-usecase:hover { background: #f8fafc; border-color: #9ca3af; color: #1e293b; }
+      .btn-try-now { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; background: linear-gradient(135deg, #1b55e2, #6366f1); color: #fff; border: none; border-radius: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+      .btn-try-now:hover { background: linear-gradient(135deg, #1544b8, #4f46e5); color: #fff; }
       .btn-try-now-card { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; background: linear-gradient(135deg, #1b55e2, #6366f1); color: #fff; border: none; border-radius: 7px; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-decoration: none; }
       .btn-try-now-card:hover { background: linear-gradient(135deg, #1544b8, #4f46e5); color: #fff; }
       .btn-video-card { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: transparent; color: #475569; border: 1px solid #d1d5db; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
       .btn-video-card:hover { background: #f8fafc; border-color: #9ca3af; color: #1e293b; }
-      .signup-hint { font-size: 0.72rem; color: rgba(255,255,255,0.7); font-weight: 500; white-space: nowrap; }
+      .signup-hint { font-size: 0.72rem; color: #94a3b8; font-weight: 500; white-space: nowrap; }
       .signup-hint-card { font-size: 0.72rem; color: #94a3b8; font-weight: 500; white-space: nowrap; }
       .video-dropdown { display: none; margin-top: 10px; border-radius: 8px; overflow: hidden; background: #000; }
       .video-dropdown.open { display: block; }
@@ -619,14 +619,14 @@
               <div class="landing-hero">
                 <div style="position:relative;">
                   <div class="hero-badge mb-3">
-                    <span class="badge bg-light text-primary">What's new</span>
-                    <span class="ms-2">AI-Powered Strategy Analysis</span>
+                    <span class="badge" style="background:#eef2ff;color:#4f46e5;">What's new</span>
+                    <span class="ms-2" style="color:#64748b;">AI-Powered Strategy Analysis</span>
                   </div>
-                  <h1 class="hero-title">Backtest. Analyze. <span style="color:#fbbf24;">Trade Smarter.</span></h1>
+                  <h1 class="hero-title">Backtest. Analyze. <span style="color:#6366f1;">Trade Smarter.</span></h1>
                   <p class="hero-subtitle">Options &amp; stock backtesting, real-time screeners, and simulated trading — all in one platform built for serious traders.</p>
                   <div class="d-flex justify-content-center gap-3 flex-wrap" style="position:relative;">
-                    <a href="/register" class="btn btn-lg" style="background:#fbbf24;color:#0f172a;font-weight:700;padding:12px 36px;border-radius:10px;">Create Free Account</a>
-                    <a href="/login" class="btn btn-outline-light btn-lg" style="padding:12px 28px;border-radius:10px;">Sign In <i class="fas fa-arrow-right ms-2"></i></a>
+                    <a href="/register" class="btn btn-lg" style="background:linear-gradient(135deg,#1b55e2,#6366f1);color:#fff;font-weight:700;padding:12px 36px;border-radius:10px;">Create Free Account</a>
+                    <a href="/login" class="btn btn-lg" style="padding:12px 28px;border-radius:10px;border:1px solid #d1d5db;color:#475569;">Sign In <i class="fas fa-arrow-right ms-2"></i></a>
                   </div>
                   <div class="hero-stats">
                     <div class="stat-item">
