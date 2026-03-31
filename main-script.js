@@ -1920,3 +1920,124 @@ function closeMobileSearch() {
         });
     }
 })();
+
+// ── Guest Dashboard Data Feeds ──────────────────────────────────────────────
+(function() {
+    if (isAuthenticated) return;
+    const guestFeeds = document.getElementById('guestDataFeeds');
+    if (!guestFeeds) return;
+
+    function _esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+    async function _fetch(url) {
+        const r = await fetch(url);
+        return r.json();
+    }
+
+    async function loadGuestIndices() {
+        try {
+            const data = await _fetch('/api/dashboard/indices');
+            const el = document.getElementById('guestIndicesBar');
+            if (!el) return;
+            const indices = data.indices || [];
+            if (!indices.length) { el.innerHTML='<div class="text-muted text-center w-100" style="font-size:12px;">No data</div>'; return; }
+            el.innerHTML = indices.map(idx => {
+                const isUp = idx.change >= 0;
+                const color = idx.symbol==='UVXY' ? (idx.change_pct>10?'#d94452':idx.change_pct>3?'#e5873a':'#0fad6e') : (isUp?'#0fad6e':'#d94452');
+                return `<a href="/ticker/${encodeURIComponent(idx.symbol||'')}" class="text-center" style="flex:1;min-width:90px;cursor:pointer;text-decoration:none;display:block;border-radius:6px;padding:4px 2px;transition:background .12s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='transparent'">
+                    <div style="font-size:11px;font-weight:600;color:#6b7689;">${idx.symbol}</div>
+                    <div style="font-size:15px;font-weight:700;color:#1a1e2e;">${idx.price?'$'+idx.price.toLocaleString(undefined,{minimumFractionDigits:2}):'—'}</div>
+                    <div style="font-size:11px;font-weight:600;color:${color};">${isUp?'▲':'▼'} ${isUp?'+':''}${idx.change_pct.toFixed(2)}%</div>
+                </a>`;
+            }).join('');
+        } catch(e) { const el=document.getElementById('guestIndicesBar'); if(el) el.innerHTML='<div class="text-muted text-center w-100" style="font-size:12px;">Unable to load</div>'; }
+    }
+
+    async function loadGuestGainersLosers() {
+        try {
+            const data = await _fetch('/api/dashboard/gainers-losers');
+            renderGuestMovers('guestGainersTable', data.gainers||[], true);
+            renderGuestMovers('guestLosersTable', data.losers||[], false);
+        } catch(e) {
+            ['guestGainersTable','guestLosersTable'].forEach(id => { const el=document.getElementById(id); if(el) el.innerHTML='<div class="text-muted text-center py-2" style="font-size:12px;">Unable to load</div>'; });
+        }
+    }
+
+    function renderGuestMovers(id, items, isGainers) {
+        const el=document.getElementById(id); if(!el) return;
+        if(!items.length) { el.innerHTML='<div class="text-muted text-center py-2" style="font-size:12px;">No data</div>'; return; }
+        el.innerHTML = items.slice(0,8).map(item => {
+            const pct=item.change_pct||item.change_percent||item.todaysChangePerc||0;
+            const color=isGainers?'#0fad6e':'#d94452';
+            return `<a href="/ticker/${encodeURIComponent(item.symbol||'')}" class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f0f2f6;font-size:13px;text-decoration:none;color:inherit;cursor:pointer;transition:background .12s;" onmouseover="this.style.background='#f5f7ff'" onmouseout="this.style.background='transparent'">
+                <span style="font-weight:600;color:#3b6df0;">${item.symbol||'N/A'}</span>
+                <span style="font-weight:600;color:${color};">${isGainers?'▲':'▼'} ${Math.abs(pct).toFixed(2)}%</span>
+            </a>`;
+        }).join('');
+    }
+
+    async function loadGuestNews() {
+        try {
+            const data = await _fetch('/api/dashboard/news');
+            const el = document.getElementById('guestNewsContainer'); if(!el) return;
+            const articles = data.articles||[];
+            if(!articles.length) { el.innerHTML='<div class="text-muted text-center py-2" style="font-size:12px;">No news</div>'; return; }
+            function safeUrl(u){if(!u)return'#';try{const x=new URL(u);return(x.protocol==='https:'||x.protocol==='http:')?x.href:'#';}catch{return'#';}}
+            function timeAgo(d){if(!d)return'';const m=Math.floor((Date.now()-new Date(d).getTime())/60000);if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+            el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;">
+                ${articles.slice(0,8).map(a => `<a href="${safeUrl(a.link)}" target="_blank" rel="noopener" style="text-decoration:none;display:block;padding:10px 12px;border-radius:8px;border:1px solid #e2e6ee;background:#fff;transition:box-shadow .15s,border-color .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';this.style.borderColor='#3b6df0'" onmouseout="this.style.boxShadow='none';this.style.borderColor='#e2e6ee'">
+                    <div style="font-size:12px;font-weight:600;color:#1a1e2e;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${_esc(a.title)}</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                        <span style="font-size:10px;color:#3b6df0;font-weight:600;">${_esc(a.publisher)}</span>
+                        <span style="font-size:10px;color:#6b7689;">${timeAgo(a.published)}</span>
+                    </div>
+                </a>`).join('')}
+            </div>`;
+        } catch(e) { const el=document.getElementById('guestNewsContainer'); if(el) el.innerHTML='<div class="text-muted text-center py-2" style="font-size:12px;">Unable to load</div>'; }
+    }
+
+    async function loadGuestTreasury() {
+        try {
+            const data = await _fetch('/api/dashboard/treasury');
+            const el = document.getElementById('guestTreasuryGrid'); if(!el) return;
+            const rates = data.rates||[];
+            if(!rates.length) { el.innerHTML='<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
+            el.innerHTML = rates.map(r => {
+                const isUp=r.change>=0; const color=isUp?'#d94452':'#0fad6e'; const bg=isUp?'rgba(217,68,82,0.06)':'rgba(15,173,110,0.06)';
+                return `<div style="padding:10px 12px;border-radius:8px;background:${bg};text-align:center;">
+                    <div style="font-size:11px;font-weight:600;color:#6b7689;">${r.name} Treasury</div>
+                    <div style="font-size:18px;font-weight:700;color:#1a1e2e;margin:2px 0;">${r.rate.toFixed(3)}%</div>
+                    <div style="font-size:11px;font-weight:600;color:${color};">${isUp?'▲':'▼'} ${Math.abs(r.change).toFixed(3)}%</div>
+                </div>`;
+            }).join('');
+        } catch(e) { const el=document.getElementById('guestTreasuryGrid'); if(el) el.innerHTML='<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">Unable to load</div>'; }
+    }
+
+    async function loadGuestEconomic() {
+        try {
+            const data = await _fetch('/api/dashboard/economic');
+            const el = document.getElementById('guestEconomicGrid'); if(!el) return;
+            const indicators = data.indicators||[];
+            if(!indicators.length) { el.innerHTML='<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">No data</div>'; return; }
+            const iconMap={'VIX':'fas fa-chart-area','US Dollar (DXY)':'fas fa-dollar-sign','Gold':'fas fa-coins','Crude Oil':'fas fa-gas-pump','Bitcoin':'fab fa-bitcoin','Silver':'fas fa-ring'};
+            el.innerHTML = indicators.map(ind => {
+                const isUp=ind.change>=0;
+                const color=ind.name==='VIX'?(isUp?'#d94452':'#0fad6e'):(isUp?'#0fad6e':'#d94452');
+                const bg=isUp?(ind.name==='VIX'?'rgba(217,68,82,0.06)':'rgba(15,173,110,0.06)'):(ind.name==='VIX'?'rgba(15,173,110,0.06)':'rgba(217,68,82,0.06)');
+                const icon=iconMap[ind.name]||'fas fa-chart-line';
+                const priceStr=ind.format==='currency'?'$'+ind.price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):ind.price.toFixed(2);
+                return `<div style="padding:10px 12px;border-radius:8px;background:${bg};text-align:center;">
+                    <div style="font-size:11px;font-weight:600;color:#6b7689;"><i class="${icon}" style="margin-right:4px;"></i>${ind.name}</div>
+                    <div style="font-size:16px;font-weight:700;color:#1a1e2e;margin:2px 0;">${priceStr}</div>
+                    <div style="font-size:11px;font-weight:600;color:${color};">${isUp?'▲':'▼'} ${isUp?'+':''}${ind.change_pct.toFixed(2)}%</div>
+                </div>`;
+            }).join('');
+        } catch(e) { const el=document.getElementById('guestEconomicGrid'); if(el) el.innerHTML='<div class="text-muted text-center py-2" style="grid-column:span 2;font-size:12px;">Unable to load</div>'; }
+    }
+
+    loadGuestIndices();
+    loadGuestGainersLosers();
+    loadGuestNews();
+    loadGuestTreasury();
+    loadGuestEconomic();
+})();
