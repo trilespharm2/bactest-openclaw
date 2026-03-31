@@ -140,9 +140,9 @@
       .guest-card-features li { font-size: 0.78rem; color: #475569; padding: 3px 0; display: flex; align-items: center; gap: 7px; }
       .guest-card-features li i { color: #31cb9e; font-size: 10px; flex-shrink: 0; }
       .guest-card-footer { margin-top: auto; }
-      .sim-banner { background: #fff; border-radius: 12px; padding: 18px 24px; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 18px; transition: transform 0.3s, box-shadow 0.3s; border: 1px solid #e8ecf1; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+      .sim-banner { background: #fff; border-radius: 12px; padding: 18px 24px; color: #1e293b; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 18px; transition: transform 0.3s, box-shadow 0.3s; border: 1px solid #e8ecf1; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
       .sim-banner:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
-      @media (max-width: 768px) { .sim-banner { flex-direction: column; text-align: left; } }
+      @media (max-width: 768px) { .sim-banner { flex-direction: column; align-items: flex-start; text-align: left; } }
       .sim-banner-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
       .sim-banner-icon i { font-size: 22px; }
       .sim-banner-text h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; color: #1e293b; }
@@ -652,7 +652,7 @@
                   <h3>Simulated Trading</h3>
                   <p>Practice trading with virtual capital in real-time market conditions. Build confidence before risking real money.</p>
                 </div>
-                <div class="d-flex align-items-center gap-2 flex-wrap" style="flex:1;">
+                <div class="d-flex align-items-center gap-2 flex-wrap flex-shrink-0">
                   <button class="btn-video-usecase" onclick="toggleVideoDropdown('simVideo')"><i class="fas fa-play-circle"></i> Video Use Case <i class="fas fa-chevron-down" style="font-size:0.65rem;"></i></button>
                   <a href="#" onclick="event.preventDefault();navigateToPage('simulatedTrading');" class="btn-try-now">Try Now <i class="fas fa-arrow-right"></i></a>
                   <span class="signup-hint">No Sign Up Required</span>
