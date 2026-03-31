@@ -375,6 +375,20 @@ function setupNavigation() {
 }
 
 // Navigate to Page
+function toggleVideoDropdown(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.video-dropdown.open').forEach(d => {
+        d.classList.remove('open');
+        const v = d.querySelector('video');
+        if (v) { v.pause(); v.currentTime = 0; }
+    });
+    if (!isOpen) {
+        el.classList.add('open');
+    }
+}
+
 async function navigateToPage(pageName, skipPushState = false) {
     console.log('Navigating to:', pageName);
 
