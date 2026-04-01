@@ -800,9 +800,24 @@ class TradingViewScreenerAPI:
         
         if filter_type in ["checkbox_list"]:
             selected = config.get("selected_values", [])
-            if selected:
-                return col(column_name).isin(selected)
-            return None
+            if not selected:
+                return None
+            RATING_VALUE_MAP = {
+                "Strong sell": (-1.0, -0.5),
+                "Sell":        (-0.5, -0.1),
+                "Neutral":     (-0.1, 0.1),
+                "Buy":         (0.1, 0.5),
+                "Strong buy":  (0.5, 1.0),
+            }
+            is_rating = all(v in RATING_VALUE_MAP for v in selected)
+            if is_rating:
+                ranges = [RATING_VALUE_MAP[v] for v in selected]
+                lo = min(r[0] for r in ranges)
+                hi = max(r[1] for r in ranges)
+                return col(column_name).between(lo, hi)
+            if len(selected) == 1:
+                return col(column_name) == selected[0]
+            return col(column_name).isin(selected)
 
         if filter_type in ["date_preset", "predefined_ranges"]:
             selected_option = config.get("selected_option")
