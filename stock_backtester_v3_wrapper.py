@@ -415,8 +415,8 @@ class StockBacktesterV3Wrapper:
             balance += trade.get('pnl', 0)
             if balance > peak:
                 peak = balance
-            dd = ((peak - balance) / peak * 100) if peak > 0 else 0
-            if dd > max_dd:
+            dd = ((balance - peak) / peak * 100) if peak > 0 else 0
+            if dd < max_dd:
                 max_dd = dd
 
         total_return = (total_pnl / starting_capital * 100) if starting_capital > 0 else 0.0

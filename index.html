@@ -3790,7 +3790,7 @@
             <td>${dte}DTE</td>
             <td>${period}</td>
             <td class="${pnlClass(pnl)} fw-semibold">${formatPnl(pnl)}</td>
-            <td class="text-danger">${maxDd != null && maxDd !== 0 ? '-' + Math.abs(maxDd).toFixed(1) + '%' : '-'}</td>
+            <td class="text-danger">${maxDd != null && maxDd !== 0 ? maxDd.toFixed(1) + '%' : '0.0%'}</td>
             <td class="${pnlClass(roi)} fw-semibold">${roi != null ? formatPct(roi) : '-'}</td>
             <td>${winRate != null ? formatPct(winRate) : '-'}</td>
             <td class="text-success">${formatCurrency(avgWin)}</td>
@@ -4007,7 +4007,7 @@
             </td>
             <td>${period}</td>
             <td class="${pnlClass(pnl)} fw-semibold">${formatPnl(pnl)}</td>
-            <td class="text-danger">${maxDd != null && maxDd !== 0 ? '-' + Math.abs(maxDd).toFixed(1) + '%' : '-'}</td>
+            <td class="text-danger">${maxDd != null && maxDd !== 0 ? maxDd.toFixed(1) + '%' : '0.0%'}</td>
             <td class="${pnlClass(roi)} fw-semibold">${roi != null ? formatPct(roi) : '-'}</td>
             <td>${winRate != null ? formatPct(winRate) : '-'}</td>
             <td class="text-success">${formatCurrency(avgWin)}</td>

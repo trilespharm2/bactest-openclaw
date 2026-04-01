@@ -3214,8 +3214,8 @@ def start_backtest_async():
                                         total_losses += abs(pnl)
                                     if balance > peak:
                                         peak = balance
-                                    dd = ((peak - balance) / peak) * 100 if peak > 0 else 0
-                                    if dd > max_dd:
+                                    dd = ((balance - peak) / peak) * 100 if peak > 0 else 0
+                                    if dd < max_dd:
                                         max_dd = dd
                                 
                                 metadata['summary']['max_drawdown'] = round(max_dd, 2)
@@ -4513,8 +4513,8 @@ def list_stocks_backtests_v3():
                                 balance += float(t.get('pnl', 0) or 0)
                                 if balance > peak:
                                     peak = balance
-                                dd_val = ((peak - balance) / peak * 100) if peak > 0 else 0
-                                if dd_val > max_dd_val:
+                                dd_val = ((balance - peak) / peak * 100) if peak > 0 else 0
+                                if dd_val < max_dd_val:
                                     max_dd_val = dd_val
                             summary = {
                                 'total_trades': n,

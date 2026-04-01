@@ -178,7 +178,7 @@ function renderSimResultsGrid() {
             <td>${modeBadge}</td>
             <td class="${simPnlClass(pnl)} fw-semibold">${simFormatPnl(pnl)}</td>
             <td class="${simPnlClass(roe)} fw-semibold">${simFormatPct(roe)}</td>
-            <td class="text-danger">${maxDd != null ? simFormatPct(-Math.abs(maxDd)) : '-'}</td>
+            <td class="text-danger">${maxDd != null ? simFormatPct(maxDd).replace('+','') : '0.0%'}</td>
             <td>${winRate != null ? simFormatPct(winRate).replace('+','') : '-'}</td>
             <td class="text-success">${simFormatCurrency(avgWin)}</td>
             <td class="text-danger">${avgLoss ? '-$' + Math.abs(avgLoss).toFixed(2) : '-'}</td>
@@ -329,7 +329,7 @@ function renderStats(data) {
         { label: 'Max Loss', value: `$${Math.abs(s.maxLoss).toFixed(2)}`, color: '#ef5350' },
         { label: 'Profit Factor', value: s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2) },
         { label: 'Sharpe Ratio', value: s.sharpeRatio.toFixed(2), color: s.sharpeRatio >= 0 ? '#26a69a' : '#ef5350' },
-        { label: 'Max Drawdown', value: `${s.maxDrawdown.toFixed(2)}%`, color: '#ef5350' },
+        { label: 'Max Drawdown', value: `${s.maxDrawdown.toFixed(2)}%`, color: s.maxDrawdown < 0 ? '#ef5350' : '#333' },
         { label: 'Max Consec. Wins', value: s.maxConsecWins, color: '#26a69a' },
         { label: 'Max Consec. Losses', value: s.maxConsecLosses, color: '#ef5350' },
         { label: 'Net Return', value: `${s.netReturn >= 0 ? '+' : ''}${s.netReturn.toFixed(2)}%`, color: s.netReturn >= 0 ? '#26a69a' : '#ef5350' },

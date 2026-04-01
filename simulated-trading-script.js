@@ -346,8 +346,8 @@ function buildAnalyticsFromTrades(enrichedTrades, session) {
         runningBalance += t.pnl;
         equityCurve.push({ balance: runningBalance, trade: i + 1 });
         if (runningBalance > peak) peak = runningBalance;
-        const dd = (peak - runningBalance) / peak * 100;
-        if (dd > maxDrawdown) maxDrawdown = dd;
+        const dd = (runningBalance - peak) / peak * 100;
+        if (dd < maxDrawdown) maxDrawdown = dd;
     });
 
     let consecutiveWins = 0, consecutiveLosses = 0, maxConsecWins = 0, maxConsecLosses = 0;

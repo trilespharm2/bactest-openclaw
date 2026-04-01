@@ -353,8 +353,7 @@ function displayStatistics(stats) {
     );
     
     const ddVal = stats.max_drawdown || 0;
-    const ddDisplay = ddVal !== 0 ? `-${Math.abs(ddVal).toFixed(2)}%` : '0.00%';
-    setMetricValue('statMaxDrawdown', ddDisplay, ddVal !== 0 ? 'negative' : 'neutral');
+    setMetricValue('statMaxDrawdown', `${ddVal.toFixed(2)}%`, ddVal < 0 ? 'negative' : 'neutral');
     
     const returnVal = stats.total_return || 0;
     setMetricValue(
