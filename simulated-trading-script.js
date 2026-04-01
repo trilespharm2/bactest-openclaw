@@ -252,6 +252,10 @@ async function endSessionFromCard(index) {
 
     activeSessions.splice(index, 1);
     localStorage.setItem('simActiveSessions', JSON.stringify(activeSessions));
+
+    simCurrentSymbol = '';
+    window._simPendingSession = null;
+
     renderActiveSessionCards();
 
     if (typeof navigateToPage === 'function') {
@@ -526,6 +530,7 @@ function buildCurrentSessionData() {
 }
 
 function saveCurrentSessionState() {
+    if (!simCurrentSymbol) return;
     const mode = window._simTradingMode || 'stock';
     const sessionState = {
         symbol: simCurrentSymbol,
