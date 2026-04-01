@@ -245,8 +245,19 @@ function renderStats(data) {
         { label: 'Final Balance', value: `$${data.finalBalance.toFixed(2)}`, color: data.finalBalance >= data.initialBalance ? '#26a69a' : '#ef5350' }
     ];
 
-    if (data.mode === 'stock' && s.avgBarsInTrade > 0) {
-        statItems.splice(5, 0, { label: 'Avg Bars in Trade', value: s.avgBarsInTrade.toFixed(1) });
+    if (data.mode === 'stock' && data.trades && data.trades.length > 0) {
+        let totalMs = 0, count = 0;
+        data.trades.forEach(t => {
+            if (t.entryTime && t.exitTime) {
+                const diff = new Date(t.exitTime) - new Date(t.entryTime);
+                if (!isNaN(diff) && diff > 0) { totalMs += diff; count++; }
+            }
+        });
+        if (count > 0) {
+            const avgMins = Math.floor((totalMs / count) / 60000);
+            const durLabel = avgMins < 60 ? avgMins + 'm' : Math.floor(avgMins/60) + 'h ' + (avgMins%60) + 'm';
+            statItems.splice(5, 0, { label: 'Avg Duration', value: durLabel });
+        }
     }
 
     body.innerHTML = statItems.map(item => `
@@ -265,7 +276,7 @@ function renderTradeLog(data) {
     if (data.mode === 'stock') {
         headerRow.innerHTML = `
             <th>#</th><th>Side</th><th>Qty</th><th>Entry Price</th><th>Exit Price</th>
-            <th>Entry Time</th><th>Exit Time</th><th>Bars</th><th>P&L</th>
+            <th>Entry Time</th><th>Exit Time</th><th>Duration</th><th>P&L</th>
         `;
     } else {
         headerRow.innerHTML = `
@@ -275,6 +286,21 @@ function renderTradeLog(data) {
     }
 
     renderTradeLogPage(data);
+}
+
+function calcTradeDuration(entryTime, exitTime) {
+    if (!entryTime || !exitTime) return '-';
+    const entry = new Date(entryTime);
+    const exit = new Date(exitTime);
+    const diffMs = exit - entry;
+    if (isNaN(diffMs) || diffMs < 0) return '-';
+    const totalMins = Math.floor(diffMs / 60000);
+    if (totalMins < 60) return totalMins + 'm';
+    const hrs = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hrs < 24) return mins > 0 ? hrs + 'h ' + mins + 'm' : hrs + 'h';
+    const days = Math.floor(hrs / 24);
+    return days + 'd ' + (hrs % 24) + 'h';
 }
 
 function renderTradeLogPage(data) {
@@ -301,13 +327,13 @@ function renderTradeLogPage(data) {
             const pnlSign = t.pnl >= 0 ? '+' : '';
             return `<tr>
                 <td>${t.id}</td>
-                <td><span class="badge" style="background: ${t.side === 'buy' ? '#26a69a' : '#ef5350'}">${t.side.toUpperCase()}</span></td>
+                <td><span class="badge" style="background: ${t.side === 'buy' ? '#26a69a' : '#ef5350'}">${t.side === 'buy' ? 'LONG' : 'SHORT'}</span></td>
                 <td>${t.quantity}</td>
                 <td>$${t.entryPrice.toFixed(2)}</td>
                 <td>$${t.exitPrice.toFixed(2)}</td>
                 <td class="small">${formatTime(t.entryTime)}</td>
                 <td class="small">${formatTime(t.exitTime)}</td>
-                <td>${t.barsInTrade}</td>
+                <td>${calcTradeDuration(t.entryTime, t.exitTime)}</td>
                 <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${t.pnl.toFixed(2)}</td>
             </tr>`;
         }).join('');
@@ -362,10 +388,10 @@ function downloadTradeCsv(data) {
 
     let headers, rows;
     if (data.mode === 'stock') {
-        headers = ['#', 'Side', 'Quantity', 'Entry Price', 'Exit Price', 'Entry Time', 'Exit Time', 'Bars in Trade', 'P&L'];
+        headers = ['#', 'Side', 'Quantity', 'Entry Price', 'Exit Price', 'Entry Time', 'Exit Time', 'Duration', 'P&L'];
         rows = data.trades.map(t => [
-            t.id, t.side, t.quantity, t.entryPrice.toFixed(2), t.exitPrice.toFixed(2),
-            t.entryTime, t.exitTime, t.barsInTrade, t.pnl.toFixed(2)
+            t.id, t.side === 'buy' ? 'LONG' : 'SHORT', t.quantity, t.entryPrice.toFixed(2), t.exitPrice.toFixed(2),
+            t.entryTime, t.exitTime, calcTradeDuration(t.entryTime, t.exitTime), t.pnl.toFixed(2)
         ]);
     } else {
         headers = ['#', 'Strategy', 'Legs', 'Quantity', 'Entry Time', 'Exit Time', 'Exit Reason', 'P&L'];
