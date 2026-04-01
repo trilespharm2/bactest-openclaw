@@ -247,14 +247,20 @@ async function endSessionFromCard(index) {
         return;
     }
 
-    const sessionData = buildSessionDataFromSaved(session);
-    saveCompletedSession(sessionData);
-
     activeSessions.splice(index, 1);
     localStorage.setItem('simActiveSessions', JSON.stringify(activeSessions));
 
     simCurrentSymbol = '';
     window._simPendingSession = null;
+
+    const trades = session.mode === 'stock' ? (session.closedTrades || []) : (session.closedOptionTrades || []);
+    if (trades.length === 0) {
+        renderActiveSessionCards();
+        return;
+    }
+
+    const sessionData = buildSessionDataFromSaved(session);
+    saveCompletedSession(sessionData);
 
     renderActiveSessionCards();
 
@@ -457,22 +463,23 @@ async function handleEndSession() {
     const hasOpenStock = mode === 'stock' && simOpenPosition;
     const hasOpenOptions = mode === 'options' && simOpenOptionPositions.length > 0;
 
-    if (trades.length === 0 && !hasOpenStock && !hasOpenOptions) {
-        await appAlert('No trades to analyze. Execute some trades first.');
-        return;
-    }
     if (hasOpenStock || hasOpenOptions) {
         await appAlert('Please close all open positions before ending the session.');
         return;
     }
     if (!(await appConfirm('End this session and save results?'))) return;
 
-    const sessionData = buildCurrentSessionData();
-    saveCompletedSession(sessionData);
     removeActiveSession();
-
     simCurrentSymbol = '';
     window._simPendingSession = null;
+
+    if (trades.length === 0) {
+        if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
+        return;
+    }
+
+    const sessionData = buildCurrentSessionData();
+    saveCompletedSession(sessionData);
 
     window._pendingSimResultDetail = sessionData;
     if (typeof navigateToPage === 'function') navigateToPage('simResultDetail');
