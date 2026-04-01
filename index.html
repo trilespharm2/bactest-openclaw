@@ -173,6 +173,14 @@
       .data-feeds-header h2 { font-size: 1.15rem; font-weight: 700; color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 8px; }
       .data-feeds-header h2 i { color: #6366f1; font-size: 1rem; }
       .data-feeds-header p { font-size: 0.82rem; color: #64748b; margin: 0; }
+      .results-table { font-size: 0.82rem; }
+      .results-table thead th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.03em; white-space: nowrap; padding: 10px 12px; vertical-align: middle; position: sticky; top: 0; z-index: 1; }
+      .results-table thead th.sortable:hover { background: #eef2f7; color: #334155; }
+      .results-table thead th i { margin-left: 4px; font-size: 0.65rem; opacity: 0.5; }
+      .results-table thead th i.fa-sort-up, .results-table thead th i.fa-sort-down { opacity: 1; color: #3b82f6; }
+      .results-table tbody td { padding: 10px 12px; vertical-align: middle; white-space: nowrap; border-bottom: 1px solid #f1f5f9; }
+      .results-table tbody tr:hover { background: #f8fafc; }
+      .results-table tbody tr.results-row { transition: background 0.15s; }
       .learn-more-page { max-width: 900px; margin: 0 auto; }
       .learn-more-page .lm-video-container { width: 100%; border-radius: 12px; overflow: hidden; background: #0f172a; margin-bottom: 32px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
       .learn-more-page .lm-video-container video { width: 100%; height: 100%; display: block; }
@@ -765,8 +773,8 @@
 
               <!-- Data Feeds Header -->
               <div class="data-feeds-header">
-                <h2><i class="fas fa-broadcast-tower me-2"></i>Live Market Data Feeds</h2>
-                <p>Real-time market indices, trending stocks, and financial news — updated throughout the trading day.</p>
+                <h2><i class="fas fa-broadcast-tower me-2"></i>Market Data Feeds</h2>
+                <p>Market indices, trending stocks, and financial news — updated throughout the trading day.</p>
               </div>
 
               <!-- Guest Dashboard Data Feeds -->
@@ -2383,102 +2391,60 @@
                 </ul>
               </div>
 
-              <!-- Stats Row -->
-              <div class="row" id="optionsStatsRow">
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-primary bubble-shadow-small"><i class="fas fa-chart-bar"></i></div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">Total Backtests</p>
-                            <h4 class="card-title" id="optionsTotalBacktests">0</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+              <div class="card mb-3">
+                <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div class="d-flex align-items-center gap-3">
+                    <span class="fw-bold" id="optionsTotalBacktests">0</span> <span class="text-muted">backtests</span>
+                    <span class="text-muted">|</span>
+                    <span class="fw-bold" id="optionsTotalTrades">0</span> <span class="text-muted">trades</span>
+                    <span class="text-muted">|</span>
+                    <span class="text-muted">Best Win Rate:</span> <span class="fw-bold" id="optionsBestWinRate">0%</span>
+                    <span class="text-muted">|</span>
+                    <span class="text-muted">Best Return:</span> <span class="fw-bold" id="optionsBestReturn">0%</span>
                   </div>
-                </div>
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-success bubble-shadow-small"><i class="fas fa-exchange-alt"></i></div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">Total Trades</p>
-                            <h4 class="card-title" id="optionsTotalTrades">0</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-warning bubble-shadow-small"><i class="fas fa-trophy"></i></div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">Best Win Rate</p>
-                            <h4 class="card-title" id="optionsBestWinRate">0%</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-sm-6 col-md-3">
-                  <div class="card card-stats card-round">
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-icon">
-                          <div class="icon-big text-center icon-info bubble-shadow-small"><i class="fas fa-dollar-sign"></i></div>
-                        </div>
-                        <div class="col col-stats ms-3 ms-sm-0">
-                          <div class="numbers">
-                            <p class="card-category">Best Return</p>
-                            <h4 class="card-title" id="optionsBestReturn">0%</h4>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Action Buttons -->
-              <div class="row mb-3">
-                <div class="col-12">
-                  <button class="btn btn-primary" id="optionsRefreshBtn">
-                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                  <button class="btn btn-primary btn-sm" id="optionsRefreshBtn">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
                   </button>
                 </div>
               </div>
 
-              <!-- Loading State -->
               <div id="optionsLoadingSection" class="text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
                 <p class="mt-3">Loading backtests...</p>
               </div>
 
-              <!-- Error State -->
               <div id="optionsErrorSection" class="alert alert-danger" style="display: none;">
                 <strong>Error:</strong> <span id="optionsErrorMessage"></span>
               </div>
 
-              <!-- Backtests Grid -->
-              <div class="row" id="optionsBacktestsGrid" style="display: none;"></div>
+              <div class="card" id="optionsTableCard" style="display: none;">
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover results-table mb-0" id="optionsResultsTable">
+                      <thead>
+                        <tr>
+                          <th class="sortable" data-sort="strategy">Strategy <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="time_size">Time/Size <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="dte">DTE <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="period">Period <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="pnl">P/L <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="max_drawdown">Max Drawdown <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="roi">ROI % <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="win_rate">Win Rate <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="avg_win">Avg Win <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="avg_loss">Avg Loss <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="profit_factor">Profit Factor <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="trades">Trades <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="updated">Updated <i class="fas fa-sort"></i></th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="optionsResultsBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
 
-              <!-- Empty State -->
               <div id="optionsEmptyState" class="card" style="display: none;">
                 <div class="card-body text-center py-5">
                   <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
@@ -2502,34 +2468,56 @@
                 </ul>
               </div>
 
-              <!-- Filter Buttons -->
               <div class="card mb-3">
-                <div class="card-body">
-                  <button class="btn btn-sm stock-filter-btn active" data-filter="all">All</button>
-                  <button class="btn btn-sm stock-filter-btn" data-filter="today">Today</button>
-                  <button class="btn btn-sm stock-filter-btn" data-filter="week">This Week</button>
-                  <button class="btn btn-sm stock-filter-btn" data-filter="month">This Month</button>
-                  <button class="btn btn-primary btn-sm float-end" id="stockRefreshBtn">
+                <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button class="btn btn-sm stock-filter-btn active" data-filter="all">All</button>
+                    <button class="btn btn-sm stock-filter-btn" data-filter="today">Today</button>
+                    <button class="btn btn-sm stock-filter-btn" data-filter="week">This Week</button>
+                    <button class="btn btn-sm stock-filter-btn" data-filter="month">This Month</button>
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="stockRefreshBtn">
                     <i class="fas fa-sync-alt me-1"></i>Refresh
                   </button>
                 </div>
               </div>
 
-              <!-- Loading State -->
               <div id="stockLoadingSection" class="text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
                 <p class="mt-3">Loading backtests...</p>
               </div>
 
-              <!-- Error State -->
               <div id="stockErrorSection" class="alert alert-danger" style="display: none;">
                 <strong>Error:</strong> <span id="stockErrorMessage"></span>
               </div>
 
-              <!-- Backtests Grid -->
-              <div class="row" id="stockBacktestsGrid" style="display: none;"></div>
+              <div class="card" id="stockTableCard" style="display: none;">
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover results-table mb-0" id="stockResultsTable">
+                      <thead>
+                        <tr>
+                          <th class="sortable" data-sort="strategy">Strategy <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="period">Period <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="pnl">P/L <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="max_drawdown">Max Drawdown <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="roi">ROI % <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="win_rate">Win Rate <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="avg_win">Avg Win <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="avg_loss">Avg Loss <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="profit_factor">Profit Factor <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="trades">Trades <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="symbols">Symbols <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="updated">Updated <i class="fas fa-sort"></i></th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="stockResultsBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
 
-              <!-- Empty State -->
               <div id="stockEmptyState" class="card" style="display: none;">
                 <div class="card-body text-center py-5">
                   <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
@@ -3508,9 +3496,38 @@
         });
       }
 
+      function setupTableSorting(tableId, onSort) {
+        const table = document.getElementById(tableId);
+        if (!table || table.hasAttribute('data-sort-init')) return;
+        table.setAttribute('data-sort-init', 'true');
+        let currentKey = 'updated';
+        let currentDir = 'desc';
+        table.querySelectorAll('th.sortable').forEach(th => {
+          th.style.cursor = 'pointer';
+          th.addEventListener('click', () => {
+            const key = th.dataset.sort;
+            if (currentKey === key) {
+              currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+            } else {
+              currentKey = key;
+              currentDir = 'desc';
+            }
+            table.querySelectorAll('th.sortable i').forEach(i => { i.className = 'fas fa-sort'; });
+            const icon = th.querySelector('i');
+            if (icon) icon.className = currentDir === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            onSort(currentKey, currentDir);
+          });
+        });
+      }
+
       function initOptionsResultsPage() {
         loadOptionsBacktests();
         setupOptionsRefresh();
+        setupTableSorting('optionsResultsTable', (key, dir) => {
+          optionsSortKey = key;
+          optionsSortDir = dir;
+          displayOptionsBacktests();
+        });
       }
       
       function setupOptionsRefresh() {
@@ -3531,7 +3548,7 @@
         try {
           document.getElementById('optionsLoadingSection').style.display = 'block';
           document.getElementById('optionsErrorSection').style.display = 'none';
-          document.getElementById('optionsBacktestsGrid').style.display = 'none';
+          document.getElementById('optionsTableCard').style.display = 'none';
           document.getElementById('optionsEmptyState').style.display = 'none';
 
           if (!window.isAuthenticated || !window.isAuthenticated()) {
@@ -3582,65 +3599,158 @@
         document.getElementById('optionsBestReturn').textContent = (bestReturn === -Infinity ? 0 : bestReturn.toFixed(2)) + '%';
       }
 
+      function formatPnl(val) {
+        if (val == null || isNaN(val)) return '-';
+        const sign = val >= 0 ? '' : '-';
+        return sign + '$' + Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+      }
+      function formatPct(val) {
+        if (val == null || isNaN(val)) return '-';
+        return val.toFixed(1) + '%';
+      }
+      function formatCurrency(val) {
+        if (val == null || isNaN(val)) return '-';
+        const sign = val >= 0 ? '' : '-';
+        return sign + '$' + Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+      }
+      function timeAgo(dateStr) {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - d;
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.floor(hrs / 24);
+        if (days < 30) return days + 'd ago';
+        return d.toLocaleDateString();
+      }
+      function pnlClass(val) {
+        if (val == null || isNaN(val)) return '';
+        return val >= 0 ? 'text-success' : 'text-danger';
+      }
+      function calcPeriodLabel(config) {
+        const start = config.start_date || config.startDate;
+        const end = config.end_date || config.endDate;
+        if (!start || !end) return '-';
+        const s = new Date(start);
+        const e = new Date(end);
+        const diffDays = Math.round((e - s) / (1000*60*60*24));
+        if (diffDays <= 7) return '1W';
+        if (diffDays <= 35) return '1M';
+        if (diffDays <= 100) return '3M';
+        if (diffDays <= 200) return '6M';
+        if (diffDays <= 400) return '1Y';
+        if (diffDays <= 800) return '2Y';
+        return '3Y+';
+      }
+      function getLegDescription(config) {
+        const legs = config.legs;
+        if (!legs) return '';
+        if (typeof legs === 'object' && !Array.isArray(legs)) {
+          const parts = [];
+          Object.keys(legs).forEach(k => {
+            const leg = legs[k];
+            if (leg) {
+              const dir = leg.direction || '';
+              const type = leg.type || '';
+              const strike = leg.strike_selection || leg.strikeSelection || '';
+              parts.push(`${dir} ${type} ${strike}`.trim());
+            }
+          });
+          return parts.filter(p => p).join(', ');
+        }
+        return '';
+      }
+
+      let optionsSortKey = 'updated';
+      let optionsSortDir = 'desc';
+
       function displayOptionsBacktests() {
-        const grid = document.getElementById('optionsBacktestsGrid');
+        const tableCard = document.getElementById('optionsTableCard');
+        const tbody = document.getElementById('optionsResultsBody');
         
         if (allOptionsBacktests.length === 0) {
-          grid.style.display = 'none';
+          tableCard.style.display = 'none';
           document.getElementById('optionsEmptyState').style.display = 'block';
           return;
         }
 
         document.getElementById('optionsEmptyState').style.display = 'none';
-        grid.style.display = 'flex';
-        grid.className = 'row';
+        tableCard.style.display = 'block';
 
-        grid.innerHTML = allOptionsBacktests.map(bt => {
+        const sorted = [...allOptionsBacktests].sort((a, b) => {
+          let va, vb;
+          const sa = a.summary || {};
+          const sb = b.summary || {};
+          const ca = a.config || {};
+          const cb = b.config || {};
+          switch(optionsSortKey) {
+            case 'strategy': va = (ca.strategy || '').toLowerCase(); vb = (cb.strategy || '').toLowerCase(); break;
+            case 'time_size': va = ca.entry_time || ''; vb = cb.entry_time || ''; break;
+            case 'dte': va = parseFloat(ca.dte) || 0; vb = parseFloat(cb.dte) || 0; break;
+            case 'pnl': va = sa.total_pnl || 0; vb = sb.total_pnl || 0; break;
+            case 'max_drawdown': va = sa.max_drawdown || 0; vb = sb.max_drawdown || 0; break;
+            case 'roi': va = sa.total_return || 0; vb = sb.total_return || 0; break;
+            case 'win_rate': va = sa.win_rate || 0; vb = sb.win_rate || 0; break;
+            case 'avg_win': va = sa.avg_win || 0; vb = sb.avg_win || 0; break;
+            case 'avg_loss': va = sa.avg_loss || 0; vb = sb.avg_loss || 0; break;
+            case 'profit_factor': va = sa.profit_factor || 0; vb = sb.profit_factor || 0; break;
+            case 'trades': va = sa.total_trades || 0; vb = sb.total_trades || 0; break;
+            case 'updated': va = a.timestamp || ''; vb = b.timestamp || ''; break;
+            default: va = a.timestamp || ''; vb = b.timestamp || '';
+          }
+          if (va < vb) return optionsSortDir === 'asc' ? -1 : 1;
+          if (va > vb) return optionsSortDir === 'asc' ? 1 : -1;
+          return 0;
+        });
+
+        tbody.innerHTML = sorted.map(bt => {
           const config = bt.config || {};
-          const summary = bt.summary || {};
-          const returnClass = (summary.total_return || 0) >= 0 ? 'text-success' : 'text-danger';
-          const returnSign = (summary.total_return || 0) >= 0 ? '+' : '';
+          const s = bt.summary || {};
+          const strategy = config.strategy || 'Unknown';
+          const symbol = config.symbol || 'SPX';
+          const legDesc = getLegDescription(config);
+          const entryTime = config.entry_time || config.entryTime || '-';
+          const allocVal = config.allocation_value || config.allocationValue || '-';
+          const allocType = config.allocation_type || config.allocationType || 'pct';
+          const sizeLabel = allocType === 'pct' ? allocVal + '%' : '$' + allocVal;
+          const dte = config.dte != null ? config.dte : '-';
+          const period = calcPeriodLabel(config);
+          const pnl = s.total_pnl;
+          const maxDd = s.max_drawdown;
+          const roi = s.total_return;
+          const winRate = s.win_rate;
+          const avgWin = s.avg_win;
+          const avgLoss = s.avg_loss;
+          const pf = s.profit_factor;
+          const trades = s.total_trades || 0;
+          const updated = bt.timestamp;
           
-          return `
-            <div class="col-sm-6 col-lg-4 col-xl-3">
-              <div class="card">
-                <div class="card-header">
-                  <div class="card-title">${config.symbol || 'Unknown'}</div>
-                  <span class="badge bg-secondary">${config.strategy || 'Strategy'}</span>
-                </div>
-                <div class="card-body">
-                  <div class="row mb-2">
-                    <div class="col-6">
-                      <small class="text-muted">Return</small>
-                      <div class="fw-bold ${returnClass}">${returnSign}${(summary.total_return || 0).toFixed(2)}%</div>
-                    </div>
-                    <div class="col-6">
-                      <small class="text-muted">Win Rate</small>
-                      <div class="fw-bold">${(summary.win_rate || 0).toFixed(1)}%</div>
-                    </div>
-                  </div>
-                  <div class="row mb-2">
-                    <div class="col-6">
-                      <small class="text-muted">Trades</small>
-                      <div class="fw-bold">${summary.total_trades || 0}</div>
-                    </div>
-                    <div class="col-6">
-                      <small class="text-muted">Date</small>
-                      <div class="fw-bold">${bt.timestamp ? new Date(bt.timestamp).toLocaleDateString() : 'N/A'}</div>
-                    </div>
-                  </div>
-                  <div class="d-flex gap-2 mt-3">
-                    <a href="/options-backtest-result-detail.html?id=${bt.id}&from=optionsResults" class="btn btn-sm btn-primary flex-grow-1">
-                      <i class="fas fa-eye me-1"></i>View
-                    </a>
-                    <button class="btn btn-sm btn-danger" onclick="deleteOptionsBacktest('${bt.id}')">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
+          return `<tr class="results-row" onclick="window.location.href='/options-backtest-result-detail.html?id=${bt.id}&from=optionsResults'" style="cursor:pointer;">
+            <td>
+              <div class="fw-semibold">${symbol} ${strategy}</div>
+              <div class="text-muted small">${legDesc || ''}</div>
+            </td>
+            <td><div>${entryTime}</div><div class="text-muted small">${sizeLabel}</div></td>
+            <td>${dte}DTE</td>
+            <td>${period}</td>
+            <td class="${pnlClass(pnl)} fw-semibold">${formatPnl(pnl)}</td>
+            <td class="text-danger">${maxDd != null ? formatPct(maxDd) : '-'}</td>
+            <td class="${pnlClass(roi)} fw-semibold">${roi != null ? formatPct(roi) : '-'}</td>
+            <td>${winRate != null ? formatPct(winRate) : '-'}</td>
+            <td class="text-success">${formatCurrency(avgWin)}</td>
+            <td class="text-danger">${formatCurrency(avgLoss)}</td>
+            <td>${pf != null ? pf.toFixed(2) : '-'}</td>
+            <td>${trades}</td>
+            <td>${timeAgo(updated)}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteOptionsBacktest('${bt.id}')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>`;
         }).join('');
       }
 
@@ -3667,6 +3777,11 @@
         loadStockBacktests();
         setupStockFilters();
         setupStockRefresh();
+        setupTableSorting('stockResultsTable', (key, dir) => {
+          stockSortKey = key;
+          stockSortDir = dir;
+          displayStockBacktests();
+        });
       }
       
       function setupStockRefresh() {
@@ -3701,7 +3816,7 @@
         try {
           document.getElementById('stockLoadingSection').style.display = 'block';
           document.getElementById('stockErrorSection').style.display = 'none';
-          document.getElementById('stockBacktestsGrid').style.display = 'none';
+          document.getElementById('stockTableCard').style.display = 'none';
           document.getElementById('stockEmptyState').style.display = 'none';
 
           if (!window.isAuthenticated || !window.isAuthenticated()) {
@@ -3747,67 +3862,88 @@
         });
       }
 
+      let stockSortKey = 'updated';
+      let stockSortDir = 'desc';
+
       function displayStockBacktests() {
         let filtered = filterStockByDate(allStockBacktests);
 
-        const grid = document.getElementById('stockBacktestsGrid');
+        const tableCard = document.getElementById('stockTableCard');
+        const tbody = document.getElementById('stockResultsBody');
         
         if (filtered.length === 0) {
-          grid.style.display = 'none';
+          tableCard.style.display = 'none';
           document.getElementById('stockEmptyState').style.display = 'block';
           return;
         }
 
         document.getElementById('stockEmptyState').style.display = 'none';
-        grid.style.display = 'flex';
-        grid.className = 'row';
+        tableCard.style.display = 'block';
 
-        grid.innerHTML = filtered.map(bt => {
-          const totalReturn = bt.total_return || 0;
-          const returnClass = totalReturn >= 0 ? 'text-success' : 'text-danger';
-          const returnSign = totalReturn >= 0 ? '+' : '';
+        const sorted = [...filtered].sort((a, b) => {
+          let va, vb;
+          const sa = a.summary || {};
+          const sb = b.summary || {};
+          const ca = a.config || {};
+          const cb = b.config || {};
+          switch(stockSortKey) {
+            case 'strategy': va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase(); break;
+            case 'pnl': va = sa.total_pnl || 0; vb = sb.total_pnl || 0; break;
+            case 'max_drawdown': va = sa.max_drawdown || 0; vb = sb.max_drawdown || 0; break;
+            case 'roi': va = sa.total_return || 0; vb = sb.total_return || 0; break;
+            case 'win_rate': va = sa.win_rate || 0; vb = sb.win_rate || 0; break;
+            case 'avg_win': va = sa.avg_win || 0; vb = sb.avg_win || 0; break;
+            case 'avg_loss': va = sa.avg_loss || 0; vb = sb.avg_loss || 0; break;
+            case 'profit_factor': va = sa.profit_factor || 0; vb = sb.profit_factor || 0; break;
+            case 'trades': va = sa.total_trades || a.total_trades || 0; vb = sb.total_trades || b.total_trades || 0; break;
+            case 'symbols': va = a.symbol_count || 0; vb = b.symbol_count || 0; break;
+            case 'updated': va = a.timestamp || ''; vb = b.timestamp || ''; break;
+            default: va = a.timestamp || ''; vb = b.timestamp || '';
+          }
+          if (va < vb) return stockSortDir === 'asc' ? -1 : 1;
+          if (va > vb) return stockSortDir === 'asc' ? 1 : -1;
+          return 0;
+        });
+
+        tbody.innerHTML = sorted.map(bt => {
+          const config = bt.config || {};
+          const s = bt.summary || {};
+          const name = bt.name || config.name || 'Unnamed';
+          const strategy = config.strategy || '';
+          const period = calcPeriodLabel(config);
+          const pnl = s.total_pnl;
+          const maxDd = s.max_drawdown;
+          const roi = s.total_return;
+          const winRate = s.win_rate;
+          const avgWin = s.avg_win;
+          const avgLoss = s.avg_loss;
+          const pf = s.profit_factor;
+          const trades = s.total_trades || bt.total_trades || 0;
+          const symbols = bt.symbol_count || 0;
+          const updated = bt.timestamp;
           
-          return `
-            <div class="col-sm-6 col-lg-4 col-xl-3">
-              <div class="card">
-                <div class="card-header">
-                  <div class="card-title">${bt.name || 'Unnamed'}</div>
-                  <small class="text-muted">${bt.id}</small>
-                </div>
-                <div class="card-body">
-                  <div class="row mb-2">
-                    <div class="col-6">
-                      <small class="text-muted">Return</small>
-                      <div class="fw-bold ${returnClass}">${returnSign}${totalReturn.toFixed(2)}%</div>
-                    </div>
-                    <div class="col-6">
-                      <small class="text-muted">Win Rate</small>
-                      <div class="fw-bold">${(bt.win_rate || 0).toFixed(1)}%</div>
-                    </div>
-                  </div>
-                  <div class="row mb-2">
-                    <div class="col-6">
-                      <small class="text-muted">Trades</small>
-                      <div class="fw-bold">${bt.total_trades || 0}</div>
-                    </div>
-                    <div class="col-6">
-                      <small class="text-muted">Symbols</small>
-                      <div class="fw-bold">${bt.symbol_count || 0}</div>
-                    </div>
-                  </div>
-                  <small class="text-muted d-block mb-2">${bt.timestamp ? new Date(bt.timestamp).toLocaleString() : 'N/A'}</small>
-                  <div class="d-flex gap-2">
-                    <a href="/stock-backtest-results.html?id=${bt.id}&from=stockResults" class="btn btn-sm btn-primary flex-grow-1">
-                      <i class="fas fa-eye me-1"></i>View
-                    </a>
-                    <button class="btn btn-sm btn-danger" onclick="deleteStockBacktest('${bt.id}')">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
+          return `<tr class="results-row" onclick="window.location.href='/stock-backtest-results.html?id=${bt.id}&from=stockResults'" style="cursor:pointer;">
+            <td>
+              <div class="fw-semibold">${name}</div>
+              <div class="text-muted small">${strategy}</div>
+            </td>
+            <td>${period}</td>
+            <td class="${pnlClass(pnl)} fw-semibold">${formatPnl(pnl)}</td>
+            <td class="text-danger">${maxDd != null ? formatPct(maxDd) : '-'}</td>
+            <td class="${pnlClass(roi)} fw-semibold">${roi != null ? formatPct(roi) : '-'}</td>
+            <td>${winRate != null ? formatPct(winRate) : '-'}</td>
+            <td class="text-success">${formatCurrency(avgWin)}</td>
+            <td class="text-danger">${formatCurrency(avgLoss)}</td>
+            <td>${pf != null ? pf.toFixed(2) : '-'}</td>
+            <td>${trades}</td>
+            <td>${symbols}</td>
+            <td>${timeAgo(updated)}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteStockBacktest('${bt.id}')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>`;
         }).join('');
       }
 

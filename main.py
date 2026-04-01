@@ -4487,12 +4487,16 @@ def list_stocks_backtests_v3():
                     with open(filepath, 'r') as f:
                         data = json.load(f)
                     
+                    summary = data.get('summary', data.get('metadata', {}))
+                    config = data.get('config', {})
                     backtests.append({
                         'id': backtest_id,
                         'name': data.get('config', {}).get('name', 'Unnamed'),
                         'timestamp': record.created_at.isoformat() if record.created_at else '',
-                        'total_trades': data.get('metadata', {}).get('total_trades', 0),
-                        'symbol_count': data.get('metadata', {}).get('symbol_count', 0)
+                        'total_trades': summary.get('total_trades', 0),
+                        'symbol_count': data.get('metadata', {}).get('symbol_count', 0),
+                        'config': config,
+                        'summary': summary
                     })
                 except Exception as e:
                     print(f"Error reading {backtest_id}.json: {e}")
