@@ -2450,16 +2450,16 @@ function applyOptionsConfig(rawConfig) {
     var rawPdt = rawConfig.avoidPdt != null ? rawConfig.avoidPdt : rawConfig.avoid_pdt;
     config.avoidPdt = rawPdt === true || rawPdt === 'y' ? 'y' : 'n';
     config.legs = rawConfig.legs || [];
-    config.takeProfitType = rawConfig.takeProfitType || (rawConfig.take_profit_pct ? 'P' : rawConfig.take_profit_dollar ? 'D' : 'P');
+    config.takeProfitType = rawConfig.takeProfitType || (rawConfig.take_profit_pct != null ? 'P' : rawConfig.take_profit_dollar != null ? 'D' : 'P');
     config.takeProfitPct = rawConfig.takeProfitPct || (rawConfig.take_profit_pct != null ? String(rawConfig.take_profit_pct) : '');
     config.takeProfitDollar = rawConfig.takeProfitDollar || (rawConfig.take_profit_dollar != null ? String(rawConfig.take_profit_dollar) : '');
-    config.stopLossType = rawConfig.stopLossType || (rawConfig.stop_loss_pct ? 'P' : rawConfig.stop_loss_dollar ? 'D' : 'P');
+    config.stopLossType = rawConfig.stopLossType || (rawConfig.stop_loss_pct != null ? 'P' : rawConfig.stop_loss_dollar != null ? 'D' : 'P');
     config.stopLossPct = rawConfig.stopLossPct || (rawConfig.stop_loss_pct != null ? String(rawConfig.stop_loss_pct) : '');
     config.stopLossDollar = rawConfig.stopLossDollar || (rawConfig.stop_loss_dollar != null ? String(rawConfig.stop_loss_dollar) : '');
     config.eodAction = rawConfig.eodAction || rawConfig.eod_action || 'close';
     config.tradeFrequency = rawConfig.tradeFrequency || rawConfig.trade_frequency || 'daily';
     config.entryDays = rawConfig.entryDays || rawConfig.entry_days || [];
-    config.startingCapital = rawConfig.startingCapital || (rawConfig.starting_capital != null ? String(rawConfig.starting_capital) : '100000');
+    config.startingCapital = rawConfig.startingCapital || (rawConfig.starting_capital != null ? String(rawConfig.starting_capital) : (rawConfig.initial_capital != null ? String(rawConfig.initial_capital) : '100000'));
     config.allocationType = rawConfig.allocationType || rawConfig.allocation_type || '1';
     var allocMap = {'pct': '1', 'contracts': '2', 'fixed': '3'};
     if (allocMap[config.allocationType]) config.allocationType = allocMap[config.allocationType];
@@ -2511,26 +2511,35 @@ function applyOptionsConfig(rawConfig) {
         var wingRadio = document.querySelector(`input[name="allowSkewedWings"][value="${config.allowSkewedWings || 'n'}"]`);
         if (wingRadio) wingRadio.checked = true;
         
-        // Apply leg configurations
-        if (config.legs && config.legs.length > 0) {
-            config.legs.forEach((leg, index) => {
+        // Apply leg configurations - handle both array and dict formats
+        var legsArray = config.legs;
+        if (legsArray && !Array.isArray(legsArray) && typeof legsArray === 'object') {
+            legsArray = Object.keys(legsArray).map((key, idx) => {
+                var leg = legsArray[key];
+                leg.name = key;
+                return leg;
+            });
+        }
+        if (legsArray && legsArray.length > 0) {
+            legsArray.forEach((leg, index) => {
                 var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${index}"]`);
-                if (methodSelect && leg.method) {
-                    methodSelect.value = leg.method;
+                var method = leg.method || leg.config_type || '';
+                if (methodSelect && method) {
+                    methodSelect.value = method;
                     methodSelect.dispatchEvent(new Event('change'));
                     
-                    // Wait for params to render then fill them
                     setTimeout(() => {
                         var paramsContainer = document.getElementById(`legParams${index}`);
                         if (paramsContainer) {
-                            Object.keys(leg).forEach(key => {
-                                if (key !== 'index' && key !== 'method') {
+                            var params = leg.params || leg;
+                            Object.keys(params).forEach(key => {
+                                if (['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'].indexOf(key) === -1) {
                                     var input = paramsContainer.querySelector(`[data-param="${key}"]`);
-                                    if (input) input.value = leg[key];
+                                    if (input) input.value = params[key];
                                 }
                             });
                         }
-                    }, 100);
+                    }, 150);
                 }
             });
         }

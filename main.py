@@ -3471,7 +3471,6 @@ def run_backtest():
 def list_backtests():
     """List user's saved options backtests - redirects to user-specific endpoint"""
     try:
-        # Get user's backtests from database
         backtests = BacktestResult.query.filter_by(
             user_id=current_user.id,
             backtest_type='options'
@@ -3484,12 +3483,26 @@ def list_backtests():
                 try:
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
+                        metadata['status'] = record.status or 'completed'
                         results.append(metadata)
                 except Exception as e:
                     print(f"Error reading metadata for {record.id}: {e}")
                     continue
+            elif record.status == 'running':
+                config_data = {}
+                if record.config_json:
+                    try:
+                        config_data = json.loads(record.config_json)
+                    except:
+                        pass
+                results.append({
+                    'id': record.id,
+                    'timestamp': record.created_at.isoformat() if record.created_at else '',
+                    'status': 'running',
+                    'config': config_data,
+                    'summary': {}
+                })
         
-        # Sort by timestamp (newest first)
         results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
         
         return jsonify({'backtests': results})
@@ -3967,46 +3980,38 @@ def run_backtester_script(config, api_key):
             'timestamp': datetime.now().isoformat(),
             'name': config.get('backtest_name') or config.get('backtestName', ''),  # Match stock backtest format
             'config': {
-                # Backtest Name (keep for backward compatibility)
                 'backtest_name': config.get('backtest_name') or config.get('backtestName', ''),
-                'name': config.get('backtest_name') or config.get('backtestName', ''),  # Match stock backtest format
-                
-                # Basic Settings
+                'name': config.get('backtest_name') or config.get('backtestName', ''),
                 'symbol': config.get('symbol', 'SPX'),
                 'dte': config.get('dte', 0),
                 'strategy': config.get('strategy', ''),
-                
-                # Legs - handle ARRAY format from actual form
-                'legs': convert_legs_array_to_dict(config.get('legs', [])) if isinstance(config.get('legs'), list) else config.get('legs', {}),
-                
-                # Date Range
+                'legs': config.get('legs', []),
                 'start_date': config.get('start_date') or config.get('startDate'),
                 'end_date': config.get('end_date') or config.get('endDate'),
-                
-                # Entry Settings
                 'entry_time': config.get('entry_time') or config.get('entryTime', '10:00'),
-                
-                # Capital & Allocation - FLAT structure from actual form
+                'entry_time_max': config.get('entry_time_max') or config.get('entryTimeMax', ''),
                 'initial_capital': config.get('starting_capital') or config.get('startingCapital', 100000),
                 'allocation_type': config.get('allocation_type') or config.get('allocationType', 'pct'),
                 'allocation_value': config.get('allocation_value') or config.get('allocationValue', 10),
-                
-                # Exit Settings - FLAT structure from actual form
                 'take_profit_pct': config.get('take_profit_pct') or config.get('takeProfitPct'),
                 'take_profit_dollar': config.get('take_profit_dollar') or config.get('takeProfitDollar'),
                 'stop_loss_pct': config.get('stop_loss_pct') or config.get('stopLossPct'),
                 'stop_loss_dollar': config.get('stop_loss_dollar') or config.get('stopLossDollar'),
-                
-                # Detection Settings - FLAT structure from actual form
                 'detection_bar_size': config.get('detection_bar_size') or config.get('detectionBarSize', 5),
-                
-                # Net Premium Filter - FLAT structure from actual form
                 'net_premium_min': config.get('net_premium_min') or config.get('netPremiumMin'),
                 'net_premium_max': config.get('net_premium_max') or config.get('netPremiumMax'),
-                
-                # Trading Rules - FLAT structure from actual form
                 'avoid_pdt': config.get('avoid_pdt') or config.get('avoidPdt', False),
                 'concurrent_trades': config.get('concurrent_trades') or config.get('concurrentTrades', False),
+                'allow_skewed_wings': config.get('allow_skewed_wings') or config.get('allowSkewedWings', False),
+                'options_entry_type': config.get('options_entry_type') or config.get('optionsEntryType', 'none'),
+                'preset_condition': config.get('preset_condition') or config.get('presetCondition', ''),
+                'preset_operator': config.get('preset_operator') or config.get('presetOperator', '>'),
+                'preset_threshold': config.get('preset_threshold') or config.get('presetThreshold', ''),
+                'velocity_lookback': config.get('velocity_lookback') or config.get('velocityLookback', '5'),
+                'price_conditions': config.get('price_conditions') or config.get('priceConditions', []),
+                'eod_action': config.get('eod_action') or config.get('eodAction', 'close'),
+                'trade_frequency': config.get('trade_frequency') or config.get('tradeFrequency', 'daily'),
+                'entry_days': config.get('entry_days') or config.get('entryDays', []),
             },
             'summary': {
                 'total_trades': total_trades,
@@ -4496,11 +4501,29 @@ def list_stocks_backtests_v3():
                         'total_trades': summary.get('total_trades', 0),
                         'symbol_count': data.get('metadata', {}).get('symbol_count', 0),
                         'config': config,
-                        'summary': summary
+                        'summary': summary,
+                        'status': record.status or 'completed'
                     })
                 except Exception as e:
                     print(f"Error reading {backtest_id}.json: {e}")
                     continue
+            elif record.status == 'running':
+                config_data = {}
+                if record.config_json:
+                    try:
+                        config_data = json.loads(record.config_json)
+                    except:
+                        pass
+                backtests.append({
+                    'id': backtest_id,
+                    'name': config_data.get('name', 'Processing...'),
+                    'timestamp': record.created_at.isoformat() if record.created_at else '',
+                    'total_trades': 0,
+                    'symbol_count': 0,
+                    'config': config_data,
+                    'summary': {},
+                    'status': 'running'
+                })
         
         return jsonify({'backtests': backtests})
     

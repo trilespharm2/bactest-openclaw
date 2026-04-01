@@ -3572,6 +3572,15 @@
           displayOptionsBacktests();
           updateOptionsStats();
 
+          if (allOptionsBacktests.some(bt => bt.status === 'running')) {
+            if (!window._optionsRefreshTimer) {
+              window._optionsRefreshTimer = setInterval(() => loadOptionsBacktests(), 10000);
+            }
+          } else if (window._optionsRefreshTimer) {
+            clearInterval(window._optionsRefreshTimer);
+            window._optionsRefreshTimer = null;
+          }
+
         } catch (error) {
           document.getElementById('optionsLoadingSection').style.display = 'none';
           document.getElementById('optionsErrorSection').style.display = 'block';
@@ -3615,9 +3624,13 @@
       }
       function timeAgo(dateStr) {
         if (!dateStr) return '-';
-        const d = new Date(dateStr);
+        let d = new Date(dateStr);
+        if (!dateStr.endsWith('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+          d = new Date(dateStr + 'Z');
+        }
         const now = new Date();
         const diffMs = now - d;
+        if (diffMs < 0 || diffMs < 60000) return 'just now';
         const mins = Math.floor(diffMs / 60000);
         if (mins < 60) return mins + 'm ago';
         const hrs = Math.floor(mins / 60);
@@ -3636,14 +3649,9 @@
         if (!start || !end) return '-';
         const s = new Date(start);
         const e = new Date(end);
+        const fmt = (d) => (d.getMonth()+1).toString().padStart(2,'0') + '/' + d.getDate().toString().padStart(2,'0');
         const diffDays = Math.round((e - s) / (1000*60*60*24));
-        if (diffDays <= 7) return '1W';
-        if (diffDays <= 35) return '1M';
-        if (diffDays <= 100) return '3M';
-        if (diffDays <= 200) return '6M';
-        if (diffDays <= 400) return '1Y';
-        if (diffDays <= 800) return '2Y';
-        return '3Y+';
+        return fmt(s) + ' - ' + fmt(e);
       }
       function getLegDescription(config) {
         const legs = config.legs;
@@ -3709,6 +3717,7 @@
         tbody.innerHTML = sorted.map(bt => {
           const config = bt.config || {};
           const s = bt.summary || {};
+          const isRunning = bt.status === 'running';
           const strategy = config.strategy || 'Unknown';
           const symbol = config.symbol || 'SPX';
           const legDesc = getLegDescription(config);
@@ -3727,8 +3736,23 @@
           const pf = s.profit_factor;
           const trades = s.total_trades || 0;
           const updated = bt.timestamp;
+          const rowClass = isRunning ? 'results-row running-row' : 'results-row';
+          const rowClick = isRunning ? '' : `onclick="window.location.href='/options-backtest-result-detail.html?id=${bt.id}&from=optionsResults'"`;
+          const rowStyle = isRunning ? 'opacity:0.7;' : 'cursor:pointer;';
           
-          return `<tr class="results-row" onclick="window.location.href='/options-backtest-result-detail.html?id=${bt.id}&from=optionsResults'" style="cursor:pointer;">
+          if (isRunning) {
+            return `<tr class="${rowClass}" style="${rowStyle}">
+              <td>
+                <div class="fw-semibold">${symbol} ${strategy}</div>
+                <div class="text-muted small">${legDesc || ''}</div>
+              </td>
+              <td colspan="11"><span class="spinner-border spinner-border-sm text-primary me-2"></span> Processing backtest...</td>
+              <td>${timeAgo(updated)}</td>
+              <td></td>
+            </tr>`;
+          }
+          
+          return `<tr class="${rowClass}" ${rowClick} style="${rowStyle}">
             <td>
               <div class="fw-semibold">${symbol} ${strategy}</div>
               <div class="text-muted small">${legDesc || ''}</div>
@@ -3839,6 +3863,15 @@
           document.getElementById('stockLoadingSection').style.display = 'none';
           displayStockBacktests();
 
+          if (allStockBacktests.some(bt => bt.status === 'running')) {
+            if (!window._stockRefreshTimer) {
+              window._stockRefreshTimer = setInterval(() => loadStockBacktests(), 10000);
+            }
+          } else if (window._stockRefreshTimer) {
+            clearInterval(window._stockRefreshTimer);
+            window._stockRefreshTimer = null;
+          }
+
         } catch (error) {
           document.getElementById('stockLoadingSection').style.display = 'none';
           document.getElementById('stockErrorSection').style.display = 'block';
@@ -3908,6 +3941,7 @@
         tbody.innerHTML = sorted.map(bt => {
           const config = bt.config || {};
           const s = bt.summary || {};
+          const isRunning = bt.status === 'running';
           const name = bt.name || config.name || 'Unnamed';
           const strategy = config.strategy || '';
           const period = calcPeriodLabel(config);
@@ -3921,8 +3955,23 @@
           const trades = s.total_trades || bt.total_trades || 0;
           const symbols = bt.symbol_count || 0;
           const updated = bt.timestamp;
+          const rowClass = isRunning ? 'results-row running-row' : 'results-row';
+          const rowClick = isRunning ? '' : `onclick="window.location.href='/stock-backtest-results.html?id=${bt.id}&from=stockResults'"`;
+          const rowStyle = isRunning ? 'opacity:0.7;' : 'cursor:pointer;';
           
-          return `<tr class="results-row" onclick="window.location.href='/stock-backtest-results.html?id=${bt.id}&from=stockResults'" style="cursor:pointer;">
+          if (isRunning) {
+            return `<tr class="${rowClass}" style="${rowStyle}">
+              <td>
+                <div class="fw-semibold">${name}</div>
+                <div class="text-muted small">${strategy}</div>
+              </td>
+              <td colspan="10"><span class="spinner-border spinner-border-sm text-primary me-2"></span> Processing backtest...</td>
+              <td>${timeAgo(updated)}</td>
+              <td></td>
+            </tr>`;
+          }
+          
+          return `<tr class="${rowClass}" ${rowClick} style="${rowStyle}">
             <td>
               <div class="fw-semibold">${name}</div>
               <div class="text-muted small">${strategy}</div>
