@@ -3,15 +3,17 @@ let simResultCurrentFilter = 'all';
 let simResultDetailData = null;
 let simResultEquityChart = null;
 let simResultTradeLogPage = 1;
+let simResultSortKey = 'updated';
+let simResultSortDir = 'desc';
 const SIM_TRADES_PER_PAGE = 15;
 
 function initSimResultsPage() {
     console.log('Initializing Simulated Trading Results page');
     loadSimResultSessions();
 
-    const grid = document.getElementById('simResultsGrid');
-    if (grid && grid.dataset.initialized) return;
-    if (grid) grid.dataset.initialized = 'true';
+    const tableCard = document.getElementById('simResultsTableCard');
+    if (tableCard && tableCard.dataset.initialized) return;
+    if (tableCard) tableCard.dataset.initialized = 'true';
 
     document.querySelectorAll('.sim-filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -24,6 +26,14 @@ function initSimResultsPage() {
 
     const refreshBtn = document.getElementById('simResultsRefreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadSimResultSessions);
+
+    if (typeof setupTableSorting === 'function') {
+        setupTableSorting('simResultsTable', (key, dir) => {
+            simResultSortKey = key;
+            simResultSortDir = dir;
+            renderSimResultsGrid();
+        });
+    }
 }
 
 function loadSimResultSessions() {
@@ -33,10 +43,51 @@ function loadSimResultSessions() {
     renderSimResultsGrid();
 }
 
+function simTimeAgo(dateStr) {
+    if (!dateStr) return '-';
+    let d = new Date(dateStr);
+    if (!dateStr.endsWith('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+        d = new Date(dateStr + 'Z');
+    }
+    const now = new Date();
+    const diffMs = now - d;
+    if (diffMs < 0 || diffMs < 60000) return 'just now';
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return days + 'd ago';
+    return d.toLocaleDateString();
+}
+
+function simPnlClass(val) {
+    if (val == null || isNaN(val)) return '';
+    return val >= 0 ? 'text-success' : 'text-danger';
+}
+
+function simFormatPnl(val) {
+    if (val == null || isNaN(val)) return '-';
+    const sign = val >= 0 ? '+' : '-';
+    return sign + '$' + Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function simFormatPct(val) {
+    if (val == null || isNaN(val)) return '-';
+    return (val >= 0 ? '+' : '') + val.toFixed(1) + '%';
+}
+
+function simFormatCurrency(val) {
+    if (val == null || isNaN(val)) return '-';
+    const sign = val >= 0 ? '' : '-';
+    return sign + '$' + Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
 function renderSimResultsGrid() {
-    const grid = document.getElementById('simResultsGrid');
+    const tableCard = document.getElementById('simResultsTableCard');
+    const tbody = document.getElementById('simResultsBody');
     const empty = document.getElementById('simResultsEmpty');
-    if (!grid) return;
+    if (!tableCard || !tbody) return;
 
     let filtered = simResultSessions;
     if (simResultCurrentFilter !== 'all') {
@@ -44,66 +95,82 @@ function renderSimResultsGrid() {
     }
 
     if (filtered.length === 0) {
-        grid.innerHTML = '';
-        grid.style.display = 'none';
+        tableCard.style.display = 'none';
         if (empty) empty.style.display = '';
         return;
     }
 
     if (empty) empty.style.display = 'none';
-    grid.style.display = '';
+    tableCard.style.display = 'block';
 
-    grid.innerHTML = filtered.map((session, idx) => {
-        const isProfit = session.netPnl >= 0;
-        const pnlColor = isProfit ? '#26a69a' : '#ef5350';
-        const pnlSign = isProfit ? '+' : '';
+    const sorted = [...filtered].sort((a, b) => {
+        let va, vb;
+        const sa = a.stats || {};
+        const sb = b.stats || {};
+        switch(simResultSortKey) {
+            case 'symbol': va = (a.symbol || '').toLowerCase(); vb = (b.symbol || '').toLowerCase(); break;
+            case 'mode': va = a.mode || ''; vb = b.mode || ''; break;
+            case 'pnl': va = a.netPnl || 0; vb = b.netPnl || 0; break;
+            case 'roi': va = sa.netReturn || 0; vb = sb.netReturn || 0; break;
+            case 'max_drawdown': va = sa.maxDrawdown || 0; vb = sb.maxDrawdown || 0; break;
+            case 'win_rate': va = sa.winRate || 0; vb = sb.winRate || 0; break;
+            case 'avg_win': va = sa.avgWin || 0; vb = sb.avgWin || 0; break;
+            case 'avg_loss': va = sa.avgLoss || 0; vb = sb.avgLoss || 0; break;
+            case 'profit_factor': va = sa.profitFactor || 0; vb = sb.profitFactor || 0; break;
+            case 'trades': va = sa.totalTrades || 0; vb = sb.totalTrades || 0; break;
+            case 'updated': va = a.timestamp || ''; vb = b.timestamp || ''; break;
+            default: va = a.timestamp || ''; vb = b.timestamp || '';
+        }
+        if (va < vb) return simResultSortDir === 'asc' ? -1 : 1;
+        if (va > vb) return simResultSortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    tbody.innerHTML = sorted.map((session, idx) => {
+        const s = session.stats || {};
         const modeLabel = session.mode === 'stock' ? 'Stock' : 'Options';
-        const modeBadgeColor = session.mode === 'stock' ? '#3b7cff' : '#7c3aed';
-        const ts = new Date(session.timestamp);
-        const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const timeStr = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const modeBadge = session.mode === 'stock'
+            ? '<span class="badge" style="background:#3b7cff;font-size:11px;">Stock</span>'
+            : '<span class="badge" style="background:#7c3aed;font-size:11px;">Options</span>';
+        const pnl = session.netPnl;
+        const roi = s.netReturn;
+        const maxDd = s.maxDrawdown;
+        const winRate = s.winRate;
+        const avgWin = s.avgWin;
+        const avgLoss = s.avgLoss;
+        const pf = s.profitFactor;
+        const trades = s.totalTrades || 0;
+        const updated = session.timestamp;
 
-        return `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card card-round" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" 
-                     onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.1)';"
-                     onmouseout="this.style.transform=''; this.style.boxShadow='';"
-                     onclick="viewSimResultDetail(${idx})">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div>
-                                <h5 class="mb-1 fw-bold" style="color: #333;">${session.symbol}</h5>
-                                <span class="badge" style="background: ${modeBadgeColor}; font-size: 11px;">${modeLabel}</span>
-                            </div>
-                            <div class="text-end">
-                                <div class="fw-bold" style="color: ${pnlColor}; font-size: 16px;">${pnlSign}$${Math.abs(session.netPnl).toFixed(2)}</div>
-                                <div class="small text-muted">${session.stats.winRate.toFixed(1)}% WR</div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between small text-muted mt-2">
-                            <span><i class="fas fa-exchange-alt me-1"></i>${session.stats.totalTrades} trades</span>
-                            <span><i class="fas fa-fingerprint me-1"></i>${session.sessionId}</span>
-                        </div>
-                        <div class="small text-muted mt-1">
-                            <i class="fas fa-calendar me-1"></i>${dateStr} ${timeStr}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        return `<tr class="results-row" onclick="viewSimResultDetail('${session.sessionId}')" style="cursor:pointer;">
+            <td>
+              <div class="fw-semibold">${session.symbol}</div>
+              <div class="text-muted small">${session.sessionId}</div>
+            </td>
+            <td>${modeBadge}</td>
+            <td class="${simPnlClass(pnl)} fw-semibold">${simFormatPnl(pnl)}</td>
+            <td class="${simPnlClass(roi)} fw-semibold">${roi != null ? simFormatPct(roi) : '-'}</td>
+            <td class="text-danger">${maxDd != null ? simFormatPct(-Math.abs(maxDd)) : '-'}</td>
+            <td>${winRate != null ? simFormatPct(winRate).replace('+','') : '-'}</td>
+            <td class="text-success">${simFormatCurrency(avgWin)}</td>
+            <td class="text-danger">${avgLoss ? '-$' + Math.abs(avgLoss).toFixed(2) : '-'}</td>
+            <td>${pf != null ? (pf === Infinity ? '∞' : pf.toFixed(2)) : '-'}</td>
+            <td>${trades}</td>
+            <td>${simTimeAgo(updated)}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteSimSession('${session.sessionId}')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>`;
     }).join('');
 }
 
-function viewSimResultDetail(idx) {
+function viewSimResultDetail(sessionId) {
     let sessions = [];
     try { sessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]'); } catch(e) {}
 
-    let filtered = sessions;
-    if (simResultCurrentFilter !== 'all') {
-        filtered = sessions.filter(s => s.mode === simResultCurrentFilter);
-    }
-
-    const session = filtered[idx];
+    const session = sessions.find(s => s.sessionId === sessionId);
     if (!session) return;
 
     window._pendingSimResultDetail = session;

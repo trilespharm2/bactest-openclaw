@@ -2558,7 +2558,31 @@
                 <p class="mt-3">Loading results...</p>
               </div>
 
-              <div class="row" id="simResultsGrid"></div>
+              <div class="card" id="simResultsTableCard" style="display: none;">
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0 results-table" id="simResultsTable">
+                      <thead>
+                        <tr id="simResultsTableHeader">
+                          <th class="sortable" data-sort="symbol">Symbol <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="mode">Mode <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="pnl">P/L <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="roi">ROI % <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="max_drawdown">Max DD <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="win_rate">Win Rate <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="avg_win">Avg Win <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="avg_loss">Avg Loss <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="profit_factor">Profit Factor <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="trades">Trades <i class="fas fa-sort"></i></th>
+                          <th class="sortable" data-sort="updated">Updated <i class="fas fa-sort"></i></th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="simResultsBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
 
               <div id="simResultsEmpty" class="card" style="display: none;">
                 <div class="card-body text-center py-5">
