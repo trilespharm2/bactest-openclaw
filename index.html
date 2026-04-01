@@ -168,6 +168,11 @@
       .guest-product-card-wide .guest-card-body { padding: 24px; }
       .guest-card-features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
       @media (max-width: 768px) { .guest-card-features-grid { grid-template-columns: 1fr; } }
+      .most-popular-badge { position: absolute; top: -10px; right: 16px; background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(245,158,11,0.3); z-index: 1; }
+      .data-feeds-header { text-align: center; margin: 32px 0 16px 0; }
+      .data-feeds-header h2 { font-size: 1.15rem; font-weight: 700; color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+      .data-feeds-header h2 i { color: #6366f1; font-size: 1rem; }
+      .data-feeds-header p { font-size: 0.82rem; color: #64748b; margin: 0; }
       .learn-more-page { max-width: 900px; margin: 0 auto; }
       .learn-more-page .lm-video-container { width: 100%; border-radius: 12px; overflow: hidden; background: #0f172a; margin-bottom: 32px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
       .learn-more-page .lm-video-container video { width: 100%; height: 100%; display: block; }
@@ -634,7 +639,6 @@
                 </li>
                 <li class="nav-item d-flex align-items-center gap-2" id="guestNav">
                   <a href="/login" class="btn btn-outline-primary btn-sm">Sign In</a>
-                  <a href="/register" class="btn btn-primary btn-sm">Sign Up</a>
                 </li>
               </ul>
             </div>
@@ -676,16 +680,16 @@
               </div>
 
               <!-- Simulated Trading Banner -->
-              <div class="sim-banner">
+              <div class="sim-banner" style="position:relative;">
+                <span class="most-popular-badge">Most Popular</span>
                 <div class="sim-banner-icon"><i class="fas fa-gamepad"></i></div>
                 <div class="sim-banner-text" style="flex:1;">
-                  <h3>Simulated Trading</h3>
+                  <h3>Simulated Trading <span style="color:#64748b;font-weight:400;font-size:0.85rem;">(Manual Backtesting)</span></h3>
                   <p>Practice trading with virtual capital in real-time market conditions. Build confidence before risking real money.</p>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap flex-shrink-0">
-                  <a href="#" onclick="event.preventDefault();navigateToPage('simulatedTrading');" class="btn-try-now">Try Now <i class="fas fa-arrow-right"></i></a>
+                  <a href="#" onclick="event.preventDefault();navigateToPage('simulatedTrading');" class="btn-try-now">Test <i class="fas fa-arrow-right"></i></a>
                   <a href="#" onclick="event.preventDefault();navigateToPage('learnSimTrading');" class="btn-learn-more">Learn More <i class="fas fa-arrow-right"></i></a>
-                  <span class="signup-hint">No Sign Up Required</span>
                 </div>
               </div>
 
@@ -693,7 +697,7 @@
               <div class="guest-product-row">
                 <div class="guest-product-card">
                   <div class="guest-card-body">
-                    <h3><i class="fas fa-layer-group me-2" style="color:#6366f1;"></i>Options Backtester</h3>
+                    <h3><i class="fas fa-layer-group me-2" style="color:#6366f1;"></i>Options Backtester <span style="color:#64748b;font-weight:400;font-size:0.8rem;">(Automated/Algorithmic Backtesting)</span></h3>
                     <p>Test complex options strategies against historical data. From simple calls/puts to multi-leg spreads.</p>
                     <ul class="guest-card-features">
                       <li><i class="fas fa-check-circle"></i>16+ strategies: spreads, straddles, iron condors, butterflies</li>
@@ -703,14 +707,13 @@
                     </ul>
                     <div class="guest-card-footer d-flex align-items-center gap-2 flex-wrap">
                       <a href="#" onclick="event.preventDefault();navigateToPage('learnOptionsBacktest');" class="btn-learn-more-card">Learn More <i class="fas fa-arrow-right"></i></a>
-                      <span class="signup-hint-card">Free, with Sign Up</span>
                     </div>
                   </div>
                 </div>
 
                 <div class="guest-product-card">
                   <div class="guest-card-body">
-                    <h3><i class="fas fa-chart-line me-2" style="color:#10b981;"></i>Stock Backtester</h3>
+                    <h3><i class="fas fa-chart-line me-2" style="color:#10b981;"></i>Stock Backtester <span style="color:#64748b;font-weight:400;font-size:0.8rem;">(Automated/Algorithmic Backtesting)</span></h3>
                     <p>Validate stock trading strategies with comprehensive backtesting across any ticker and timeframe.</p>
                     <ul class="guest-card-features">
                       <li><i class="fas fa-check-circle"></i>Test buy/sell strategies on any stock or ETF</li>
@@ -720,38 +723,50 @@
                     </ul>
                     <div class="guest-card-footer d-flex align-items-center gap-2 flex-wrap">
                       <a href="#" onclick="event.preventDefault();navigateToPage('learnStockBacktest');" class="btn-learn-more-card">Learn More <i class="fas fa-arrow-right"></i></a>
-                      <span class="signup-hint-card">Free, with Sign Up</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Row 2: Screener & Notifications Combined -->
-              <div class="guest-product-row guest-product-row-single">
-                <div class="guest-product-card guest-product-card-wide">
+              <!-- Row 2: Screener + Notifications -->
+              <div class="guest-product-row">
+                <div class="guest-product-card">
                   <div class="guest-card-body">
-                    <h3><i class="fas fa-filter me-2" style="color:#7c3aed;"></i>Stock Screener <span style="color:#94a3b8;font-weight:400;margin:0 6px;">&amp;</span> <i class="fas fa-bell me-2" style="color:#f59e0b;"></i>Smart Notifications</h3>
-                    <p>Scan the entire market with custom filters and get automated alerts when your scanners find matches. Never miss a trading opportunity again.</p>
-                    <div class="guest-card-features-grid">
-                      <ul class="guest-card-features">
-                        <li><i class="fas fa-check-circle"></i>Filter by price change, volume, market cap, sector</li>
-                        <li><i class="fas fa-check-circle"></i>Real-time data from TradingView integration</li>
-                        <li><i class="fas fa-check-circle"></i>Save and schedule recurring scans</li>
-                        <li><i class="fas fa-check-circle"></i>Export results and track scanner history</li>
-                      </ul>
-                      <ul class="guest-card-features">
-                        <li><i class="fas fa-check-circle"></i>Automated scanner alerts with symbol details</li>
-                        <li><i class="fas fa-check-circle"></i>Email and in-app notification delivery</li>
-                        <li><i class="fas fa-check-circle"></i>Click-through to detailed results and charts</li>
-                        <li><i class="fas fa-check-circle"></i>Notification history with full scan data</li>
-                      </ul>
-                    </div>
+                    <h3><i class="fas fa-filter me-2" style="color:#7c3aed;"></i>Stock Screener</h3>
+                    <p>Scan the entire market with custom filters. Find trading opportunities that match your exact criteria.</p>
+                    <ul class="guest-card-features">
+                      <li><i class="fas fa-check-circle"></i>Filter by price change, volume, market cap, sector</li>
+                      <li><i class="fas fa-check-circle"></i>Real-time data from TradingView integration</li>
+                      <li><i class="fas fa-check-circle"></i>Save and schedule recurring scans</li>
+                      <li><i class="fas fa-check-circle"></i>Export results and track scanner history</li>
+                    </ul>
                     <div class="guest-card-footer d-flex align-items-center gap-2 flex-wrap">
                       <a href="#" onclick="event.preventDefault();navigateToPage('learnScreener');" class="btn-learn-more-card">Learn More <i class="fas fa-arrow-right"></i></a>
-                      <span class="signup-hint-card">Free, with Sign Up</span>
                     </div>
                   </div>
                 </div>
+
+                <div class="guest-product-card">
+                  <div class="guest-card-body">
+                    <h3><i class="fas fa-bell me-2" style="color:#f59e0b;"></i>Smart Notifications</h3>
+                    <p>Get alerted when your scanners find matches. Never miss a trading opportunity again.</p>
+                    <ul class="guest-card-features">
+                      <li><i class="fas fa-check-circle"></i>Automated scanner alerts with symbol details</li>
+                      <li><i class="fas fa-check-circle"></i>Email and in-app notification delivery</li>
+                      <li><i class="fas fa-check-circle"></i>Click-through to detailed results and charts</li>
+                      <li><i class="fas fa-check-circle"></i>Notification history with full scan data</li>
+                    </ul>
+                    <div class="guest-card-footer d-flex align-items-center gap-2 flex-wrap">
+                      <a href="#" onclick="event.preventDefault();navigateToPage('learnNotifications');" class="btn-learn-more-card">Learn More <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Data Feeds Header -->
+              <div class="data-feeds-header">
+                <h2><i class="fas fa-broadcast-tower me-2"></i>Live Market Data Feeds</h2>
+                <p>Real-time market indices, trending stocks, and financial news — updated throughout the trading day.</p>
               </div>
 
               <!-- Guest Dashboard Data Feeds -->
@@ -3201,17 +3216,17 @@
                 <div class="lm-video-container">
                   <div class="lm-video-placeholder">
                     <i class="fas fa-play-circle"></i>
-                    <p>Screener &amp; Notifications walkthrough video coming soon</p>
+                    <p>Stock Screener walkthrough video coming soon</p>
                   </div>
                 </div>
 
                 <div class="lm-section">
-                  <h2><i class="fas fa-filter"></i> Stock Screener &amp; Smart Notifications Overview</h2>
-                  <p>Scan the entire market with custom filters to find trading opportunities that match your exact criteria. Pair your screener with automated alerts so you never miss a match. Schedule scans, get notified via email or in-app, and click through to detailed results.</p>
+                  <h2><i class="fas fa-filter"></i> Stock Screener Overview</h2>
+                  <p>Scan the entire market with custom filters to find trading opportunities that match your exact criteria. Schedule scans to run automatically, export results for further analysis, and track scanner performance over time.</p>
                 </div>
 
                 <div class="lm-section">
-                  <h2><i class="fas fa-cogs"></i> Screener Features</h2>
+                  <h2><i class="fas fa-cogs"></i> Features</h2>
                   <div class="lm-feature-grid">
                     <div class="lm-feature-item">
                       <div class="lm-feat-icon" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);"><i class="fas fa-filter"></i></div>
@@ -3233,7 +3248,37 @@
                 </div>
 
                 <div class="lm-section">
-                  <h2><i class="fas fa-bell"></i> Notification Features</h2>
+                  <h2><i class="fas fa-search-plus"></i> Results &amp; Analysis</h2>
+                  <p>Review scan results with sortable tables showing matching stocks, their metrics, and key data points. Save your favorite scanner configurations for quick access and compare results across different time periods.</p>
+                </div>
+
+                <div class="lm-cta">
+                  <h3>Ready to find your next trade?</h3>
+                  <p>Create a free account and start scanning the market.</p>
+                  <a href="/register" class="btn-get-started">Get Started Free <i class="fas fa-arrow-right"></i></a>
+                </div>
+              </div>
+            </section>
+
+            <!-- Learn More: Smart Notifications -->
+            <section id="learnNotificationsPage" class="page">
+              <div class="learn-more-page">
+                <a href="#" onclick="event.preventDefault();navigateToPage('home');" class="lm-back-btn"><i class="fas fa-arrow-left"></i> Back to Home</a>
+
+                <div class="lm-video-container">
+                  <div class="lm-video-placeholder">
+                    <i class="fas fa-play-circle"></i>
+                    <p>Smart Notifications walkthrough video coming soon</p>
+                  </div>
+                </div>
+
+                <div class="lm-section">
+                  <h2><i class="fas fa-bell"></i> Smart Notifications Overview</h2>
+                  <p>Get alerted the moment your scanner criteria are met. Smart Notifications connects directly to your screeners and delivers real-time alerts via email and in-app, so you never miss a trading opportunity.</p>
+                </div>
+
+                <div class="lm-section">
+                  <h2><i class="fas fa-cogs"></i> Features</h2>
                   <div class="lm-feature-grid">
                     <div class="lm-feature-item">
                       <div class="lm-feat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);"><i class="fas fa-bolt"></i></div>
@@ -3254,9 +3299,14 @@
                   </div>
                 </div>
 
+                <div class="lm-section">
+                  <h2><i class="fas fa-search-plus"></i> Results &amp; Analysis</h2>
+                  <p>Browse your complete notification history with timestamps, matched symbols, and scanner details. Click through to view the full scan data that triggered each alert. Track which scanners deliver the most actionable results.</p>
+                </div>
+
                 <div class="lm-cta">
-                  <h3>Ready to find your next trade?</h3>
-                  <p>Create a free account and start scanning the market with automated alerts.</p>
+                  <h3>Never miss a trade again</h3>
+                  <p>Create a free account and set up automated alerts for your scanners.</p>
                   <a href="/register" class="btn-get-started">Get Started Free <i class="fas fa-arrow-right"></i></a>
                 </div>
               </div>

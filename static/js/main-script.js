@@ -486,7 +486,8 @@ async function navigateToPage(pageName, skipPushState = false) {
         'learnOptionsBacktest': 'Options Backtester',
         'learnStockBacktest': 'Stock Backtester',
         'learnSimTrading': 'Simulated Trading',
-        'learnScreener': 'Stock Screener & Notifications'
+        'learnScreener': 'Stock Screener',
+        'learnNotifications': 'Smart Notifications'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -608,7 +609,7 @@ async function loadPageContent(pageName) {
         } else {
             console.log('Content already loaded for:', pageName);
             // Pages with inline scripts (no separate script file needed)
-            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings', 'learnOptionsBacktest', 'learnStockBacktest', 'learnSimTrading', 'learnScreener'];
+            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings', 'learnOptionsBacktest', 'learnStockBacktest', 'learnSimTrading', 'learnScreener', 'learnNotifications'];
             
             if (inlineScriptPages.includes(pageName)) {
                 // These pages have their init functions defined inline or in pre-loaded scripts
