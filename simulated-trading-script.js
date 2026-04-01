@@ -1424,6 +1424,42 @@ function updateTradingDisplay() {
     updateOptionsPositionsCard();
 }
 
+function validateSimSpreadStrikes(strategy, legs) {
+    function findLeg(pos, typ) { return legs.find(l => l.position === pos && l.type === typ); }
+    if (strategy === 'Short Call Spread') {
+        const sc = findLeg('short','C'), lc = findLeg('long','C');
+        if (sc && lc && sc.strike >= lc.strike)
+            return `Short Call Spread: Short Call strike ($${sc.strike}) must be below Long Call strike ($${lc.strike}).`;
+    } else if (strategy === 'Long Call Spread') {
+        const lc = findLeg('long','C'), sc = findLeg('short','C');
+        if (lc && sc && lc.strike >= sc.strike)
+            return `Long Call Spread: Long Call strike ($${lc.strike}) must be below Short Call strike ($${sc.strike}).`;
+    } else if (strategy === 'Short Put Spread') {
+        const sp = findLeg('short','P'), lp = findLeg('long','P');
+        if (sp && lp && sp.strike <= lp.strike)
+            return `Short Put Spread: Short Put strike ($${sp.strike}) must be above Long Put strike ($${lp.strike}).`;
+    } else if (strategy === 'Long Put Spread') {
+        const lp = findLeg('long','P'), sp = findLeg('short','P');
+        if (lp && sp && lp.strike <= sp.strike)
+            return `Long Put Spread: Long Put strike ($${lp.strike}) must be above Short Put strike ($${sp.strike}).`;
+    } else if (strategy.includes('Iron') && strategy.includes('Short')) {
+        const sp = findLeg('short','P'), lp = findLeg('long','P');
+        const sc = findLeg('short','C'), lc = findLeg('long','C');
+        if (sp && lp && sp.strike <= lp.strike)
+            return `${strategy}: Short Put strike ($${sp.strike}) must be above Long Put strike ($${lp.strike}).`;
+        if (sc && lc && sc.strike >= lc.strike)
+            return `${strategy}: Short Call strike ($${sc.strike}) must be below Long Call strike ($${lc.strike}).`;
+    } else if (strategy.includes('Iron') && strategy.includes('Long')) {
+        const sp = findLeg('short','P'), lp = findLeg('long','P');
+        const sc = findLeg('short','C'), lc = findLeg('long','C');
+        if (lp && sp && lp.strike <= sp.strike)
+            return `${strategy}: Long Put strike ($${lp.strike}) must be above Short Put strike ($${sp.strike}).`;
+        if (lc && sc && lc.strike >= sc.strike)
+            return `${strategy}: Long Call strike ($${lc.strike}) must be below Short Call strike ($${sc.strike}).`;
+    }
+    return null;
+}
+
 const SIM_STRATEGY_LEGS = {
     'Long Call': [{name: 'Long Call', type: 'C', position: 'long'}],
     'Long Put': [{name: 'Long Put', type: 'P', position: 'long'}],
@@ -1742,6 +1778,9 @@ async function executeOptionTrade() {
                 entryBarTimestamp: entryBar.timestamp, optionBars: optionData.bars, optionSymbol: optionData.optionSymbol
             });
         }
+
+        const spreadErr = validateSimSpreadStrikes(strategy, positionLegs);
+        if (spreadErr) { appAlert(spreadErr); return; }
 
         let totalEntryPremium = 0;
         positionLegs.forEach(leg => {

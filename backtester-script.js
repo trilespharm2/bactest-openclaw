@@ -844,12 +844,48 @@ function buildLegConfiguration(strategy) {
         `;
     });
     
+    html += '<div id="legStrikeWarning" class="alert alert-danger mt-2" style="display:none;"></div>';
     container.innerHTML = html;
     
-    // Setup event listeners for leg configuration
     document.querySelectorAll('.leg-method-select').forEach(select => {
         select.addEventListener('change', handleLegMethodChange);
     });
+}
+
+function runInlineLegValidation() {
+    const warningDiv = document.getElementById('legStrikeWarning');
+    if (!warningDiv) return;
+    const strategy = document.getElementById('strategy')?.value;
+    if (!strategy) { warningDiv.style.display = 'none'; return; }
+    const legDefs = getStrategyLegs(strategy);
+    if (legDefs.length < 2) { warningDiv.style.display = 'none'; return; }
+
+    const legsData = [];
+    for (let i = 0; i < legDefs.length; i++) {
+        const methodSel = document.querySelector(`.leg-method-select[data-leg-index="${i}"]`);
+        if (!methodSel) continue;
+        const method = methodSel.value;
+        const container = document.getElementById(`legParams${i}`);
+        if (!container) continue;
+        const params = {};
+        container.querySelectorAll('.leg-param').forEach(inp => {
+            params[inp.dataset.param] = inp.type === 'number' ? parseFloat(inp.value) : inp.value;
+        });
+        legsData.push({
+            type: legDefs[i].type,
+            position: legDefs[i].position,
+            config_type: method,
+            params: params
+        });
+    }
+
+    const result = validateStrikeConfiguration(strategy, legsData);
+    if (!result.valid) {
+        warningDiv.textContent = result.error;
+        warningDiv.style.display = 'block';
+    } else {
+        warningDiv.style.display = 'none';
+    }
 }
 
 function handleLegMethodChange(e) {
@@ -1088,7 +1124,12 @@ function handleLegMethodChange(e) {
         }
     }
     
-    // Update all reference leg dropdowns to include this newly configured leg
+    paramsContainer.querySelectorAll('.leg-param').forEach(inp => {
+        inp.addEventListener('change', runInlineLegValidation);
+        inp.addEventListener('input', runInlineLegValidation);
+    });
+    runInlineLegValidation();
+
     updateAllReferenceLegDropdowns();
 }
 
