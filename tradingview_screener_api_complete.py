@@ -805,12 +805,12 @@ class TradingViewScreenerAPI:
             return None
 
         if filter_type in ["date_preset", "predefined_ranges"]:
-            selected = config.get("selected_values", [])
             selected_option = config.get("selected_option")
+            if not selected_option:
+                selected = config.get("selected_values", [])
+                selected_option = selected[0] if selected else None
             if selected_option:
-                selected = [selected_option]
-            if selected:
-                return col(column_name).isin(selected)
+                return self._build_date_preset_filter(column_name, selected_option)
             return None
         
         # Check for field-to-field comparison conditions
@@ -853,6 +853,43 @@ class TradingViewScreenerAPI:
         
         return col(column_name) > value
     
+    def _build_date_preset_filter(self, column_name: str, preset: str):
+        DATE_PRESET_MAP = {
+            "Current trading day":   ("day", 0, 0),
+            "Next day":              ("day", 1, 1),
+            "Previous day":          ("day", -1, -1),
+            "Next 5 days":           ("day", 0, 5),
+            "Previous 5 days":       ("day", -5, 0),
+            "This week":             ("week", 0, 0),
+            "Next week":             ("week", 1, 1),
+            "Previous week":         ("week", -1, -1),
+            "This month":            ("month", 0, 0),
+            "This year":             ("month", 0, 0),
+            "Past 3 months":         ("month", -3, 0),
+            "Past 6 months":         ("month", -6, 0),
+            "Past 12 months":        ("month", -12, 0),
+            "Past 2 years":          ("month", -24, 0),
+            "Past 3 years":          ("month", -36, 0),
+            "Past 5 years":          ("month", -60, 0),
+            "More than 1 year ago":  ("month", -1200, -12),
+            "More than 5 years ago": ("month", -1200, -60),
+            "More than 10 years ago":("month", -1200, -120),
+            "More than 15 years ago":("month", -1200, -180),
+            "More than 20 years ago":("month", -1200, -240),
+            "More than 25 years ago":("month", -1200, -300),
+        }
+        mapping = DATE_PRESET_MAP.get(preset)
+        if not mapping:
+            return None
+        unit, a, b = mapping
+        c = col(column_name)
+        if unit == "day":
+            return c.in_day_range(a, b)
+        elif unit == "week":
+            return c.in_week_range(a, b)
+        else:
+            return c.in_month_range(a, b)
+
     def _build_comparison_filter(self, column_name: str, config: Dict):
         """Build filter for field-to-field and percentage-based comparisons
         
