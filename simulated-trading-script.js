@@ -415,6 +415,7 @@ function setupTradingPageListeners() {
     document.getElementById('simBuyBtn')?.addEventListener('click', () => executeTrade('buy'));
     document.getElementById('simSellBtn')?.addEventListener('click', () => executeTrade('sell'));
     document.getElementById('simEndSessionBtn')?.addEventListener('click', handleEndSession);
+    document.getElementById('simCloseAllBtn')?.addEventListener('click', handleCloseAll);
     document.getElementById('simOptionTradeBtn')?.addEventListener('click', executeOptionTrade);
     document.getElementById('simOptionStrategy')?.addEventListener('change', buildSimLegConfiguration);
 
@@ -454,8 +455,37 @@ async function handleEndSession() {
     saveCompletedSession(sessionData);
     removeActiveSession();
 
+    simCurrentSymbol = '';
+    window._simPendingSession = null;
+
     window._pendingSimResultDetail = sessionData;
     if (typeof navigateToPage === 'function') navigateToPage('simResultDetail');
+}
+
+function handleCloseAll() {
+    const mode = window._simTradingMode || 'stock';
+    if (simVisibleBars.length === 0) return;
+    const currentBar = simVisibleBars[simVisibleBars.length - 1];
+    const currentPrice = currentBar.vwap || currentBar.close;
+
+    if (mode === 'stock' && simOpenPosition) {
+        const closePnl = calculatePositionPnl(simOpenPosition, currentPrice);
+        simRealizedPnl += closePnl;
+        simClosedTrades.push({
+            ...simOpenPosition, exitPrice: currentPrice, exitBarIndex: simCurrentBarIndex,
+            exitTimestamp: currentBar.timestamp, pnl: closePnl
+        });
+        simOpenPosition = null;
+    }
+
+    if (mode === 'options' && simOpenOptionPositions.length > 0) {
+        const ids = simOpenOptionPositions.map(p => p.id);
+        ids.forEach(id => closeOptionPosition(id, null, 'Close All'));
+    }
+
+    updateTradingDisplay();
+    updatePositionLines();
+    updatePnlShading();
 }
 
 function buildCurrentSessionData() {
@@ -1359,6 +1389,12 @@ function updateTradingDisplay() {
             unrealizedEl.textContent = '$0.00';
             unrealizedEl.style.color = '#6a6d78';
         }
+    }
+
+    const closeAllBtn = document.getElementById('simCloseAllBtn');
+    if (closeAllBtn) {
+        const hasOpenPos = (mode === 'stock' && simOpenPosition) || (mode === 'options' && simOpenOptionPositions.length > 0);
+        closeAllBtn.style.display = hasOpenPos ? 'inline-block' : 'none';
     }
 
     updateOptionsPositionsCard();
