@@ -406,20 +406,19 @@ class StockBacktesterV3Wrapper:
         avg_loss = (total_losses / len(losing_trades)) if losing_trades else 0.0
         profit_factor = (total_wins / total_losses) if total_losses > 0 else (999.99 if total_wins > 0 else 0.0)
         
-        # Calculate max drawdown
-        equity = 0
-        peak = 0
+        starting_capital = trades[0].get('capital_before', 50000) if trades else 50000
+
+        balance = starting_capital
+        peak = starting_capital
         max_dd = 0
         for trade in trades:
-            equity += trade.get('pnl', 0)
-            if equity > peak:
-                peak = equity
-            drawdown = ((equity - peak) / peak * 100) if peak > 0 else 0
-            if drawdown < max_dd:
-                max_dd = drawdown
-        
-        # Calculate total return (assuming starting capital from first trade or config)
-        starting_capital = trades[0].get('capital_before', 50000) if trades else 50000
+            balance += trade.get('pnl', 0)
+            if balance > peak:
+                peak = balance
+            dd = ((peak - balance) / peak * 100) if peak > 0 else 0
+            if dd > max_dd:
+                max_dd = dd
+
         total_return = (total_pnl / starting_capital * 100) if starting_capital > 0 else 0.0
         
         return {

@@ -4492,14 +4492,49 @@ def list_stocks_backtests_v3():
                     with open(filepath, 'r') as f:
                         data = json.load(f)
                     
-                    summary = data.get('summary', data.get('metadata', {}))
+                    summary = data.get('summary', {})
+                    meta = data.get('metadata', {})
                     config = data.get('config', {})
+
+                    if not summary or not summary.get('total_pnl') and summary.get('total_pnl') != 0:
+                        raw_trades = data.get('trades', [])
+                        if raw_trades:
+                            starting_capital = config.get('starting_capital', 50000)
+                            total_pnl = sum(float(t.get('pnl', 0) or 0) for t in raw_trades)
+                            winners = [t for t in raw_trades if float(t.get('pnl', 0) or 0) > 0]
+                            losers = [t for t in raw_trades if float(t.get('pnl', 0) or 0) < 0]
+                            total_wins_val = sum(float(t.get('pnl', 0)) for t in winners)
+                            total_losses_val = abs(sum(float(t.get('pnl', 0)) for t in losers))
+                            n = len(raw_trades)
+                            balance = starting_capital
+                            peak = starting_capital
+                            max_dd_val = 0
+                            for t in raw_trades:
+                                balance += float(t.get('pnl', 0) or 0)
+                                if balance > peak:
+                                    peak = balance
+                                dd_val = ((peak - balance) / peak * 100) if peak > 0 else 0
+                                if dd_val > max_dd_val:
+                                    max_dd_val = dd_val
+                            summary = {
+                                'total_trades': n,
+                                'win_rate': round(len(winners) / n * 100, 2) if n else 0,
+                                'total_pnl': round(total_pnl, 2),
+                                'total_return': round((total_pnl / starting_capital) * 100, 2) if starting_capital else 0,
+                                'avg_win': round(total_wins_val / len(winners), 2) if winners else 0,
+                                'avg_loss': round(total_losses_val / len(losers), 2) if losers else 0,
+                                'profit_factor': round(total_wins_val / total_losses_val, 2) if total_losses_val > 0 else 0,
+                                'max_drawdown': round(max_dd_val, 2)
+                            }
+                        elif meta:
+                            summary = meta
+
                     backtests.append({
                         'id': backtest_id,
-                        'name': data.get('config', {}).get('name', 'Unnamed'),
+                        'name': config.get('name', 'Unnamed'),
                         'timestamp': record.created_at.isoformat() if record.created_at else '',
-                        'total_trades': summary.get('total_trades', 0),
-                        'symbol_count': data.get('metadata', {}).get('symbol_count', 0),
+                        'total_trades': summary.get('total_trades', meta.get('total_trades', 0)),
+                        'symbol_count': meta.get('symbol_count', 0),
                         'config': config,
                         'summary': summary,
                         'status': record.status or 'completed'
