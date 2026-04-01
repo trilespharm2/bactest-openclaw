@@ -482,7 +482,11 @@ async function navigateToPage(pageName, skipPushState = false) {
         'faq': 'FAQ',
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
-        'simResultDetail': 'Simulated Trading Analysis'
+        'simResultDetail': 'Simulated Trading Analysis',
+        'learnOptionsBacktest': 'Options Backtester',
+        'learnStockBacktest': 'Stock Backtester',
+        'learnSimTrading': 'Simulated Trading',
+        'learnScreener': 'Stock Screener & Notifications'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -604,7 +608,7 @@ async function loadPageContent(pageName) {
         } else {
             console.log('Content already loaded for:', pageName);
             // Pages with inline scripts (no separate script file needed)
-            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings'];
+            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings', 'learnOptionsBacktest', 'learnStockBacktest', 'learnSimTrading', 'learnScreener'];
             
             if (inlineScriptPages.includes(pageName)) {
                 // These pages have their init functions defined inline or in pre-loaded scripts
