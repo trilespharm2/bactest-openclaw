@@ -111,13 +111,17 @@ function renderSimResultsGrid() {
             case 'symbol': va = (a.symbol || '').toLowerCase(); vb = (b.symbol || '').toLowerCase(); break;
             case 'mode': va = a.mode || ''; vb = b.mode || ''; break;
             case 'pnl': va = a.netPnl || 0; vb = b.netPnl || 0; break;
-            case 'roi': va = sa.netReturn || 0; vb = sb.netReturn || 0; break;
+            case 'roe': {
+                const iba = a.initialBalance || 1; const ibb = b.initialBalance || 1;
+                va = (a.netPnl || 0) / iba * 100; vb = (b.netPnl || 0) / ibb * 100; break;
+            }
             case 'max_drawdown': va = sa.maxDrawdown || 0; vb = sb.maxDrawdown || 0; break;
             case 'win_rate': va = sa.winRate || 0; vb = sb.winRate || 0; break;
             case 'avg_win': va = sa.avgWin || 0; vb = sb.avgWin || 0; break;
             case 'avg_loss': va = sa.avgLoss || 0; vb = sb.avgLoss || 0; break;
             case 'profit_factor': va = sa.profitFactor || 0; vb = sb.profitFactor || 0; break;
             case 'trades': va = sa.totalTrades || 0; vb = sb.totalTrades || 0; break;
+            case 'avg_duration': va = sa.avgDurationMs || 0; vb = sb.avgDurationMs || 0; break;
             case 'updated': va = a.timestamp || ''; vb = b.timestamp || ''; break;
             default: va = a.timestamp || ''; vb = b.timestamp || '';
         }
@@ -133,14 +137,38 @@ function renderSimResultsGrid() {
             ? '<span class="badge" style="background:#3b7cff;font-size:11px;">Stock</span>'
             : '<span class="badge" style="background:#7c3aed;font-size:11px;">Options</span>';
         const pnl = session.netPnl;
-        const roi = s.netReturn;
+        const ib = session.initialBalance || 1;
+        const roe = (pnl || 0) / ib * 100;
         const maxDd = s.maxDrawdown;
         const winRate = s.winRate;
         const avgWin = s.avgWin;
         const avgLoss = s.avgLoss;
         const pf = s.profitFactor;
         const trades = s.totalTrades || 0;
+        const avgDurMs = s.avgDurationMs || 0;
         const updated = session.timestamp;
+
+        let avgDurLabel = '-';
+        if (avgDurMs > 0) {
+            const mins = Math.floor(avgDurMs / 60000);
+            if (mins < 60) avgDurLabel = mins + 'm';
+            else if (mins < 1440) avgDurLabel = Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+            else avgDurLabel = Math.floor(mins / 1440) + 'd ' + Math.floor((mins % 1440) / 60) + 'h';
+        } else if (session.trades && session.trades.length > 0) {
+            let totalMs = 0, cnt = 0;
+            session.trades.forEach(t => {
+                if (t.entryTime && t.exitTime) {
+                    const diff = new Date(t.exitTime) - new Date(t.entryTime);
+                    if (!isNaN(diff) && diff > 0) { totalMs += diff; cnt++; }
+                }
+            });
+            if (cnt > 0) {
+                const m = Math.floor((totalMs / cnt) / 60000);
+                if (m < 60) avgDurLabel = m + 'm';
+                else if (m < 1440) avgDurLabel = Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+                else avgDurLabel = Math.floor(m / 1440) + 'd ' + Math.floor((m % 1440) / 60) + 'h';
+            }
+        }
 
         return `<tr class="results-row" onclick="viewSimResultDetail('${session.sessionId}')" style="cursor:pointer;">
             <td>
@@ -149,13 +177,14 @@ function renderSimResultsGrid() {
             </td>
             <td>${modeBadge}</td>
             <td class="${simPnlClass(pnl)} fw-semibold">${simFormatPnl(pnl)}</td>
-            <td class="${simPnlClass(roi)} fw-semibold">${roi != null ? simFormatPct(roi) : '-'}</td>
+            <td class="${simPnlClass(roe)} fw-semibold">${simFormatPct(roe)}</td>
             <td class="text-danger">${maxDd != null ? simFormatPct(-Math.abs(maxDd)) : '-'}</td>
             <td>${winRate != null ? simFormatPct(winRate).replace('+','') : '-'}</td>
             <td class="text-success">${simFormatCurrency(avgWin)}</td>
             <td class="text-danger">${avgLoss ? '-$' + Math.abs(avgLoss).toFixed(2) : '-'}</td>
             <td>${pf != null ? (pf === Infinity ? '∞' : pf.toFixed(2)) : '-'}</td>
             <td>${trades}</td>
+            <td>${avgDurLabel}</td>
             <td>${simTimeAgo(updated)}</td>
             <td>
               <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteSimSession('${session.sessionId}')">
@@ -301,8 +330,6 @@ function renderStats(data) {
         { label: 'Profit Factor', value: s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2) },
         { label: 'Sharpe Ratio', value: s.sharpeRatio.toFixed(2), color: s.sharpeRatio >= 0 ? '#26a69a' : '#ef5350' },
         { label: 'Max Drawdown', value: `${s.maxDrawdown.toFixed(2)}%`, color: '#ef5350' },
-        { label: 'Risk per Trade', value: `${s.riskPerTrade.toFixed(2)}%` },
-        { label: 'Return on Risk', value: s.returnOnRisk === Infinity ? '∞' : `${s.returnOnRisk.toFixed(2)}x` },
         { label: 'Max Consec. Wins', value: s.maxConsecWins, color: '#26a69a' },
         { label: 'Max Consec. Losses', value: s.maxConsecLosses, color: '#ef5350' },
         { label: 'Net Return', value: `${s.netReturn >= 0 ? '+' : ''}${s.netReturn.toFixed(2)}%`, color: s.netReturn >= 0 ? '#26a69a' : '#ef5350' },

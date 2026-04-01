@@ -313,6 +313,18 @@ function buildAnalyticsFromTrades(enrichedTrades, session) {
         avgBarsInTrade = enrichedTrades.reduce((s, t) => s + (t.barsInTrade || 0), 0) / enrichedTrades.length;
     }
 
+    let avgDurationMs = 0;
+    if (enrichedTrades.length > 0) {
+        let totalMs = 0, durCount = 0;
+        enrichedTrades.forEach(t => {
+            if (t.entryTime && t.exitTime) {
+                const diff = new Date(t.exitTime) - new Date(t.entryTime);
+                if (!isNaN(diff) && diff > 0) { totalMs += diff; durCount++; }
+            }
+        });
+        if (durCount > 0) avgDurationMs = totalMs / durCount;
+    }
+
     const tradeReturns = enrichedTrades.map(t => t.pnl / initialBalance);
     const meanReturn = tradeReturns.length > 0 ? tradeReturns.reduce((s, r) => s + r, 0) / tradeReturns.length : 0;
     const variance = tradeReturns.length > 1
@@ -357,7 +369,7 @@ function buildAnalyticsFromTrades(enrichedTrades, session) {
         trades: enrichedTrades, equityCurve,
         stats: {
             totalTrades, winRate, wins: wins.length, losses: losses.length,
-            avgWin, avgLoss, avgBarsInTrade, grossProfit, grossLoss,
+            avgWin, avgLoss, avgBarsInTrade, avgDurationMs, grossProfit, grossLoss,
             profitFactor, sharpeRatio, maxWin, maxLoss, maxDrawdown,
             riskPerTrade, returnOnRisk, maxConsecWins, maxConsecLosses, netReturn
         }
