@@ -181,6 +181,7 @@ function applyAuthUIState() {
         
         renderNavAvatars(currentUser);
         if (typeof loadUnreadNotifCount === 'function') loadUnreadNotifCount();
+        document.querySelectorAll('.topbar-toggler').forEach(btn => btn.style.display = '');
     } else {
         // Show guest nav, hide user profile
         if (userProfileNav) userProfileNav.style.display = 'none';
@@ -188,6 +189,7 @@ function applyAuthUIState() {
             guestNav.classList.add('d-flex');
             guestNav.style.display = '';
         }
+        document.querySelectorAll('.topbar-toggler').forEach(btn => btn.style.display = 'none');
     }
     
     // Update subscription/pricing text and settings visibility
