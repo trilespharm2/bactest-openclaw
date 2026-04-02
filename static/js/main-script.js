@@ -333,8 +333,93 @@ function showLoginTooltip(element) {
     setTimeout(() => tooltip.remove(), 3000);
 }
 
-// Make function globally available
+function setupUpgradeRequiredFields(containerSelector, message) {
+    if (!isAuthenticated) return;
+    if (typeof TierRestrictions === 'undefined') return;
+    if (TierRestrictions.canUseNotifications()) return;
+
+    const container = document.querySelector(containerSelector);
+    if (!container) return;
+
+    const pageHeader = container.querySelector('.page-header');
+    const existingBanner = container.querySelector('.login-banner, .upgrade-banner');
+    if (!existingBanner) {
+        const banner = document.createElement('div');
+        banner.className = 'login-banner upgrade-banner';
+        banner.innerHTML = `
+            <div class="login-banner-text">
+                <i class="fas fa-lock"></i>
+                <span>${message || 'Upgrade to Standard or Premium to access this feature'}</span>
+            </div>
+            <div class="login-banner-actions">
+                <a href="/?section=subscription" class="btn-login" onclick="event.preventDefault();if(typeof navigateTo==='function')navigateTo('subscription');">Upgrade Plan</a>
+            </div>
+        `;
+        if (pageHeader) {
+            pageHeader.after(banner);
+        } else {
+            container.insertBefore(banner, container.firstChild);
+        }
+    }
+
+    const formElements = container.querySelectorAll('input, select, textarea, button[type="submit"], .btn-primary');
+    formElements.forEach(el => {
+        el.disabled = true;
+        el.classList.add('disabled-field');
+        el.style.opacity = '0.5';
+        el.style.cursor = 'not-allowed';
+        el.style.backgroundColor = '#f5f5f5';
+    });
+
+    const formSections = container.querySelectorAll('.backtester-section, .card-body form, .card-body');
+    formSections.forEach(section => {
+        section.classList.add('login-required-overlay');
+    });
+
+    container.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target.classList.contains('disabled-field') || target.disabled) {
+            e.preventDefault();
+            e.stopPropagation();
+            showUpgradeTooltip(target);
+        }
+    });
+}
+
+function showUpgradeTooltip(element) {
+    document.querySelectorAll('.login-field-tooltip').forEach(t => t.remove());
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'login-field-tooltip';
+    tooltip.innerHTML = '<a href="/?section=subscription" onclick="event.preventDefault();if(typeof navigateTo===\'function\')navigateTo(\'subscription\');">Upgrade to Standard or Premium</a> to use this feature';
+    tooltip.style.cssText = `
+        position: absolute;
+        background: #1a2332;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        white-space: nowrap;
+    `;
+
+    document.body.appendChild(tooltip);
+
+    const rect = element.getBoundingClientRect();
+    tooltip.style.left = `${rect.left + window.scrollX}px`;
+    tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
+
+    tooltip.querySelectorAll('a').forEach(a => {
+        a.style.color = '#3b7cff';
+        a.style.textDecoration = 'none';
+    });
+
+    setTimeout(() => tooltip.remove(), 3000);
+}
+
 window.setupLoginRequiredFields = setupLoginRequiredFields;
+window.setupUpgradeRequiredFields = setupUpgradeRequiredFields;
 window.isAuthenticated = () => isAuthenticated;
 
 // Setup Profile Dropdown
@@ -736,6 +821,7 @@ function initializePage(pageName) {
         } else if (pageName === 'notifications' && typeof initNotificationsPage === 'function') {
             initNotificationsPage();
             setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
+            setTimeout(() => setupUpgradeRequiredFields('#notificationsPage', 'Upgrade to Standard or Premium to access notifications'), 150);
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
         } else if (pageName === 'simTradingActive' && typeof initSimTradingActive === 'function') {
