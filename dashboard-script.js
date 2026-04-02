@@ -400,7 +400,7 @@ function setupQuickActions() {
 }
 
 // ─── OPTIONS MARKET WIDGET ──────────────────────────────────
-var _dashOptMktCat = 'most-active';
+var _dashOptMktCat = 'highest-open-interest';
 var _dashOptMktRecords = [];
 var _dashOptMktPage = 0;
 var _dashOptMktPerPage = 10;
@@ -430,7 +430,7 @@ function renderOptionsMarketPage() {
     var start = _dashOptMktPage * _dashOptMktPerPage;
     var page = records.slice(start, start + _dashOptMktPerPage);
     var totalPages = Math.ceil(records.length / _dashOptMktPerPage);
-    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:12px;"><thead class="table-light"><tr>' +
+    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:11px;"><thead class="table-light"><tr>' +
         '<th>Symbol</th><th class="text-end">Strike</th><th>Exp</th>' +
         '<th class="text-end">Price</th><th class="text-end">Chg%</th>' +
         '<th class="text-end">Vol</th><th class="text-end">OI</th></tr></thead><tbody>';
