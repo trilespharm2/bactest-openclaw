@@ -181,12 +181,6 @@ function applyAuthUIState() {
         
         renderNavAvatars(currentUser);
         if (typeof loadUnreadNotifCount === 'function') loadUnreadNotifCount();
-        const notifBellLiAuth = document.getElementById('notifBellBtn');
-        if (notifBellLiAuth && notifBellLiAuth.closest('li')) notifBellLiAuth.closest('li').style.display = '';
-        const topbarTogglerAuth = document.querySelector('.topbar-toggler.more');
-        if (topbarTogglerAuth) topbarTogglerAuth.style.display = '';
-        const authSearch = document.getElementById('authMobileSearch');
-        if (authSearch) authSearch.style.display = '';
     } else {
         // Show guest nav, hide user profile
         if (userProfileNav) userProfileNav.style.display = 'none';
@@ -194,12 +188,6 @@ function applyAuthUIState() {
             guestNav.classList.add('d-flex');
             guestNav.style.display = '';
         }
-        const notifBellLi = document.getElementById('notifBellBtn');
-        if (notifBellLi && notifBellLi.closest('li')) notifBellLi.closest('li').style.display = 'none';
-        const topbarToggler = document.querySelector('.topbar-toggler.more');
-        if (topbarToggler) topbarToggler.style.display = 'none';
-        const authSearch = document.getElementById('authMobileSearch');
-        if (authSearch) authSearch.style.display = 'none';
     }
     
     // Update subscription/pricing text and settings visibility
