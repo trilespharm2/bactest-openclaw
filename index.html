@@ -603,7 +603,7 @@
                 </div>
               </nav>
               <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
-                <li class="nav-item topbar-icon d-flex d-lg-none">
+                <li class="nav-item topbar-icon d-flex d-lg-none" id="authMobileSearch">
                   <a class="nav-link" href="#" onclick="event.preventDefault();openMobileSearch();">
                     <i class="fa fa-search"></i>
                   </a>
@@ -646,6 +646,9 @@
                   </ul>
                 </li>
                 <li class="nav-item d-flex align-items-center gap-2" id="guestNav">
+                  <a class="nav-link d-lg-none" href="#" onclick="event.preventDefault();openMobileSearch();" style="padding:0 8px;">
+                    <i class="fa fa-search" style="font-size:1.1rem;color:#6c757d;"></i>
+                  </a>
                   <a href="/login" class="btn btn-outline-primary btn-sm">Sign In</a>
                 </li>
               </ul>
