@@ -28,11 +28,13 @@ async function initDashboard() {
         loadEarnings(),
         loadNews(),
         loadTreasury(),
-        loadEconomic()
+        loadEconomic(),
+        loadOptionsMarket()
     ]);
 
     checkApiStatus();
     setupQuickActions();
+    setupOptionsMarketWidget();
 
     // Refresh intervals
     dashboardIntervals.push(setInterval(loadIndices, 30000));
@@ -395,6 +397,65 @@ function setupQuickActions() {
             }
         });
     });
+}
+
+// ─── OPTIONS MARKET WIDGET ──────────────────────────────────
+var _dashOptMktCat = 'most-active';
+
+async function loadOptionsMarket() {
+    var container = document.getElementById('dashOptMktContent');
+    if (!container) return;
+    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>';
+    try {
+        var resp = await fetch('/api/options-market?category=' + encodeURIComponent(_dashOptMktCat));
+        var data = await resp.json();
+        if (data.error) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">' + data.error + '</div>'; return; }
+        var records = data.records || [];
+        if (!records.length) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data available</div>'; return; }
+        var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:12px;"><thead class="table-light"><tr>' +
+            '<th>Symbol</th><th>Underlying</th><th class="text-end">Strike</th><th>Exp</th>' +
+            '<th class="text-end">Price</th><th class="text-end">Change</th><th class="text-end">Chg%</th>' +
+            '<th class="text-end">Bid</th><th class="text-end">Ask</th><th class="text-end">Vol</th>' +
+            '<th class="text-end">OI</th><th class="text-end">IV</th></tr></thead><tbody>';
+        records.slice(0, 15).forEach(function(r) {
+            var chg = r.change || 0;
+            var cls = chg > 0 ? 'text-success' : chg < 0 ? 'text-danger' : '';
+            var name = (r.name || '').toLowerCase();
+            var isCall = name.indexOf('call') >= 0 || /C\d{8}$/.test(r.ticker || '');
+            var badge = isCall
+                ? '<span class="badge bg-primary ms-1" style="font-size:8px;">C</span>'
+                : '<span class="badge bg-warning text-dark ms-1" style="font-size:8px;">P</span>';
+            var sym = r.ticker || '';
+            if (sym.length > 20) sym = sym.substring(0, 18) + '…';
+            html += '<tr>' +
+                '<td class="fw-semibold">' + sym + badge + '</td>' +
+                '<td><span class="fw-bold text-primary">' + (r.underlying || '') + '</span></td>' +
+                '<td class="text-end">' + (r.strike != null ? Number(r.strike).toFixed(0) : '-') + '</td>' +
+                '<td>' + (r.expiration || '') + '</td>' +
+                '<td class="text-end fw-semibold">' + (r.price != null ? Number(r.price).toFixed(2) : '-') + '</td>' +
+                '<td class="text-end ' + cls + '">' + (chg !== 0 ? (chg > 0 ? '+' : '') + Number(chg).toFixed(2) : '0.00') + '</td>' +
+                '<td class="text-end ' + cls + '">' + (r.changePercent != null ? (r.changePercent > 0 ? '+' : '') + Number(r.changePercent).toFixed(1) + '%' : '-') + '</td>' +
+                '<td class="text-end">' + (r.bid != null ? Number(r.bid).toFixed(2) : '-') + '</td>' +
+                '<td class="text-end">' + (r.ask != null ? Number(r.ask).toFixed(2) : '-') + '</td>' +
+                '<td class="text-end">' + (r.volume != null ? Number(r.volume).toLocaleString() : '-') + '</td>' +
+                '<td class="text-end">' + (r.openInterest != null ? Number(r.openInterest).toLocaleString() : '-') + '</td>' +
+                '<td class="text-end">' + (r.impliedVolatility != null ? (Number(r.impliedVolatility) * 100).toFixed(1) + '%' : '-') + '</td>' +
+                '</tr>';
+        });
+        html += '</tbody></table></div>';
+        if (data.total > 15) html += '<div class="text-muted text-center mt-1" style="font-size:10px;">Showing 15 of ' + data.total.toLocaleString() + ' contracts</div>';
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('Options market error:', e);
+        container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">Unable to load options market data</div>';
+    }
+}
+
+function setupOptionsMarketWidget() {
+    var sel = document.getElementById('dashOptMktCategory');
+    if (sel) sel.addEventListener('change', function() { _dashOptMktCat = sel.value; loadOptionsMarket(); });
+    var btn = document.getElementById('dashOptMktRefresh');
+    if (btn) btn.addEventListener('click', function() { loadOptionsMarket(); });
 }
 
 if (typeof window !== 'undefined') {

@@ -486,12 +486,6 @@
                   <p>Screener</p>
                 </a>
               </li>
-              <li class="nav-item" id="nav-optionsMarket">
-                <a href="#" data-page="optionsMarket">
-                  <i class="fas fa-chart-bar"></i>
-                  <p>Options Market</p>
-                </a>
-              </li>
               <li class="nav-item" id="nav-notifications">
                 <a href="#" data-page="notifications">
                   <i class="fas fa-bell"></i>
@@ -1068,6 +1062,32 @@
                     <div class="card-body py-2">
                       <div id="fredGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
                         <div class="text-center py-3" style="grid-column:1/-1;"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Options Market Data -->
+              <div class="row mb-3">
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                      <div class="card-title mb-0" style="font-size:14px;"><i class="fas fa-chart-bar text-primary me-2"></i>Options Market</div>
+                      <div>
+                        <select id="dashOptMktCategory" class="form-select form-select-sm" style="width:auto;display:inline-block;font-size:11px;padding:2px 24px 2px 8px;">
+                          <option value="most-active">Most Active</option>
+                          <option value="gainers">Top Gainers</option>
+                          <option value="losers">Top Losers</option>
+                          <option value="highest-implied-volatility">Highest IV</option>
+                          <option value="highest-open-interest">Highest OI</option>
+                        </select>
+                        <button class="btn btn-sm btn-link p-0 ms-2" id="dashOptMktRefresh" title="Refresh"><i class="fas fa-sync-alt" style="font-size:11px;"></i></button>
+                      </div>
+                    </div>
+                    <div class="card-body py-2">
+                      <div id="dashOptMktContent">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>
                       </div>
                     </div>
                   </div>
@@ -2385,8 +2405,6 @@
             <!-- Screener Page -->
             <section id="screenerPage" class="page"></section>
 
-            <!-- Options Market Page -->
-            <section id="optionsMarketPage" class="page"></section>
 
             <!-- Options Results Page -->
             <section id="optionsResultsPage" class="page">

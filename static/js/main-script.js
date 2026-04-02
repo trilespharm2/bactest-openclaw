@@ -487,8 +487,7 @@ async function navigateToPage(pageName, skipPushState = false) {
         'learnStockBacktest': 'Stock Backtester',
         'learnSimTrading': 'Simulated Trading',
         'learnScreener': 'Stock Screener',
-        'learnNotifications': 'Smart Notifications',
-        'optionsMarket': 'Options Market Data'
+        'learnNotifications': 'Smart Notifications'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -576,11 +575,6 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
                 }
-                if (pageName === 'optionsMarket') {
-                    fileName = 'options-market';
-                    scriptName = 'static/js/options-market-script.js';
-                }
-                
                 const response = await fetch(`${fileName}.html`);
                 
                 if (!response.ok) {
@@ -640,9 +634,6 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
-                }
-                if (pageName === 'optionsMarket') {
-                    scriptName = 'static/js/options-market-script.js';
                 }
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
                     scriptName = 'simulated-results-script.js';
@@ -735,8 +726,6 @@ function initializePage(pageName) {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
             initSimResultDetailPage();
-        } else if (pageName === 'optionsMarket' && typeof initOptionsMarketPage === 'function') {
-            initOptionsMarketPage();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);
