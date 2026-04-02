@@ -2868,71 +2868,51 @@
                   <button class="modal-close-btn" onclick="closePricingModal()">&times;</button>
                 </div>
                 <div class="pricing-modal-body">
-                  <div class="pricing-toggle-container">
-                    <span class="toggle-label">Monthly</span>
-                    <label class="pricing-toggle">
-                      <input type="checkbox" id="billingToggle">
-                      <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
-                  </div>
-                  <div class="pricing-grid-modal">
-                    <div class="pricing-card-modal" data-plan="stocks-basic">
-                      <h5>Stocks Basic</h5>
-                      <p class="plan-desc">Great for trying our APIs</p>
+                  <div class="pricing-grid-modal" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+                    <div class="pricing-card-modal" data-plan="free">
+                      <h5>Free</h5>
+                      <p class="plan-desc">Get started with the basics</p>
                       <div class="plan-price-display">
-                        <span class="price" data-monthly="0" data-annual="0">$0</span>
+                        <span class="price">$0</span>
                         <span class="period">/month</span>
                       </div>
                       <ul class="plan-features">
-                        <li><i class="material-symbols-rounded">check</i> 100 API calls/day</li>
-                        <li><i class="material-symbols-rounded">check</i> Basic strategies</li>
+                        <li><i class="material-symbols-rounded">check</i> SPY, GLD, QQQ only</li>
                         <li><i class="material-symbols-rounded">check</i> 1 year historical data</li>
+                        <li><i class="material-symbols-rounded">check</i> DTE up to 3</li>
                       </ul>
-                      <button class="btn-plan-select" data-plan-id="stocks-basic">Select Plan</button>
+                      <button class="btn-plan-select" data-plan-id="free">Current Plan</button>
                     </div>
-                    <div class="pricing-card-modal" data-plan="stocks-starter">
-                      <h5>Stocks Starter</h5>
-                      <p class="plan-desc">Great for aggregates</p>
-                      <div class="plan-price-display">
-                        <span class="price" data-monthly="29" data-annual="23">$29</span>
-                        <span class="period">/month</span>
-                      </div>
-                      <ul class="plan-features">
-                        <li><i class="material-symbols-rounded">check</i> 1,000 API calls/day</li>
-                        <li><i class="material-symbols-rounded">check</i> 8 strategies</li>
-                        <li><i class="material-symbols-rounded">check</i> 5 years historical data</li>
-                      </ul>
-                      <button class="btn-plan-select" data-plan-id="stocks-starter">Select Plan</button>
-                    </div>
-                    <div class="pricing-card-modal" data-plan="stocks-developer">
-                      <h5>Stocks Developer</h5>
-                      <p class="plan-desc">Great for historical data</p>
-                      <div class="plan-price-display">
-                        <span class="price" data-monthly="79" data-annual="63">$79</span>
-                        <span class="period">/month</span>
-                      </div>
-                      <ul class="plan-features">
-                        <li><i class="material-symbols-rounded">check</i> 10,000 API calls/day</li>
-                        <li><i class="material-symbols-rounded">check</i> 16+ strategies</li>
-                        <li><i class="material-symbols-rounded">check</i> 10 years historical data</li>
-                      </ul>
-                      <button class="btn-plan-select" data-plan-id="stocks-developer">Select Plan</button>
-                    </div>
-                    <div class="pricing-card-modal popular" data-plan="stocks-advanced">
+                    <div class="pricing-card-modal popular" data-plan="standard">
                       <div class="popular-badge">Popular</div>
-                      <h5>Stocks Advanced</h5>
-                      <p class="plan-desc">Great for real-time data</p>
+                      <h5>Standard</h5>
+                      <p class="plan-desc">For active traders</p>
                       <div class="plan-price-display">
-                        <span class="price" data-monthly="199" data-annual="159">$199</span>
+                        <span class="price">$29.99</span>
                         <span class="period">/month</span>
                       </div>
                       <ul class="plan-features">
-                        <li><i class="material-symbols-rounded">check</i> Unlimited API calls</li>
-                        <li><i class="material-symbols-rounded">check</i> All strategies</li>
-                        <li><i class="material-symbols-rounded">check</i> Full historical data</li>
+                        <li><i class="material-symbols-rounded">check</i> All stocks &amp; ETFs</li>
+                        <li><i class="material-symbols-rounded">check</i> 3 years historical data</li>
+                        <li><i class="material-symbols-rounded">check</i> DTE up to 10</li>
+                        <li><i class="material-symbols-rounded">check</i> CSV export &amp; notifications</li>
                       </ul>
-                      <button class="btn-plan-select" data-plan-id="stocks-advanced">Select Plan</button>
+                      <button class="btn-plan-select" data-plan-id="standard">Upgrade to Standard</button>
+                    </div>
+                    <div class="pricing-card-modal" data-plan="premium">
+                      <h5>Premium</h5>
+                      <p class="plan-desc">Unlimited access for pros</p>
+                      <div class="plan-price-display">
+                        <span class="price">$49.99</span>
+                        <span class="period">/month</span>
+                      </div>
+                      <ul class="plan-features">
+                        <li><i class="material-symbols-rounded">check</i> All symbols incl. indices</li>
+                        <li><i class="material-symbols-rounded">check</i> Unlimited historical data</li>
+                        <li><i class="material-symbols-rounded">check</i> Unlimited DTE</li>
+                        <li><i class="material-symbols-rounded">check</i> Everything in Standard</li>
+                      </ul>
+                      <button class="btn-plan-select" data-plan-id="premium">Upgrade to Premium</button>
                     </div>
                   </div>
                 </div>
@@ -3410,7 +3390,8 @@
     <script src="/static/js/auth-utils.js"></script>
     <script src="/settings-script.js"></script>
     <script src="/static/js/app-dialogs.js"></script>
-    <script src="/static/js/main-script.js?v=10"></script>
+    <script src="/static/js/tier-restrictions.js"></script>
+    <script src="/static/js/main-script.js?v=11"></script>
 
     <script>
       // Close sidebar when clicking outside (on main content area)

@@ -263,85 +263,12 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        .asset-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 32px;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0;
-        }
-
-        .asset-tab {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -1px;
-        }
-
-        .asset-tab:hover {
-            color: var(--text-dark);
-        }
-
-        .asset-tab.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
-        }
-
-        .asset-tab .material-symbols-rounded {
-            font-size: 20px;
-        }
-
-        .billing-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            margin-bottom: 40px;
-        }
-
-        .toggle-container {
-            display: flex;
-            background: var(--white);
-            border-radius: 50px;
-            padding: 4px;
-            box-shadow: var(--shadow);
-        }
-
-        .toggle-btn {
-            padding: 10px 24px;
-            border: none;
-            background: transparent;
-            color: var(--text-muted);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            border-radius: 50px;
-            transition: all 0.3s ease;
-        }
-
-        .toggle-btn.active {
-            background: var(--primary-gradient);
-            color: white;
-        }
-
-        .save-badge {
-            color: var(--text-muted);
-            font-size: 14px;
-        }
-
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 24px;
+            max-width: 1100px;
+            margin: 0 auto;
         }
 
         .pricing-card {
@@ -457,14 +384,6 @@
             flex-shrink: 0;
         }
 
-        .asset-content {
-            display: none;
-        }
-
-        .asset-content.active {
-            display: block;
-        }
-
         .landing-footer {
             padding: 16px 40px;
             display: flex;
@@ -524,11 +443,6 @@
                 font-size: 32px;
             }
 
-            .asset-tabs {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-
             .pricing-grid {
                 grid-template-columns: 1fr;
             }
@@ -580,326 +494,60 @@
                 <a href="/register" class="btn-start-free">Get started for free <span class="material-symbols-rounded">arrow_forward</span></a>
             </div>
 
-            <div class="asset-tabs">
-                <button class="asset-tab active" data-asset="stocks">
-                    <span class="material-symbols-rounded">candlestick_chart</span>
-                    Stocks
-                </button>
-                <button class="asset-tab" data-asset="options">
-                    <span class="material-symbols-rounded">stacked_line_chart</span>
-                    Options
-                </button>
-                <button class="asset-tab" data-asset="crypto">
-                    <span class="material-symbols-rounded">currency_bitcoin</span>
-                    Crypto
-                </button>
-                <button class="asset-tab" data-asset="forex">
-                    <span class="material-symbols-rounded">globe</span>
-                    Forex / Indices
-                </button>
-            </div>
-
-            <div class="billing-toggle">
-                <div class="toggle-container">
-                    <button class="toggle-btn active" data-billing="monthly">Monthly</button>
-                    <button class="toggle-btn" data-billing="annually">Annually</button>
+            <div class="pricing-grid">
+                <div class="pricing-card" data-plan="free" data-price="0">
+                    <h3 class="plan-name">Free</h3>
+                    <p class="plan-tagline">Get started with the basics</p>
+                    <div class="plan-price">
+                        <span class="price-amount">$0</span>
+                        <span class="price-period">/month</span>
+                    </div>
+                    <button class="btn-signup" onclick="selectPlan('free', 0)">Sign up free</button>
+                    <ul class="plan-features">
+                        <li><span class="material-symbols-rounded">check</span> SPY, GLD, QQQ symbols only</li>
+                        <li><span class="material-symbols-rounded">check</span> 1 year historical data</li>
+                        <li><span class="material-symbols-rounded">check</span> Options backtesting (DTE up to 3)</li>
+                        <li><span class="material-symbols-rounded">check</span> Stock backtesting (single symbol)</li>
+                        <li><span class="material-symbols-rounded">check</span> Simulated trading</li>
+                        <li><span class="material-symbols-rounded">check</span> Market screener</li>
+                        <li><span class="material-symbols-rounded">check</span> Dashboard &amp; watchlist</li>
+                    </ul>
                 </div>
-                <span class="save-badge">Save 20% with the annual plan</span>
-            </div>
-
-            <div id="stocks-content" class="asset-content active">
-                <div class="pricing-grid">
-                    <div class="pricing-card" data-plan="stocks-basic" data-price="0">
-                        <h3 class="plan-name">Stocks Basic</h3>
-                        <p class="plan-tagline">Great for trying our APIs</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="0" data-annually="0">$0</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('stocks-basic', 0)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All US Stocks Tickers</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 API Calls / Minute</li>
-                            <li><span class="material-symbols-rounded">check</span> 2 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> 100% Market Coverage</li>
-                            <li><span class="material-symbols-rounded">check</span> Daily OHLCV Data</li>
-                        </ul>
+                <div class="pricing-card featured" data-plan="standard" data-price="29.99">
+                    <h3 class="plan-name">Standard</h3>
+                    <p class="plan-tagline">For active traders</p>
+                    <div class="plan-price">
+                        <span class="price-amount">$29.99</span>
+                        <span class="price-period">/month</span>
                     </div>
-                    <div class="pricing-card" data-plan="stocks-starter" data-price="29">
-                        <h3 class="plan-name">Stocks Starter</h3>
-                        <p class="plan-tagline">Great for aggregates</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="29" data-annually="23">$29</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('stocks-starter', 29)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All US Stocks Tickers</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> 100% Market Coverage</li>
-                            <li><span class="material-symbols-rounded">check</span> Minute-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Technical Indicators</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card" data-plan="stocks-developer" data-price="79">
-                        <h3 class="plan-name">Stocks Developer</h3>
-                        <p class="plan-tagline">Great for historical data</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="79" data-annually="63">$79</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('stocks-developer', 79)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All US Stocks Tickers</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 10 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> 100% Market Coverage</li>
-                            <li><span class="material-symbols-rounded">check</span> Second-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Advanced Analytics</li>
-                            <li><span class="material-symbols-rounded">check</span> Priority Support</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card featured" data-plan="stocks-advanced" data-price="199">
-                        <h3 class="plan-name">Stocks Advanced</h3>
-                        <p class="plan-tagline">Great for real-time data</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="199" data-annually="159">$199</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('stocks-advanced', 199)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All US Stocks Tickers</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 20+ Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> 100% Market Coverage</li>
-                            <li><span class="material-symbols-rounded">check</span> Real-Time Streaming</li>
-                            <li><span class="material-symbols-rounded">check</span> Full Tick Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Dedicated Support</li>
-                        </ul>
-                    </div>
+                    <button class="btn-signup" onclick="selectPlan('standard', 29.99)">Get Standard</button>
+                    <ul class="plan-features">
+                        <li><span class="material-symbols-rounded">check</span> All stock &amp; ETF symbols</li>
+                        <li><span class="material-symbols-rounded">check</span> 3 years historical data</li>
+                        <li><span class="material-symbols-rounded">check</span> Options backtesting (DTE up to 10)</li>
+                        <li><span class="material-symbols-rounded">check</span> Multi-symbol &amp; CSV backtesting</li>
+                        <li><span class="material-symbols-rounded">check</span> Custom entry conditions</li>
+                        <li><span class="material-symbols-rounded">check</span> CSV export &amp; saved filters</li>
+                        <li><span class="material-symbols-rounded">check</span> Notifications</li>
+                        <li><span class="material-symbols-rounded">check</span> Priority support</li>
+                    </ul>
                 </div>
-            </div>
-
-            <div id="options-content" class="asset-content">
-                <div class="pricing-grid">
-                    <div class="pricing-card" data-plan="options-basic" data-price="0">
-                        <h3 class="plan-name">Options Basic</h3>
-                        <p class="plan-tagline">Great for trying our APIs</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="0" data-annually="0">$0</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('options-basic', 0)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Options Contracts</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 API Calls / Minute</li>
-                            <li><span class="material-symbols-rounded">check</span> 1 Year Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Basic Greeks</li>
-                            <li><span class="material-symbols-rounded">check</span> Daily Snapshots</li>
-                        </ul>
+                <div class="pricing-card" data-plan="premium" data-price="49.99">
+                    <h3 class="plan-name">Premium</h3>
+                    <p class="plan-tagline">Unlimited access for pros</p>
+                    <div class="plan-price">
+                        <span class="price-amount">$49.99</span>
+                        <span class="price-period">/month</span>
                     </div>
-                    <div class="pricing-card" data-plan="options-starter" data-price="49">
-                        <h3 class="plan-name">Options Starter</h3>
-                        <p class="plan-tagline">Great for strategy testing</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="49" data-annually="39">$49</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('options-starter', 49)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Options Contracts</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 3 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Full Greeks Suite</li>
-                            <li><span class="material-symbols-rounded">check</span> Hourly Snapshots</li>
-                            <li><span class="material-symbols-rounded">check</span> IV Surface Data</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card" data-plan="options-developer" data-price="129">
-                        <h3 class="plan-name">Options Developer</h3>
-                        <p class="plan-tagline">Great for backtesting</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="129" data-annually="103">$129</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('options-developer', 129)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Options Contracts</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 7 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Full Greeks Suite</li>
-                            <li><span class="material-symbols-rounded">check</span> Minute-Level Snapshots</li>
-                            <li><span class="material-symbols-rounded">check</span> Options Flow Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Priority Support</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card featured" data-plan="options-advanced" data-price="299">
-                        <h3 class="plan-name">Options Advanced</h3>
-                        <p class="plan-tagline">Great for professional traders</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="299" data-annually="239">$299</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('options-advanced', 299)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Options Contracts</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 15+ Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Real-Time Greeks</li>
-                            <li><span class="material-symbols-rounded">check</span> Tick-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Unusual Activity Alerts</li>
-                            <li><span class="material-symbols-rounded">check</span> Dedicated Support</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div id="crypto-content" class="asset-content">
-                <div class="pricing-grid">
-                    <div class="pricing-card" data-plan="crypto-basic" data-price="0">
-                        <h3 class="plan-name">Crypto Basic</h3>
-                        <p class="plan-tagline">Great for trying our APIs</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="0" data-annually="0">$0</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('crypto-basic', 0)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> Top 100 Cryptocurrencies</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 API Calls / Minute</li>
-                            <li><span class="material-symbols-rounded">check</span> 1 Year Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Major Exchanges</li>
-                            <li><span class="material-symbols-rounded">check</span> Daily OHLCV</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card" data-plan="crypto-starter" data-price="39">
-                        <h3 class="plan-name">Crypto Starter</h3>
-                        <p class="plan-tagline">Great for analysis</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="39" data-annually="31">$39</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('crypto-starter', 39)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Cryptocurrencies</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 3 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> All Major Exchanges</li>
-                            <li><span class="material-symbols-rounded">check</span> Minute-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Order Book Snapshots</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card" data-plan="crypto-developer" data-price="99">
-                        <h3 class="plan-name">Crypto Developer</h3>
-                        <p class="plan-tagline">Great for trading bots</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="99" data-annually="79">$99</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('crypto-developer', 99)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Cryptocurrencies</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> 50+ Exchanges</li>
-                            <li><span class="material-symbols-rounded">check</span> Second-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Full Order Book</li>
-                            <li><span class="material-symbols-rounded">check</span> Priority Support</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card featured" data-plan="crypto-advanced" data-price="249">
-                        <h3 class="plan-name">Crypto Advanced</h3>
-                        <p class="plan-tagline">Great for institutions</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="249" data-annually="199">$249</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('crypto-advanced', 249)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Cryptocurrencies</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> Full Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> 100+ Exchanges</li>
-                            <li><span class="material-symbols-rounded">check</span> Real-Time WebSocket</li>
-                            <li><span class="material-symbols-rounded">check</span> On-Chain Analytics</li>
-                            <li><span class="material-symbols-rounded">check</span> Dedicated Support</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div id="forex-content" class="asset-content">
-                <div class="pricing-grid">
-                    <div class="pricing-card" data-plan="forex-basic" data-price="0">
-                        <h3 class="plan-name">Forex Basic</h3>
-                        <p class="plan-tagline">Great for trying our APIs</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="0" data-annually="0">$0</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('forex-basic', 0)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> Major Currency Pairs</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 API Calls / Minute</li>
-                            <li><span class="material-symbols-rounded">check</span> 1 Year Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Major Indices</li>
-                            <li><span class="material-symbols-rounded">check</span> Daily OHLCV</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card" data-plan="forex-starter" data-price="39">
-                        <h3 class="plan-name">Forex Starter</h3>
-                        <p class="plan-tagline">Great for analysis</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="39" data-annually="31">$39</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('forex-starter', 39)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Currency Pairs</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 5 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Global Indices</li>
-                            <li><span class="material-symbols-rounded">check</span> Minute-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Economic Calendar</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card" data-plan="forex-developer" data-price="99">
-                        <h3 class="plan-name">Forex Developer</h3>
-                        <p class="plan-tagline">Great for trading systems</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="99" data-annually="79">$99</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('forex-developer', 99)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Currency Pairs</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 10 Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> All Global Indices</li>
-                            <li><span class="material-symbols-rounded">check</span> Second-Level Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Central Bank Data</li>
-                            <li><span class="material-symbols-rounded">check</span> Priority Support</li>
-                        </ul>
-                    </div>
-                    <div class="pricing-card featured" data-plan="forex-advanced" data-price="249">
-                        <h3 class="plan-name">Forex Advanced</h3>
-                        <p class="plan-tagline">Great for institutions</p>
-                        <div class="plan-price">
-                            <span class="price-amount" data-monthly="249" data-annually="199">$249</span>
-                            <span class="price-period">/month</span>
-                        </div>
-                        <button class="btn-signup" onclick="selectPlan('forex-advanced', 249)">Sign up</button>
-                        <ul class="plan-features">
-                            <li><span class="material-symbols-rounded">check</span> All Currency Pairs</li>
-                            <li><span class="material-symbols-rounded">check</span> Unlimited API Calls</li>
-                            <li><span class="material-symbols-rounded">check</span> 20+ Years Historical Data</li>
-                            <li><span class="material-symbols-rounded">check</span> All Global Indices</li>
-                            <li><span class="material-symbols-rounded">check</span> Real-Time Streaming</li>
-                            <li><span class="material-symbols-rounded">check</span> Macro Analytics</li>
-                            <li><span class="material-symbols-rounded">check</span> Dedicated Support</li>
-                        </ul>
-                    </div>
+                    <button class="btn-signup" onclick="selectPlan('premium', 49.99)">Get Premium</button>
+                    <ul class="plan-features">
+                        <li><span class="material-symbols-rounded">check</span> All symbols including indices &amp; forex</li>
+                        <li><span class="material-symbols-rounded">check</span> Unlimited historical data</li>
+                        <li><span class="material-symbols-rounded">check</span> Unlimited DTE</li>
+                        <li><span class="material-symbols-rounded">check</span> Everything in Standard</li>
+                        <li><span class="material-symbols-rounded">check</span> Advanced analytics</li>
+                        <li><span class="material-symbols-rounded">check</span> Dedicated support</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -925,33 +573,6 @@
                 window.location.href = '/register?plan=' + encodeURIComponent(planId) + '&price=' + price;
             }
         }
-
-        document.querySelectorAll('.asset-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.asset-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                const asset = tab.dataset.asset;
-                document.querySelectorAll('.asset-content').forEach(content => {
-                    content.classList.remove('active');
-                });
-                document.getElementById(asset + '-content').classList.add('active');
-            });
-        });
-
-        document.querySelectorAll('.toggle-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                const billing = btn.dataset.billing;
-                document.querySelectorAll('.price-amount').forEach(price => {
-                    const monthly = price.dataset.monthly;
-                    const annually = price.dataset.annually;
-                    price.textContent = '$' + (billing === 'monthly' ? monthly : annually);
-                });
-            });
-        });
 
         function getAuthHeaders() {
             const token = localStorage.getItem('authToken');

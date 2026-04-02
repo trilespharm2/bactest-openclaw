@@ -392,35 +392,28 @@
         <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
     </div>
 
-    <div class="sub-grid pricing-grid-page">
-        <div class="sub-pc pricing-card-page" data-plan="stocks-basic">
-            <div class="pn">Stocks Basic</div>
-            <div class="pd plan-desc">Great for trying our APIs</div>
-            <div class="pp plan-price-display"><span class="pa price" data-monthly="0" data-annual="0">$0</span><span class="pe period">/month</span></div>
-            <ul class="pf plan-features"><li><i class="fas fa-check"></i> 100 API calls/day</li><li><i class="fas fa-check"></i> Basic strategies</li><li><i class="fas fa-check"></i> 1 year historical data</li></ul>
+    <div class="sub-grid pricing-grid-page" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+        <div class="sub-pc pricing-card-page" data-plan="free">
+            <div class="pn">Free</div>
+            <div class="pd plan-desc">Get started with the basics</div>
+            <div class="pp plan-price-display"><span class="pa price">$0</span><span class="pe period">/month</span></div>
+            <ul class="pf plan-features"><li><i class="fas fa-check"></i> SPY, GLD, QQQ only</li><li><i class="fas fa-check"></i> 1 year historical data</li><li><i class="fas fa-check"></i> DTE up to 3</li></ul>
             <a href="/register" class="bp btn-plan-select-page">Get Started Free</a>
         </div>
-        <div class="sub-pc pricing-card-page" data-plan="stocks-starter">
-            <div class="pn">Stocks Starter</div>
-            <div class="pd plan-desc">Great for aggregates</div>
-            <div class="pp plan-price-display"><span class="pa price" data-monthly="29" data-annual="23">$29</span><span class="pe period">/month</span></div>
-            <ul class="pf plan-features"><li><i class="fas fa-check"></i> 1,000 API calls/day</li><li><i class="fas fa-check"></i> 8 strategies</li><li><i class="fas fa-check"></i> 5 years historical data</li></ul>
-            <a href="/register" class="bp btn-plan-select-page">Get Started</a>
-        </div>
-        <div class="sub-pc pricing-card-page" data-plan="stocks-developer">
-            <div class="pn">Stocks Developer</div>
-            <div class="pd plan-desc">Great for historical data</div>
-            <div class="pp plan-price-display"><span class="pa price" data-monthly="79" data-annual="63">$79</span><span class="pe period">/month</span></div>
-            <ul class="pf plan-features"><li><i class="fas fa-check"></i> 10,000 API calls/day</li><li><i class="fas fa-check"></i> 16+ strategies</li><li><i class="fas fa-check"></i> 10 years historical data</li></ul>
-            <a href="/register" class="bp btn-plan-select-page">Get Started</a>
-        </div>
-        <div class="sub-pc popular pricing-card-page" data-plan="stocks-advanced">
+        <div class="sub-pc popular pricing-card-page" data-plan="standard">
             <span class="pop-tag popular-badge">Popular</span>
-            <div class="pn">Stocks Advanced</div>
-            <div class="pd plan-desc">Great for real-time data</div>
-            <div class="pp plan-price-display"><span class="pa price" data-monthly="199" data-annual="159">$199</span><span class="pe period">/month</span></div>
-            <ul class="pf plan-features"><li><i class="fas fa-check"></i> Unlimited API calls</li><li><i class="fas fa-check"></i> All strategies</li><li><i class="fas fa-check"></i> Full historical data</li></ul>
-            <a href="/register" class="bp btn-plan-select-page">Get Started</a>
+            <div class="pn">Standard</div>
+            <div class="pd plan-desc">For active traders</div>
+            <div class="pp plan-price-display"><span class="pa price">$29.99</span><span class="pe period">/month</span></div>
+            <ul class="pf plan-features"><li><i class="fas fa-check"></i> All stocks &amp; ETFs</li><li><i class="fas fa-check"></i> 3 years historical data</li><li><i class="fas fa-check"></i> DTE up to 10</li><li><i class="fas fa-check"></i> CSV export &amp; notifications</li></ul>
+            <a href="/register" class="bp btn-plan-select-page">Get Standard</a>
+        </div>
+        <div class="sub-pc pricing-card-page" data-plan="premium">
+            <div class="pn">Premium</div>
+            <div class="pd plan-desc">Unlimited access for pros</div>
+            <div class="pp plan-price-display"><span class="pa price">$49.99</span><span class="pe period">/month</span></div>
+            <ul class="pf plan-features"><li><i class="fas fa-check"></i> All symbols incl. indices &amp; forex</li><li><i class="fas fa-check"></i> Unlimited historical data</li><li><i class="fas fa-check"></i> Unlimited DTE</li><li><i class="fas fa-check"></i> Everything in Standard</li></ul>
+            <a href="/register" class="bp btn-plan-select-page">Get Premium</a>
         </div>
     </div>
 
@@ -502,31 +495,25 @@
                 <label class="pricing-toggle"><input type="checkbox" id="billingToggle"><span class="toggle-slider"></span></label>
                 <span class="toggle-label">Annual <span class="save-badge">Save 20%</span></span>
             </div>
-            <div class="sub-grid pricing-grid-modal">
-                <div class="sub-pc pricing-card-modal" data-plan="stocks-basic">
-                    <div class="pn">Stocks Basic</div><div class="pd plan-desc">Great for trying our APIs</div>
-                    <div class="pp plan-price-display"><span class="pa price" data-monthly="0" data-annual="0">$0</span><span class="pe period">/month</span></div>
-                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> 100 API calls/day</li><li><i class="fas fa-check"></i> Basic strategies</li><li><i class="fas fa-check"></i> 1 year historical data</li></ul>
-                    <button class="bp btn-plan-select" data-plan-id="stocks-basic">Select Plan</button>
+            <div class="sub-grid pricing-grid-modal" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+                <div class="sub-pc pricing-card-modal" data-plan="free">
+                    <div class="pn">Free</div><div class="pd plan-desc">Get started with the basics</div>
+                    <div class="pp plan-price-display"><span class="pa price">$0</span><span class="pe period">/month</span></div>
+                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> SPY, GLD, QQQ only</li><li><i class="fas fa-check"></i> 1 year historical data</li><li><i class="fas fa-check"></i> DTE up to 3</li></ul>
+                    <button class="bp btn-plan-select" data-plan-id="free">Current Plan</button>
                 </div>
-                <div class="sub-pc pricing-card-modal" data-plan="stocks-starter">
-                    <div class="pn">Stocks Starter</div><div class="pd plan-desc">Great for aggregates</div>
-                    <div class="pp plan-price-display"><span class="pa price" data-monthly="29" data-annual="23">$29</span><span class="pe period">/month</span></div>
-                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> 1,000 API calls/day</li><li><i class="fas fa-check"></i> 8 strategies</li><li><i class="fas fa-check"></i> 5 years historical data</li></ul>
-                    <button class="bp btn-plan-select" data-plan-id="stocks-starter">Select Plan</button>
-                </div>
-                <div class="sub-pc pricing-card-modal" data-plan="stocks-developer">
-                    <div class="pn">Stocks Developer</div><div class="pd plan-desc">Great for historical data</div>
-                    <div class="pp plan-price-display"><span class="pa price" data-monthly="79" data-annual="63">$79</span><span class="pe period">/month</span></div>
-                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> 10,000 API calls/day</li><li><i class="fas fa-check"></i> 16+ strategies</li><li><i class="fas fa-check"></i> 10 years historical data</li></ul>
-                    <button class="bp btn-plan-select" data-plan-id="stocks-developer">Select Plan</button>
-                </div>
-                <div class="sub-pc popular pricing-card-modal" data-plan="stocks-advanced">
+                <div class="sub-pc popular pricing-card-modal" data-plan="standard">
                     <span class="pop-tag popular-badge">Popular</span>
-                    <div class="pn">Stocks Advanced</div><div class="pd plan-desc">Great for real-time data</div>
-                    <div class="pp plan-price-display"><span class="pa price" data-monthly="199" data-annual="159">$199</span><span class="pe period">/month</span></div>
-                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> Unlimited API calls</li><li><i class="fas fa-check"></i> All strategies</li><li><i class="fas fa-check"></i> Full historical data</li></ul>
-                    <button class="bp btn-plan-select" data-plan-id="stocks-advanced">Select Plan</button>
+                    <div class="pn">Standard</div><div class="pd plan-desc">For active traders</div>
+                    <div class="pp plan-price-display"><span class="pa price">$29.99</span><span class="pe period">/month</span></div>
+                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> All stocks &amp; ETFs</li><li><i class="fas fa-check"></i> 3 years data</li><li><i class="fas fa-check"></i> DTE up to 10</li><li><i class="fas fa-check"></i> CSV &amp; notifications</li></ul>
+                    <button class="bp btn-plan-select" data-plan-id="standard">Upgrade to Standard</button>
+                </div>
+                <div class="sub-pc pricing-card-modal" data-plan="premium">
+                    <div class="pn">Premium</div><div class="pd plan-desc">Unlimited access for pros</div>
+                    <div class="pp plan-price-display"><span class="pa price">$49.99</span><span class="pe period">/month</span></div>
+                    <ul class="pf plan-features"><li><i class="fas fa-check"></i> All symbols</li><li><i class="fas fa-check"></i> Unlimited data</li><li><i class="fas fa-check"></i> Unlimited DTE</li><li><i class="fas fa-check"></i> Everything in Standard</li></ul>
+                    <button class="bp btn-plan-select" data-plan-id="premium">Upgrade to Premium</button>
                 </div>
             </div>
         </div>

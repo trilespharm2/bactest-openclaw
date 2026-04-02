@@ -946,6 +946,9 @@ function clearAllFilters() {
 }
 
 async function exportResults() {
+    if (typeof TierRestrictions !== 'undefined' && !TierRestrictions.canExportScreener()) {
+        return TierRestrictions.showUpgradeMessage('CSV export requires a Standard or Premium plan.');
+    }
     if (!state.results?.results) return appAlert('No results to export');
     
     var results = state.results.results;
@@ -1016,6 +1019,9 @@ async function loadSavedFilters() {
 }
 
 function openStoredFiltersModal() {
+    if (typeof TierRestrictions !== 'undefined' && !TierRestrictions.canSaveFilters()) {
+        return TierRestrictions.showUpgradeMessage('Stored filters require a Standard or Premium plan.');
+    }
     var modal = document.getElementById('storedFiltersModal');
     modal.style.display = 'flex';
     renderStoredFiltersMenu();
@@ -1097,6 +1103,9 @@ function updateSaveFilterButton() {
 }
 
 async function saveCurrentFilter() {
+    if (typeof TierRestrictions !== 'undefined' && !TierRestrictions.canSaveFilters()) {
+        return TierRestrictions.showUpgradeMessage('Saving filters requires a Standard or Premium plan.');
+    }
     if (!state.isLoggedIn) {
         appAlert('Please login to save filters');
         return;

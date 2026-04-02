@@ -2,14 +2,9 @@
 console.log('Initializing Subscription Page');
 
 const PLAN_DETAILS = {
-    'free': { name: 'Free Plan', price: 0 },
-    'stocks-basic': { name: 'Stocks Basic', price: 0 },
-    'stocks-starter': { name: 'Stocks Starter', price: 29 },
-    'stocks-developer': { name: 'Stocks Developer', price: 79 },
-    'stocks-advanced': { name: 'Stocks Advanced', price: 199 },
-    'options-starter': { name: 'Options Starter', price: 49 },
-    'options-developer': { name: 'Options Developer', price: 129 },
-    'options-advanced': { name: 'Options Advanced', price: 299 }
+    'free': { name: 'Free', price: 0 },
+    'standard': { name: 'Standard', price: 29.99 },
+    'premium': { name: 'Premium', price: 49.99 }
 };
 
 let currentUserPlan = 'free';
@@ -118,7 +113,7 @@ function updateSubscriptionDisplay(data) {
             if (billingIconEl) billingIconEl.textContent = 'schedule';
             if (nextBillingEl) nextBillingEl.textContent = effectiveDate;
         } else if (data.subscription.cancel_at_period_end) {
-            pendingDowngradePlan = 'stocks-basic'; // Cancelling means downgrading to free/basic
+            pendingDowngradePlan = 'free';
             if (badgeEl) {
                 badgeEl.textContent = 'Cancelling';
                 badgeEl.className = 'plan-badge cancelling';
@@ -358,7 +353,7 @@ function updatePlanButtonStates() {
         // If there's a pending downgrade, different logic applies
         if (pendingDowngradePlan) {
             // Disable the pending plan (what they're downgrading TO)
-            if (planId === pendingDowngradePlan || (pendingDowngradePlan === 'stocks-basic' && planId === 'free')) {
+            if (planId === pendingDowngradePlan) {
                 if (btn) {
                     btn.textContent = 'Pending Change';
                     btn.classList.add('disabled');
@@ -367,7 +362,7 @@ function updatePlanButtonStates() {
                 card.classList.remove('current');
             }
             // Current plan shows "Return to Current Plan" and is clickable
-            else if (planId === currentUserPlan || (currentUserPlan === 'free' && planId === 'stocks-basic')) {
+            else if (planId === currentUserPlan) {
                 if (btn) {
                     btn.textContent = 'Return to Current Plan';
                     btn.classList.remove('disabled');
@@ -386,7 +381,7 @@ function updatePlanButtonStates() {
             }
         } else {
             // Normal behavior - no pending downgrade
-            if (planId === currentUserPlan || (currentUserPlan === 'free' && planId === 'stocks-basic')) {
+            if (planId === currentUserPlan) {
                 if (btn) {
                     btn.textContent = 'Current Plan';
                     btn.classList.add('disabled');

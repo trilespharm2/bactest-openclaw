@@ -250,7 +250,12 @@ function initSimResultDetailPage() {
 
     const csvBtn = document.getElementById('simResultDownloadCsv');
     if (csvBtn) {
-        csvBtn.onclick = () => downloadTradeCsv(data);
+        csvBtn.onclick = () => {
+            if (typeof TierRestrictions !== 'undefined' && !TierRestrictions.canDownloadCsv()) {
+                return TierRestrictions.showUpgradeMessage('CSV download requires a Standard or Premium plan.');
+            }
+            downloadTradeCsv(data);
+        };
     }
 }
 

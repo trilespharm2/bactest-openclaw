@@ -638,10 +638,37 @@ function initializeBacktesterPage() {
             setTimeout(applyLoginOverlayIfNeeded, 100);
         }
     }
-    // Give auth check time to complete (500ms delay)
     setTimeout(applyLoginOverlayIfNeeded, 500);
-    
-    // Setup event listeners
+
+    function applyTierRestrictions() {
+        if (typeof TierRestrictions === 'undefined') { setTimeout(applyTierRestrictions, 200); return; }
+        var symbolEl = document.getElementById('symbol');
+        var startEl = document.getElementById('startDate');
+        var endEl = document.getElementById('endDate');
+        var dteEl = document.getElementById('dte');
+        TierRestrictions.applyDateConstraints(startEl, endEl);
+        TierRestrictions.enforceDTEMax(dteEl);
+        if (TierRestrictions.isFree()) {
+            var customRadio = document.querySelector('input[name="optionsEntryType"][value="custom"]');
+            if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.4'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
+        }
+        if (symbolEl) {
+            symbolEl.addEventListener('change', function() {
+                var err = TierRestrictions.getSymbolError(symbolEl.value);
+                var warn = document.getElementById('tierSymbolWarning');
+                if (!warn) { warn = document.createElement('div'); warn.id = 'tierSymbolWarning'; warn.style.cssText = 'color:#dc3545;font-size:12px;margin-top:4px;'; symbolEl.parentElement.appendChild(warn); }
+                warn.textContent = err || '';
+            });
+        }
+        if (dteEl) {
+            dteEl.addEventListener('change', function() {
+                var max = TierRestrictions.getMaxDTE();
+                if (max !== null && parseInt(dteEl.value) > max) { dteEl.value = max; }
+            });
+        }
+    }
+    setTimeout(applyTierRestrictions, 600);
+
     setupFormControls();
     setupStrategySelection();
     
@@ -1918,7 +1945,16 @@ async function handleBacktestSubmit(e) {
         form.dataset.isSubmitting = 'false';
         return;
     }
-    
+
+    if (typeof TierRestrictions !== 'undefined') {
+        var symErr = TierRestrictions.getSymbolError(config.symbol);
+        if (symErr) { showError(symErr); form.dataset.isSubmitting = 'false'; return; }
+        if (!TierRestrictions.isDateAllowed(config.start_date) || !TierRestrictions.isDateAllowed(config.end_date)) { showError('Date is outside your plan\'s allowed range. Upgrade for wider date access.'); form.dataset.isSubmitting = 'false'; return; }
+        var maxDTE = TierRestrictions.getMaxDTE();
+        if (maxDTE !== null && parseInt(config.dte) > maxDTE) { showError('DTE exceeds your plan limit of ' + maxDTE + ' days.'); form.dataset.isSubmitting = 'false'; return; }
+        if (TierRestrictions.isFree() && config.entry_type === 'custom') { showError('Custom entry conditions require a Standard or Premium plan.'); form.dataset.isSubmitting = 'false'; return; }
+    }
+
     const configErrors = validateOptionsConfig(config);
     if (configErrors.length > 0) {
         showError(configErrors.join('<br>'));
@@ -2376,6 +2412,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadBtn = document.getElementById('downloadCSV');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
+            if (typeof TierRestrictions !== 'undefined' && !TierRestrictions.canDownloadCsv()) {
+                return TierRestrictions.showUpgradeMessage('CSV download requires a Standard or Premium plan.');
+            }
             if (window.backtestCSVData) {
                 const blob = new Blob([window.backtestCSVData], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);

@@ -121,9 +121,11 @@ async function checkAuthStatus() {
         const data = await response.json();
         isAuthenticated = data.authenticated;
         currentUser = data.user || null;
+        if (typeof TierRestrictions !== 'undefined') {
+            TierRestrictions.setTier(data.authenticated && data.user ? data.user.tier : (data.tier || 'free'));
+        }
         console.log('Auth status:', isAuthenticated ? 'Logged in as' : 'Guest', currentUser?.name || '');
         
-        // Apply UI state after auth check
         applyAuthUIState();
     } catch (error) {
         console.log('Auth check failed:', error);
@@ -214,6 +216,19 @@ function applyAuthUIState() {
         if (subscriptionContent) subscriptionContent.style.display = 'none';
         // Hide settings for guests
         if (settingsNavItem) settingsNavItem.style.display = 'none';
+    }
+
+    var notifNav = document.getElementById('nav-notifications');
+    if (notifNav && typeof TierRestrictions !== 'undefined') {
+        if (TierRestrictions.canUseNotifications()) {
+            notifNav.style.display = '';
+            notifNav.style.opacity = '';
+            notifNav.style.pointerEvents = '';
+        } else {
+            notifNav.style.opacity = '0.4';
+            notifNav.style.pointerEvents = 'none';
+            notifNav.title = 'Notifications require a Standard or Premium plan';
+        }
     }
 }
 
@@ -563,7 +578,7 @@ async function loadPageContent(pageName) {
                 
                 if (pageName === 'stockBacktester') {
                     fileName = 'stock-backtester';
-                    scriptName = 'stock-backtester-script.js';
+                    scriptName = 'static/js/stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
@@ -619,7 +634,7 @@ async function loadPageContent(pageName) {
                 console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
                 if (pageName === 'stockBacktester') {
-                    scriptName = 'stock-backtester-script.js';
+                    scriptName = 'static/js/stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     scriptName = 'simulated-trading-script.js';

@@ -105,6 +105,22 @@ function initSimulatedTrading() {
     document.getElementById('simChartEndDate').value = today.toISOString().split('T')[0];
     document.getElementById('simTradingStartDate').value = fifteenDaysAgo.toISOString().split('T')[0];
 
+    function applySimTierRestrictions() {
+        if (typeof TierRestrictions === 'undefined') { setTimeout(applySimTierRestrictions, 200); return; }
+        TierRestrictions.applyDateConstraints(document.getElementById('simChartStartDate'), document.getElementById('simChartEndDate'));
+        TierRestrictions.applyDateConstraints(document.getElementById('simTradingStartDate'), null);
+        var symEl = document.getElementById('simSymbol');
+        if (symEl) {
+            symEl.addEventListener('change', function() {
+                var err = TierRestrictions.getSymbolError(symEl.value);
+                var warn = document.getElementById('simTierSymbolWarning');
+                if (!warn) { warn = document.createElement('div'); warn.id = 'simTierSymbolWarning'; warn.style.cssText = 'color:#dc3545;font-size:12px;margin-top:4px;'; symEl.parentElement.appendChild(warn); }
+                warn.textContent = err || '';
+            });
+        }
+    }
+    setTimeout(applySimTierRestrictions, 600);
+
     loadBtn.addEventListener('click', startNewSession);
 
     renderActiveSessionCards();
@@ -188,6 +204,11 @@ function startNewSession() {
         dateErrorDiv.classList.remove('d-none');
         return;
     }
+    if (typeof TierRestrictions !== 'undefined') {
+        var symErr = TierRestrictions.getSymbolError(symbol);
+        if (symErr) { dateErrorText.textContent = symErr; dateErrorDiv.classList.remove('d-none'); return; }
+        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) { dateErrorText.textContent = 'Date is outside your plan\'s allowed range.'; dateErrorDiv.classList.remove('d-none'); return; }
+    }
     if (new Date(tradingStartDate) < new Date(chartStartDate)) {
         dateErrorText.textContent = 'Trading start date cannot be before chart start date';
         dateErrorDiv.classList.remove('d-none');
@@ -215,6 +236,11 @@ function resumeSession(index) {
 
     if (index >= activeSessions.length) return;
     const session = activeSessions[index];
+
+    if (typeof TierRestrictions !== 'undefined') {
+        var symErr = TierRestrictions.getSymbolError(session.symbol);
+        if (symErr) { if (typeof appAlert === 'function') appAlert(symErr); else alert(symErr); return; }
+    }
 
     window._simPendingSession = {
         symbol: session.symbol,

@@ -403,6 +403,26 @@ def bootstrap_admin_user():
         return {'created': True, 'reason': 'created'}
 
 
+def seed_test_accounts():
+    with app.app_context():
+        test_accounts = [
+            {'email': 'standard@test.com', 'name': 'StandardUser', 'plan': 'standard', 'password': 'Standard123!@#'},
+            {'email': 'premium@test.com', 'name': 'PremiumUser', 'plan': 'premium', 'password': 'Premium123!@#'},
+        ]
+        for acct in test_accounts:
+            user = User.query.filter_by(email=acct['email']).first()
+            if not user:
+                user = User(email=acct['email'], name=acct['name'], selected_plan=acct['plan'], is_verified=True, is_admin=True)
+                user.set_password(acct['password'])
+                db.session.add(user)
+            else:
+                user.selected_plan = acct['plan']
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+
 def initialize_app_runtime(enable_scheduler=False):
     """Run safe startup tasks for local/dev entrypoints."""
     schema_created = ensure_database_schema()
@@ -428,6 +448,7 @@ def initialize_app_runtime(enable_scheduler=False):
 
 ensure_database_schema()
 bootstrap_admin_user()
+seed_test_accounts()
 
 # Register Google OAuth blueprint
 try:
@@ -691,10 +712,12 @@ def api_auth_status():
             'user': {
                 'name': current_user.name or current_user.email.split('@')[0],
                 'email': current_user.email,
-                'profile_picture': current_user.profile_picture
+                'profile_picture': current_user.profile_picture,
+                'plan': current_user.selected_plan or 'free',
+                'tier': get_user_tier(),
             },
         }), 200
-    return jsonify({'authenticated': False}), 200
+    return jsonify({'authenticated': False, 'tier': 'free'}), 200
 
 @app.route('/api/auth/user')
 def api_auth_user():
@@ -708,6 +731,13 @@ def api_auth_user():
             'profile_picture': current_user.profile_picture
         }), 200
     return jsonify({'error': 'Not authenticated'}), 401
+
+
+@app.route('/api/tier-restrictions')
+def api_tier_restrictions():
+    tier = get_user_tier()
+    restrictions = TIER_RESTRICTIONS.get(tier, TIER_RESTRICTIONS['free'])
+    return jsonify({'tier': tier, 'restrictions': restrictions}), 200
 
 
 @app.route('/api/market-movers')
@@ -1079,21 +1109,98 @@ def get_stripe_credentials():
         return None, None
 
 PLAN_PRICES = {
-    'free': {'amount': 0, 'price_id': None},
-    'stocks-basic': {'amount': 0, 'price_id': None},
-    'stocks-starter': {'amount': 2900, 'price_id': None},
-    'stocks-developer': {'amount': 7900, 'price_id': None},
-    'stocks-advanced': {'amount': 19900, 'price_id': None},
-    'options-starter': {'amount': 4900, 'price_id': None},
-    'options-developer': {'amount': 12900, 'price_id': None},
-    'options-advanced': {'amount': 29900, 'price_id': None},
-    'crypto-starter': {'amount': 3900, 'price_id': None},
-    'crypto-developer': {'amount': 9900, 'price_id': None},
-    'crypto-advanced': {'amount': 24900, 'price_id': None},
-    'forex-starter': {'amount': 3900, 'price_id': None},
-    'forex-developer': {'amount': 9900, 'price_id': None},
-    'forex-advanced': {'amount': 24900, 'price_id': None},
+    'free': {'amount': 0, 'price_id': None, 'tier': 'free', 'display_name': 'Free'},
+    'standard': {'amount': 2999, 'price_id': None, 'tier': 'standard', 'display_name': 'Standard'},
+    'premium': {'amount': 4999, 'price_id': None, 'tier': 'premium', 'display_name': 'Premium'},
 }
+
+
+def get_user_tier(user=None):
+    if user is None:
+        if not current_user.is_authenticated:
+            return 'free'
+        user = current_user
+    plan = getattr(user, 'selected_plan', 'free') or 'free'
+    config = PLAN_PRICES.get(plan)
+    if config:
+        return config.get('tier', 'free')
+    return 'free'
+
+
+TIER_RESTRICTIONS = {
+    'free': {
+        'allowed_symbols': ['SPY', 'GLD', 'QQQ'],
+        'min_date': '2025-03-01',
+        'max_date': '2026-03-31',
+        'max_dte': 3,
+        'allow_custom_builder': False,
+        'allow_multiple_symbols': False,
+        'allow_csv': False,
+        'allow_csv_download': False,
+        'allow_notifications': False,
+    },
+    'standard': {
+        'allowed_symbols': None,
+        'blocked_symbol_types': ['index', 'forex'],
+        'min_date': '2023-03-01',
+        'max_date': '2026-03-31',
+        'max_dte': 10,
+        'allow_custom_builder': True,
+        'allow_multiple_symbols': True,
+        'allow_csv': True,
+        'allow_csv_download': True,
+        'allow_notifications': True,
+    },
+    'premium': {
+        'allowed_symbols': None,
+        'blocked_symbol_types': [],
+        'min_date': None,
+        'max_date': None,
+        'max_dte': None,
+        'allow_custom_builder': True,
+        'allow_multiple_symbols': True,
+        'allow_csv': True,
+        'allow_csv_download': True,
+        'allow_notifications': True,
+    },
+}
+
+INDEX_SYMBOLS = ['^DJI', '^GSPC', '^IXIC', '^RUT', '^VIX', 'DIA', 'IWM', 'UVXY', 'VXX', 'VIXY']
+FOREX_PREFIXES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD']
+
+
+def validate_tier_restrictions(tier, symbol, start_date=None, end_date=None, dte=None):
+    restrictions = TIER_RESTRICTIONS.get(tier, TIER_RESTRICTIONS['free'])
+    errors = []
+    sym_upper = (symbol or '').upper().strip()
+
+    if restrictions.get('allowed_symbols'):
+        if sym_upper not in restrictions['allowed_symbols']:
+            errors.append(f'Your {tier.title()} plan only allows these symbols: {", ".join(restrictions["allowed_symbols"])}. Upgrade for more.')
+
+    blocked = restrictions.get('blocked_symbol_types', [])
+    if 'index' in blocked and (sym_upper.startswith('^') or sym_upper in INDEX_SYMBOLS):
+        errors.append(f'Index symbols are not available on the {tier.title()} plan. Upgrade to Premium.')
+    if 'forex' in blocked:
+        is_forex = any(sym_upper.startswith(p) and len(sym_upper) == 6 for p in FOREX_PREFIXES)
+        if is_forex or '/' in sym_upper:
+            errors.append(f'Forex symbols are not available on the {tier.title()} plan. Upgrade to Premium.')
+
+    if restrictions.get('min_date') and start_date:
+        if str(start_date) < restrictions['min_date']:
+            errors.append(f'Your plan does not allow dates before {restrictions["min_date"]}.')
+    if restrictions.get('max_date') and end_date:
+        if str(end_date) > restrictions['max_date']:
+            errors.append(f'Your plan does not allow dates after {restrictions["max_date"]}.')
+
+    if restrictions.get('max_dte') is not None and dte is not None:
+        try:
+            if int(dte) > restrictions['max_dte']:
+                errors.append(f'Your plan limits DTE to {restrictions["max_dte"]} days. Upgrade for more.')
+        except (ValueError, TypeError):
+            pass
+
+    return errors
 
 
 def is_known_plan(plan_id):
@@ -3097,6 +3204,19 @@ def start_backtest_async():
         # Get current user for result association
         user_id = current_user.id
         
+        tier = get_user_tier()
+        tier_errors = validate_tier_restrictions(
+            tier,
+            params.get('symbol', ''),
+            start_date=params.get('start_date'),
+            end_date=params.get('end_date'),
+            dte=params.get('dte')
+        )
+        if tier == 'free' and params.get('entry_type') == 'custom':
+            tier_errors.append('Custom entry conditions are not available on the Free plan.')
+        if tier_errors:
+            return jsonify({'error': tier_errors[0]}), 403
+
         # Check if user already has a running backtest
         for bid, binfo in running_backtests.items():
             if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
@@ -4252,6 +4372,25 @@ def start_stocks_backtest_v3_async():
         # Get current user for result association
         user_id = current_user.id
         
+        tier = get_user_tier()
+        symbols_raw = config.get('symbol', config.get('symbols', ''))
+        primary_symbol = symbols_raw.split(',')[0].strip() if isinstance(symbols_raw, str) else str(symbols_raw)
+        tier_errors = validate_tier_restrictions(
+            tier,
+            primary_symbol,
+            start_date=config.get('start_date'),
+            end_date=config.get('end_date')
+        )
+        restrictions = TIER_RESTRICTIONS.get(tier, TIER_RESTRICTIONS['free'])
+        if not restrictions.get('allow_custom_builder') and config.get('entry_type') == 'custom':
+            tier_errors.append('Custom entry conditions are not available on your plan.')
+        if not restrictions.get('allow_multiple_symbols') and config.get('symbol_mode') == 'multiple':
+            tier_errors.append('Multiple symbols are not available on your plan.')
+        if not restrictions.get('allow_csv') and config.get('symbol_mode') == 'csv':
+            tier_errors.append('CSV upload is not available on your plan.')
+        if tier_errors:
+            return jsonify({'error': tier_errors[0]}), 403
+
         # Check if user already has a running backtest
         for bid, binfo in running_backtests.items():
             if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
@@ -5952,6 +6091,11 @@ def get_simulated_trading_bars():
         if not symbol or not start_date or not end_date:
             return jsonify({'error': 'Symbol, start_date, and end_date are required'}), 400
 
+        tier = get_user_tier()
+        tier_errors = validate_tier_restrictions(tier, symbol, start_date=start_date, end_date=end_date)
+        if tier_errors:
+            return jsonify({'error': tier_errors[0]}), 403
+
         if symbol == 'SPY' and bar_size == 'minute' and multiplier == 1:
             import pandas as _pd
             cache_info = spy_data_cache.get_cache_info()
@@ -7371,6 +7515,7 @@ start_dashboard_cache()
 # Bootstrap admin user and ensure schema for gunicorn/wsgi
 ensure_database_schema()
 bootstrap_admin_user()
+seed_test_accounts()
 
 # Initialize scanner scheduler for gunicorn/wsgi (won't hit __main__ block)
 import sys

@@ -24,9 +24,33 @@ function initializeStockBacktesterPage() {
         }
     }
     setTimeout(applyLoginOverlayIfNeeded, 500);
-    
+
+    function applyStockTierRestrictions() {
+        if (typeof TierRestrictions === 'undefined') { setTimeout(applyStockTierRestrictions, 200); return; }
+        var startEl = document.getElementById('startDate');
+        var endEl = document.getElementById('endDate');
+        TierRestrictions.applyDateConstraints(startEl, endEl);
+        if (TierRestrictions.isFree()) {
+            var customRadio = document.querySelector('input[name="entry_type"][value="custom"]');
+            if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.4'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
+            var multiRadio = document.querySelector('input[name="symbol_mode"][value="multiple"]');
+            if (multiRadio) { multiRadio.disabled = true; multiRadio.parentElement.style.opacity = '0.4'; multiRadio.parentElement.title = 'Multiple symbols requires Standard or Premium plan'; }
+            var csvRadio = document.querySelector('input[name="symbol_mode"][value="all"]');
+            if (csvRadio) { csvRadio.disabled = true; csvRadio.parentElement.style.opacity = '0.4'; csvRadio.parentElement.title = 'CSV upload requires Standard or Premium plan'; }
+        }
+        var symEl = document.getElementById('singleSymbol');
+        if (symEl) {
+            symEl.addEventListener('change', function() {
+                var err = TierRestrictions.getSymbolError(symEl.value);
+                var warn = document.getElementById('stockTierSymbolWarning');
+                if (!warn) { warn = document.createElement('div'); warn.id = 'stockTierSymbolWarning'; warn.style.cssText = 'color:#dc3545;font-size:12px;margin-top:4px;'; symEl.parentElement.appendChild(warn); }
+                warn.textContent = err || '';
+            });
+        }
+    }
+    setTimeout(applyStockTierRestrictions, 600);
+
     try {
-        // Set default dates
         const today = new Date();
         const oneMonthAgo = new Date(today);
         oneMonthAgo.setMonth(today.getMonth() - 1);
@@ -493,7 +517,17 @@ async function handleSubmit(e) {
         console.log('Collecting form data...');
         const config = await collectFormData();
         console.log('Config collected:', config);
-        
+
+        if (typeof TierRestrictions !== 'undefined') {
+            var sym = config.symbol || (config.symbols && config.symbols[0]) || '';
+            var symErr = TierRestrictions.getSymbolError(sym);
+            if (symErr) throw new Error(symErr);
+            if (!TierRestrictions.isDateAllowed(config.start_date) || !TierRestrictions.isDateAllowed(config.end_date)) throw new Error('Date is outside your plan\'s allowed range.');
+            if (TierRestrictions.isFree() && config.entry_type === 'custom') throw new Error('Custom entry conditions require a Standard or Premium plan.');
+            if (!TierRestrictions.canUseMultipleSymbols() && config.symbol_mode === 'multiple') throw new Error('Multiple symbols require a Standard or Premium plan.');
+            if (!TierRestrictions.canUseCsvUpload() && config.symbol_mode === 'all') throw new Error('CSV upload requires a Standard or Premium plan.');
+        }
+
         console.log('Validating config...');
         if (!validateConfig(config)) {
             throw new Error('Please fill in all required fields');
@@ -920,6 +954,9 @@ function setupDownloadButton(csvData, backtestId) {
     if (!downloadBtn) return;
     
     downloadBtn.onclick = () => {
+        if (typeof TierRestrictions !== 'undefined' && !TierRestrictions.canDownloadCsv()) {
+            return TierRestrictions.showUpgradeMessage('CSV download requires a Standard or Premium plan.');
+        }
         if (!csvData) {
             appAlert('No CSV data available');
             return;
