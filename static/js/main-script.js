@@ -181,22 +181,16 @@ function applyAuthUIState() {
         
         renderNavAvatars(currentUser);
         if (typeof loadUnreadNotifCount === 'function') loadUnreadNotifCount();
-        document.querySelectorAll('.topbar-toggler').forEach(btn => btn.style.display = '');
         const notifBellItem = document.getElementById('notifBellItem');
         if (notifBellItem) notifBellItem.style.display = '';
-        const guestNavMobile = document.getElementById('guestNavMobile');
-        if (guestNavMobile) guestNavMobile.style.display = 'none';
     } else {
         if (userProfileNav) userProfileNav.style.display = 'none';
         if (guestNav) {
             guestNav.classList.add('d-flex');
             guestNav.style.display = '';
         }
-        document.querySelectorAll('.topbar-toggler').forEach(btn => btn.style.display = 'none');
         const notifBellItem = document.getElementById('notifBellItem');
         if (notifBellItem) notifBellItem.style.display = 'none';
-        const guestNavMobile = document.getElementById('guestNavMobile');
-        if (guestNavMobile) guestNavMobile.style.display = '';
     }
     
     // Update subscription/pricing text and settings visibility
