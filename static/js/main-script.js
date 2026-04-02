@@ -222,16 +222,11 @@ function applyAuthUIState() {
     }
 
     var notifNav = document.getElementById('nav-notifications');
-    if (notifNav && typeof TierRestrictions !== 'undefined') {
-        if (TierRestrictions.canUseNotifications()) {
-            notifNav.style.display = '';
-            notifNav.style.opacity = '';
-            notifNav.style.pointerEvents = '';
-        } else {
-            notifNav.style.opacity = '0.4';
-            notifNav.style.pointerEvents = 'none';
-            notifNav.title = 'Notifications require a Standard or Premium plan';
-        }
+    if (notifNav) {
+        notifNav.style.display = '';
+        notifNav.style.opacity = '';
+        notifNav.style.pointerEvents = '';
+        notifNav.title = '';
     }
 }
 
