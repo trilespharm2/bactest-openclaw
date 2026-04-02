@@ -829,6 +829,8 @@ async function displayResults(backtestId, apiKey) {
         
         // Setup view full results button
         setupViewFullResultsButton(backtestId);
+
+        if (typeof TierRestrictions !== 'undefined') TierRestrictions.disableCsvButtons();
         
         console.log('Results displayed successfully');
         

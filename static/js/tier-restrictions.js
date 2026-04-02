@@ -138,6 +138,42 @@ var TierRestrictions = (function() {
             if (max) endInput.setAttribute('max', max);
             else endInput.removeAttribute('max');
         }
+        if (isFree() && min && max) {
+            var inputs = [startInput, endInput];
+            for (var i = 0; i < inputs.length; i++) {
+                if (!inputs[i]) continue;
+                var inp = inputs[i];
+                var noteId = inp.id + '_tierDateNote';
+                var existing = document.getElementById(noteId);
+                if (!existing) {
+                    var note = document.createElement('div');
+                    note.id = noteId;
+                    note.style.cssText = 'color:#6c757d;font-size:11px;margin-top:2px;';
+                    note.textContent = 'Free plan: ' + formatDateRange(min) + ' \u2013 ' + formatDateRange(max);
+                    inp.parentElement.appendChild(note);
+                }
+                inp.addEventListener('change', (function(input, nId, mn, mx) {
+                    return function() {
+                        var noteEl = document.getElementById(nId);
+                        if (noteEl) {
+                            if (input.value < mn || input.value > mx) {
+                                noteEl.style.color = '#dc3545';
+                                noteEl.textContent = 'Date outside Free plan range (' + formatDateRange(mn) + ' \u2013 ' + formatDateRange(mx) + '). Upgrade for more.';
+                            } else {
+                                noteEl.style.color = '#6c757d';
+                                noteEl.textContent = 'Free plan: ' + formatDateRange(mn) + ' \u2013 ' + formatDateRange(mx);
+                            }
+                        }
+                    };
+                })(inp, noteId, min, max));
+            }
+        }
+    }
+
+    function formatDateRange(dateStr) {
+        var parts = dateStr.split('-');
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[parseInt(parts[1], 10) - 1] + ' ' + parseInt(parts[2], 10) + ', ' + parts[0];
     }
 
     function enforceDTEMax(dteInput) {
@@ -170,6 +206,17 @@ var TierRestrictions = (function() {
         el.title = '';
     }
 
+    function disableCsvButtons() {
+        if (!isFree()) return;
+        var ids = ['downloadCSV', 'downloadStockCSV', 'simResultDownloadCsv'];
+        for (var i = 0; i < ids.length; i++) {
+            var btn = document.getElementById(ids[i]);
+            if (btn) {
+                disableElement(btn, 'CSV download requires a Standard or Premium plan');
+            }
+        }
+    }
+
     return {
         setTier: setTier,
         getTier: getTier,
@@ -194,6 +241,7 @@ var TierRestrictions = (function() {
         enforceDTEMax: enforceDTEMax,
         disableElement: disableElement,
         enableElement: enableElement,
+        disableCsvButtons: disableCsvButtons,
         FREE_SYMBOLS: FREE_SYMBOLS,
     };
 })();

@@ -406,8 +406,8 @@ def bootstrap_admin_user():
 def seed_test_accounts():
     with app.app_context():
         test_accounts = [
-            {'email': 'standard@test.com', 'name': 'StandardUser', 'plan': 'standard', 'password': 'Standard123!@#'},
-            {'email': 'premium@test.com', 'name': 'PremiumUser', 'plan': 'premium', 'password': 'Premium123!@#'},
+            {'email': 'standard@gmail.com', 'name': 'StandardUser', 'plan': 'standard', 'password': 'Standard123!@#'},
+            {'email': 'premium@gmail.com', 'name': 'PremiumUser', 'plan': 'premium', 'password': 'Premium123!@#'},
         ]
         for acct in test_accounts:
             user = User.query.filter_by(email=acct['email']).first()

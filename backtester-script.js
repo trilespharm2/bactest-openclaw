@@ -2258,6 +2258,8 @@ function displayResults(result) {
     // Store CSV data and backtest ID for download
     window.backtestCSVData = result.csv_data;
     window.currentBacktestId = result.backtest_id;
+
+    if (typeof TierRestrictions !== 'undefined') TierRestrictions.disableCsvButtons();
     
     // SAVE TO LOCALSTORAGE so results persist across page reloads
     try {

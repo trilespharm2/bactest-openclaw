@@ -257,6 +257,8 @@ function initSimResultDetailPage() {
             downloadTradeCsv(data);
         };
     }
+
+    if (typeof TierRestrictions !== 'undefined') TierRestrictions.disableCsvButtons();
 }
 
 function renderEquityCurve(data) {
