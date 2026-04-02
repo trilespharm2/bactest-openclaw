@@ -401,6 +401,9 @@ function setupQuickActions() {
 
 // ─── OPTIONS MARKET WIDGET ──────────────────────────────────
 var _dashOptMktCat = 'most-active';
+var _dashOptMktRecords = [];
+var _dashOptMktPage = 0;
+var _dashOptMktPerPage = 10;
 
 async function loadOptionsMarket() {
     var container = document.getElementById('dashOptMktContent');
@@ -410,45 +413,62 @@ async function loadOptionsMarket() {
         var resp = await fetch('/api/options-market?category=' + encodeURIComponent(_dashOptMktCat));
         var data = await resp.json();
         if (data.error) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">' + data.error + '</div>'; return; }
-        var records = data.records || [];
-        if (!records.length) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data available</div>'; return; }
-        var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:12px;"><thead class="table-light"><tr>' +
-            '<th>Symbol</th><th>Underlying</th><th class="text-end">Strike</th><th>Exp</th>' +
-            '<th class="text-end">Price</th><th class="text-end">Change</th><th class="text-end">Chg%</th>' +
-            '<th class="text-end">Bid</th><th class="text-end">Ask</th><th class="text-end">Vol</th>' +
-            '<th class="text-end">OI</th><th class="text-end">IV</th></tr></thead><tbody>';
-        records.slice(0, 15).forEach(function(r) {
-            var chg = r.change || 0;
-            var cls = chg > 0 ? 'text-success' : chg < 0 ? 'text-danger' : '';
-            var name = (r.name || '').toLowerCase();
-            var isCall = name.indexOf('call') >= 0 || /C\d{8}$/.test(r.ticker || '');
-            var badge = isCall
-                ? '<span class="badge bg-primary ms-1" style="font-size:8px;">C</span>'
-                : '<span class="badge bg-warning text-dark ms-1" style="font-size:8px;">P</span>';
-            var sym = r.ticker || '';
-            if (sym.length > 20) sym = sym.substring(0, 18) + '…';
-            html += '<tr>' +
-                '<td class="fw-semibold">' + sym + badge + '</td>' +
-                '<td><span class="fw-bold text-primary">' + (r.underlying || '') + '</span></td>' +
-                '<td class="text-end">' + (r.strike != null ? Number(r.strike).toFixed(0) : '-') + '</td>' +
-                '<td>' + (r.expiration || '') + '</td>' +
-                '<td class="text-end fw-semibold">' + (r.price != null ? Number(r.price).toFixed(2) : '-') + '</td>' +
-                '<td class="text-end ' + cls + '">' + (chg !== 0 ? (chg > 0 ? '+' : '') + Number(chg).toFixed(2) : '0.00') + '</td>' +
-                '<td class="text-end ' + cls + '">' + (r.changePercent != null ? (r.changePercent > 0 ? '+' : '') + Number(r.changePercent).toFixed(1) + '%' : '-') + '</td>' +
-                '<td class="text-end">' + (r.bid != null ? Number(r.bid).toFixed(2) : '-') + '</td>' +
-                '<td class="text-end">' + (r.ask != null ? Number(r.ask).toFixed(2) : '-') + '</td>' +
-                '<td class="text-end">' + (r.volume != null ? Number(r.volume).toLocaleString() : '-') + '</td>' +
-                '<td class="text-end">' + (r.openInterest != null ? Number(r.openInterest).toLocaleString() : '-') + '</td>' +
-                '<td class="text-end">' + (r.impliedVolatility != null ? (Number(r.impliedVolatility) * 100).toFixed(1) + '%' : '-') + '</td>' +
-                '</tr>';
-        });
-        html += '</tbody></table></div>';
-        if (data.total > 15) html += '<div class="text-muted text-center mt-1" style="font-size:10px;">Showing 15 of ' + data.total.toLocaleString() + ' contracts</div>';
-        container.innerHTML = html;
+        _dashOptMktRecords = data.records || [];
+        _dashOptMktPage = 0;
+        renderOptionsMarketPage();
     } catch (e) {
         console.error('Options market error:', e);
         container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">Unable to load options market data</div>';
     }
+}
+
+function renderOptionsMarketPage() {
+    var container = document.getElementById('dashOptMktContent');
+    if (!container) return;
+    var records = _dashOptMktRecords;
+    if (!records.length) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data available</div>'; return; }
+    var start = _dashOptMktPage * _dashOptMktPerPage;
+    var page = records.slice(start, start + _dashOptMktPerPage);
+    var totalPages = Math.ceil(records.length / _dashOptMktPerPage);
+    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:12px;"><thead class="table-light"><tr>' +
+        '<th>Symbol</th><th class="text-end">Strike</th><th>Exp</th>' +
+        '<th class="text-end">Price</th><th class="text-end">Chg%</th>' +
+        '<th class="text-end">Vol</th><th class="text-end">OI</th></tr></thead><tbody>';
+    page.forEach(function(r) {
+        var chgPct = r.changePercent || 0;
+        var cls = chgPct > 0 ? 'text-success' : chgPct < 0 ? 'text-danger' : '';
+        var name = (r.name || '').toLowerCase();
+        var isCall = name.indexOf('call') >= 0 || /C\d{8}$/.test(r.ticker || '');
+        var badge = isCall
+            ? '<span class="badge bg-primary ms-1" style="font-size:8px;">C</span>'
+            : '<span class="badge bg-warning text-dark ms-1" style="font-size:8px;">P</span>';
+        var underlying = r.underlying || '';
+        var expShort = r.expiration || '';
+        if (expShort.length === 10) expShort = expShort.substring(5);
+        html += '<tr>' +
+            '<td class="fw-semibold text-primary">' + underlying + badge + '</td>' +
+            '<td class="text-end">' + (r.strike != null ? Number(r.strike).toFixed(0) : '-') + '</td>' +
+            '<td>' + expShort + '</td>' +
+            '<td class="text-end fw-semibold">' + (r.price != null ? Number(r.price).toFixed(2) : '-') + '</td>' +
+            '<td class="text-end ' + cls + '">' + (chgPct !== 0 ? (chgPct > 0 ? '+' : '') + Number(chgPct).toFixed(1) + '%' : '0.0%') + '</td>' +
+            '<td class="text-end">' + (r.volume != null ? Number(r.volume).toLocaleString() : '-') + '</td>' +
+            '<td class="text-end">' + (r.openInterest != null ? Number(r.openInterest).toLocaleString() : '-') + '</td>' +
+            '</tr>';
+    });
+    html += '</tbody></table></div>';
+    if (totalPages > 1) {
+        html += '<div class="d-flex justify-content-between align-items-center mt-2" style="font-size:11px;">' +
+            '<span class="text-muted">Page ' + (_dashOptMktPage + 1) + ' of ' + totalPages + '</span>' +
+            '<div>' +
+            '<button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style="font-size:11px;" id="dashOptMktPrev"' + (_dashOptMktPage === 0 ? ' disabled' : '') + '><i class="fas fa-chevron-left" style="font-size:9px;"></i> Prev</button>' +
+            '<button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:11px;" id="dashOptMktNext"' + (_dashOptMktPage >= totalPages - 1 ? ' disabled' : '') + '>Next <i class="fas fa-chevron-right" style="font-size:9px;"></i></button>' +
+            '</div></div>';
+    }
+    container.innerHTML = html;
+    var prevBtn = document.getElementById('dashOptMktPrev');
+    var nextBtn = document.getElementById('dashOptMktNext');
+    if (prevBtn) prevBtn.addEventListener('click', function() { if (_dashOptMktPage > 0) { _dashOptMktPage--; renderOptionsMarketPage(); } });
+    if (nextBtn) nextBtn.addEventListener('click', function() { if (_dashOptMktPage < totalPages - 1) { _dashOptMktPage++; renderOptionsMarketPage(); } });
 }
 
 function setupOptionsMarketWidget() {
