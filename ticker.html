@@ -27,10 +27,12 @@
       /* 3-panel butterfly layout */
       .bf-panel { flex: 1; min-width: 0; overflow-x: scroll; overflow-y: auto; scrollbar-width: none; }
       .bf-panel::-webkit-scrollbar { display: none; }
-      .bf-panel table, #bfStrikePanel table {
-        border-collapse: collapse; width: 480px; table-layout: fixed;
+      .bf-panel table {
+        border-collapse: collapse; min-width: 480px; width: 100%; table-layout: fixed;
       }
-      #bfStrikePanel table { width: 96px; }
+      #bfStrikePanel table {
+        border-collapse: collapse; width: 96px; table-layout: fixed;
+      }
       .bf-panel th, .bf-panel td,
       #bfStrikePanel th, #bfStrikePanel td {
         height: 34px; line-height: 34px; padding: 0 8px;
