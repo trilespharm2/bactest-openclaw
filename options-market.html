@@ -1,0 +1,60 @@
+<div class="container-fluid px-3 py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="fas fa-chart-line me-2"></i>Options Market Data</h4>
+    <button class="btn btn-sm btn-outline-secondary" id="optMktRefreshBtn" title="Refresh">
+      <i class="fas fa-sync-alt"></i>
+    </button>
+  </div>
+
+  <ul class="nav nav-tabs mb-3" id="optMktTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" data-category="most-active" type="button">Most Active</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-category="gainers" type="button">Top Gainers</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-category="losers" type="button">Top Losers</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-category="highest-implied-volatility" type="button">Highest Implied Volatility</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-category="highest-open-interest" type="button">Highest Open Interest</button>
+    </li>
+  </ul>
+
+  <div id="optMktLoading" class="text-center py-5" style="display:none;">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-2 text-muted">Loading options data...</p>
+  </div>
+
+  <div id="optMktError" class="alert alert-danger" style="display:none;"></div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle" id="optMktTable" style="display:none;">
+      <thead class="table-light">
+        <tr>
+          <th>Symbol</th>
+          <th>Name</th>
+          <th>Underlying</th>
+          <th class="text-end">Strike</th>
+          <th>Expiration</th>
+          <th class="text-end">Price</th>
+          <th class="text-end">Change</th>
+          <th class="text-end">Change %</th>
+          <th class="text-end">Bid</th>
+          <th class="text-end">Ask</th>
+          <th class="text-end">Volume</th>
+          <th class="text-end">Open Interest</th>
+          <th class="text-end">Implied Vol</th>
+        </tr>
+      </thead>
+      <tbody id="optMktTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="text-muted small mt-2" id="optMktFooter" style="display:none;">
+    <span id="optMktCount"></span> of <span id="optMktTotal"></span> contracts &middot; Data from Yahoo Finance
+  </div>
+</div>

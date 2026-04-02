@@ -5774,6 +5774,63 @@ except ImportError as e:
     print(f"⚠️  WARNING: TradingView Screener not available: {e}")
 
 
+@app.route('/api/options-market', methods=['GET'])
+def get_options_market_data():
+    import re as _re
+    category = request.args.get('category', 'most-active')
+    allowed = ['most-active', 'gainers', 'losers', 'highest-implied-volatility', 'highest-open-interest']
+    if category not in allowed:
+        return jsonify({'error': 'Invalid category'}), 400
+    try:
+        import requests as _requests
+        url = f'https://finance.yahoo.com/markets/options/{category}/'
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+        resp = _requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+
+        scripts = _re.findall(r'<script[^>]*>(.*?)</script>', resp.text, _re.DOTALL)
+        records_out = []
+        total = 0
+        for script in scripts:
+            if 'openInterest' not in script and 'impliedVolatility' not in script:
+                continue
+            try:
+                data = json.loads(script)
+                body = json.loads(data.get('body', '{}'))
+                results = body.get('finance', {}).get('result', [])
+                if not results:
+                    continue
+                raw_records = results[0].get('records', [])
+                total = results[0].get('total', len(raw_records))
+                for r in raw_records:
+                    exp_raw = r.get('expireDate', {}).get('raw', 0)
+                    exp_str = ''
+                    if exp_raw:
+                        from datetime import datetime as _dt
+                        exp_str = _dt.utcfromtimestamp(exp_raw).strftime('%Y-%m-%d')
+                    records_out.append({
+                        'ticker': r.get('ticker', ''),
+                        'name': r.get('companyName', ''),
+                        'underlying': r.get('underlyingSymbol', ''),
+                        'strike': r.get('strike', {}).get('raw'),
+                        'expiration': exp_str,
+                        'price': r.get('regularMarketPrice', {}).get('raw'),
+                        'change': r.get('regularMarketChange', {}).get('raw'),
+                        'changePercent': r.get('regularMarketChangePercent', {}).get('raw'),
+                        'bid': r.get('bid', {}).get('raw'),
+                        'ask': r.get('ask', {}).get('raw'),
+                        'volume': r.get('regularMarketVolume', {}).get('raw'),
+                        'openInterest': r.get('openInterest', {}).get('raw'),
+                        'impliedVolatility': r.get('impliedVolatility', {}).get('raw'),
+                    })
+                break
+            except (json.JSONDecodeError, KeyError):
+                continue
+        return jsonify({'records': records_out, 'total': total, 'category': category})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/screener/categories', methods=['GET'])
 def get_screener_categories():
     """Get all filter categories"""
