@@ -242,6 +242,7 @@ var TierRestrictions = (function() {
         disableElement: disableElement,
         enableElement: enableElement,
         disableCsvButtons: disableCsvButtons,
+        formatDateRange: formatDateRange,
         FREE_SYMBOLS: FREE_SYMBOLS,
     };
 })();

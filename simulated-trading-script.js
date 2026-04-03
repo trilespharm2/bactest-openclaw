@@ -119,6 +119,26 @@ function initSimulatedTrading() {
                 warn.textContent = err || '';
             });
         }
+        showSimDateRangeInfo();
+    }
+    function showSimDateRangeInfo() {
+        var infoDiv = document.getElementById('simDateRangeInfo');
+        if (!infoDiv || typeof TierRestrictions === 'undefined') return;
+        if (TierRestrictions.isPremium()) { infoDiv.classList.add('d-none'); return; }
+        var min = TierRestrictions.getDateMin();
+        var max = TierRestrictions.getDateMax();
+        if (!min || !max) { infoDiv.classList.add('d-none'); return; }
+        var tierName = TierRestrictions.isFree() ? 'Free' : 'Standard';
+        var minFmt = TierRestrictions.formatDateRange ? TierRestrictions.formatDateRange(min) : min;
+        var maxFmt = TierRestrictions.formatDateRange ? TierRestrictions.formatDateRange(max) : max;
+        infoDiv.style.background = '#fff3cd';
+        infoDiv.style.border = '1px solid #ffc107';
+        infoDiv.style.color = '#664d03';
+        infoDiv.innerHTML = '<i class="fas fa-info-circle" style="color:#b58900;font-size:14px;"></i>' +
+            '<span><strong>' + tierName + ' plan</strong> allows dates from <strong>' + minFmt + '</strong> to <strong>' + maxFmt + '</strong>.' +
+            ' <a href="#" onclick="event.preventDefault();showPage(\'subscription\');" style="color:#0d6efd;font-weight:600;text-decoration:underline;">Upgrade</a> for unlimited date ranges.</span>';
+        infoDiv.classList.remove('d-none');
+        infoDiv.style.display = 'flex';
     }
     setTimeout(applySimTierRestrictions, 600);
 
