@@ -110,7 +110,7 @@ function addPriceCondition() {
         <div class="condition-left-side mb-3">
             <label class="form-label fw-bold">Left Side (Compare this)</label>
             <div class="row g-2">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label small">Metric</label>
                     <select class="form-select form-select-sm" id="metric${conditionId}" onchange="updateConditionFields(${conditionId})">
                         ${METRICS.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}
@@ -743,50 +743,51 @@ window.clearLastBacktest = function() {
 };
 
 function setupFormControls() {
-    var form = document.getElementById('backtestForm');
-    if (!form) return;
-
-    if (!form.dataset.controlsAttached) {
-        form.dataset.controlsAttached = 'true';
-
-        document.querySelectorAll('input[name="takeProfitType"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const isPct = e.target.value === 'P';
-                document.getElementById('takeProfitPctGroup').style.display = isPct ? 'block' : 'none';
-                document.getElementById('takeProfitDollarGroup').style.display = isPct ? 'none' : 'block';
-            });
+    // Take Profit Type Toggle
+    document.querySelectorAll('input[name="takeProfitType"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const isPct = e.target.value === 'P';
+            document.getElementById('takeProfitPctGroup').style.display = isPct ? 'block' : 'none';
+            document.getElementById('takeProfitDollarGroup').style.display = isPct ? 'none' : 'block';
         });
-
-        document.querySelectorAll('input[name="stopLossType"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const isPct = e.target.value === 'P';
-                document.getElementById('stopLossPctGroup').style.display = isPct ? 'block' : 'none';
-                document.getElementById('stopLossDollarGroup').style.display = isPct ? 'none' : 'block';
-            });
+    });
+    
+    // Stop Loss Type Toggle
+    document.querySelectorAll('input[name="stopLossType"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const isPct = e.target.value === 'P';
+            document.getElementById('stopLossPctGroup').style.display = isPct ? 'block' : 'none';
+            document.getElementById('stopLossDollarGroup').style.display = isPct ? 'none' : 'block';
         });
-
-        document.querySelectorAll('input[name="allocationType"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const type = e.target.value;
-                document.getElementById('allocationPctGroup').style.display = type === '1' ? 'block' : 'none';
-                document.getElementById('allocationContractsGroup').style.display = type === '2' ? 'block' : 'none';
-                document.getElementById('allocationFixedGroup').style.display = type === '3' ? 'block' : 'none';
-            });
+    });
+    
+    // Allocation Type Toggle
+    document.querySelectorAll('input[name="allocationType"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const type = e.target.value;
+            document.getElementById('allocationPctGroup').style.display = type === '1' ? 'block' : 'none';
+            document.getElementById('allocationContractsGroup').style.display = type === '2' ? 'block' : 'none';
+            document.getElementById('allocationFixedGroup').style.display = type === '3' ? 'block' : 'none';
         });
-
+    });
+    
+    // Form Submit - use flag to prevent duplicate listeners
+    const form = document.getElementById('backtestForm');
+    if (form && !form.dataset.submitHandlerAttached) {
+        form.dataset.submitHandlerAttached = 'true';
         form.addEventListener('submit', handleBacktestSubmit);
-
-        var resetBtn = document.getElementById('resetBacktestBtn');
-        if (resetBtn) {
-            resetBtn.addEventListener('click', resetForm);
-        }
+    }
+    
+    // Reset Button
+    const resetBtn = document.getElementById('resetBacktestBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetForm);
     }
 }
 
 function setupStrategySelection() {
     const strategySelect = document.getElementById('strategy');
-    if (!strategySelect || strategySelect.dataset.changeAttached) return;
-    strategySelect.dataset.changeAttached = 'true';
+    if (!strategySelect) return;
     
     strategySelect.addEventListener('change', (e) => {
         const strategy = e.target.value;
@@ -1944,15 +1945,7 @@ async function handleBacktestSubmit(e) {
     
     console.log('Form submitted');
     
-    let config;
-    try {
-        config = collectFormData();
-    } catch (err) {
-        console.error('collectFormData error:', err);
-        showError('Error reading form: ' + err.message);
-        form.dataset.isSubmitting = 'false';
-        return;
-    }
+    const config = collectFormData();
     
     if (!config) {
         showError('Please complete all required fields');
@@ -2116,8 +2109,9 @@ function collectFormData() {
         return null;
     }
     
-    const takeProfitType = document.querySelector('input[name="takeProfitType"]:checked')?.value || 'P';
-    const stopLossType = document.querySelector('input[name="stopLossType"]:checked')?.value || 'P';
+    // Collect take profit/stop loss
+    const takeProfitType = document.querySelector('input[name="takeProfitType"]:checked').value;
+    const stopLossType = document.querySelector('input[name="stopLossType"]:checked').value;
     
     const config = {
         backtest_name: backtestName,
@@ -2133,13 +2127,13 @@ function collectFormData() {
         stop_loss_pct: stopLossType === 'P' ? parseFloat(document.getElementById('stopLossPct').value) : null,
         stop_loss_dollar: stopLossType === 'D' ? parseFloat(document.getElementById('stopLossDollar').value) : null,
         detection_bar_size: parseFloat(document.getElementById('detectionBars').value),
-        concurrent_trades: (document.querySelector('input[name="concurrentTrades"]:checked')?.value || 'n') === 'y',
-        avoid_pdt: (document.querySelector('input[name="avoidPdt"]:checked')?.value || 'n') === 'y',
+        concurrent_trades: document.querySelector('input[name="concurrentTrades"]:checked').value === 'y',
+        avoid_pdt: document.querySelector('input[name="avoidPdt"]:checked').value === 'y',
         starting_capital: startingCapital
     };
     
     // Add allocation
-    const allocationType = document.querySelector('input[name="allocationType"]:checked')?.value || '1';
+    const allocationType = document.querySelector('input[name="allocationType"]:checked').value;
     if (allocationType === '1') {
         config.allocation_type = 'pct';
         config.allocation_value = parseFloat(document.getElementById('allocationPct').value);
@@ -2153,7 +2147,7 @@ function collectFormData() {
     
     // Add wing configuration if Iron strategy
     if (strategy.includes('Iron')) {
-        config.allow_skewed_wings = (document.querySelector('input[name="allowSkewedWings"]:checked')?.value || 'n') === 'y';
+        config.allow_skewed_wings = document.querySelector('input[name="allowSkewedWings"]:checked').value === 'y';
     }
     
     // Add net premium filter if provided
@@ -2397,18 +2391,11 @@ function showError(message) {
     const errorDiv = document.getElementById('backtestError');
     if (!errorDiv) {
         console.error('Error div not found:', message);
-        appAlert(message);
+        appAlert(message); // Fallback to alert
         return;
     }
-    errorDiv.textContent = '';
-    var parts = message.split(/<br\s*\/?>|\n/);
-    parts.forEach(function(part, i) {
-        if (i > 0) errorDiv.appendChild(document.createElement('br'));
-        errorDiv.appendChild(document.createTextNode(part));
-    });
+    errorDiv.textContent = message;
     errorDiv.style.display = 'block';
-    var loadingDiv = document.getElementById('backtestLoading');
-    if (loadingDiv) loadingDiv.style.display = 'none';
     setTimeout(() => {
         if (errorDiv) {
             errorDiv.style.display = 'none';
