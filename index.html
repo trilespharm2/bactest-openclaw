@@ -2736,6 +2736,310 @@
               </div>
             </section>
 
+            <!-- Options Backtest Result Detail Page -->
+            <section id="optionsResultDetailPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3" id="optDetailTitle">Options Backtest Analysis</h3>
+                <ul class="breadcrumbs mb-3">
+                  <li class="nav-home"><a href="#" data-page="home"><i class="fas fa-home"></i></a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#" data-page="optionsResults">Results</a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#" id="optDetailBreadcrumb">Backtest</a></li>
+                </ul>
+              </div>
+
+              <div id="optDetailLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3" id="optDetailLoadingMsg">Loading results...</p>
+              </div>
+
+              <div id="optDetailError" class="alert alert-danger" style="display:none;">
+                <strong>Error:</strong> <span id="optDetailErrorMsg"></span>
+              </div>
+
+              <div id="optDetailContent" style="display:none;">
+                <div class="row mb-3" id="optDetailInfoRow">
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center icon-primary bubble-shadow-small"><i class="fas fa-chess-knight"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Strategy</p><h4 class="card-title" id="optDetailStrategy" style="font-size: 13px;">--</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center icon-info bubble-shadow-small"><i class="fas fa-chart-bar"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Symbol</p><h4 class="card-title" id="optDetailSymbol">--</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center icon-success bubble-shadow-small"><i class="fas fa-exchange-alt"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Total Trades</p><h4 class="card-title" id="optDetailTotalTrades">0</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center bubble-shadow-small" id="optDetailPnlIcon"><i class="fas fa-dollar-sign"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Net P&L</p><h4 class="card-title" id="optDetailNetPnl">$0.00</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-lg-8 mb-3">
+                    <div class="card">
+                      <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="card-title mb-0">Equity Curve</h4>
+                        <span class="badge bg-light text-muted" id="optDetailEquitySummary"></span>
+                      </div>
+                      <div class="card-body" style="height: 350px; position: relative;">
+                        <canvas id="optDetailEquityChart"></canvas>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-lg-4 mb-3">
+                    <div class="card h-100">
+                      <div class="card-header"><h4 class="card-title">Performance Statistics</h4></div>
+                      <div class="card-body" id="optDetailStatsBody" style="overflow-y: auto; max-height: 350px;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card mb-3" id="optDetailConfigCard">
+                  <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleBtDetailSection('optDetailConfigBody', this)">
+                    <h4 class="card-title mb-0"><i class="fas fa-sliders me-2"></i>Configuration</h4>
+                    <div>
+                      <button class="btn btn-sm btn-outline-primary me-2" id="optDetailUseTemplate" style="display:none;" onclick="event.stopPropagation(); useOptTemplate()">
+                        <i class="fas fa-redo me-1"></i>Use Template
+                      </button>
+                      <i class="fas fa-chevron-down"></i>
+                    </div>
+                  </div>
+                  <div class="card-body" id="optDetailConfigBody">
+                    <div id="optDetailConfigList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;"></div>
+                  </div>
+                </div>
+
+                <div class="card mb-3">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="card-title mb-0">Trade Log</h4>
+                    <button class="btn btn-sm btn-outline-primary" id="optDetailDownloadCsv">
+                      <i class="fas fa-download me-1"></i>Download CSV
+                    </button>
+                  </div>
+                  <div class="card-body">
+                    <div class="table-responsive">
+                      <table class="table table-hover table-sm">
+                        <thead><tr id="optDetailTradeLogHeader"></tr></thead>
+                        <tbody id="optDetailTradeLogBody"></tbody>
+                      </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                      <span class="small text-muted" id="optDetailTradeLogInfo"></span>
+                      <div>
+                        <button class="btn btn-sm btn-outline-secondary me-1" id="optDetailPrevBtn" disabled><i class="fas fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" id="optDetailNextBtn" disabled><i class="fas fa-chevron-right"></i></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card mb-3" id="optDetailDecisionTreeCard" style="display:none;">
+                  <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleBtDetailSection('optDetailDtBody', this)">
+                    <h4 class="card-title mb-0"><i class="fas fa-project-diagram me-2"></i>Decision Tree Log Book</h4>
+                    <i class="fas fa-chevron-down"></i>
+                  </div>
+                  <div class="card-body" id="optDetailDtBody">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <span class="small text-muted" id="optDetailDtInfo"></span>
+                      <div>
+                        <button class="btn btn-sm btn-outline-secondary me-1" id="optDetailDtPrevBtn" disabled><i class="fas fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" id="optDetailDtNextBtn" disabled><i class="fas fa-chevron-right"></i></button>
+                      </div>
+                    </div>
+                    <div id="optDetailDtContent"></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Stock Backtest Result Detail Page -->
+            <section id="stockResultDetailPage" class="page">
+              <div class="page-header">
+                <h3 class="fw-bold mb-3" id="stkDetailTitle">Stock Backtest Analysis</h3>
+                <ul class="breadcrumbs mb-3">
+                  <li class="nav-home"><a href="#" data-page="home"><i class="fas fa-home"></i></a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#" data-page="stockResults">Results</a></li>
+                  <li class="separator"><i class="fas fa-chevron-right"></i></li>
+                  <li class="nav-item"><a href="#" id="stkDetailBreadcrumb">Backtest</a></li>
+                </ul>
+              </div>
+
+              <div id="stkDetailLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3" id="stkDetailLoadingMsg">Loading results...</p>
+              </div>
+
+              <div id="stkDetailError" class="alert alert-danger" style="display:none;">
+                <strong>Error:</strong> <span id="stkDetailErrorMsg"></span>
+              </div>
+
+              <div id="stkDetailContent" style="display:none;">
+                <div class="row mb-3" id="stkDetailInfoRow">
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center icon-primary bubble-shadow-small"><i class="fas fa-chart-line"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Strategy</p><h4 class="card-title" id="stkDetailStrategy" style="font-size: 13px;">--</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center icon-info bubble-shadow-small"><i class="fas fa-chart-bar"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Symbol(s)</p><h4 class="card-title" id="stkDetailSymbol">--</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center icon-success bubble-shadow-small"><i class="fas fa-exchange-alt"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Total Trades</p><h4 class="card-title" id="stkDetailTotalTrades">0</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card card-stats card-round">
+                      <div class="card-body">
+                        <div class="row align-items-center">
+                          <div class="col-icon"><div class="icon-big text-center bubble-shadow-small" id="stkDetailPnlIcon"><i class="fas fa-dollar-sign"></i></div></div>
+                          <div class="col col-stats ms-3 ms-sm-0">
+                            <div class="numbers"><p class="card-category">Net P&L</p><h4 class="card-title" id="stkDetailNetPnl">$0.00</h4></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-lg-8 mb-3">
+                    <div class="card">
+                      <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="card-title mb-0">Equity Curve</h4>
+                        <span class="badge bg-light text-muted" id="stkDetailEquitySummary"></span>
+                      </div>
+                      <div class="card-body" style="height: 350px; position: relative;">
+                        <canvas id="stkDetailEquityChart"></canvas>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-lg-4 mb-3">
+                    <div class="card h-100">
+                      <div class="card-header"><h4 class="card-title">Performance Statistics</h4></div>
+                      <div class="card-body" id="stkDetailStatsBody" style="overflow-y: auto; max-height: 350px;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card mb-3" id="stkDetailConfigCard">
+                  <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleBtDetailSection('stkDetailConfigBody', this)">
+                    <h4 class="card-title mb-0"><i class="fas fa-sliders me-2"></i>Configuration</h4>
+                    <div>
+                      <button class="btn btn-sm btn-outline-primary me-2" id="stkDetailUseTemplate" style="display:none;" onclick="event.stopPropagation(); useStkTemplate()">
+                        <i class="fas fa-redo me-1"></i>Use Template
+                      </button>
+                      <i class="fas fa-chevron-down"></i>
+                    </div>
+                  </div>
+                  <div class="card-body" id="stkDetailConfigBody">
+                    <div id="stkDetailConfigList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;"></div>
+                  </div>
+                </div>
+
+                <div class="card mb-3">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="card-title mb-0">Trade Log</h4>
+                    <button class="btn btn-sm btn-outline-primary" id="stkDetailDownloadCsv">
+                      <i class="fas fa-download me-1"></i>Download CSV
+                    </button>
+                  </div>
+                  <div class="card-body">
+                    <div class="table-responsive">
+                      <table class="table table-hover table-sm">
+                        <thead><tr id="stkDetailTradeLogHeader"></tr></thead>
+                        <tbody id="stkDetailTradeLogBody"></tbody>
+                      </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                      <span class="small text-muted" id="stkDetailTradeLogInfo"></span>
+                      <div>
+                        <button class="btn btn-sm btn-outline-secondary me-1" id="stkDetailPrevBtn" disabled><i class="fas fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" id="stkDetailNextBtn" disabled><i class="fas fa-chevron-right"></i></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card mb-3" id="stkDetailDecisionTreeCard" style="display:none;">
+                  <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleBtDetailSection('stkDetailDtBody', this)">
+                    <h4 class="card-title mb-0"><i class="fas fa-project-diagram me-2"></i>Decision Tree Log Book</h4>
+                    <i class="fas fa-chevron-down"></i>
+                  </div>
+                  <div class="card-body" id="stkDetailDtBody">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <span class="small text-muted" id="stkDetailDtInfo"></span>
+                      <div>
+                        <button class="btn btn-sm btn-outline-secondary me-1" id="stkDetailDtPrevBtn" disabled><i class="fas fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" id="stkDetailDtNextBtn" disabled><i class="fas fa-chevron-right"></i></button>
+                      </div>
+                    </div>
+                    <div id="stkDetailDtContent"></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <!-- Subscription Page -->
             <section id="subscriptionPage" class="page">
               <!-- Pricing content for guests -->
@@ -3782,7 +4086,8 @@
           const trades = s.total_trades || 0;
           const updated = bt.timestamp;
           const rowClass = isRunning ? 'results-row running-row' : 'results-row';
-          const rowClick = isRunning ? '' : `onclick="window.location.href='/options-backtest-result-detail.html?id=${bt.id}&from=optionsResults'"`;
+          const rowClick = isRunning ? '' : `onclick="viewOptionsResultDetail('${bt.id}')"`;
+
           const rowStyle = isRunning ? 'opacity:0.7;' : 'cursor:pointer;';
           
           if (isRunning) {
@@ -4001,7 +4306,8 @@
           const symbols = bt.symbol_count || 0;
           const updated = bt.timestamp;
           const rowClass = isRunning ? 'results-row running-row' : 'results-row';
-          const rowClick = isRunning ? '' : `onclick="window.location.href='/stock-backtest-results.html?id=${bt.id}&from=stockResults'"`;
+          const rowClick = isRunning ? '' : `onclick="viewStockResultDetail('${bt.id}')"`;
+
           const rowStyle = isRunning ? 'opacity:0.7;' : 'cursor:pointer;';
           
           if (isRunning) {
@@ -4245,7 +4551,7 @@
             }
             
             const result = await response.json();
-            window.location.href = '/options-backtest-result-detail.html?id=' + result.backtest_id;
+            viewOptionsResultDetail(result.backtest_id);
             
           } catch (error) {
             if (loadingEl) loadingEl.style.display = 'none';
@@ -4426,7 +4732,7 @@
             
             const result = await response.json();
             sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
-            window.location.href = '/stock-backtest-results.html?id=' + result.backtest_id;
+            viewStockResultDetail(result.backtest_id);
             
           } catch (error) {
             if (loadingEl) loadingEl.style.display = 'none';

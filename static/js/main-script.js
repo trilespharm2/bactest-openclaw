@@ -581,6 +581,8 @@ async function navigateToPage(pageName, skipPushState = false) {
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
         'simResultDetail': 'Simulated Trading Analysis',
+        'optionsResultDetail': 'Options Backtest Analysis',
+        'stockResultDetail': 'Stock Backtest Analysis',
         'learnOptionsBacktest': 'Options Backtester',
         'learnStockBacktest': 'Stock Backtester',
         'learnSimTrading': 'Simulated Trading',
@@ -741,6 +743,14 @@ async function loadPageContent(pageName) {
                         scriptName = null;
                     }
                 }
+                if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
+                    scriptName = 'backtest-result-detail-script.js';
+                    if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
+                        loadedScripts.add(pageName);
+                        initializePage(pageName);
+                        scriptName = null;
+                    }
+                }
                 if (scriptName) await loadScript(scriptName, pageName);
             } else {
                 initializePage(pageName);
@@ -825,10 +835,24 @@ function initializePage(pageName) {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
             initSimResultDetailPage();
+        } else if (pageName === 'optionsResultDetail' && typeof initOptionsResultDetailPage === 'function') {
+            initOptionsResultDetailPage();
+        } else if (pageName === 'stockResultDetail' && typeof initStockResultDetailPage === 'function') {
+            initStockResultDetailPage();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);
     }
+}
+
+function viewOptionsResultDetail(backtestId) {
+    window._pendingOptDetailId = backtestId;
+    navigateToPage('optionsResultDetail');
+}
+
+function viewStockResultDetail(backtestId) {
+    window._pendingStkDetailId = backtestId;
+    navigateToPage('stockResultDetail');
 }
 
 // Setup Quick Links
