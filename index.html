@@ -2339,12 +2339,20 @@
                         </select>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">TP%:</label>
-                        <input type="number" class="sim-dark-input" id="simOptionTP" value="50" step="5" style="width: 55px;">
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">TP:</label>
+                        <input type="number" class="sim-dark-input" id="simOptionTP" placeholder="" step="5" style="width: 55px;">
+                        <select class="sim-dark-select" id="simOptionTPType" style="width: 38px; font-size: 10px; padding: 2px;">
+                          <option value="pct" selected>%</option>
+                          <option value="dollar">$</option>
+                        </select>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">SL$:</label>
-                        <input type="number" class="sim-dark-input" id="simOptionSL" value="-100" step="10" style="width: 65px;">
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">SL:</label>
+                        <input type="number" class="sim-dark-input" id="simOptionSL" placeholder="" step="10" style="width: 55px;">
+                        <select class="sim-dark-select" id="simOptionSLType" style="width: 38px; font-size: 10px; padding: 2px;">
+                          <option value="pct">%</option>
+                          <option value="dollar" selected>$</option>
+                        </select>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Det.Bar:</label>
@@ -4163,7 +4171,11 @@
         let html = '<div class="alert alert-info mb-3"><strong>Strategy requires ' + legDefs.length + ' legs</strong></div>';
         
         legDefs.forEach((leg, index) => {
-          html += '<div class="leg-config-card"><div class="leg-header"><span class="leg-title">Leg ' + (index + 1) + ': ' + leg.name + '</span><span class="leg-badge">' + (leg.type === 'C' ? 'Call' : 'Put') + ' - ' + leg.position + '</span></div><div class="mb-3"><label class="form-label">Configuration method:</label><select class="form-select leg-method-select" data-leg-index="' + index + '"><option value="">-- Select Method --</option><option value="mid_price">1. Mid Price Range</option><option value="pct_underlying">2. % Distance from Underlying</option><option value="dollar_underlying">3. $ Distance from Underlying</option><option value="pct_leg">4. % Distance from Another Leg</option><option value="dollar_leg">5. $ Distance from Another Leg</option></select></div><div id="legParams' + index + '"></div></div>';
+          var legMethodOptions = '<option value="">-- Select Method --</option><option value="mid_price">1. Mid Price Range</option><option value="pct_underlying">2. % Distance from Underlying</option><option value="dollar_underlying">3. $ Distance from Underlying</option>';
+          if (legDefs.length > 1 && index > 0) {
+            legMethodOptions += '<option value="pct_leg">4. % Distance from Another Leg</option><option value="dollar_leg">5. $ Distance from Another Leg</option>';
+          }
+          html += '<div class="leg-config-card"><div class="leg-header"><span class="leg-title">Leg ' + (index + 1) + ': ' + leg.name + '</span><span class="leg-badge">' + (leg.type === 'C' ? 'Call' : 'Put') + ' - ' + leg.position + '</span></div><div class="mb-3"><label class="form-label">Configuration method:</label><select class="form-select leg-method-select" data-leg-index="' + index + '">' + legMethodOptions + '</select></div><div id="legParams' + index + '"></div></div>';
         });
         
         container.innerHTML = html;

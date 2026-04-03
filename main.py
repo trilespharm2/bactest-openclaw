@@ -6460,6 +6460,16 @@ def get_simulated_trading_option_bars():
         
         bars.sort(key=lambda x: x['timestamp'])
         
+        from datetime import datetime as _dt_cls, timezone as _tz
+        import pytz
+        et_tz = pytz.timezone('America/New_York')
+        filtered_bars = []
+        for b in bars:
+            bar_dt = _dt_cls.fromtimestamp(b['timestamp'] / 1000, tz=_tz.utc).astimezone(et_tz)
+            if bar_dt.hour > 9 or (bar_dt.hour == 9 and bar_dt.minute >= 30):
+                filtered_bars.append(b)
+        bars = filtered_bars
+        
         print(f"[SimTrading Option Bars] Success: {option_symbol}, {len(bars)} bars returned")
         
         return jsonify({

@@ -35,6 +35,7 @@ const TIMEFRAME_MINUTES = {
 let simTimeframeData = {};
 let simCurrentTimeframe = '1m';
 let simCurrentSymbol = '';
+let simDataLoaded = false;
 let simChartDates = { start: '', end: '', tradingStart: '' };
 let simIsLoadingTimeframes = false;
 let simLoadedTimeframes = 0;
@@ -575,7 +576,7 @@ function buildCurrentSessionData() {
 }
 
 function saveCurrentSessionState() {
-    if (!simCurrentSymbol) return;
+    if (!simCurrentSymbol || !simDataLoaded) return;
     const mode = window._simTradingMode || 'stock';
     const sessionState = {
         symbol: simCurrentSymbol,
@@ -673,6 +674,7 @@ function applyTradingMode() {
 
 function resetTradingState() {
     stopAutoplay();
+    simDataLoaded = false;
     simAllBars = [];
     simVisibleBars = [];
     simCurrentBarIndex = 0;
@@ -822,12 +824,14 @@ async function loadSimulatedChart(restoreMinuteIndex = null) {
         if (!minuteBars || minuteBars.length === 0) throw new Error('No data found for the specified parameters');
 
         simMinuteBarsCache = minuteBars;
+        simDataLoaded = true;
         console.log(`Fetched ${minuteBars.length} 1-minute bars`);
 
         showLoader(true, 'Computing timeframes...', '0 / 7');
         computeAllTimeframes(simChartDates.tradingStart, restoreMinuteIndex);
     } catch (error) {
         console.error('Error loading chart:', error);
+        simDataLoaded = false;
         appAlert('Error loading chart: ' + error.message);
         showLoader(false);
     }
@@ -1743,8 +1747,12 @@ async function executeOptionTrade() {
 
     const dte = parseInt(document.getElementById('simOptionDTE')?.value) || 0;
     const strategy = document.getElementById('simOptionStrategy')?.value;
-    const tp = parseFloat(document.getElementById('simOptionTP')?.value) || 50;
-    const sl = parseFloat(document.getElementById('simOptionSL')?.value) || -100;
+    const tpRaw = document.getElementById('simOptionTP')?.value;
+    const slRaw = document.getElementById('simOptionSL')?.value;
+    const tpType = document.getElementById('simOptionTPType')?.value || 'pct';
+    const slType = document.getElementById('simOptionSLType')?.value || 'dollar';
+    const tp = tpRaw !== '' && tpRaw !== undefined ? parseFloat(tpRaw) : null;
+    const sl = slRaw !== '' && slRaw !== undefined ? parseFloat(slRaw) : null;
     const detectionBar = parseInt(document.getElementById('simOptionDetectionBar')?.value) || 1;
     const quantity = parseInt(document.getElementById('simOptionQuantity')?.value) || 10;
 
@@ -1818,7 +1826,7 @@ async function executeOptionTrade() {
             id: Date.now(), strategy, legs: positionLegs, expiration: expDateStr,
             quantity, remainingQuantity: quantity, totalEntryPremium,
             entryTimestamp, entryMinuteIndex: simCurrentMinuteIndex,
-            underlyingAtEntry: underlyingPrice, tp, sl, detectionBar,
+            underlyingAtEntry: underlyingPrice, tp, sl, tpType, slType, detectionBar,
             status: 'open', closedParts: [], realizedPnl: 0
         };
 
@@ -1884,8 +1892,20 @@ function checkOptionTpSlThresholds() {
         const entryPremium = Math.abs(pos.totalEntryPremium);
         if (entryPremium > 0) {
             const pnlPct = (unrealizedPnl / entryPremium) * 100;
-            if (pos.tp && pnlPct >= pos.tp) positionsToClose.push({ pos, reason: 'TP' });
-            else if (pos.sl && unrealizedPnl <= -Math.abs(pos.sl)) positionsToClose.push({ pos, reason: 'SL' });
+            if (pos.tp != null) {
+                if (pos.tpType === 'dollar') {
+                    if (unrealizedPnl >= pos.tp) positionsToClose.push({ pos, reason: 'TP' });
+                } else {
+                    if (pnlPct >= pos.tp) positionsToClose.push({ pos, reason: 'TP' });
+                }
+            }
+            if (!positionsToClose.find(p => p.pos === pos) && pos.sl != null) {
+                if (pos.slType === 'pct') {
+                    if (pnlPct <= -Math.abs(pos.sl)) positionsToClose.push({ pos, reason: 'SL' });
+                } else {
+                    if (unrealizedPnl <= -Math.abs(pos.sl)) positionsToClose.push({ pos, reason: 'SL' });
+                }
+            }
         }
 
         const currentDate = new Date(currentTimestamp);
@@ -2009,8 +2029,14 @@ function updatePositionTpSl(positionId) {
     if (!pos) return;
     const tpInput = document.getElementById(`pos-tp-${positionId}`);
     const slInput = document.getElementById(`pos-sl-${positionId}`);
-    if (tpInput) { const v = parseFloat(tpInput.value); if (!isNaN(v) && v > 0) pos.tp = v; }
-    if (slInput) { const v = parseFloat(slInput.value); if (!isNaN(v) && v >= 0) pos.sl = -Math.abs(v); }
+    if (tpInput) {
+        if (tpInput.value === '') { pos.tp = null; }
+        else { const v = parseFloat(tpInput.value); if (!isNaN(v) && v > 0) pos.tp = v; }
+    }
+    if (slInput) {
+        if (slInput.value === '') { pos.sl = null; }
+        else { const v = parseFloat(slInput.value); if (!isNaN(v) && v >= 0) pos.sl = -Math.abs(v); }
+    }
 }
 
 function closePositionPartial(positionId) {
@@ -2061,10 +2087,10 @@ function updateOptionsPositionsCard() {
             <div style="margin-bottom: 4px;">${legsHtml}</div>
             <div style="font-size: 10px; color: #6a6d78; margin-bottom: 6px;">Exp: ${pos.expiration}</div>
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                <label style="font-size: 10px; color: #6a6d78;">TP%:</label>
-                <input type="number" id="pos-tp-${pos.id}" value="${pos.tp}" step="5" class="sim-dark-input" style="width: 48px; font-size: 10px; padding: 2px 4px;">
-                <label style="font-size: 10px; color: #6a6d78;">SL$:</label>
-                <input type="number" id="pos-sl-${pos.id}" value="${Math.abs(pos.sl)}" step="10" class="sim-dark-input" style="width: 55px; font-size: 10px; padding: 2px 4px;">
+                <label style="font-size: 10px; color: #6a6d78;">TP${(pos.tpType || 'pct') === 'dollar' ? '$' : '%'}:</label>
+                <input type="number" id="pos-tp-${pos.id}" value="${pos.tp != null ? pos.tp : ''}" step="5" class="sim-dark-input" style="width: 48px; font-size: 10px; padding: 2px 4px;">
+                <label style="font-size: 10px; color: #6a6d78;">SL${(pos.slType || 'dollar') === 'pct' ? '%' : '$'}:</label>
+                <input type="number" id="pos-sl-${pos.id}" value="${pos.sl != null ? Math.abs(pos.sl) : ''}" step="10" class="sim-dark-input" style="width: 55px; font-size: 10px; padding: 2px 4px;">
                 <button onclick="updatePositionTpSl(${pos.id})" class="sim-nav-btn" style="font-size: 10px; padding: 2px 6px;"><i class="fas fa-save"></i></button>
                 <span style="flex: 1;"></span>
                 <label style="font-size: 10px; color: #6a6d78;">Close:</label>
