@@ -3239,18 +3239,40 @@ def start_backtest_async():
             'id': backtest_id,
             'timestamp': datetime.now().isoformat(),
             'status': 'running',
+            'name': params.get('backtest_name') or params.get('backtestName', ''),
             'config': {
-                'strategy': params.get('strategy'),
-                'symbol': params.get('symbol'),
-                'start_date': params.get('start_date'),
-                'end_date': params.get('end_date'),
-                'initial_capital': params.get('starting_capital', 50000),
-                'entry_time': params.get('entry_time'),
-                'dte': params.get('dte'),
-                'take_profit': params.get('take_profit_pct'),
-                'stop_loss': params.get('stop_loss_pct'),
-                'allocation': f"{params.get('allocation_value')}{'%' if params.get('allocation_type') == 'pct' else '$'}",
-                'legs': params.get('legs', [])
+                'backtest_name': params.get('backtest_name') or params.get('backtestName', ''),
+                'name': params.get('backtest_name') or params.get('backtestName', ''),
+                'symbol': params.get('symbol', 'SPX'),
+                'dte': params.get('dte', 0),
+                'strategy': params.get('strategy', ''),
+                'legs': params.get('legs', []),
+                'start_date': params.get('start_date') or params.get('startDate'),
+                'end_date': params.get('end_date') or params.get('endDate'),
+                'entry_time': params.get('entry_time') or params.get('entryTime', '10:00'),
+                'entry_time_max': params.get('entry_time_max') or params.get('entryTimeMax', ''),
+                'initial_capital': params.get('starting_capital') or params.get('startingCapital', 100000),
+                'allocation_type': params.get('allocation_type') or params.get('allocationType', 'pct'),
+                'allocation_value': params.get('allocation_value') or params.get('allocationValue', 10),
+                'take_profit_pct': params.get('take_profit_pct') or params.get('takeProfitPct'),
+                'take_profit_dollar': params.get('take_profit_dollar') or params.get('takeProfitDollar'),
+                'stop_loss_pct': params.get('stop_loss_pct') or params.get('stopLossPct'),
+                'stop_loss_dollar': params.get('stop_loss_dollar') or params.get('stopLossDollar'),
+                'detection_bar_size': params.get('detection_bar_size') or params.get('detectionBarSize', 5),
+                'net_premium_min': params.get('net_premium_min') or params.get('netPremiumMin'),
+                'net_premium_max': params.get('net_premium_max') or params.get('netPremiumMax'),
+                'avoid_pdt': params.get('avoid_pdt') or params.get('avoidPdt', False),
+                'concurrent_trades': params.get('concurrent_trades') or params.get('concurrentTrades', False),
+                'allow_skewed_wings': params.get('allow_skewed_wings') or params.get('allowSkewedWings', False),
+                'options_entry_type': params.get('options_entry_type') or params.get('optionsEntryType', 'none'),
+                'preset_condition': params.get('preset_condition') or params.get('presetCondition', ''),
+                'preset_operator': params.get('preset_operator') or params.get('presetOperator', '>'),
+                'preset_threshold': params.get('preset_threshold') or params.get('presetThreshold', ''),
+                'velocity_lookback': params.get('velocity_lookback') or params.get('velocityLookback', '5'),
+                'price_conditions': params.get('price_conditions') or params.get('priceConditions', []),
+                'eod_action': params.get('eod_action') or params.get('eodAction', 'close'),
+                'trade_frequency': params.get('trade_frequency') or params.get('tradeFrequency', 'daily'),
+                'entry_days': params.get('entry_days') or params.get('entryDays', []),
             },
             'summary': {}
         }
@@ -3281,67 +3303,69 @@ def start_backtest_async():
                 result = run_backtester_script_with_id(params, api_key, backtest_id)
                 running_backtests[backtest_id]['status'] = 'completed'
                 
-                # Update metadata with completed status and summary
+                # Update metadata with completed status
+                # Note: run_backtester_script_with_id already wrote full metadata with config + summary
+                # We just need to ensure status is marked completed and summary has avg_win/avg_loss
                 try:
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
                     metadata['status'] = 'completed'
                     
-                    # Extract summary from result if available
-                    if result and isinstance(result, dict):
-                        metadata['summary'] = result.get('summary', {})
-                    
-                    # Also try to read summary from trade log if available
-                    trade_log_path = os.path.join(output_dir, f'trade_log_{backtest_id}.csv')
-                    if os.path.exists(trade_log_path):
-                        try:
-                            import csv
-                            trades = []
-                            with open(trade_log_path, 'r') as csvfile:
-                                reader = csv.DictReader(csvfile)
-                                for row in reader:
-                                    trades.append(row)
-                            
-                            if trades:
-                                total_pnl = sum(float(t.get('pnl', 0) or 0) for t in trades)
-                                wins = sum(1 for t in trades if float(t.get('pnl', 0) or 0) > 0)
-                                initial_cap = params.get('starting_capital', 50000)
+                    # If summary is missing avg_win/avg_loss, compute from trade log
+                    summary = metadata.get('summary', {})
+                    if 'avg_win' not in summary or 'avg_loss' not in summary:
+                        trade_log_path = os.path.join(output_dir, f'trade_log_{backtest_id}.csv')
+                        if os.path.exists(trade_log_path):
+                            try:
+                                import csv
+                                trades = []
+                                with open(trade_log_path, 'r') as csvfile:
+                                    reader = csv.DictReader(csvfile)
+                                    for row in reader:
+                                        trades.append(row)
                                 
-                                # Calculate stats
-                                metadata['summary'] = {
-                                    'total_trades': len(trades),
-                                    'winning_trades': wins,
-                                    'losing_trades': len(trades) - wins,
-                                    'win_rate': round((wins / len(trades)) * 100, 2) if trades else 0,
-                                    'total_pnl': round(total_pnl, 2),
-                                    'total_return': round((total_pnl / initial_cap) * 100, 2) if initial_cap else 0,
-                                    'avg_trade': round(total_pnl / len(trades), 2) if trades else 0,
-                                    'final_capital': round(initial_cap + total_pnl, 2)
-                                }
-                                
-                                # Calculate max drawdown and profit factor
-                                balance = initial_cap
-                                peak = initial_cap
-                                max_dd = 0
-                                total_wins = 0
-                                total_losses = 0
-                                for t in trades:
-                                    pnl = float(t.get('pnl', 0) or 0)
-                                    balance += pnl
-                                    if pnl > 0:
-                                        total_wins += pnl
-                                    else:
-                                        total_losses += abs(pnl)
-                                    if balance > peak:
-                                        peak = balance
-                                    dd = ((balance - peak) / peak) * 100 if peak > 0 else 0
-                                    if dd < max_dd:
-                                        max_dd = dd
-                                
-                                metadata['summary']['max_drawdown'] = round(max_dd, 2)
-                                metadata['summary']['profit_factor'] = round(total_wins / total_losses, 2) if total_losses > 0 else 0
-                        except Exception as csv_err:
-                            print(f"Error parsing trade log for summary: {csv_err}")
+                                if trades:
+                                    total_pnl = sum(float(t.get('pnl', 0) or 0) for t in trades)
+                                    initial_cap = params.get('starting_capital', 50000)
+                                    winners_list = [t for t in trades if float(t.get('pnl', 0) or 0) > 0]
+                                    losers_list = [t for t in trades if float(t.get('pnl', 0) or 0) < 0]
+                                    avg_win_val = round(sum(float(t.get('pnl', 0) or 0) for t in winners_list) / len(winners_list), 2) if winners_list else 0
+                                    avg_loss_val = round(sum(float(t.get('pnl', 0) or 0) for t in losers_list) / len(losers_list), 2) if losers_list else 0
+                                    
+                                    balance = initial_cap
+                                    peak = initial_cap
+                                    max_dd = 0
+                                    total_wins = 0
+                                    total_losses = 0
+                                    for t in trades:
+                                        pnl_val = float(t.get('pnl', 0) or 0)
+                                        balance += pnl_val
+                                        if pnl_val > 0:
+                                            total_wins += pnl_val
+                                        else:
+                                            total_losses += abs(pnl_val)
+                                        if balance > peak:
+                                            peak = balance
+                                        dd = ((balance - peak) / peak) * 100 if peak > 0 else 0
+                                        if dd < max_dd:
+                                            max_dd = dd
+                                    
+                                    metadata['summary'] = {
+                                        'total_trades': len(trades),
+                                        'winning_trades': len(winners_list),
+                                        'losing_trades': len(losers_list),
+                                        'win_rate': round(len(winners_list) / len(trades) * 100, 2) if trades else 0,
+                                        'total_pnl': round(total_pnl, 2),
+                                        'total_return': round((total_pnl / initial_cap) * 100, 2) if initial_cap else 0,
+                                        'avg_trade': round(total_pnl / len(trades), 2) if trades else 0,
+                                        'avg_win': avg_win_val,
+                                        'avg_loss': avg_loss_val,
+                                        'max_drawdown': round(max_dd, 2),
+                                        'profit_factor': round(total_wins / total_losses, 2) if total_losses > 0 else 0,
+                                        'final_capital': round(initial_cap + total_pnl, 2)
+                                    }
+                            except Exception as csv_err:
+                                print(f"Error parsing trade log for summary: {csv_err}")
                     
                     with open(metadata_path, 'w') as f:
                         json.dump(metadata, f, indent=2)
@@ -3604,6 +3628,23 @@ def list_backtests():
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
                         metadata['status'] = record.status or 'completed'
+                        summary = metadata.get('summary') or {}
+                        if 'avg_win' not in summary or 'avg_loss' not in summary:
+                            trade_log_path = os.path.join('backtest_results', f'trade_log_{record.id}.csv')
+                            if os.path.exists(trade_log_path):
+                                try:
+                                    import csv as csv_mod
+                                    with open(trade_log_path, 'r') as csvf:
+                                        reader = csv_mod.DictReader(csvf)
+                                        tlog = list(reader)
+                                    if tlog:
+                                        w = [t for t in tlog if float(t.get('pnl', 0) or 0) > 0]
+                                        l = [t for t in tlog if float(t.get('pnl', 0) or 0) < 0]
+                                        summary['avg_win'] = round(sum(float(t.get('pnl', 0) or 0) for t in w) / len(w), 2) if w else 0
+                                        summary['avg_loss'] = round(sum(float(t.get('pnl', 0) or 0) for t in l) / len(l), 2) if l else 0
+                                        metadata['summary'] = summary
+                                except Exception:
+                                    pass
                         results.append(metadata)
                 except Exception as e:
                     print(f"Error reading metadata for {record.id}: {e}")
@@ -3847,6 +3888,24 @@ def get_metadata(backtest_id):
         
         with open(filepath, 'r') as f:
             metadata = json.load(f)
+        
+        summary = metadata.get('summary') or {}
+        if 'avg_win' not in summary or 'avg_loss' not in summary:
+            trade_log_path = os.path.join('backtest_results', f'trade_log_{backtest_id}.csv')
+            if os.path.exists(trade_log_path):
+                try:
+                    import csv as csv_mod
+                    with open(trade_log_path, 'r') as csvf:
+                        reader = csv_mod.DictReader(csvf)
+                        tlog = list(reader)
+                    if tlog:
+                        w = [t for t in tlog if float(t.get('pnl', 0) or 0) > 0]
+                        l = [t for t in tlog if float(t.get('pnl', 0) or 0) < 0]
+                        summary['avg_win'] = round(sum(float(t.get('pnl', 0) or 0) for t in w) / len(w), 2) if w else 0
+                        summary['avg_loss'] = round(sum(float(t.get('pnl', 0) or 0) for t in l) / len(l), 2) if l else 0
+                        metadata['summary'] = summary
+                except Exception:
+                    pass
         
         return jsonify(metadata)
         

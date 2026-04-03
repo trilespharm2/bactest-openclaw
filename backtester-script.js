@@ -128,8 +128,8 @@ function addPriceCondition() {
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-1" id="leftMultiplierGroup${conditionId}">
-                    <label class="form-label small">Mult</label>
+                <div class="col-md-2" id="leftMultiplierGroup${conditionId}">
+                    <label class="form-label small">Multiplier</label>
                     <input type="number" class="form-control form-control-sm" id="leftMultiplier${conditionId}" value="1" min="1" max="60">
                 </div>
                 <div class="col-md-2" id="leftWindowGroup${conditionId}">
@@ -208,8 +208,8 @@ function addPriceCondition() {
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-1" id="rightMultiplierGroup${conditionId}">
-                    <label class="form-label small">Mult</label>
+                <div class="col-md-2" id="rightMultiplierGroup${conditionId}">
+                    <label class="form-label small">Multiplier</label>
                     <input type="number" class="form-control form-control-sm" id="rightMultiplier${conditionId}" value="1" min="1" max="60">
                 </div>
                 <div class="col-md-2" id="rightWindowGroup${conditionId}">
@@ -671,6 +671,13 @@ function initializeBacktesterPage() {
 
     setupFormControls();
     setupStrategySelection();
+    
+    var loadingDiv = document.getElementById('backtestLoading');
+    if (loadingDiv) loadingDiv.style.display = 'none';
+    var errorDiv = document.getElementById('backtestError');
+    if (errorDiv) errorDiv.style.display = 'none';
+    var form = document.getElementById('backtestForm');
+    if (form) form.dataset.isSubmitting = 'false';
     
     // Check for running backtests and show notification
     checkForRunningBacktests();
@@ -2022,6 +2029,8 @@ async function handleBacktestSubmit(e) {
                 localStorage.setItem('lastBacktestId', result.backtest_id);
             }
             
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            form.dataset.isSubmitting = 'false';
             viewOptionsResultDetail(result.backtest_id);
             
         } catch (error) {
@@ -2541,15 +2550,15 @@ function applyOptionsConfig(rawConfig) {
     config.eodAction = rawConfig.eodAction || rawConfig.eod_action || 'close';
     config.tradeFrequency = rawConfig.tradeFrequency || rawConfig.trade_frequency || 'daily';
     config.entryDays = rawConfig.entryDays || rawConfig.entry_days || [];
-    config.startingCapital = rawConfig.startingCapital || (rawConfig.starting_capital != null ? String(rawConfig.starting_capital) : (rawConfig.initial_capital != null ? String(rawConfig.initial_capital) : '100000'));
+    config.startingCapital = rawConfig.startingCapital != null ? String(rawConfig.startingCapital) : (rawConfig.starting_capital != null ? String(rawConfig.starting_capital) : (rawConfig.initial_capital != null ? String(rawConfig.initial_capital) : '100000'));
     config.allocationType = rawConfig.allocationType || rawConfig.allocation_type || '1';
     var allocMap = {'pct': '1', 'contracts': '2', 'fixed': '3'};
     if (allocMap[config.allocationType]) config.allocationType = allocMap[config.allocationType];
     config.allocationPct = rawConfig.allocationPct || (rawConfig.allocation_type === 'pct' && rawConfig.allocation_value ? String(rawConfig.allocation_value) : '');
     config.allocationContracts = rawConfig.allocationContracts || (rawConfig.allocation_type === 'contracts' && rawConfig.allocation_value ? String(rawConfig.allocation_value) : '');
     config.allocationFixed = rawConfig.allocationFixed || (rawConfig.allocation_type === 'fixed' && rawConfig.allocation_value ? String(rawConfig.allocation_value) : '');
-    config.netPremiumMin = rawConfig.netPremiumMin || (rawConfig.net_premium_min != null ? String(rawConfig.net_premium_min) : '');
-    config.netPremiumMax = rawConfig.netPremiumMax || (rawConfig.net_premium_max != null ? String(rawConfig.net_premium_max) : '');
+    config.netPremiumMin = rawConfig.netPremiumMin != null ? String(rawConfig.netPremiumMin) : (rawConfig.net_premium_min != null ? String(rawConfig.net_premium_min) : '');
+    config.netPremiumMax = rawConfig.netPremiumMax != null ? String(rawConfig.netPremiumMax) : (rawConfig.net_premium_max != null ? String(rawConfig.net_premium_max) : '');
     config.priceConditions = rawConfig.priceConditions || rawConfig.price_conditions || [];
     config.optionsEntryType = rawConfig.optionsEntryType || rawConfig.options_entry_type || 'none';
     config.presetCondition = rawConfig.presetCondition || rawConfig.preset_condition || '';
