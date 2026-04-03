@@ -100,11 +100,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupProfileDropdown();
     setupMobileMenu();
     
-    // Check for URL parameters to navigate to specific section
     const urlParams = new URLSearchParams(window.location.search);
     const section = urlParams.get('section');
+    const pageParam = urlParams.get('page');
+    const idParam = urlParams.get('id');
     
-    if (section) {
+    if (pageParam === 'optionsResultDetail' && idParam) {
+        window._pendingOptDetailId = idParam;
+        await navigateToPage('optionsResultDetail');
+    } else if (pageParam === 'stockResultDetail' && idParam) {
+        window._pendingStkDetailId = idParam;
+        await navigateToPage('stockResultDetail');
+    } else if (section) {
         await navigateToPage(section);
     } else {
         await loadPageContent('home');

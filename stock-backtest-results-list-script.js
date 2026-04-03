@@ -196,7 +196,7 @@ function createBacktestCard(backtest) {
 
 function viewBacktest(backtestId) {
     // Open detailed results page (same as options flow)
-    window.location.href = `stock-backtest-results.html?id=${backtestId}`;
+    viewStockResultDetail(backtestId);
 }
 
 async function deleteBacktest(backtestId) {

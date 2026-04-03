@@ -521,14 +521,14 @@ def stock_backtest_results_list():
 
 @app.route('/api/backtests/<backtest_id>/details')
 def redirect_to_options_detail(backtest_id):
-    """Redirect old API URL to proper detail page"""
-    return redirect(f'/options-backtest-result-detail.html?id={backtest_id}')
+    """Redirect old API URL to SPA detail page"""
+    return redirect(f'/?page=optionsResultDetail&id={backtest_id}')
 
 @app.route('/stock-backtest-detail.html')
 def redirect_to_stock_detail():
-    """Redirect old stock detail URL to proper page"""
+    """Redirect old stock detail URL to SPA detail page"""
     backtest_id = request.args.get('id', '')
-    return redirect(f'/stock-backtest-results.html?id={backtest_id}')
+    return redirect(f'/?page=stockResultDetail&id={backtest_id}')
 
 @app.route('/login')
 def login_page():

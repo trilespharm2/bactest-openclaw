@@ -2022,7 +2022,7 @@ async function handleBacktestSubmit(e) {
                 localStorage.setItem('lastBacktestId', result.backtest_id);
             }
             
-            window.location.href = `/options-backtest-result-detail.html?id=${result.backtest_id}`;
+            viewOptionsResultDetail(result.backtest_id);
             
         } catch (error) {
             console.error('Backtest error:', error);
@@ -2757,7 +2757,7 @@ function showRunningBacktestBanner(backtestId, backtestType) {
     var existing = document.getElementById('runningBacktestBanner');
     if (existing) existing.remove();
     
-    var viewUrl = backtestType === 'stocks' ? '/stock-backtest-results.html?id=' + backtestId : '/options-backtest-result-detail.html?id=' + backtestId;
+    var viewFunc = backtestType === 'stocks' ? 'viewStockResultDetail' : 'viewOptionsResultDetail';
     var typeLabel = backtestType === 'stocks' ? 'Stock' : 'Options';
     var banner = document.createElement('div');
     banner.id = 'runningBacktestBanner';
@@ -2767,7 +2767,7 @@ function showRunningBacktestBanner(backtestId, backtestType) {
         '<div><div style="color:#fff; font-weight:600;">' + typeLabel + ' Backtest In Progress</div>' +
         '<div style="color:#94b8db; font-size:13px;">Please wait for the current backtest to finish before starting a new one.</div></div></div>' +
         '<div style="display:flex; gap:10px;">' +
-        '<a href="' + viewUrl + '" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i> View</a>' +
+        '<button class="btn btn-sm btn-outline-info" onclick="' + viewFunc + '(\'' + backtestId + '\')"><i class="fas fa-eye"></i> View</button>' +
         '<button class="btn btn-sm btn-outline-danger" onclick="cancelRunningBacktest(\'' + backtestId + '\')"><i class="fas fa-times"></i> Cancel</button></div>';
     
     var form = document.getElementById('backtestForm');
@@ -2803,7 +2803,7 @@ function disableBacktestSubmit(disabled) {
 function pollRunningBacktest(backtestId, backtestType) {
     if (_runningBacktestPollTimer) clearInterval(_runningBacktestPollTimer);
     var statusUrl = backtestType === 'stocks' ? API_BASE_URL + '/stocks-backtest-v3/status/' + backtestId : API_BASE_URL + '/backtest/status/' + backtestId;
-    var viewUrl = backtestType === 'stocks' ? '/stock-backtest-results.html?id=' + backtestId : '/options-backtest-result-detail.html?id=' + backtestId;
+    var viewFunc = backtestType === 'stocks' ? 'viewStockResultDetail' : 'viewOptionsResultDetail';
     _runningBacktestPollTimer = setInterval(async function() {
         try {
             var response = await authFetch(statusUrl);
@@ -2813,7 +2813,7 @@ function pollRunningBacktest(backtestId, backtestType) {
                 removeRunningBacktestBanner();
                 disableBacktestSubmit(false);
                 if (data.status === 'completed') {
-                    showSuccess('Your previous backtest has completed! <a href="' + viewUrl + '" style="color:#31ce36;text-decoration:underline;">View Results</a>');
+                    showSuccess('Your previous backtest has completed! <a href="#" onclick="' + viewFunc + '(\'' + backtestId + '\');return false;" style="color:#31ce36;text-decoration:underline;">View Results</a>');
                 } else if (data.status === 'cancelled') {
                     showError('The backtest was cancelled.');
                 }

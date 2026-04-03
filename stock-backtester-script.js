@@ -670,7 +670,7 @@ async function handleSubmit(e) {
                 const result = await response.json();
                 console.log('Backtest started! ID:', result.backtest_id);
                 sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
-                window.location.href = `/stock-backtest-results.html?id=${result.backtest_id}`;
+                viewStockResultDetail(result.backtest_id);
             } catch (err) {
                 console.error('Error running backtest:', err);
                 const errorEl = document.getElementById('errorMessage');
@@ -1197,7 +1197,7 @@ function setupViewFullResultsButton(backtestId) {
     if (!viewBtn) return;
     
     viewBtn.onclick = () => {
-        window.open(`stock-backtest-results.html?id=${backtestId}`, '_blank');
+        viewStockResultDetail(backtestId);
     };
 }
 
@@ -1536,13 +1536,13 @@ function showRunningStockBanner(backtestId, backtestType) {
     var banner = document.createElement('div');
     banner.id = 'runningStockBanner';
     banner.style.cssText = 'background: linear-gradient(135deg, #1e3a5f, #2d4a7c); border: 1px solid #3b7cff; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 15px;';
-    var viewUrl = backtestType === 'stocks' ? '/stock-backtest-results.html?id=' + backtestId : '/options-backtest-result-detail.html?id=' + backtestId;
+    var viewFunc = backtestType === 'stocks' ? 'viewStockResultDetail' : 'viewOptionsResultDetail';
     banner.innerHTML = '<div style="display:flex; align-items:center; gap:12px;">' +
         '<div class="spinner-border spinner-border-sm text-info" role="status"><span class="visually-hidden">Loading...</span></div>' +
         '<div><div style="color:#fff; font-weight:600;">Backtest In Progress</div>' +
         '<div style="color:#94b8db; font-size:13px;">Please wait for the current backtest to finish before starting a new one.</div></div></div>' +
         '<div style="display:flex; gap:10px;">' +
-        '<a href="' + viewUrl + '" class="btn btn-sm btn-outline-info"><i class="fas fa-eye"></i> View</a>' +
+        '<button class="btn btn-sm btn-outline-info" onclick="' + viewFunc + '(\'' + backtestId + '\')"><i class="fas fa-eye"></i> View</button>' +
         '<button class="btn btn-sm btn-outline-danger" onclick="cancelStockBacktest(\'' + backtestId + '\')"><i class="fas fa-times"></i> Cancel</button></div>';
     
     var form = document.getElementById('stockBacktestForm');
