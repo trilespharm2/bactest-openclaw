@@ -119,18 +119,6 @@ function initSimulatedTrading() {
                 warn.textContent = err || '';
             });
         }
-        clampSimDefaultDates();
-    }
-    function clampSimDefaultDates() {
-        if (typeof TierRestrictions === 'undefined' || TierRestrictions.isPremium()) return;
-        var max = TierRestrictions.getDateMax();
-        var min = TierRestrictions.getDateMin();
-        var endInput = document.getElementById('simChartEndDate');
-        var startInput = document.getElementById('simChartStartDate');
-        var tradingInput = document.getElementById('simTradingStartDate');
-        if (max && endInput && endInput.value > max) endInput.value = max;
-        if (max && tradingInput && tradingInput.value > max) tradingInput.value = max;
-        if (min && startInput && startInput.value < min) startInput.value = min;
     }
     setTimeout(applySimTierRestrictions, 600);
 
@@ -220,12 +208,7 @@ function startNewSession() {
     if (typeof TierRestrictions !== 'undefined') {
         var symErr = TierRestrictions.getSymbolError(symbol);
         if (symErr) { dateErrorText.textContent = symErr; dateErrorDiv.classList.remove('d-none'); return; }
-        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) {
-            var minD = TierRestrictions.getDateMin(), maxD = TierRestrictions.getDateMax();
-            var minF = TierRestrictions.formatDateRange(minD), maxF = TierRestrictions.formatDateRange(maxD);
-            dateErrorText.innerHTML = 'Dates must be between ' + minF + ' and ' + maxF + ' on your current plan. <a href="#" onclick="event.preventDefault();showPage(\'subscription\');" style="color:#fff;text-decoration:underline;font-weight:600;">Upgrade</a> for more.';
-            dateErrorDiv.classList.remove('d-none'); return;
-        }
+        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) { dateErrorText.textContent = 'Date is outside your plan\'s allowed range.'; dateErrorDiv.classList.remove('d-none'); return; }
     }
     if (new Date(tradingStartDate) < new Date(chartStartDate)) {
         dateErrorText.textContent = 'Trading start date cannot be before chart start date';
