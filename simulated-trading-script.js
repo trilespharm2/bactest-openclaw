@@ -119,26 +119,18 @@ function initSimulatedTrading() {
                 warn.textContent = err || '';
             });
         }
-        showSimDateRangeInfo();
+        clampSimDefaultDates();
     }
-    function showSimDateRangeInfo() {
-        var infoDiv = document.getElementById('simDateRangeInfo');
-        if (!infoDiv || typeof TierRestrictions === 'undefined') return;
-        if (TierRestrictions.isPremium()) { infoDiv.classList.add('d-none'); return; }
-        var min = TierRestrictions.getDateMin();
+    function clampSimDefaultDates() {
+        if (typeof TierRestrictions === 'undefined' || TierRestrictions.isPremium()) return;
         var max = TierRestrictions.getDateMax();
-        if (!min || !max) { infoDiv.classList.add('d-none'); return; }
-        var tierName = TierRestrictions.isFree() ? 'Free' : 'Standard';
-        var minFmt = TierRestrictions.formatDateRange ? TierRestrictions.formatDateRange(min) : min;
-        var maxFmt = TierRestrictions.formatDateRange ? TierRestrictions.formatDateRange(max) : max;
-        infoDiv.style.background = '#fff3cd';
-        infoDiv.style.border = '1px solid #ffc107';
-        infoDiv.style.color = '#664d03';
-        infoDiv.innerHTML = '<i class="fas fa-info-circle" style="color:#b58900;font-size:14px;"></i>' +
-            '<span><strong>' + tierName + ' plan</strong> allows dates from <strong>' + minFmt + '</strong> to <strong>' + maxFmt + '</strong>.' +
-            ' <a href="#" onclick="event.preventDefault();showPage(\'subscription\');" style="color:#0d6efd;font-weight:600;text-decoration:underline;">Upgrade</a> for unlimited date ranges.</span>';
-        infoDiv.classList.remove('d-none');
-        infoDiv.style.display = 'flex';
+        var min = TierRestrictions.getDateMin();
+        var endInput = document.getElementById('simChartEndDate');
+        var startInput = document.getElementById('simChartStartDate');
+        var tradingInput = document.getElementById('simTradingStartDate');
+        if (max && endInput && endInput.value > max) endInput.value = max;
+        if (max && tradingInput && tradingInput.value > max) tradingInput.value = max;
+        if (min && startInput && startInput.value < min) startInput.value = min;
     }
     setTimeout(applySimTierRestrictions, 600);
 
@@ -228,7 +220,12 @@ function startNewSession() {
     if (typeof TierRestrictions !== 'undefined') {
         var symErr = TierRestrictions.getSymbolError(symbol);
         if (symErr) { dateErrorText.textContent = symErr; dateErrorDiv.classList.remove('d-none'); return; }
-        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) { dateErrorText.textContent = 'Date is outside your plan\'s allowed range.'; dateErrorDiv.classList.remove('d-none'); return; }
+        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) {
+            var minD = TierRestrictions.getDateMin(), maxD = TierRestrictions.getDateMax();
+            var minF = TierRestrictions.formatDateRange(minD), maxF = TierRestrictions.formatDateRange(maxD);
+            dateErrorText.innerHTML = 'Dates must be between ' + minF + ' and ' + maxF + ' on your current plan. <a href="#" onclick="event.preventDefault();showPage(\'subscription\');" style="color:#fff;text-decoration:underline;font-weight:600;">Upgrade</a> for more.';
+            dateErrorDiv.classList.remove('d-none'); return;
+        }
     }
     if (new Date(tradingStartDate) < new Date(chartStartDate)) {
         dateErrorText.textContent = 'Trading start date cannot be before chart start date';
