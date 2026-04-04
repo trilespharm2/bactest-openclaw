@@ -1566,8 +1566,8 @@ function buildSimLegConfiguration() {
                         <option value="exact_strike">Exact Strike Price</option>
                         <option value="delta">Delta-Based</option>
                         <option value="mid_price">Mid Price Range</option>
-                        ${index > 0 ? `<option value="dollar_leg">$ ${dirLabel} Leg</option>` : ''}
-                        ${index > 0 ? `<option value="pct_leg">% ${dirLabel} Leg</option>` : ''}
+                        ${legs.length > 1 ? `<option value="dollar_leg">$ ${dirLabel} Leg</option>` : ''}
+                        ${legs.length > 1 ? `<option value="pct_leg">% ${dirLabel} Leg</option>` : ''}
                     </select>
                 </div>
                 <div id="simLegParams${index}" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
