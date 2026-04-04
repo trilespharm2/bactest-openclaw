@@ -208,7 +208,7 @@ function startNewSession() {
     if (typeof TierRestrictions !== 'undefined') {
         var symErr = TierRestrictions.getSymbolError(symbol);
         if (symErr) { dateErrorText.textContent = symErr; dateErrorDiv.classList.remove('d-none'); return; }
-        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) { dateErrorText.textContent = 'Date is outside your plan\'s allowed range.'; dateErrorDiv.classList.remove('d-none'); return; }
+        if (!TierRestrictions.isDateAllowed(chartStartDate) || !TierRestrictions.isDateAllowed(chartEndDate)) { var dMin = TierRestrictions.getDateMin(); var dMax = TierRestrictions.getDateMax(); var rangeStr = (dMin && dMax) ? ' Allowed range: ' + dMin + ' to ' + dMax + '.' : ''; dateErrorText.textContent = 'Date is outside your plan\'s allowed range.' + rangeStr + ' Upgrade for wider date access.'; dateErrorDiv.classList.remove('d-none'); return; }
     }
     if (new Date(tradingStartDate) < new Date(chartStartDate)) {
         dateErrorText.textContent = 'Trading start date cannot be before chart start date';
