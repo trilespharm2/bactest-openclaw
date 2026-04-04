@@ -96,15 +96,9 @@ function initSimulatedTrading() {
     }
     loadBtn.dataset.initialized = 'true';
 
-    const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const fifteenDaysAgo = new Date(today);
-    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-
-    document.getElementById('simChartStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-    document.getElementById('simChartEndDate').value = today.toISOString().split('T')[0];
-    document.getElementById('simTradingStartDate').value = fifteenDaysAgo.toISOString().split('T')[0];
+    document.getElementById('simChartStartDate').value = '';
+    document.getElementById('simChartEndDate').value = '';
+    document.getElementById('simTradingStartDate').value = '';
 
     function applySimTierRestrictions() {
         if (typeof TierRestrictions === 'undefined') { setTimeout(applySimTierRestrictions, 200); return; }
@@ -123,6 +117,14 @@ function initSimulatedTrading() {
     setTimeout(applySimTierRestrictions, 600);
 
     loadBtn.addEventListener('click', startNewSession);
+
+    document.querySelectorAll('#simTradingModeSwitch .sim-mode-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('#simTradingModeSwitch .sim-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            document.getElementById('simTradingMode').value = btn.dataset.mode;
+        });
+    });
 
     renderActiveSessionCards();
     console.log('Simulated Trading Config Page initialized');
