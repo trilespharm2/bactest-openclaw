@@ -822,8 +822,18 @@ async function loadSimulatedChart(restoreMinuteIndex = null) {
     showLoader(true, 'Loading chart data...', '');
 
     try {
-        const minuteBars = await fetchMinuteBars(simCurrentSymbol, simChartDates.start, simChartDates.end);
-        if (!minuteBars || minuteBars.length === 0) throw new Error('No data found for the specified parameters');
+        const rawMinuteBars = await fetchMinuteBars(simCurrentSymbol, simChartDates.start, simChartDates.end);
+        if (!rawMinuteBars || rawMinuteBars.length === 0) throw new Error('No data found for the specified parameters');
+
+        const minuteBars = rawMinuteBars.filter(bar => {
+            const d = new Date(bar.timestamp);
+            const etStr = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false });
+            const timePart = etStr.split(', ')[1] || '';
+            const [h, m] = timePart.split(':').map(Number);
+            const totalMin = h * 60 + m;
+            return totalMin >= 570 && totalMin < 960;
+        });
+        if (minuteBars.length === 0) throw new Error('No regular-hours data found for the specified parameters');
 
         simMinuteBarsCache = minuteBars;
         simDataLoaded = true;
@@ -1599,7 +1609,7 @@ function updateSimLegParams(legIndex, method) {
         const dirRequired = getLegDirectionRequirement(strategy, legIdx);
         const defaultDir = dirRequired || 'below';
         return `<div style="display: flex; align-items: center; gap: 3px;">
-            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Dir:</label>
+            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap; cursor: help;" title="Direction: Where to place the strike relative to the reference price (above or below the underlying or another leg's strike).">Dir:</label>
             <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 70px;">
                 <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
                 <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
@@ -1610,7 +1620,7 @@ function updateSimLegParams(legIndex, method) {
         case 'exact_strike':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
                 <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="${inputStyle} width:65px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;cursor:help;" title="Fallback: When the exact strike isn't available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down, Exactly = fail if not found.">FB:</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
             break;
@@ -1618,7 +1628,7 @@ function updateSimLegParams(legIndex, method) {
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;cursor:help;" title="Fallback: When the exact strike isn't available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.">FB:</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
@@ -1626,7 +1636,7 @@ function updateSimLegParams(legIndex, method) {
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;cursor:help;" title="Fallback: When the exact strike isn't available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.">FB:</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
@@ -2323,6 +2333,9 @@ function showPayoffModal(positionId) {
     const canvas = document.getElementById('simPayoffCanvas');
     if (!modal || !canvas) return;
 
+    const currentBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+    const currentUnderlyingPrice = currentBar ? currentBar.close : pos.underlyingAtEntry;
+
     strategyDiv.textContent = pos.strategy;
     legsDiv.innerHTML = pos.legs.map(leg => {
         const bgColor = leg.position === 'long' ? '#2962ff' : '#ff9800';
@@ -2397,11 +2410,11 @@ function showPayoffModal(positionId) {
     modal.style.display = 'flex';
 
     requestAnimationFrame(() => {
-        drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss);
+        drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss, currentUnderlyingPrice, pos.underlyingAtEntry);
     });
 }
 
-function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss) {
+function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss, currentPrice, entryPrice) {
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
@@ -2411,7 +2424,7 @@ function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, p
     canvas.height = h * dpr;
     ctx.scale(dpr, dpr);
 
-    const pad = { top: 25, right: 25, bottom: 35, left: 60 };
+    const pad = { top: 25, right: 25, bottom: 45, left: 60 };
     const cw = w - pad.left - pad.right;
     const ch = h - pad.top - pad.bottom;
 
@@ -2501,6 +2514,65 @@ function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, p
         ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
         ctx.setLineDash([]);
     });
+
+    if (currentPrice && currentPrice >= priceMin && currentPrice <= priceMax) {
+        const cx = toX(currentPrice);
+        ctx.strokeStyle = '#2962ff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 3]);
+        ctx.beginPath(); ctx.moveTo(cx, pad.top); ctx.lineTo(cx, pad.top + ch); ctx.stroke();
+        ctx.setLineDash([]);
+
+        let currentPayoff = 0;
+        const closest = payoffPoints.reduce((prev, curr) =>
+            Math.abs(curr.price - currentPrice) < Math.abs(prev.price - currentPrice) ? curr : prev
+        );
+        currentPayoff = closest.payoff;
+        const cy = toY(currentPayoff);
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = currentPayoff >= 0 ? '#089981' : '#f23645';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#2962ff';
+        ctx.font = 'bold 11px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        const priceLabel = `Current $${currentPrice.toFixed(1)}`;
+        const pnlLabel = `${currentPayoff >= 0 ? '+' : ''}$${currentPayoff.toFixed(0)}`;
+        ctx.fillText(priceLabel, cx, pad.top + ch + 28);
+
+        const labelBg = currentPayoff >= 0 ? '#089981' : '#f23645';
+        const textW = ctx.measureText(pnlLabel).width + 10;
+        const labelY = cy - 14;
+        ctx.fillStyle = labelBg;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(cx - textW / 2, labelY - 8, textW, 16, 3);
+        } else {
+            ctx.rect(cx - textW / 2, labelY - 8, textW, 16);
+        }
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.fillText(pnlLabel, cx, labelY + 4);
+    }
+
+    if (entryPrice && entryPrice >= priceMin && entryPrice <= priceMax && Math.abs(entryPrice - (currentPrice || 0)) > (priceMax - priceMin) * 0.02) {
+        const ex = toX(entryPrice);
+        ctx.strokeStyle = '#6a6d78';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath(); ctx.moveTo(ex, pad.top); ctx.lineTo(ex, pad.top + ch); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#6a6d78';
+        ctx.font = '10px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Entry $' + entryPrice.toFixed(1), ex, pad.top + ch + 28);
+    }
 }
 
 function closePayoffModal() {
