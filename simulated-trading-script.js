@@ -1578,9 +1578,13 @@ function buildSimLegConfiguration() {
     container.innerHTML = html;
 
     container.querySelectorAll('.sim-leg-method').forEach(select => {
-        select.addEventListener('change', (e) => updateSimLegParams(parseInt(e.target.dataset.legIndex), e.target.value));
+        select.addEventListener('change', (e) => {
+            updateSimLegParams(parseInt(e.target.dataset.legIndex), e.target.value);
+            setTimeout(drawPayoffDiagram, 50);
+        });
         updateSimLegParams(parseInt(select.dataset.legIndex), select.value);
     });
+    setTimeout(drawPayoffDiagram, 100);
 }
 
 function updateSimLegParams(legIndex, method) {
@@ -1642,20 +1646,24 @@ function updateSimLegParams(legIndex, method) {
                 <option value="closest">Closest</option><option value="above">Above</option><option value="below">Below</option><option value="between">Between</option><option value="exactly">Exactly</option></select></div>`;
             break;
         case 'dollar_leg': {
-            const defaultRef = legIndex > 0 ? legIndex - 1 : 0;
+            const totalLegs = SIM_STRATEGY_LEGS[strategy]?.length || 0;
+            const refOptions = Array.from({length: totalLegs}, (_, i) => i).filter(i => i !== legIndex);
+            const defaultRef = refOptions.length > 0 ? refOptions[0] : 0;
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Ref:</label>
                 <select class="sim-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:50px;">
-                ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
+                ${refOptions.map(i => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
                 ${buildDirectionDropdown(legIndex, 'dollar')}
                 <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="1" step="1" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
         }
         case 'pct_leg': {
-            const defaultRef = legIndex > 0 ? legIndex - 1 : 0;
+            const totalLegs2 = SIM_STRATEGY_LEGS[strategy]?.length || 0;
+            const refOptions2 = Array.from({length: totalLegs2}, (_, i) => i).filter(i => i !== legIndex);
+            const defaultRef2 = refOptions2.length > 0 ? refOptions2[0] : 0;
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Ref:</label>
                 <select class="sim-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:50px;">
-                ${Array.from({length: legIndex}, (_, i) => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
+                ${refOptions2.map(i => `<option value="${i}" ${i === defaultRef2 ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>
                 ${buildDirectionDropdown(legIndex, 'pct')}
                 <div style="display:flex;align-items:center;gap:3px;"><label class="sim-leg-value-label" data-leg="${legIndex}" style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="2" step="0.5" min="0" style="${inputStyle} width:50px;"></div>`;
@@ -1664,6 +1672,11 @@ function updateSimLegParams(legIndex, method) {
     }
 
     paramsContainer.innerHTML = html;
+
+    paramsContainer.querySelectorAll('input, select').forEach(el => {
+        el.addEventListener('change', () => setTimeout(drawPayoffDiagram, 50));
+        if (el.tagName === 'INPUT') el.addEventListener('input', () => setTimeout(drawPayoffDiagram, 100));
+    });
 }
 
 function collectSimLegConfigurations() {
@@ -1760,6 +1773,7 @@ async function executeOptionTrade() {
 
     const legConfigs = collectSimLegConfigurations();
     if (legConfigs.length === 0) { appAlert('Please configure at least one leg'); return; }
+    if (hasCircularLegReference(legConfigs)) { appAlert('Circular leg reference detected. A leg cannot reference another leg that references it back.'); return; }
     if (!currentMinuteBar) { appAlert('No current bar data available'); return; }
 
     const underlyingPrice = currentMinuteBar.close;
@@ -2103,6 +2117,225 @@ function updateOptionsPositionsCard() {
         </div>`;
     }
     list.innerHTML = html;
+}
+
+function hasCircularLegReference(legs) {
+    for (let i = 0; i < legs.length; i++) {
+        if (legs[i].method !== 'dollar_leg' && legs[i].method !== 'pct_leg') continue;
+        const visited = new Set();
+        let current = i;
+        while (true) {
+            if (visited.has(current)) return true;
+            visited.add(current);
+            const leg = legs[current];
+            if (!leg || (leg.method !== 'dollar_leg' && leg.method !== 'pct_leg')) break;
+            current = leg.refLeg;
+            if (current === undefined || current === null) break;
+        }
+    }
+    return false;
+}
+
+function drawPayoffDiagram() {
+    const section = document.getElementById('simPayoffDiagramSection');
+    const canvas = document.getElementById('simPayoffCanvas');
+    const statsDiv = document.getElementById('simPayoffStats');
+    if (!section || !canvas) return;
+
+    const strategy = document.getElementById('simOptionStrategy')?.value;
+    if (!strategy) { section.style.display = 'none'; return; }
+
+    const legs = SIM_STRATEGY_LEGS[strategy];
+    if (!legs || legs.length === 0) { section.style.display = 'none'; return; }
+
+    section.style.display = '';
+
+    const strikes = [];
+    const premiums = [];
+    const multiplier = 100;
+
+    legs.forEach((leg, i) => {
+        const card = document.querySelectorAll('#simLegConfigSection > div > div')[i];
+        let strike = 100 + (i * 5);
+        let premium = 2;
+        if (card) {
+            const method = card.querySelector('.sim-leg-method')?.value || 'pct_underlying';
+            const val = parseFloat(card.querySelector('.sim-leg-value')?.value) || 0;
+            const strikeInput = card.querySelector('.sim-leg-strike');
+            if (strikeInput) strike = parseFloat(strikeInput.value) || 100 + (i * 5);
+            else if (method === 'dollar_underlying') {
+                const dir = card.querySelector('.sim-leg-direction')?.value || 'below';
+                strike = 100 + (dir === 'above' ? val : -val);
+            } else if (method === 'pct_underlying') {
+                const dir = card.querySelector('.sim-leg-direction')?.value || 'below';
+                strike = 100 * (1 + (dir === 'above' ? val/100 : -val/100));
+            } else {
+                strike = 100 + (i * 5 - (legs.length > 2 ? 10 : 0));
+            }
+        }
+        strikes.push(strike);
+        premiums.push(premium);
+    });
+
+    const allStrikes = [...strikes].sort((a,b) => a - b);
+    const minStrike = allStrikes[0];
+    const maxStrike = allStrikes[allStrikes.length - 1];
+    const range = Math.max(maxStrike - minStrike, 10);
+    const priceMin = minStrike - range * 0.5;
+    const priceMax = maxStrike + range * 0.5;
+    const step = (priceMax - priceMin) / 200;
+
+    const payoffPoints = [];
+    let maxProfit = -Infinity;
+    let maxLoss = Infinity;
+
+    for (let price = priceMin; price <= priceMax; price += step) {
+        let totalPayoff = 0;
+        legs.forEach((leg, i) => {
+            const K = strikes[i];
+            const prem = premiums[i];
+            let intrinsic = 0;
+            if (leg.type === 'C') intrinsic = Math.max(0, price - K);
+            else intrinsic = Math.max(0, K - price);
+            if (leg.position === 'long') totalPayoff += (intrinsic - prem) * multiplier;
+            else totalPayoff += (prem - intrinsic) * multiplier;
+        });
+        payoffPoints.push({ price, payoff: totalPayoff });
+        if (totalPayoff > maxProfit) maxProfit = totalPayoff;
+        if (totalPayoff < maxLoss) maxLoss = totalPayoff;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    const pad = { top: 20, right: 20, bottom: 30, left: 55 };
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#fafbfc';
+    ctx.fillRect(0, 0, w, h);
+
+    const payoffMin = Math.min(maxLoss, 0) * 1.1;
+    const payoffMax = Math.max(maxProfit, 0) * 1.1;
+    const payoffRange = payoffMax - payoffMin || 1;
+
+    const toX = (price) => pad.left + ((price - priceMin) / (priceMax - priceMin)) * cw;
+    const toY = (val) => pad.top + ch - ((val - payoffMin) / payoffRange) * ch;
+
+    ctx.strokeStyle = '#e0e3eb';
+    ctx.lineWidth = 1;
+    const gridLines = 5;
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = '#6a6d78';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= gridLines; i++) {
+        const val = payoffMin + (payoffRange * i / gridLines);
+        const y = toY(val);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        ctx.fillText('$' + Math.round(val), pad.left - 5, y + 3);
+    }
+
+    const zeroY = toY(0);
+    if (zeroY >= pad.top && zeroY <= pad.top + ch) {
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, zeroY);
+        ctx.lineTo(w - pad.right, zeroY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = 'rgba(8, 153, 129, 0.15)';
+    ctx.beginPath();
+    ctx.moveTo(toX(payoffPoints[0].price), zeroY);
+    payoffPoints.forEach(p => {
+        if (p.payoff >= 0) ctx.lineTo(toX(p.price), toY(p.payoff));
+        else ctx.lineTo(toX(p.price), zeroY);
+    });
+    ctx.lineTo(toX(payoffPoints[payoffPoints.length - 1].price), zeroY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(242, 54, 69, 0.12)';
+    ctx.beginPath();
+    ctx.moveTo(toX(payoffPoints[0].price), zeroY);
+    payoffPoints.forEach(p => {
+        if (p.payoff < 0) ctx.lineTo(toX(p.price), toY(p.payoff));
+        else ctx.lineTo(toX(p.price), zeroY);
+    });
+    ctx.lineTo(toX(payoffPoints[payoffPoints.length - 1].price), zeroY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#089981';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    payoffPoints.forEach((p, i) => {
+        const x = toX(p.price);
+        const y = toY(p.payoff);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = '#6a6d78';
+    ctx.textAlign = 'center';
+    ctx.font = '10px system-ui, sans-serif';
+    strikes.forEach((K, i) => {
+        const x = toX(K);
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = '#b0b4c0';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, pad.top);
+        ctx.lineTo(x, pad.top + ch);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillText(K.toFixed(0), x, pad.top + ch + 14);
+    });
+
+    const priceSteps = 5;
+    ctx.fillStyle = '#6a6d78';
+    for (let i = 0; i <= priceSteps; i++) {
+        const price = priceMin + ((priceMax - priceMin) * i / priceSteps);
+        let tooClose = false;
+        for (const K of strikes) {
+            if (Math.abs(toX(price) - toX(K)) < 30) { tooClose = true; break; }
+        }
+        if (!tooClose) ctx.fillText(price.toFixed(0), toX(price), pad.top + ch + 14);
+    }
+
+    if (statsDiv) {
+        const breakevens = [];
+        for (let i = 1; i < payoffPoints.length; i++) {
+            const prev = payoffPoints[i - 1];
+            const curr = payoffPoints[i];
+            if ((prev.payoff <= 0 && curr.payoff > 0) || (prev.payoff >= 0 && curr.payoff < 0)) {
+                const ratio = Math.abs(prev.payoff) / (Math.abs(prev.payoff) + Math.abs(curr.payoff));
+                breakevens.push((prev.price + (curr.price - prev.price) * ratio).toFixed(2));
+            }
+        }
+        const mpColor = maxProfit >= 0 ? '#089981' : '#f23645';
+        const mlColor = maxLoss >= 0 ? '#089981' : '#f23645';
+        const isMaxProfitUnlimited = maxProfit > range * multiplier * 5;
+        const isMaxLossUnlimited = Math.abs(maxLoss) > range * multiplier * 5;
+        statsDiv.innerHTML = `
+            <span style="color: ${mpColor}; font-weight: 600;">Max Profit: ${isMaxProfitUnlimited ? 'Unlimited' : '$' + maxProfit.toFixed(0)}</span>
+            <span style="color: ${mlColor}; font-weight: 600;">Max Loss: ${isMaxLossUnlimited ? 'Unlimited' : '$' + maxLoss.toFixed(0)}</span>
+            ${breakevens.length > 0 ? `<span style="color: #6a6d78;">BE: ${breakevens.join(', ')}</span>` : ''}
+        `;
+    }
 }
 
 window.hideTradeToast = hideTradeToast;
