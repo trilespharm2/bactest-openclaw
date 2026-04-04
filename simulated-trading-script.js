@@ -2394,10 +2394,19 @@ function showPayoffModal(positionId) {
         </div>
     `;
 
+    modal.style.display = 'flex';
+
+    requestAnimationFrame(() => {
+        drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss);
+    });
+}
+
+function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss) {
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
+    if (w === 0 || h === 0) return;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     ctx.scale(dpr, dpr);
@@ -2492,8 +2501,6 @@ function showPayoffModal(positionId) {
         ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
         ctx.setLineDash([]);
     });
-
-    modal.style.display = 'flex';
 }
 
 function closePayoffModal() {
