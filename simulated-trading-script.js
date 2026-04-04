@@ -1580,11 +1580,10 @@ function buildSimLegConfiguration() {
     container.querySelectorAll('.sim-leg-method').forEach(select => {
         select.addEventListener('change', (e) => {
             updateSimLegParams(parseInt(e.target.dataset.legIndex), e.target.value);
-            setTimeout(drawPayoffDiagram, 50);
         });
         updateSimLegParams(parseInt(select.dataset.legIndex), select.value);
     });
-    setTimeout(drawPayoffDiagram, 100);
+    renderPresetButtons();
 }
 
 function updateSimLegParams(legIndex, method) {
@@ -1599,10 +1598,9 @@ function updateSimLegParams(legIndex, method) {
     const buildDirectionDropdown = (legIdx, methodType = '') => {
         const dirRequired = getLegDirectionRequirement(strategy, legIdx);
         const defaultDir = dirRequired || 'below';
-        const isDisabled = dirRequired !== null;
         return `<div style="display: flex; align-items: center; gap: 3px;">
             <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Dir:</label>
-            <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 60px;" ${isDisabled ? 'disabled' : ''}>
+            <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 70px;">
                 <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
                 <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
             </select></div>`;
@@ -1613,7 +1611,7 @@ function updateSimLegParams(legIndex, method) {
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
                 <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="${inputStyle} width:65px;"></div>
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
-                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
+                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
             break;
         case 'dollar_underlying':
@@ -1621,7 +1619,7 @@ function updateSimLegParams(legIndex, method) {
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
-                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
+                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
         case 'pct_underlying':
@@ -1629,7 +1627,7 @@ function updateSimLegParams(legIndex, method) {
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB:</label>
-                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:65px;">
+                <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
         case 'mid_price':
@@ -1673,10 +1671,6 @@ function updateSimLegParams(legIndex, method) {
 
     paramsContainer.innerHTML = html;
 
-    paramsContainer.querySelectorAll('input, select').forEach(el => {
-        el.addEventListener('change', () => setTimeout(drawPayoffDiagram, 50));
-        if (el.tagName === 'INPUT') el.addEventListener('input', () => setTimeout(drawPayoffDiagram, 100));
-    });
 }
 
 function collectSimLegConfigurations() {
@@ -1774,6 +1768,10 @@ async function executeOptionTrade() {
     const legConfigs = collectSimLegConfigurations();
     if (legConfigs.length === 0) { appAlert('Please configure at least one leg'); return; }
     if (hasCircularLegReference(legConfigs)) { appAlert('Circular leg reference detected. A leg cannot reference another leg that references it back.'); return; }
+
+    const directionError = validateLegDirections(strategy, legConfigs);
+    if (directionError) { appAlert(directionError); return; }
+
     if (!currentMinuteBar) { appAlert('No current bar data available'); return; }
 
     const underlyingPrice = currentMinuteBar.close;
@@ -1804,9 +1802,12 @@ async function executeOptionTrade() {
             if (legConfig.method === 'dollar_leg' || legConfig.method === 'pct_leg') {
                 const refStrike = resolvedStrikes[legConfig.refLeg !== undefined ? legConfig.refLeg : 0];
                 if (refStrike !== undefined) {
+                    const origMethod = legConfig.method;
+                    const dirMult = legConfig.direction === 'below' ? -1 : 1;
+                    legConfig.strike = origMethod === 'dollar_leg'
+                        ? refStrike + (legConfig.value || 0) * dirMult
+                        : refStrike * (1 + ((legConfig.value || 0) / 100) * dirMult);
                     legConfig.method = 'exact_strike';
-                    legConfig.strike = legConfig.method === 'dollar_leg'
-                        ? refStrike + (legConfig.value || 0) : refStrike * (1 + (legConfig.value || 0) / 100);
                     legConfig.fallback = 'closest';
                 }
             }
@@ -2101,7 +2102,10 @@ function updateOptionsPositionsCard() {
                 <span style="font-weight: 600; color: ${isProfit ? '#089981' : '#f23645'}; font-size: 12px;">${pnlStr} (${pnlPct}%)</span>
             </div>
             <div style="margin-bottom: 4px;">${legsHtml}</div>
-            <div style="font-size: 10px; color: #6a6d78; margin-bottom: 6px;">Exp: ${pos.expiration}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #6a6d78; margin-bottom: 6px;">
+                <span>Exp: ${pos.expiration}</span>
+                <button onclick="showPayoffModal(${pos.id})" style="background: #f0f3fa; color: #2962ff; border: 1px solid #d1d4dc; padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;" title="Payoff Diagram"><i class="fas fa-chart-area me-1"></i>Payoff</button>
+            </div>
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                 <label style="font-size: 10px; color: #6a6d78;">TP${(pos.tpType || 'pct') === 'dollar' ? '$' : '%'}:</label>
                 <input type="number" id="pos-tp-${pos.id}" value="${pos.tp != null ? pos.tp : ''}" step="5" class="sim-dark-input" style="width: 48px; font-size: 10px; padding: 2px 4px;">
@@ -2136,54 +2140,208 @@ function hasCircularLegReference(legs) {
     return false;
 }
 
-function drawPayoffDiagram() {
-    const section = document.getElementById('simPayoffDiagramSection');
-    const canvas = document.getElementById('simPayoffCanvas');
-    const statsDiv = document.getElementById('simPayoffStats');
-    if (!section || !canvas) return;
-
-    const strategy = document.getElementById('simOptionStrategy')?.value;
-    if (!strategy) { section.style.display = 'none'; return; }
-
+function validateLegDirections(strategy, legConfigs) {
+    const rules = SIM_LEG_DIRECTION_RULES[strategy];
+    if (!rules) return null;
     const legs = SIM_STRATEGY_LEGS[strategy];
-    if (!legs || legs.length === 0) { section.style.display = 'none'; return; }
+    if (!legs) return null;
+
+    for (const [indexStr, requiredDir] of Object.entries(rules)) {
+        const idx = parseInt(indexStr);
+        const config = legConfigs[idx];
+        if (!config) continue;
+        if (config.method === 'exact_strike' || config.method === 'mid_price' || config.method === 'delta') continue;
+        if (config.direction && config.direction !== requiredDir) {
+            const legName = legs[idx]?.name || `Leg ${idx + 1}`;
+            return `${legName} (Leg ${idx + 1}): direction must be "${requiredDir}" for ${strategy}. Currently set to "${config.direction}".`;
+        }
+    }
+    return null;
+}
+
+const SIM_STRATEGY_PRESETS = {
+    'Short Iron Condor': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_leg', ref: 1, direction: 'below', value: 1 },
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_leg', ref: 2, direction: 'above', value: 1 }
+        ]},
+        { name: '$2 wide', legs: [
+            { method: 'dollar_leg', ref: 1, direction: 'below', value: 2 },
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_leg', ref: 2, direction: 'above', value: 2 }
+        ]},
+        { name: '$5 wide', legs: [
+            { method: 'dollar_leg', ref: 1, direction: 'below', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 2 },
+            { method: 'dollar_underlying', direction: 'above', value: 2 },
+            { method: 'dollar_leg', ref: 2, direction: 'above', value: 5 }
+        ]}
+    ],
+    'Short Iron Butterfly': [
+        { name: '$1 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 1 }
+        ]},
+        { name: '$2 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 2 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 2 }
+        ]}
+    ],
+    'Long Iron Condor': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 1 },
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_leg', ref: 2, direction: 'below', value: 1 }
+        ]}
+    ],
+    'Long Iron Butterfly': [
+        { name: '$1 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 1 }
+        ]}
+    ],
+    'Short Put Spread': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 1 }
+        ]},
+        { name: '$2 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 2 }
+        ]}
+    ],
+    'Short Call Spread': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 1 }
+        ]},
+        { name: '$2 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 2 }
+        ]}
+    ],
+    'Long Call Spread': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 1 }
+        ]}
+    ],
+    'Long Put Spread': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 1 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 1 }
+        ]}
+    ],
+    'Long Straddle': [
+        { name: 'ATM', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 }
+        ]}
+    ],
+    'Short Straddle': [
+        { name: 'ATM', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 }
+        ]}
+    ],
+    'Long Strangle': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_underlying', direction: 'below', value: 1 }
+        ]}
+    ],
+    'Short Strangle': [
+        { name: '$1 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 1 },
+            { method: 'dollar_underlying', direction: 'below', value: 1 }
+        ]}
+    ]
+};
+
+function renderPresetButtons() {
+    const strategy = document.getElementById('simOptionStrategy')?.value;
+    const section = document.getElementById('simLegPresetSection');
+    const container = document.getElementById('simLegPresetButtons');
+    if (!section || !container) return;
+
+    const presets = SIM_STRATEGY_PRESETS[strategy];
+    if (!presets || presets.length === 0) { section.style.display = 'none'; return; }
 
     section.style.display = '';
+    container.innerHTML = presets.map((preset, i) =>
+        `<button type="button" onclick="applyLegPreset(${i})" style="background:#f0f3fa; color:#2962ff; border:1px solid #d1d4dc; padding:3px 10px; border-radius:4px; font-size:10px; font-weight:600; cursor:pointer; transition:all 0.15s;"
+         onmouseover="this.style.background='#2962ff';this.style.color='#fff'" onmouseout="this.style.background='#f0f3fa';this.style.color='#2962ff'">${preset.name}</button>`
+    ).join('');
+}
 
-    const strikes = [];
-    const premiums = [];
+function applyLegPreset(presetIndex) {
+    const strategy = document.getElementById('simOptionStrategy')?.value;
+    if (!strategy) return;
+    const presets = SIM_STRATEGY_PRESETS[strategy];
+    if (!presets || !presets[presetIndex]) return;
+    const preset = presets[presetIndex];
+    const legs = SIM_STRATEGY_LEGS[strategy];
+    if (!legs) return;
+
+    preset.legs.forEach((legPreset, i) => {
+        const methodSelect = document.querySelector(`.sim-leg-method[data-leg-index="${i}"]`);
+        if (!methodSelect) return;
+        methodSelect.value = legPreset.method;
+        updateSimLegParams(i, legPreset.method);
+
+        setTimeout(() => {
+            const card = document.querySelectorAll('#simLegConfigSection > div > div')[i];
+            if (!card) return;
+            const dirSelect = card.querySelector('.sim-leg-direction');
+            if (dirSelect && legPreset.direction) dirSelect.value = legPreset.direction;
+            const valInput = card.querySelector('.sim-leg-value');
+            if (valInput && legPreset.value !== undefined) valInput.value = legPreset.value;
+            const refSelect = card.querySelector('.sim-leg-ref');
+            if (refSelect && legPreset.ref !== undefined) refSelect.value = legPreset.ref;
+        }, 20);
+    });
+}
+
+function showPayoffModal(positionId) {
+    const pos = simOpenOptionPositions.find(p => p.id === positionId);
+    if (!pos) return;
+
+    const modal = document.getElementById('simPayoffModal');
+    const strategyDiv = document.getElementById('simPayoffModalStrategy');
+    const legsDiv = document.getElementById('simPayoffModalLegs');
+    const statsDiv = document.getElementById('simPayoffModalStats');
+    const canvas = document.getElementById('simPayoffCanvas');
+    if (!modal || !canvas) return;
+
+    strategyDiv.textContent = pos.strategy;
+    legsDiv.innerHTML = pos.legs.map(leg => {
+        const bgColor = leg.position === 'long' ? '#2962ff' : '#ff9800';
+        return `<span style="background:${bgColor}; color:white; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">
+            ${leg.position.charAt(0).toUpperCase()}${leg.position.slice(1)} ${leg.type} $${leg.strike} @ $${leg.entryPrice.toFixed(2)}</span>`;
+    }).join('');
+
+    const strikes = pos.legs.map(l => l.strike);
+    const premiums = pos.legs.map(l => l.entryPrice);
+    const quantity = pos.remainingQuantity;
     const multiplier = 100;
 
-    legs.forEach((leg, i) => {
-        const card = document.querySelectorAll('#simLegConfigSection > div > div')[i];
-        let strike = 100 + (i * 5);
-        let premium = 2;
-        if (card) {
-            const method = card.querySelector('.sim-leg-method')?.value || 'pct_underlying';
-            const val = parseFloat(card.querySelector('.sim-leg-value')?.value) || 0;
-            const strikeInput = card.querySelector('.sim-leg-strike');
-            if (strikeInput) strike = parseFloat(strikeInput.value) || 100 + (i * 5);
-            else if (method === 'dollar_underlying') {
-                const dir = card.querySelector('.sim-leg-direction')?.value || 'below';
-                strike = 100 + (dir === 'above' ? val : -val);
-            } else if (method === 'pct_underlying') {
-                const dir = card.querySelector('.sim-leg-direction')?.value || 'below';
-                strike = 100 * (1 + (dir === 'above' ? val/100 : -val/100));
-            } else {
-                strike = 100 + (i * 5 - (legs.length > 2 ? 10 : 0));
-            }
-        }
-        strikes.push(strike);
-        premiums.push(premium);
-    });
-
-    const allStrikes = [...strikes].sort((a,b) => a - b);
+    const allStrikes = [...strikes].sort((a, b) => a - b);
     const minStrike = allStrikes[0];
     const maxStrike = allStrikes[allStrikes.length - 1];
     const range = Math.max(maxStrike - minStrike, 10);
-    const priceMin = minStrike - range * 0.5;
-    const priceMax = maxStrike + range * 0.5;
-    const step = (priceMax - priceMin) / 200;
+    const priceMin = minStrike - range * 0.6;
+    const priceMax = maxStrike + range * 0.6;
+    const step = (priceMax - priceMin) / 300;
 
     const payoffPoints = [];
     let maxProfit = -Infinity;
@@ -2191,19 +2349,50 @@ function drawPayoffDiagram() {
 
     for (let price = priceMin; price <= priceMax; price += step) {
         let totalPayoff = 0;
-        legs.forEach((leg, i) => {
+        pos.legs.forEach((leg, i) => {
             const K = strikes[i];
             const prem = premiums[i];
             let intrinsic = 0;
             if (leg.type === 'C') intrinsic = Math.max(0, price - K);
             else intrinsic = Math.max(0, K - price);
-            if (leg.position === 'long') totalPayoff += (intrinsic - prem) * multiplier;
-            else totalPayoff += (prem - intrinsic) * multiplier;
+            if (leg.position === 'long') totalPayoff += (intrinsic - prem) * multiplier * quantity;
+            else totalPayoff += (prem - intrinsic) * multiplier * quantity;
         });
         payoffPoints.push({ price, payoff: totalPayoff });
         if (totalPayoff > maxProfit) maxProfit = totalPayoff;
         if (totalPayoff < maxLoss) maxLoss = totalPayoff;
     }
+
+    const breakevens = [];
+    for (let i = 1; i < payoffPoints.length; i++) {
+        const prev = payoffPoints[i - 1], curr = payoffPoints[i];
+        if ((prev.payoff <= 0 && curr.payoff > 0) || (prev.payoff >= 0 && curr.payoff < 0)) {
+            const ratio = Math.abs(prev.payoff) / (Math.abs(prev.payoff) + Math.abs(curr.payoff));
+            breakevens.push((prev.price + (curr.price - prev.price) * ratio).toFixed(2));
+        }
+    }
+
+    const isMaxProfitUnlimited = maxProfit > range * multiplier * quantity * 3;
+    const isMaxLossUnlimited = Math.abs(maxLoss) > range * multiplier * quantity * 3;
+
+    statsDiv.innerHTML = `
+        <div style="text-align:center;">
+            <div style="font-size:10px; color:#6a6d78; margin-bottom:2px;">Max Profit</div>
+            <div style="font-size:16px; font-weight:700; color:#089981;">${isMaxProfitUnlimited ? 'Unlimited' : '$' + maxProfit.toFixed(0)}</div>
+        </div>
+        <div style="text-align:center;">
+            <div style="font-size:10px; color:#6a6d78; margin-bottom:2px;">Max Loss</div>
+            <div style="font-size:16px; font-weight:700; color:#f23645;">${isMaxLossUnlimited ? 'Unlimited' : '$' + maxLoss.toFixed(0)}</div>
+        </div>
+        ${breakevens.length > 0 ? `<div style="text-align:center;">
+            <div style="font-size:10px; color:#6a6d78; margin-bottom:2px;">Breakeven${breakevens.length > 1 ? 's' : ''}</div>
+            <div style="font-size:16px; font-weight:700; color:#191919;">${breakevens.join(', ')}</div>
+        </div>` : ''}
+        <div style="text-align:center;">
+            <div style="font-size:10px; color:#6a6d78; margin-bottom:2px;">Contracts</div>
+            <div style="font-size:16px; font-weight:700; color:#191919;">${quantity}</div>
+        </div>
+    `;
 
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -2213,7 +2402,7 @@ function drawPayoffDiagram() {
     canvas.height = h * dpr;
     ctx.scale(dpr, dpr);
 
-    const pad = { top: 20, right: 20, bottom: 30, left: 55 };
+    const pad = { top: 25, right: 25, bottom: 35, left: 60 };
     const cw = w - pad.left - pad.right;
     const ch = h - pad.top - pad.bottom;
 
@@ -2221,123 +2410,100 @@ function drawPayoffDiagram() {
     ctx.fillStyle = '#fafbfc';
     ctx.fillRect(0, 0, w, h);
 
-    const payoffMin = Math.min(maxLoss, 0) * 1.1;
-    const payoffMax = Math.max(maxProfit, 0) * 1.1;
-    const payoffRange = payoffMax - payoffMin || 1;
+    const payoffMin = Math.min(maxLoss, 0) * 1.15;
+    const payoffMax2 = Math.max(maxProfit, 0) * 1.15;
+    const payoffRange = payoffMax2 - payoffMin || 1;
 
     const toX = (price) => pad.left + ((price - priceMin) / (priceMax - priceMin)) * cw;
     const toY = (val) => pad.top + ch - ((val - payoffMin) / payoffRange) * ch;
 
-    ctx.strokeStyle = '#e0e3eb';
+    ctx.strokeStyle = '#e8eaef';
     ctx.lineWidth = 1;
-    const gridLines = 5;
-    ctx.font = '10px system-ui, sans-serif';
-    ctx.fillStyle = '#6a6d78';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillStyle = '#999';
     ctx.textAlign = 'right';
+    const gridLines = 6;
     for (let i = 0; i <= gridLines; i++) {
         const val = payoffMin + (payoffRange * i / gridLines);
         const y = toY(val);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(w - pad.right, y);
-        ctx.stroke();
-        ctx.fillText('$' + Math.round(val), pad.left - 5, y + 3);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+        ctx.fillText('$' + Math.round(val), pad.left - 8, y + 4);
     }
 
     const zeroY = toY(0);
     if (zeroY >= pad.top && zeroY <= pad.top + ch) {
-        ctx.strokeStyle = '#999';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, zeroY);
-        ctx.lineTo(w - pad.right, zeroY);
-        ctx.stroke();
+        ctx.strokeStyle = '#aaa';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(w - pad.right, zeroY); ctx.stroke();
         ctx.setLineDash([]);
     }
 
-    ctx.fillStyle = 'rgba(8, 153, 129, 0.15)';
+    const profitGrad = ctx.createLinearGradient(0, toY(maxProfit), 0, zeroY);
+    profitGrad.addColorStop(0, 'rgba(8, 153, 129, 0.25)');
+    profitGrad.addColorStop(1, 'rgba(8, 153, 129, 0.02)');
+    ctx.fillStyle = profitGrad;
     ctx.beginPath();
     ctx.moveTo(toX(payoffPoints[0].price), zeroY);
-    payoffPoints.forEach(p => {
-        if (p.payoff >= 0) ctx.lineTo(toX(p.price), toY(p.payoff));
-        else ctx.lineTo(toX(p.price), zeroY);
-    });
+    payoffPoints.forEach(p => ctx.lineTo(toX(p.price), p.payoff >= 0 ? toY(p.payoff) : zeroY));
     ctx.lineTo(toX(payoffPoints[payoffPoints.length - 1].price), zeroY);
-    ctx.closePath();
-    ctx.fill();
+    ctx.closePath(); ctx.fill();
 
-    ctx.fillStyle = 'rgba(242, 54, 69, 0.12)';
+    const lossGrad = ctx.createLinearGradient(0, zeroY, 0, toY(maxLoss));
+    lossGrad.addColorStop(0, 'rgba(242, 54, 69, 0.02)');
+    lossGrad.addColorStop(1, 'rgba(242, 54, 69, 0.2)');
+    ctx.fillStyle = lossGrad;
     ctx.beginPath();
     ctx.moveTo(toX(payoffPoints[0].price), zeroY);
-    payoffPoints.forEach(p => {
-        if (p.payoff < 0) ctx.lineTo(toX(p.price), toY(p.payoff));
-        else ctx.lineTo(toX(p.price), zeroY);
-    });
+    payoffPoints.forEach(p => ctx.lineTo(toX(p.price), p.payoff < 0 ? toY(p.payoff) : zeroY));
     ctx.lineTo(toX(payoffPoints[payoffPoints.length - 1].price), zeroY);
-    ctx.closePath();
-    ctx.fill();
+    ctx.closePath(); ctx.fill();
 
     ctx.strokeStyle = '#089981';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     payoffPoints.forEach((p, i) => {
-        const x = toX(p.price);
-        const y = toY(p.payoff);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const x = toX(p.price); const y = toY(p.payoff);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.stroke();
 
-    ctx.fillStyle = '#6a6d78';
     ctx.textAlign = 'center';
-    ctx.font = '10px system-ui, sans-serif';
-    strikes.forEach((K, i) => {
+    ctx.font = '11px system-ui, sans-serif';
+    strikes.forEach((K) => {
         const x = toX(K);
-        ctx.setLineDash([3, 3]);
+        ctx.setLineDash([4, 4]);
         ctx.strokeStyle = '#b0b4c0';
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, pad.top);
-        ctx.lineTo(x, pad.top + ch);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillText(K.toFixed(0), x, pad.top + ch + 14);
+        ctx.fillStyle = '#555';
+        ctx.fillText('$' + K.toFixed(0), x, pad.top + ch + 16);
     });
 
-    const priceSteps = 5;
-    ctx.fillStyle = '#6a6d78';
-    for (let i = 0; i <= priceSteps; i++) {
-        const price = priceMin + ((priceMax - priceMin) * i / priceSteps);
-        let tooClose = false;
-        for (const K of strikes) {
-            if (Math.abs(toX(price) - toX(K)) < 30) { tooClose = true; break; }
-        }
-        if (!tooClose) ctx.fillText(price.toFixed(0), toX(price), pad.top + ch + 14);
-    }
+    breakevens.forEach(be => {
+        const x = toX(parseFloat(be));
+        ctx.fillStyle = '#191919';
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.fillText('BE ' + be, x, pad.top - 6);
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = '#191919';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
+        ctx.setLineDash([]);
+    });
 
-    if (statsDiv) {
-        const breakevens = [];
-        for (let i = 1; i < payoffPoints.length; i++) {
-            const prev = payoffPoints[i - 1];
-            const curr = payoffPoints[i];
-            if ((prev.payoff <= 0 && curr.payoff > 0) || (prev.payoff >= 0 && curr.payoff < 0)) {
-                const ratio = Math.abs(prev.payoff) / (Math.abs(prev.payoff) + Math.abs(curr.payoff));
-                breakevens.push((prev.price + (curr.price - prev.price) * ratio).toFixed(2));
-            }
-        }
-        const mpColor = maxProfit >= 0 ? '#089981' : '#f23645';
-        const mlColor = maxLoss >= 0 ? '#089981' : '#f23645';
-        const isMaxProfitUnlimited = maxProfit > range * multiplier * 5;
-        const isMaxLossUnlimited = Math.abs(maxLoss) > range * multiplier * 5;
-        statsDiv.innerHTML = `
-            <span style="color: ${mpColor}; font-weight: 600;">Max Profit: ${isMaxProfitUnlimited ? 'Unlimited' : '$' + maxProfit.toFixed(0)}</span>
-            <span style="color: ${mlColor}; font-weight: 600;">Max Loss: ${isMaxLossUnlimited ? 'Unlimited' : '$' + maxLoss.toFixed(0)}</span>
-            ${breakevens.length > 0 ? `<span style="color: #6a6d78;">BE: ${breakevens.join(', ')}</span>` : ''}
-        `;
-    }
+    modal.style.display = 'flex';
 }
 
+function closePayoffModal() {
+    const modal = document.getElementById('simPayoffModal');
+    if (modal) modal.style.display = 'none';
+}
+
+window.showPayoffModal = showPayoffModal;
+window.closePayoffModal = closePayoffModal;
+window.applyLegPreset = applyLegPreset;
 window.hideTradeToast = hideTradeToast;
 window.closeOptionPosition = closeOptionPosition;
 window.updatePositionTpSl = updatePositionTpSl;
