@@ -1960,7 +1960,7 @@ async function handleBacktestSubmit(e) {
     if (typeof TierRestrictions !== 'undefined') {
         var symErr = TierRestrictions.getSymbolError(config.symbol);
         if (symErr) { showError(symErr); form.dataset.isSubmitting = 'false'; return; }
-        if (!TierRestrictions.isDateAllowed(config.start_date) || !TierRestrictions.isDateAllowed(config.end_date)) { showError('Date is outside your plan\'s allowed range. Upgrade for wider date access.'); form.dataset.isSubmitting = 'false'; return; }
+        if (!TierRestrictions.isDateAllowed(config.start_date) || !TierRestrictions.isDateAllowed(config.end_date)) { var dMin = TierRestrictions.getDateMin(); var dMax = TierRestrictions.getDateMax(); var rangeStr = (dMin && dMax) ? ' Allowed range: ' + dMin + ' to ' + dMax + '.' : ''; showError('Date is outside your plan\'s allowed range.' + rangeStr + ' Upgrade for wider date access.'); form.dataset.isSubmitting = 'false'; return; }
         var maxDTE = TierRestrictions.getMaxDTE();
         if (maxDTE !== null && parseInt(config.dte) > maxDTE) { showError('DTE exceeds your plan limit of ' + maxDTE + ' days.'); form.dataset.isSubmitting = 'false'; return; }
         if (TierRestrictions.isFree() && config.entry_type === 'custom') { showError('Custom entry conditions require a Standard or Premium plan.'); form.dataset.isSubmitting = 'false'; return; }
