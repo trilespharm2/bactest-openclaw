@@ -845,16 +845,20 @@ function buildLegConfiguration(strategy) {
     
     // Show all legs that need to be configured
     legDefinitions.forEach((leg, index) => {
-        // ALL legs get 5 options since user might configure them in any order
-        // Even leg 1 could reference a leg if user configures other legs first
         let optionsHTML = `
             <option value="">-- Select Method --</option>
             <option value="mid_price">1. Mid Price Range (specify min/max option price)</option>
             <option value="pct_underlying">2. % Distance from Underlying</option>
             <option value="dollar_underlying">3. $ Distance from Underlying</option>
+        `;
+        if (legDefinitions.length > 1) {
+            optionsHTML += `
             <option value="pct_leg">4. % Distance from Another Leg</option>
             <option value="dollar_leg">5. $ Distance from Another Leg</option>
-            <option value="delta">6. Delta-based Strike Selection</option>
+            `;
+        }
+        optionsHTML += `
+            <option value="delta">${legDefinitions.length > 1 ? '6' : '4'}. Delta-based Strike Selection</option>
         `;
         
         html += `
@@ -865,7 +869,7 @@ function buildLegConfiguration(strategy) {
                 </div>
                 
                 <div class="form-group">
-                    <label>→ Select configuration method [1-5]:</label>
+                    <label>→ Select configuration method:</label>
                     <select class="leg-method-select" data-leg-index="${index}">
                         ${optionsHTML}
                     </select>
@@ -1838,14 +1842,14 @@ function validateOptionsConfig(config) {
         }
     }
     
-    if (config.allocation_type === 'pct' && (config.allocation_value <= 0 || config.allocation_value > 100)) {
-        errors.push('Allocation % must be between 0 and 100');
+    if (config.allocation_type === 'pct' && (!config.allocation_value || isNaN(config.allocation_value) || config.allocation_value <= 0 || config.allocation_value > 100)) {
+        errors.push('Percentage of capital is required and must be between 1 and 100');
     }
-    if (config.allocation_type === 'contracts' && (!config.allocation_value || config.allocation_value < 1)) {
-        errors.push('Number of contracts must be at least 1');
+    if (config.allocation_type === 'contracts' && (!config.allocation_value || isNaN(config.allocation_value) || config.allocation_value < 1)) {
+        errors.push('Number of contracts is required and must be at least 1');
     }
-    if (config.allocation_type === 'fixed' && (!config.allocation_value || config.allocation_value < 100)) {
-        errors.push('Fixed allocation must be at least $100');
+    if (config.allocation_type === 'fixed' && (!config.allocation_value || isNaN(config.allocation_value) || config.allocation_value < 100)) {
+        errors.push('Fixed allocation is required and must be at least $100');
     }
     
     if (config.avoid_pdt && config.dte === 0) {
