@@ -1458,7 +1458,7 @@
 
                     <!-- [8/14] TAKE PROFIT -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[8/14]</span> TAKE PROFIT</div>
+                      <div class="section-label"><span class="section-number">[8/14]</span> TAKE PROFIT <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Take Profit: Triggers a close order when the position's unrealized profit meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and TP = 50%, the position closes when unrealized profit reaches $500. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
                       <div class="mb-3">
                         <label class="form-label">Take profit by:</label>
                         <div class="form-check">
@@ -1482,7 +1482,7 @@
 
                     <!-- [9/14] STOP LOSS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[9/14]</span> STOP LOSS</div>
+                      <div class="section-label"><span class="section-number">[9/14]</span> STOP LOSS <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Stop Loss: Triggers a close order when the position's unrealized loss meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and SL = 200%, the position closes when unrealized loss reaches $2,000. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
                       <div class="mb-3">
                         <label class="form-label">Stop loss by:</label>
                         <div class="form-check">
@@ -2350,7 +2350,7 @@
                         </select>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">TP:</label>
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">TP <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" data-tip="Take Profit: Triggers a close order when the position's unrealized profit meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and TP = 35%, the position closes when unrealized profit reaches $350. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></label>
                         <input type="number" class="sim-dark-input" id="simOptionTP" placeholder="" step="5" style="width: 55px;">
                         <select class="sim-dark-select" id="simOptionTPType" style="width: 38px; font-size: 10px; padding: 2px;">
                           <option value="pct" selected>%</option>
@@ -2358,7 +2358,7 @@
                         </select>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">SL:</label>
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">SL <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" data-tip="Stop Loss: Triggers a close order when the position's unrealized loss meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and SL = 200%, the position closes when unrealized loss reaches $2,000. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></label>
                         <input type="number" class="sim-dark-input" id="simOptionSL" placeholder="" step="10" style="width: 55px;">
                         <select class="sim-dark-select" id="simOptionSLType" style="width: 38px; font-size: 10px; padding: 2px;">
                           <option value="pct">%</option>

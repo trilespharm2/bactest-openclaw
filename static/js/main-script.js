@@ -1,5 +1,38 @@
 // Main Dashboard JavaScript
 
+function showSimInfoTip(el) {
+    const existing = document.getElementById('simInfoPopover');
+    if (existing) existing.remove();
+    const text = el.getAttribute('data-tip');
+    if (!text) return;
+    const rect = el.getBoundingClientRect();
+    const popover = document.createElement('div');
+    popover.id = 'simInfoPopover';
+    popover.style.cssText = 'position:fixed;z-index:10001;background:#2d3748;color:#fff;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;max-width:280px;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:auto;';
+    popover.textContent = text;
+    const close = document.createElement('span');
+    close.textContent = '\u00d7';
+    close.style.cssText = 'position:absolute;top:4px;right:8px;cursor:pointer;font-size:16px;color:#a0aec0;font-weight:bold;';
+    close.onclick = (e) => { e.stopPropagation(); popover.remove(); };
+    popover.appendChild(close);
+    document.body.appendChild(popover);
+    const pw = popover.offsetWidth, ph = popover.offsetHeight;
+    let left = rect.left + rect.width / 2 - pw / 2;
+    let top = rect.bottom + 8;
+    if (left < 8) left = 8;
+    if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+    if (top + ph > window.innerHeight - 8) top = rect.top - ph - 8;
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+    const dismiss = (e) => {
+        if (!popover.contains(e.target) && e.target !== el) {
+            popover.remove();
+            document.removeEventListener('click', dismiss);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', dismiss), 10);
+}
+
 // API Configuration - Dynamic to work with any port
 const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
