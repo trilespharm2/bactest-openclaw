@@ -860,7 +860,7 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
 
     const tradingStartTs = tradingStartDate.includes('T')
         ? new Date(tradingStartDate).getTime()
-        : parseETDateTime(tradingStartDate, '09:30');
+        : parseETDateTime(tradingStartDate, '09:31');
     simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= tradingStartTs);
     if (simTradingStartMinuteIndex === -1) {
         const dayStartTs = new Date(tradingStartDate + 'T00:00:00').getTime();
@@ -895,7 +895,7 @@ function rebuildBarsForCurrentTimeframe() {
     simVisibleBars = aggregateBarsUpToMinute(simMinuteBarsCache, targetMinutes, simCurrentMinuteIndex);
     const tradingStartTs = simChartDates.tradingStart.includes('T')
         ? new Date(simChartDates.tradingStart).getTime()
-        : parseETDateTime(simChartDates.tradingStart, '09:30');
+        : parseETDateTime(simChartDates.tradingStart, '09:31');
     simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= tradingStartTs);
     if (simTradingStartIndex === -1) {
         const dayStartTs = new Date(simChartDates.tradingStart + 'T00:00:00').getTime();
