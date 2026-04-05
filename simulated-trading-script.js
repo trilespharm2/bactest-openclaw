@@ -685,6 +685,40 @@ async function restoreSession(savedState) {
     simCurrentTimeframe = savedState.currentTimeframe || '1m';
 
     await loadSimulatedChart(targetMinuteIndex);
+    await restoreOptionBarsForOpenPositions();
+}
+
+async function restoreOptionBarsForOpenPositions() {
+    if (simOpenOptionPositions.length === 0) return;
+    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
+
+    for (const pos of simOpenOptionPositions) {
+        for (const leg of pos.legs) {
+            if (leg.optionBars && leg.optionBars.length > 0) continue;
+            if (!leg.optionSymbol) continue;
+            try {
+                const response = await fetch(`${apiUrl}/simulated-trading/option-bars-by-symbol`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        option_symbol: leg.optionSymbol,
+                        start_date: simChartDates.start,
+                        end_date: simChartDates.end,
+                        multiplier: 1
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    leg.optionBars = data.bars || [];
+                }
+            } catch (e) {
+                console.error('Failed to restore option bars for', leg.optionSymbol, e);
+            }
+        }
+    }
+    updateOptionsPnlDisplay();
 }
 
 function applyTradingMode() {

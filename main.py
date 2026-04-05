@@ -6548,6 +6548,74 @@ def get_simulated_trading_option_bars():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/simulated-trading/option-bars-by-symbol', methods=['POST'])
+@login_required
+def get_option_bars_by_symbol():
+    """Fetch option bars by known option symbol (for session restore)"""
+    try:
+        data = request.json
+        option_symbol = data.get('option_symbol', '')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        multiplier = int(data.get('multiplier', 1))
+
+        if not option_symbol or not start_date:
+            return jsonify({'error': 'option_symbol and start_date are required'}), 400
+
+        api_key = request.headers.get('X-API-Key') or API_KEY
+        if not api_key:
+            return jsonify({'error': 'Polygon API key not configured'}), 400
+
+        from polygon import RESTClient
+        from datetime import datetime as _dt_cls, timezone as _tz
+        import pytz
+        client = RESTClient(api_key)
+
+        bars = []
+        aggs = client.get_aggs(
+            ticker=option_symbol,
+            multiplier=multiplier,
+            timespan='minute',
+            from_=start_date,
+            to=end_date or start_date,
+            limit=50000
+        )
+        for agg in aggs:
+            ts = agg.timestamp
+            if hasattr(ts, 'timestamp'):
+                ts = int(ts.timestamp() * 1000)
+            elif isinstance(ts, (int, float)):
+                ts = int(ts)
+            vwap = None
+            if hasattr(agg, 'vw') and agg.vw is not None:
+                vwap = agg.vw
+            elif hasattr(agg, 'vwap') and agg.vwap is not None:
+                vwap = agg.vwap
+            else:
+                vwap = agg.close
+            bars.append({
+                'timestamp': ts, 'open': agg.open, 'high': agg.high,
+                'low': agg.low, 'close': agg.close, 'vwap': vwap,
+                'volume': getattr(agg, 'volume', 0)
+            })
+
+        bars.sort(key=lambda x: x['timestamp'])
+        et_tz = pytz.timezone('America/New_York')
+        filtered_bars = []
+        for b in bars:
+            bar_dt = _dt_cls.fromtimestamp(b['timestamp'] / 1000, tz=_tz.utc).astimezone(et_tz)
+            if bar_dt.hour > 9 or (bar_dt.hour == 9 and bar_dt.minute >= 30):
+                filtered_bars.append(b)
+
+        print(f"[SimTrading Option Restore] {option_symbol}: {len(filtered_bars)} bars")
+        return jsonify({'success': True, 'option_symbol': option_symbol, 'bars': filtered_bars, 'count': len(filtered_bars)})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/saved-filters', methods=['GET'])
 @login_required
 def get_saved_filters():
