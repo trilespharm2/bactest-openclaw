@@ -373,6 +373,65 @@ async function endSessionFromCard(index) {
     }
 }
 
+function enrichOptionTrade(t, i) {
+    const parts = t.closedParts || [];
+    const lastClose = parts.length > 0 ? parts[parts.length - 1] : null;
+
+    const legWeightedExit = {};
+    let totalClosedQty = 0;
+    parts.forEach(part => {
+        const qty = part.quantity || 1;
+        totalClosedQty += qty;
+        (part.exitPrices || []).forEach((ep, idx) => {
+            const key = ep.leg || ('leg_' + idx);
+            if (!legWeightedExit[key]) legWeightedExit[key] = { totalPrice: 0, totalQty: 0 };
+            legWeightedExit[key].totalPrice += ep.price * qty;
+            legWeightedExit[key].totalQty += qty;
+        });
+    });
+
+    let netPremiumEntry = 0;
+    let netPremiumExit = 0;
+    const legDetails = (t.legs || []).map((leg, idx) => {
+        const legKey = leg.name || ('leg_' + idx);
+        const weighted = legWeightedExit[legKey];
+        const exitPrice = weighted && weighted.totalQty > 0 ? weighted.totalPrice / weighted.totalQty : null;
+        const mult = leg.position === 'long' ? -1 : 1;
+        netPremiumEntry += leg.entryPrice * 100 * mult;
+        if (exitPrice != null) netPremiumExit += exitPrice * 100 * mult;
+        return {
+            name: leg.name || `${leg.type} ${leg.strike}`,
+            symbol: leg.optionSymbol || '',
+            position: leg.position,
+            type: leg.type,
+            strike: leg.strike,
+            entryPrice: leg.entryPrice,
+            exitPrice: exitPrice
+        };
+    });
+
+    return {
+        id: i + 1,
+        strategy: t.strategy,
+        legs: legDetails.map(l => l.name).join(' / '),
+        legDetails: legDetails,
+        quantity: t.quantity,
+        entryPremium: t.totalEntryPremium,
+        netPremiumEntry: netPremiumEntry * (t.quantity || 1),
+        netPremiumExit: legDetails.some(l => l.exitPrice == null) ? null : netPremiumExit * (t.quantity || 1),
+        underlyingAtEntry: t.underlyingAtEntry != null ? t.underlyingAtEntry : null,
+        entryTime: t.entryTimestamp || '',
+        exitTime: lastClose ? lastClose.exitTimestamp : '',
+        expiration: t.expiration || '',
+        pnl: t.realizedPnl || 0,
+        exitReason: lastClose ? lastClose.reason : 'manual',
+        tp: t.tp,
+        sl: t.sl,
+        tpType: t.tpType,
+        slType: t.slType
+    };
+}
+
 function buildSessionDataFromSaved(session) {
     const trades = session.mode === 'stock' ? (session.closedTrades || []) : (session.closedOptionTrades || []);
     const realizedPnl = session.realizedPnl || 0;
@@ -388,15 +447,7 @@ function buildSessionDataFromSaved(session) {
             barsInTrade: (t.exitBarIndex || 0) - (t.entryBarIndex || 0), pnl: t.pnl
         }));
     } else {
-        enrichedTrades = trades.map((t, i) => ({
-            id: i + 1, strategy: t.strategy,
-            legs: t.legs ? t.legs.map(l => l.name || `${l.type} ${l.strike}`).join(' / ') : '',
-            quantity: t.quantity, entryPremium: t.totalEntryPremium,
-            entryTime: t.entryTimestamp || '',
-            exitTime: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].exitTimestamp : '',
-            expiration: t.expiration || '', pnl: t.realizedPnl || 0,
-            exitReason: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].reason : 'manual'
-        }));
+        enrichedTrades = trades.map((t, i) => enrichOptionTrade(t, i));
     }
 
     return buildAnalyticsFromTrades(enrichedTrades, session);
@@ -634,15 +685,7 @@ function buildCurrentSessionData() {
             };
         });
     } else {
-        enrichedTrades = simClosedOptionTrades.map((t, i) => ({
-            id: i + 1, strategy: t.strategy,
-            legs: t.legs ? t.legs.map(l => l.name || `${l.type} ${l.strike}`).join(' / ') : '',
-            quantity: t.quantity, entryPremium: t.totalEntryPremium,
-            entryTime: t.entryTimestamp || '',
-            exitTime: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].exitTimestamp : '',
-            expiration: t.expiration || '', pnl: t.realizedPnl || 0,
-            exitReason: (t.closedParts && t.closedParts.length > 0) ? t.closedParts[t.closedParts.length - 1].reason : 'manual'
-        }));
+        enrichedTrades = simClosedOptionTrades.map((t, i) => enrichOptionTrade(t, i));
     }
 
     return buildAnalyticsFromTrades(enrichedTrades, {

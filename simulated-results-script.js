@@ -381,8 +381,10 @@ function renderTradeLog(data) {
         `;
     } else {
         headerRow.innerHTML = `
-            <th>#</th><th>Strategy</th><th>Legs</th><th>Qty</th>
-            <th>Entry Time</th><th>Exit Time</th><th>Exit Reason</th><th>P&L</th>
+            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>Qty</th>
+            <th>Net Premium Entry</th><th>Net Premium Exit</th>
+            <th>Underlying</th><th>Entry Time</th><th>Exit Time</th>
+            <th>Duration</th><th>Expiration</th><th>Exit Reason</th><th>P&L</th>
         `;
     }
 
@@ -442,16 +444,62 @@ function renderTradeLogPage(data) {
         tbody.innerHTML = pageTrades.map(t => {
             const pnlColor = t.pnl >= 0 ? '#26a69a' : '#ef5350';
             const pnlSign = t.pnl >= 0 ? '+' : '';
-            return `<tr>
+            const fmtPremium = (v) => v != null ? ((v >= 0 ? '+' : '-') + '$' + Math.abs(v).toFixed(2)) : '--';
+            const netEntryStr = fmtPremium(t.netPremiumEntry);
+            const netExitStr = fmtPremium(t.netPremiumExit);
+            const netEntryColor = t.netPremiumEntry != null ? (t.netPremiumEntry >= 0 ? '#26a69a' : '#ef5350') : '#999';
+            const netExitColor = t.netPremiumExit != null ? (t.netPremiumExit >= 0 ? '#26a69a' : '#ef5350') : '#999';
+            const duration = calcTradeDuration(t.entryTime, t.exitTime);
+            const underlyingStr = t.underlyingAtEntry != null ? '$' + t.underlyingAtEntry.toFixed(2) : '--';
+            const rowId = 'simTradeRow_' + t.id;
+            const hasLegs = t.legDetails && t.legDetails.length > 0;
+
+            let legSubRows = '';
+            if (hasLegs) {
+                legSubRows = `<tr id="${rowId}_legs" style="display:none;"><td colspan="13" style="padding:0;border-top:0;">
+                    <div style="background:#f8f9fa;padding:8px 16px;border-radius:0 0 6px 6px;">
+                        <table class="table table-sm mb-0" style="font-size:12px;">
+                            <thead><tr style="color:#888;">
+                                <th>Leg</th><th>Symbol</th><th>Type</th><th>Position</th>
+                                <th>Strike</th><th>Entry Price</th><th>Exit Price</th><th>Leg P&L/Contract</th>
+                            </tr></thead>
+                            <tbody>${t.legDetails.map(l => {
+                                const hasExit = l.exitPrice != null;
+                                const legPnl = hasExit ? (l.position === 'long' ? (l.exitPrice - l.entryPrice) * 100 : (l.entryPrice - l.exitPrice) * 100) : null;
+                                const legPnlColor = legPnl != null ? (legPnl >= 0 ? '#26a69a' : '#ef5350') : '#999';
+                                const posBadge = l.position === 'long' ? '<span class="badge" style="background:#26a69a;font-size:10px;">LONG</span>' : '<span class="badge" style="background:#ef5350;font-size:10px;">SHORT</span>';
+                                const typeBadge = l.type === 'call' ? '<span class="badge" style="background:#2196F3;font-size:10px;">CALL</span>' : '<span class="badge" style="background:#FF9800;font-size:10px;">PUT</span>';
+                                return `<tr>
+                                    <td class="fw-bold">${l.name}</td>
+                                    <td class="text-muted" style="font-size:11px;">${l.symbol || '--'}</td>
+                                    <td>${typeBadge}</td>
+                                    <td>${posBadge}</td>
+                                    <td>${l.strike != null ? '$' + l.strike.toFixed(2) : '--'}</td>
+                                    <td>${l.entryPrice != null ? '$' + l.entryPrice.toFixed(2) : '--'}</td>
+                                    <td>${hasExit ? '$' + l.exitPrice.toFixed(2) : '--'}</td>
+                                    <td style="color:${legPnlColor};font-weight:600;">${legPnl != null ? ((legPnl >= 0 ? '+' : '') + '$' + legPnl.toFixed(2)) : '--'}</td>
+                                </tr>`;
+                            }).join('')}</tbody>
+                        </table>
+                    </div>
+                </td></tr>`;
+            }
+
+            return `<tr id="${rowId}" style="cursor:${hasLegs ? 'pointer' : 'default'};" onclick="${hasLegs ? `(function(){var el=document.getElementById('${rowId}_legs');var icon=document.getElementById('${rowId}_icon');if(el){el.style.display=el.style.display==='none'?'table-row':'none';if(icon)icon.className=el.style.display==='none'?'fas fa-chevron-right':'fas fa-chevron-down';}})()` : ''}">
+                <td>${hasLegs ? `<i id="${rowId}_icon" class="fas fa-chevron-right" style="font-size:10px;color:#999;"></i>` : ''}</td>
                 <td>${t.id}</td>
                 <td>${t.strategy}</td>
-                <td class="small">${t.legs}</td>
                 <td>${t.quantity}</td>
+                <td style="color:${netEntryColor};font-weight:500;">${netEntryStr}</td>
+                <td style="color:${netExitColor};font-weight:500;">${netExitStr}</td>
+                <td>${underlyingStr}</td>
                 <td class="small">${formatTime(t.entryTime)}</td>
                 <td class="small">${formatTime(t.exitTime)}</td>
+                <td>${duration}</td>
+                <td class="small">${t.expiration || '--'}</td>
                 <td><span class="badge bg-secondary">${t.exitReason}</span></td>
                 <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${t.pnl.toFixed(2)}</td>
-            </tr>`;
+            </tr>${legSubRows}`;
         }).join('');
     }
 
@@ -495,11 +543,35 @@ function downloadTradeCsv(data) {
             t.entryTime, t.exitTime, calcTradeDuration(t.entryTime, t.exitTime), t.pnl.toFixed(2)
         ]);
     } else {
-        headers = ['#', 'Strategy', 'Legs', 'Quantity', 'Entry Time', 'Exit Time', 'Exit Reason', 'P&L'];
-        rows = data.trades.map(t => [
-            t.id, t.strategy, `"${t.legs}"`, t.quantity,
-            t.entryTime, t.exitTime, t.exitReason, t.pnl.toFixed(2)
-        ]);
+        const maxLegs = Math.max(...data.trades.map(t => (t.legDetails || []).length), 1);
+        headers = ['#', 'Strategy', 'Quantity', 'Net Premium Entry', 'Net Premium Exit',
+            'Underlying At Entry', 'Entry Time', 'Exit Time', 'Duration', 'Expiration', 'Exit Reason', 'P&L'];
+        for (let li = 1; li <= maxLegs; li++) {
+            headers.push(`Leg${li} Name`, `Leg${li} Symbol`, `Leg${li} Type`, `Leg${li} Position`,
+                `Leg${li} Strike`, `Leg${li} Entry Price`, `Leg${li} Exit Price`, `Leg${li} PnL/Contract`);
+        }
+        const fmtNum = (v) => v != null ? v.toFixed(2) : '';
+        rows = data.trades.map(t => {
+            const row = [
+                t.id, t.strategy, t.quantity,
+                fmtNum(t.netPremiumEntry), fmtNum(t.netPremiumExit),
+                fmtNum(t.underlyingAtEntry),
+                t.entryTime, t.exitTime, calcTradeDuration(t.entryTime, t.exitTime),
+                t.expiration || '', t.exitReason, t.pnl.toFixed(2)
+            ];
+            for (let li = 0; li < maxLegs; li++) {
+                const l = (t.legDetails || [])[li];
+                if (l) {
+                    const legPnl = l.exitPrice != null ? (l.position === 'long' ? (l.exitPrice - l.entryPrice) * 100 : (l.entryPrice - l.exitPrice) * 100) : null;
+                    row.push(l.name, l.symbol || '', l.type, l.position,
+                        fmtNum(l.strike), fmtNum(l.entryPrice),
+                        fmtNum(l.exitPrice), fmtNum(legPnl));
+                } else {
+                    row.push('', '', '', '', '', '', '', '');
+                }
+            }
+            return row;
+        });
     }
 
     let csv = headers.join(',') + '\n';
