@@ -2660,6 +2660,18 @@ function stopPayoffModalPlay() {
     if (icon) icon.className = 'fas fa-play';
 }
 
+async function payoffModalClosePosition() {
+    const st = _payoffModalState;
+    if (!st) return;
+    const pos = simOpenOptionPositions.find(p => p.id === st.positionId);
+    if (!pos) return;
+    const confirmed = await appConfirm(`Close entire ${pos.strategy} position (${pos.remainingQuantity} contracts)?`);
+    if (!confirmed) return;
+    stopPayoffModalPlay();
+    closeOptionPosition(pos.id, null, 'Manual');
+    closePayoffModal();
+}
+
 function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss, currentPrice, entryPrice) {
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -2835,6 +2847,7 @@ window.hideTradeToast = hideTradeToast;
 window.payoffModalNextBar = payoffModalNextBar;
 window.payoffModalPrevBar = payoffModalPrevBar;
 window.payoffModalTogglePlay = payoffModalTogglePlay;
+window.payoffModalClosePosition = payoffModalClosePosition;
 window.closeOptionPosition = closeOptionPosition;
 window.updatePositionTpSl = updatePositionTpSl;
 window.closePositionPartial = closePositionPartial;
