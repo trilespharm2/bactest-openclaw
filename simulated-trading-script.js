@@ -271,18 +271,83 @@ function resumeSession(index) {
     }
 }
 
+function forceCloseSessionPositions(session) {
+    if (session.openPosition) {
+        const pos = session.openPosition;
+        const lastPrice = pos.entryPrice;
+        const pnl = pos.side === 'long'
+            ? (lastPrice - pos.entryPrice) * pos.quantity
+            : (pos.entryPrice - lastPrice) * pos.quantity;
+        if (!session.closedTrades) session.closedTrades = [];
+        session.closedTrades.push({
+            ...pos,
+            exitPrice: lastPrice,
+            pnl: session.unrealizedPnl || pnl,
+            exitTimestamp: Date.now(),
+            exitBarIndex: session.currentMinuteIndex || 0,
+            exitReason: 'Session End'
+        });
+        session.realizedPnl = (session.realizedPnl || 0) + (session.unrealizedPnl || pnl);
+        session.openPosition = null;
+    }
+
+    if (session.openOptionPositions && session.openOptionPositions.length > 0) {
+        if (!session.closedOptionTrades) session.closedOptionTrades = [];
+        for (const pos of session.openOptionPositions) {
+            const unrealPnl = session.unrealizedPnl || 0;
+            const perPosPnl = session.openOptionPositions.length === 1
+                ? unrealPnl
+                : 0;
+            pos.closedParts = pos.closedParts || [];
+            const legExitPrices = (pos.legs || []).map(leg => ({
+                leg: leg.name,
+                price: leg.entryPrice
+            }));
+            pos.closedParts.push({
+                quantity: pos.remainingQuantity,
+                exitPrices: legExitPrices,
+                exitTimestamp: Date.now(),
+                pnl: perPosPnl,
+                reason: 'Session End'
+            });
+            pos.realizedPnl = (pos.realizedPnl || 0) + perPosPnl;
+            pos.remainingQuantity = 0;
+            pos.status = 'closed';
+            session.closedOptionTrades.push(pos);
+        }
+        session.optionsRealizedPnl = (session.optionsRealizedPnl || 0) + (session.unrealizedPnl || 0);
+        session.realizedPnl = (session.realizedPnl || 0) + (session.unrealizedPnl || 0);
+        session.openOptionPositions = [];
+    }
+
+    session.unrealizedPnl = 0;
+    session.openPositionsCount = 0;
+    session.closedTradesCount = (session.mode === 'stock' ? (session.closedTrades || []) : (session.closedOptionTrades || [])).length;
+    session.currentBalance = (session.initialBalance || 100000) + (session.realizedPnl || 0);
+}
+
 async function endSessionFromCard(index) {
     let activeSessions = [];
     try { activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]'); } catch(e) {}
     if (index >= activeSessions.length) return;
 
     const session = activeSessions[index];
-    if (!(await appConfirm('End session for ' + session.symbol + '? This will save results and remove the active session.'))) return;
+    const hasOpenStock = session.openPosition != null;
+    const openOptionCount = (session.openOptionPositions || []).length;
+    const hasOpenPositions = hasOpenStock || openOptionCount > 0;
 
-    const hasOpenPositions = (session.openPosition != null) || (session.openOptionPositions && session.openOptionPositions.length > 0);
     if (hasOpenPositions) {
-        await appAlert('This session has open positions. Please resume the session and close all positions before ending.');
-        return;
+        const posDesc = [];
+        if (hasOpenStock) posDesc.push('1 stock position');
+        if (openOptionCount > 0) posDesc.push(`${openOptionCount} option position${openOptionCount > 1 ? 's' : ''}`);
+        const confirmed = await appConfirm(
+            `End session for ${session.symbol}?\n\nYou have ${posDesc.join(' and ')} still open. ` +
+            `All open positions will be closed at the last known prices before ending the session.`
+        );
+        if (!confirmed) return;
+        forceCloseSessionPositions(session);
+    } else {
+        if (!(await appConfirm('End session for ' + session.symbol + '? This will save results and remove the active session.'))) return;
     }
 
     activeSessions.splice(index, 1);
