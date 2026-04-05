@@ -1605,11 +1605,15 @@ function updateSimLegParams(legIndex, method) {
     const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '';
 
+    const infoIcon = (text) => legIndex === 0
+        ? ` <i class="fas fa-info-circle sim-info-tip" style="font-size:8px;color:#b0b4c0;cursor:pointer;" data-tip="${text.replace(/"/g, '&quot;')}" onclick="showSimInfoTip(this)"></i>`
+        : '';
+
     const buildDirectionDropdown = (legIdx, methodType = '') => {
         const dirRequired = getLegDirectionRequirement(strategy, legIdx);
         const defaultDir = dirRequired || 'below';
         return `<div style="display: flex; align-items: center; gap: 3px;">
-            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap; cursor: help;" title="Direction: Where to place the strike relative to the reference price (above or below the underlying or another leg's strike).">Dir <i class="fas fa-info-circle" style="font-size:8px;color:#b0b4c0;"></i></label>
+            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Dir${infoIcon('Direction: Where to place the strike relative to the reference price (above or below the underlying or another leg\'s strike).')}</label>
             <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 70px;">
                 <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
                 <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
@@ -1620,7 +1624,7 @@ function updateSimLegParams(legIndex, method) {
         case 'exact_strike':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
                 <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="${inputStyle} width:65px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;cursor:help;" title="Fallback: When the exact strike isn't available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down, Exactly = fail if not found.">FB <i class="fas fa-info-circle" style="font-size:8px;color:#b0b4c0;"></i></label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down, Exactly = fail if not found.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
             break;
@@ -1628,7 +1632,7 @@ function updateSimLegParams(legIndex, method) {
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;cursor:help;" title="Fallback: When the exact strike isn't available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.">FB <i class="fas fa-info-circle" style="font-size:8px;color:#b0b4c0;"></i></label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
@@ -1636,7 +1640,7 @@ function updateSimLegParams(legIndex, method) {
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;cursor:help;" title="Fallback: When the exact strike isn't available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.">FB <i class="fas fa-info-circle" style="font-size:8px;color:#b0b4c0;"></i></label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
@@ -2580,6 +2584,47 @@ function closePayoffModal() {
     if (modal) modal.style.display = 'none';
 }
 
+function showSimInfoTip(el) {
+    const existing = document.getElementById('simInfoPopover');
+    if (existing) existing.remove();
+
+    const text = el.getAttribute('data-tip');
+    if (!text) return;
+
+    const rect = el.getBoundingClientRect();
+    const popover = document.createElement('div');
+    popover.id = 'simInfoPopover';
+    popover.style.cssText = 'position:fixed;z-index:10001;background:#2d3748;color:#fff;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;max-width:280px;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:auto;';
+    popover.textContent = text;
+
+    const close = document.createElement('span');
+    close.textContent = '\u00d7';
+    close.style.cssText = 'position:absolute;top:4px;right:8px;cursor:pointer;font-size:16px;color:#a0aec0;font-weight:bold;';
+    close.onclick = (e) => { e.stopPropagation(); popover.remove(); };
+    popover.appendChild(close);
+
+    document.body.appendChild(popover);
+
+    const pw = popover.offsetWidth;
+    const ph = popover.offsetHeight;
+    let left = rect.left + rect.width / 2 - pw / 2;
+    let top = rect.bottom + 8;
+    if (left < 8) left = 8;
+    if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+    if (top + ph > window.innerHeight - 8) top = rect.top - ph - 8;
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+
+    const dismiss = (e) => {
+        if (!popover.contains(e.target) && e.target !== el) {
+            popover.remove();
+            document.removeEventListener('click', dismiss);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', dismiss), 10);
+}
+
+window.showSimInfoTip = showSimInfoTip;
 window.showPayoffModal = showPayoffModal;
 window.closePayoffModal = closePayoffModal;
 window.applyLegPreset = applyLegPreset;
