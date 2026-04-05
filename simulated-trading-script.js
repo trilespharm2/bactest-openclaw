@@ -147,11 +147,16 @@ function renderActiveSessionCards() {
 
     section.style.display = 'block';
     container.innerHTML = activeSessions.map((s, i) => {
-        const modeIcon = s.mode === 'options' ? 'fas fa-layer-group' : 'fas fa-chart-line';
         const modeLabel = s.mode === 'options' ? 'Options' : 'Stock';
-        const pnlColor = (s.realizedPnl || 0) >= 0 ? '#089981' : '#f23645';
-        const pnlStr = `${(s.realizedPnl || 0) >= 0 ? '+' : ''}$${(s.realizedPnl || 0).toFixed(2)}`;
+        const realPnl = s.realizedPnl || 0;
+        const unrealPnl = s.unrealizedPnl || 0;
+        const totalPnl = realPnl + unrealPnl;
+        const pnlColor = realPnl >= 0 ? '#089981' : '#f23645';
+        const pnlStr = `${realPnl >= 0 ? '+' : ''}$${realPnl.toFixed(2)}`;
+        const unrealColor = unrealPnl >= 0 ? '#089981' : '#f23645';
+        const unrealStr = `${unrealPnl >= 0 ? '+' : ''}$${unrealPnl.toFixed(2)}`;
         const trades = (s.closedTradesCount || 0);
+        const openPos = (s.openPositionsCount || 0);
         const createdDate = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '';
         return `
         <div class="col-md-6 col-lg-4">
@@ -163,14 +168,18 @@ function renderActiveSessionCards() {
               </div>
               <span style="font-size: 11px; color: #999;">${createdDate}</span>
             </div>
-            <div style="display: flex; gap: 20px; margin-bottom: 12px;">
+            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;">
               <div>
                 <div style="font-size: 11px; color: #999;">Realized P&L</div>
                 <div style="font-size: 14px; font-weight: 600; color: ${pnlColor};">${pnlStr}</div>
               </div>
+              ${openPos > 0 ? `<div>
+                <div style="font-size: 11px; color: #999;">Unrealized P&L</div>
+                <div style="font-size: 14px; font-weight: 600; color: ${unrealColor};">${unrealStr}</div>
+              </div>` : ''}
               <div>
                 <div style="font-size: 11px; color: #999;">Trades</div>
-                <div style="font-size: 14px; font-weight: 600; color: #333;">${trades}</div>
+                <div style="font-size: 14px; font-weight: 600; color: #333;">${trades}${openPos > 0 ? ` <span style="font-size:11px;color:#ff9800;">(${openPos} open)</span>` : ''}</div>
               </div>
               <div>
                 <div style="font-size: 11px; color: #999;">Balance</div>
@@ -580,6 +589,20 @@ function buildCurrentSessionData() {
 function saveCurrentSessionState() {
     if (!simCurrentSymbol || !simDataLoaded) return;
     const mode = window._simTradingMode || 'stock';
+
+    let unrealizedPnl = 0;
+    if (mode === 'stock' && simOpenPosition) {
+        const lastBar = simVisibleBars.length > 0 ? simVisibleBars[simVisibleBars.length - 1] : null;
+        if (lastBar) unrealizedPnl = calculatePositionPnl(simOpenPosition, lastBar.close);
+    } else if (mode === 'options' && simOpenOptionPositions.length > 0) {
+        const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+        const currentTimestamp = currentMinuteBar ? currentMinuteBar.timestamp : Date.now();
+        for (const pos of simOpenOptionPositions) {
+            unrealizedPnl += calculateOptionPositionPnl(pos, currentTimestamp);
+        }
+    }
+
+    const realizedPnl = mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl;
     const sessionState = {
         symbol: simCurrentSymbol,
         mode: mode,
@@ -587,13 +610,15 @@ function saveCurrentSessionState() {
         chartEndDate: simChartDates.end,
         tradingStartDate: simChartDates.tradingStart,
         initialBalance: simInitialBalance,
-        currentBalance: simInitialBalance + (mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl),
-        realizedPnl: mode === 'stock' ? simRealizedPnl : simOptionsRealizedPnl,
+        currentBalance: simInitialBalance + realizedPnl,
+        realizedPnl: realizedPnl,
+        unrealizedPnl: unrealizedPnl,
         currentMinuteIndex: simCurrentMinuteIndex,
         currentTimeframe: simCurrentTimeframe,
         openPosition: simOpenPosition,
         closedTrades: simClosedTrades,
         closedTradesCount: (mode === 'stock' ? simClosedTrades : simClosedOptionTrades).length,
+        openPositionsCount: mode === 'stock' ? (simOpenPosition ? 1 : 0) : simOpenOptionPositions.length,
         optionsRealizedPnl: simOptionsRealizedPnl,
         openOptionPositions: simOpenOptionPositions.map(p => ({
             ...p,
