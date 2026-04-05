@@ -381,10 +381,10 @@ function renderTradeLog(data) {
         `;
     } else {
         headerRow.innerHTML = `
-            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>Qty</th>
-            <th>Net Premium Entry</th><th>Net Premium Exit</th>
+            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>P&L</th><th>Qty</th>
             <th>Underlying</th><th>Entry Time</th><th>Exit Time</th>
-            <th>Duration</th><th>Expiration</th><th>Exit Reason</th><th>P&L</th>
+            <th>Duration</th><th>Expiration</th><th>Exit Reason</th>
+            <th>Net Prem Entry</th><th>Net Prem Exit</th>
         `;
     }
 
@@ -441,6 +441,7 @@ function renderTradeLogPage(data) {
             </tr>`;
         }).join('');
     } else {
+        const colCount = 13;
         tbody.innerHTML = pageTrades.map(t => {
             const pnlColor = t.pnl >= 0 ? '#26a69a' : '#ef5350';
             const pnlSign = t.pnl >= 0 ? '+' : '';
@@ -453,15 +454,18 @@ function renderTradeLogPage(data) {
             const underlyingStr = t.underlyingAtEntry != null ? '$' + t.underlyingAtEntry.toFixed(2) : '--';
             const rowId = 'simTradeRow_' + t.id;
             const hasLegs = t.legDetails && t.legDetails.length > 0;
+            const fmtG = (v, d) => v != null ? v.toFixed(d || 4) : '--';
 
             let legSubRows = '';
             if (hasLegs) {
-                legSubRows = `<tr id="${rowId}_legs" style="display:none;"><td colspan="13" style="padding:0;border-top:0;">
+                legSubRows = `<tr id="${rowId}_legs" style="display:none;"><td colspan="${colCount}" style="padding:0;border-top:0;">
                     <div style="background:#f8f9fa;padding:8px 16px;border-radius:0 0 6px 6px;">
                         <table class="table table-sm mb-0" style="font-size:12px;">
                             <thead><tr style="color:#888;">
                                 <th>Leg</th><th>Symbol</th><th>Type</th><th>Position</th>
-                                <th>Strike</th><th>Entry Price</th><th>Exit Price</th><th>Leg P&L/Contract</th>
+                                <th>Strike</th><th>Entry Price</th><th>Exit Price</th>
+                                <th>Entry Cost</th><th>Exit Cost</th><th>P&L/Contract</th>
+                                <th>IV</th><th>\u0394</th><th>\u0393</th><th>\u0398</th><th>Vega</th>
                             </tr></thead>
                             <tbody>${t.legDetails.map(l => {
                                 const hasExit = l.exitPrice != null;
@@ -469,6 +473,7 @@ function renderTradeLogPage(data) {
                                 const legPnlColor = legPnl != null ? (legPnl >= 0 ? '#26a69a' : '#ef5350') : '#999';
                                 const posBadge = l.position === 'long' ? '<span class="badge" style="background:#26a69a;font-size:10px;">LONG</span>' : '<span class="badge" style="background:#ef5350;font-size:10px;">SHORT</span>';
                                 const typeBadge = l.type === 'call' ? '<span class="badge" style="background:#2196F3;font-size:10px;">CALL</span>' : '<span class="badge" style="background:#FF9800;font-size:10px;">PUT</span>';
+                                const ivStr = l.iv != null ? (l.iv * 100).toFixed(1) + '%' : '--';
                                 return `<tr>
                                     <td class="fw-bold">${l.name}</td>
                                     <td class="text-muted" style="font-size:11px;">${l.symbol || '--'}</td>
@@ -477,7 +482,14 @@ function renderTradeLogPage(data) {
                                     <td>${l.strike != null ? '$' + l.strike.toFixed(2) : '--'}</td>
                                     <td>${l.entryPrice != null ? '$' + l.entryPrice.toFixed(2) : '--'}</td>
                                     <td>${hasExit ? '$' + l.exitPrice.toFixed(2) : '--'}</td>
+                                    <td style="color:${l.entryCost != null ? (l.entryCost >= 0 ? '#26a69a' : '#ef5350') : '#999'};">${l.entryCost != null ? ((l.entryCost >= 0 ? '+' : '-') + '$' + Math.abs(l.entryCost).toFixed(2)) : '--'}</td>
+                                    <td style="color:${l.exitCost != null ? (l.exitCost >= 0 ? '#26a69a' : '#ef5350') : '#999'};">${l.exitCost != null ? ((l.exitCost >= 0 ? '+' : '-') + '$' + Math.abs(l.exitCost).toFixed(2)) : '--'}</td>
                                     <td style="color:${legPnlColor};font-weight:600;">${legPnl != null ? ((legPnl >= 0 ? '+' : '') + '$' + legPnl.toFixed(2)) : '--'}</td>
+                                    <td>${ivStr}</td>
+                                    <td>${fmtG(l.delta)}</td>
+                                    <td>${fmtG(l.gamma, 6)}</td>
+                                    <td>${fmtG(l.theta)}</td>
+                                    <td>${fmtG(l.vega)}</td>
                                 </tr>`;
                             }).join('')}</tbody>
                         </table>
@@ -489,16 +501,16 @@ function renderTradeLogPage(data) {
                 <td>${hasLegs ? `<i id="${rowId}_icon" class="fas fa-chevron-right" style="font-size:10px;color:#999;"></i>` : ''}</td>
                 <td>${t.id}</td>
                 <td>${t.strategy}</td>
+                <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${t.pnl.toFixed(2)}</td>
                 <td>${t.quantity}</td>
-                <td style="color:${netEntryColor};font-weight:500;">${netEntryStr}</td>
-                <td style="color:${netExitColor};font-weight:500;">${netExitStr}</td>
                 <td>${underlyingStr}</td>
                 <td class="small">${formatTime(t.entryTime)}</td>
                 <td class="small">${formatTime(t.exitTime)}</td>
                 <td>${duration}</td>
                 <td class="small">${t.expiration || '--'}</td>
                 <td><span class="badge bg-secondary">${t.exitReason}</span></td>
-                <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${t.pnl.toFixed(2)}</td>
+                <td style="color:${netEntryColor};font-weight:500;">${netEntryStr}</td>
+                <td style="color:${netExitColor};font-weight:500;">${netExitStr}</td>
             </tr>${legSubRows}`;
         }).join('');
     }
@@ -544,30 +556,35 @@ function downloadTradeCsv(data) {
         ]);
     } else {
         const maxLegs = Math.max(...data.trades.map(t => (t.legDetails || []).length), 1);
-        headers = ['#', 'Strategy', 'Quantity', 'Net Premium Entry', 'Net Premium Exit',
-            'Underlying At Entry', 'Entry Time', 'Exit Time', 'Duration', 'Expiration', 'Exit Reason', 'P&L'];
+        headers = ['#', 'Strategy', 'P&L', 'Quantity',
+            'Underlying At Entry', 'Entry Time', 'Exit Time', 'Duration', 'Expiration', 'Exit Reason',
+            'Net Premium Entry', 'Net Premium Exit'];
         for (let li = 1; li <= maxLegs; li++) {
             headers.push(`Leg${li} Name`, `Leg${li} Symbol`, `Leg${li} Type`, `Leg${li} Position`,
-                `Leg${li} Strike`, `Leg${li} Entry Price`, `Leg${li} Exit Price`, `Leg${li} PnL/Contract`);
+                `Leg${li} Strike`, `Leg${li} Entry Price`, `Leg${li} Exit Price`,
+                `Leg${li} Entry Cost`, `Leg${li} Exit Cost`, `Leg${li} PnL/Contract`,
+                `Leg${li} IV`, `Leg${li} Delta`, `Leg${li} Gamma`, `Leg${li} Theta`, `Leg${li} Vega`);
         }
         const fmtNum = (v) => v != null ? v.toFixed(2) : '';
+        const fmtG = (v, d) => v != null ? v.toFixed(d || 4) : '';
         rows = data.trades.map(t => {
             const row = [
-                t.id, t.strategy, t.quantity,
-                fmtNum(t.netPremiumEntry), fmtNum(t.netPremiumExit),
+                t.id, t.strategy, t.pnl.toFixed(2), t.quantity,
                 fmtNum(t.underlyingAtEntry),
                 t.entryTime, t.exitTime, calcTradeDuration(t.entryTime, t.exitTime),
-                t.expiration || '', t.exitReason, t.pnl.toFixed(2)
+                t.expiration || '', t.exitReason,
+                fmtNum(t.netPremiumEntry), fmtNum(t.netPremiumExit)
             ];
             for (let li = 0; li < maxLegs; li++) {
                 const l = (t.legDetails || [])[li];
                 if (l) {
                     const legPnl = l.exitPrice != null ? (l.position === 'long' ? (l.exitPrice - l.entryPrice) * 100 : (l.entryPrice - l.exitPrice) * 100) : null;
                     row.push(l.name, l.symbol || '', l.type, l.position,
-                        fmtNum(l.strike), fmtNum(l.entryPrice),
-                        fmtNum(l.exitPrice), fmtNum(legPnl));
+                        fmtNum(l.strike), fmtNum(l.entryPrice), fmtNum(l.exitPrice),
+                        fmtNum(l.entryCost), fmtNum(l.exitCost), fmtNum(legPnl),
+                        l.iv != null ? (l.iv * 100).toFixed(1) + '%' : '', fmtG(l.delta), fmtG(l.gamma, 6), fmtG(l.theta), fmtG(l.vega));
                 } else {
-                    row.push('', '', '', '', '', '', '', '');
+                    row.push('', '', '', '', '', '', '', '', '', '', '', '', '', '', '');
                 }
             }
             return row;

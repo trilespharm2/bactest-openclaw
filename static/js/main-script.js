@@ -708,6 +708,7 @@ async function loadPageContent(pageName) {
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
                     scriptName = 'simulated-trading-script.js';
+                    if (!window.BlackScholes) await loadScript('static/js/black-scholes.js', '_blackScholes');
                 }
                 if (pageName === 'screener') {
                     scriptName = 'static/js/screener-script.js';
@@ -763,6 +764,7 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     scriptName = 'simulated-trading-script.js';
+                    if (!window.BlackScholes) await loadScript('static/js/black-scholes.js', '_blackScholes');
                     if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);

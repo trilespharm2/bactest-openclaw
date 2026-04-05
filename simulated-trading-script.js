@@ -399,6 +399,14 @@ function enrichOptionTrade(t, i) {
         const mult = leg.position === 'long' ? -1 : 1;
         netPremiumEntry += leg.entryPrice * 100 * mult;
         if (exitPrice != null) netPremiumExit += exitPrice * 100 * mult;
+        const qty = t.quantity || 1;
+        const costMult = leg.position === 'long' ? -1 : 1;
+        const entryCost = leg.entryPrice * 100 * qty * costMult;
+        const exitCost = exitPrice != null ? exitPrice * 100 * qty * -costMult : null;
+        let greeks = leg.entryGreeks || null;
+        if (!greeks && typeof BlackScholes !== 'undefined' && t.underlyingAtEntry && leg.strike && leg.entryPrice && t.expiration) {
+            greeks = BlackScholes.computeLegGreeks(t.underlyingAtEntry, leg.strike, leg.type, leg.entryPrice, t.entryTimestamp, t.expiration);
+        }
         return {
             name: leg.name || `${leg.type} ${leg.strike}`,
             symbol: leg.optionSymbol || '',
@@ -406,7 +414,14 @@ function enrichOptionTrade(t, i) {
             type: leg.type,
             strike: leg.strike,
             entryPrice: leg.entryPrice,
-            exitPrice: exitPrice
+            exitPrice: exitPrice,
+            entryCost: entryCost,
+            exitCost: exitCost,
+            iv: greeks ? greeks.iv : null,
+            delta: greeks ? greeks.delta : null,
+            gamma: greeks ? greeks.gamma : null,
+            theta: greeks ? greeks.theta : null,
+            vega: greeks ? greeks.vega : null
         };
     });
 
@@ -2021,6 +2036,12 @@ async function executeOptionTrade() {
         positionLegs.forEach(leg => {
             const premium = leg.entryPrice * 100 * quantity;
             totalEntryPremium += leg.position === 'long' ? -premium : premium;
+            if (typeof BlackScholes !== 'undefined') {
+                const greeks = BlackScholes.computeLegGreeks(underlyingPrice, leg.strike, leg.type, leg.entryPrice, entryTimestamp, expDateStr);
+                if (greeks) {
+                    leg.entryGreeks = greeks;
+                }
+            }
         });
 
         const position = {
