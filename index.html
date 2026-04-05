@@ -2365,15 +2365,7 @@
                           <option value="dollar" selected>$</option>
                         </select>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Det.Bar <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" data-tip="Detection Bar: The bar size used to find option prices when entering a trade. 1m = most precise but slower, 5m/10m/15m = faster but may use slightly different prices." onclick="showSimInfoTip(this)"></i></label>
-                        <select class="sim-dark-select" id="simOptionDetectionBar" style="width: 65px;">
-                          <option value="1" selected>1m</option>
-                          <option value="5">5m</option>
-                          <option value="10">10m</option>
-                          <option value="15">15m</option>
-                        </select>
-                      </div>
+                      <input type="hidden" id="simOptionDetectionBar" value="1">
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Qty:</label>
                         <input type="number" class="sim-dark-input" id="simOptionQuantity" value="10" min="1" style="width: 55px;">
