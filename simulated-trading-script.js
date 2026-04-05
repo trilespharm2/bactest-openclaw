@@ -831,9 +831,9 @@ async function loadSimulatedChart(restoreMinuteIndex = null) {
             const timePart = etStr.split(', ')[1] || '';
             const [h, m] = timePart.split(':').map(Number);
             const totalMin = h * 60 + m;
-            return totalMin >= 570 && totalMin < 960;
+            return totalMin >= 240 && totalMin < 1200;
         });
-        if (minuteBars.length === 0) throw new Error('No regular-hours data found for the specified parameters');
+        if (minuteBars.length === 0) throw new Error('No market data found for the specified parameters');
 
         simMinuteBarsCache = minuteBars;
         simDataLoaded = true;
