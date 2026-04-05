@@ -1142,6 +1142,7 @@ function showNextBar() {
         updateNavigationButtons();
         updatePositionLines();
         updatePnlShading();
+        refreshPayoffModal();
         if (!simUserHasDragged) {
             lwChart?.timeScale().scrollToPosition(5, false);
         }
@@ -1151,8 +1152,8 @@ function showNextBar() {
 function showPreviousBar() {
     stopAutoplay();
     const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
-    if (simCurrentMinuteIndex > simTradingStartMinuteIndex) {
-        simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex, simCurrentMinuteIndex - skipMinutes);
+    if (simCurrentMinuteIndex > (simTradingStartMinuteIndex || 0)) {
+        simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex || 0, simCurrentMinuteIndex - skipMinutes);
         rebuildBarsForCurrentTimeframe();
         updateChartData();
         updateUnrealizedPnl();
@@ -1161,6 +1162,7 @@ function showPreviousBar() {
         updateNavigationButtons();
         updatePositionLines();
         updatePnlShading();
+        refreshPayoffModal();
     }
 }
 
@@ -1198,6 +1200,7 @@ function autoplayAdvance() {
     updateNavigationButtons();
     updatePositionLines();
     updatePnlShading();
+    refreshPayoffModal();
     if (!simUserHasDragged) {
         lwChart?.timeScale().scrollToPosition(5, false);
     }
@@ -2326,6 +2329,9 @@ function applyLegPreset(presetIndex) {
     });
 }
 
+let _payoffModalState = null;
+let _payoffModalPlayTimer = null;
+
 function showPayoffModal(positionId) {
     const pos = simOpenOptionPositions.find(p => p.id === positionId);
     if (!pos) return;
@@ -2336,9 +2342,6 @@ function showPayoffModal(positionId) {
     const statsDiv = document.getElementById('simPayoffModalStats');
     const canvas = document.getElementById('simPayoffCanvas');
     if (!modal || !canvas) return;
-
-    const currentBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
-    const currentUnderlyingPrice = currentBar ? currentBar.close : pos.underlyingAtEntry;
 
     strategyDiv.textContent = pos.strategy;
     legsDiv.innerHTML = pos.legs.map(leg => {
@@ -2411,11 +2414,126 @@ function showPayoffModal(positionId) {
         </div>
     `;
 
+    _payoffModalState = {
+        positionId, payoffPoints, strikes, breakevens,
+        priceMin, priceMax, maxProfit, maxLoss,
+        entryPrice: pos.underlyingAtEntry
+    };
+
     modal.style.display = 'flex';
 
-    requestAnimationFrame(() => {
-        drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss, currentUnderlyingPrice, pos.underlyingAtEntry);
-    });
+    requestAnimationFrame(() => refreshPayoffModal());
+}
+
+function refreshPayoffModal() {
+    const st = _payoffModalState;
+    if (!st) return;
+    const modal = document.getElementById('simPayoffModal');
+    if (!modal || modal.style.display === 'none') return;
+
+    const pos = simOpenOptionPositions.find(p => p.id === st.positionId);
+    const currentBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+    const currentUnderlyingPrice = currentBar ? currentBar.close : st.entryPrice;
+
+    const pnlDiv = document.getElementById('simPayoffModalCurrentPnl');
+    if (pnlDiv && pos) {
+        const currentTimestamp = currentBar ? currentBar.timestamp : Date.now();
+        const livePnl = calculateOptionPositionPnl(pos, currentTimestamp);
+        const isPos = livePnl >= 0;
+        const pnlColor = isPos ? '#089981' : '#f23645';
+        const pnlSign = isPos ? '+' : '';
+        const priceChange = currentUnderlyingPrice - st.entryPrice;
+        const priceChangeSign = priceChange >= 0 ? '+' : '';
+        const priceChangePct = ((priceChange / st.entryPrice) * 100).toFixed(2);
+
+        pnlDiv.innerHTML = `
+            <div style="flex:1;">
+                <div style="font-size:10px; color:#6a6d78;">Underlying</div>
+                <div style="font-size:15px; font-weight:700; color:#191919;">$${currentUnderlyingPrice.toFixed(2)}
+                    <span style="font-size:11px; color:${priceChange >= 0 ? '#089981' : '#f23645'};">(${priceChangeSign}${priceChangePct}%)</span>
+                </div>
+            </div>
+            <div style="flex:1; text-align:right;">
+                <div style="font-size:10px; color:#6a6d78;">Current P&L</div>
+                <div style="font-size:18px; font-weight:700; color:${pnlColor};">${pnlSign}$${livePnl.toFixed(2)}</div>
+            </div>`;
+    } else if (pnlDiv) {
+        pnlDiv.innerHTML = `
+            <div style="flex:1;">
+                <div style="font-size:10px; color:#6a6d78;">Underlying</div>
+                <div style="font-size:15px; font-weight:700; color:#191919;">$${currentUnderlyingPrice.toFixed(2)}</div>
+            </div>
+            <div style="flex:1; text-align:right;">
+                <div style="font-size:10px; color:#6a6d78;">Current P&L</div>
+                <div style="font-size:14px; color:#6a6d78;">Position closed</div>
+            </div>`;
+    }
+
+    const barLabel = document.getElementById('simPayoffBarLabel');
+    if (barLabel && currentBar) {
+        const d = new Date(currentBar.timestamp);
+        const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        barLabel.textContent = `Bar ${simCurrentMinuteIndex} / ${simMinuteBarsCache.length} \u2022 ${timeStr}`;
+    }
+
+    const canvas = document.getElementById('simPayoffCanvas');
+    if (canvas) {
+        drawPayoffCanvas(canvas, st.payoffPoints, st.strikes, st.breakevens, st.priceMin, st.priceMax, st.maxProfit, st.maxLoss, currentUnderlyingPrice, st.entryPrice);
+    }
+}
+
+function payoffModalAdvanceBar(direction) {
+    const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
+    if (direction > 0 && simCurrentMinuteIndex < simMinuteBarsCache.length) {
+        simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
+    } else if (direction < 0 && simCurrentMinuteIndex > simTradingStartMinuteIndex) {
+        simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex, simCurrentMinuteIndex - skipMinutes);
+    } else {
+        return;
+    }
+    rebuildBarsForCurrentTimeframe();
+    updateChartData();
+    updateUnrealizedPnl();
+    updateOptionsPnlDisplay();
+    checkOptionTpSlThresholds();
+    updateNavigationButtons();
+    updatePositionLines();
+    updatePnlShading();
+    if (!simUserHasDragged) lwChart?.timeScale().scrollToPosition(5, false);
+    refreshPayoffModal();
+}
+
+function payoffModalNextBar() {
+    stopPayoffModalPlay();
+    payoffModalAdvanceBar(1);
+}
+
+function payoffModalPrevBar() {
+    stopPayoffModalPlay();
+    payoffModalAdvanceBar(-1);
+}
+
+function payoffModalTogglePlay() {
+    if (_payoffModalPlayTimer) {
+        stopPayoffModalPlay();
+    } else {
+        const speed = parseInt(document.getElementById('simPayoffSpeed')?.value) || 500;
+        const icon = document.getElementById('simPayoffPlayIcon');
+        if (icon) icon.className = 'fas fa-pause';
+        _payoffModalPlayTimer = setInterval(() => {
+            if (simCurrentMinuteIndex >= simMinuteBarsCache.length) {
+                stopPayoffModalPlay();
+                return;
+            }
+            payoffModalAdvanceBar(1);
+        }, speed);
+    }
+}
+
+function stopPayoffModalPlay() {
+    if (_payoffModalPlayTimer) { clearInterval(_payoffModalPlayTimer); _payoffModalPlayTimer = null; }
+    const icon = document.getElementById('simPayoffPlayIcon');
+    if (icon) icon.className = 'fas fa-play';
 }
 
 function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, priceMax, maxProfit, maxLoss, currentPrice, entryPrice) {
@@ -2580,6 +2698,8 @@ function drawPayoffCanvas(canvas, payoffPoints, strikes, breakevens, priceMin, p
 }
 
 function closePayoffModal() {
+    stopPayoffModalPlay();
+    _payoffModalState = null;
     const modal = document.getElementById('simPayoffModal');
     if (modal) modal.style.display = 'none';
 }
@@ -2629,6 +2749,9 @@ window.showPayoffModal = showPayoffModal;
 window.closePayoffModal = closePayoffModal;
 window.applyLegPreset = applyLegPreset;
 window.hideTradeToast = hideTradeToast;
+window.payoffModalNextBar = payoffModalNextBar;
+window.payoffModalPrevBar = payoffModalPrevBar;
+window.payoffModalTogglePlay = payoffModalTogglePlay;
 window.closeOptionPosition = closeOptionPosition;
 window.updatePositionTpSl = updatePositionTpSl;
 window.closePositionPartial = closePositionPartial;

@@ -2417,9 +2417,22 @@
                 </div>
                 <div style="padding:20px;">
                   <div id="simPayoffModalStrategy" style="font-size:14px; font-weight:600; color:#191919; margin-bottom:4px;"></div>
-                  <div id="simPayoffModalLegs" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:16px;"></div>
+                  <div id="simPayoffModalLegs" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;"></div>
+                  <div id="simPayoffModalCurrentPnl" style="display:flex; align-items:center; gap:12px; margin-bottom:12px; padding:10px 14px; background:#f0f4ff; border-radius:8px; border:1px solid #d4deff;"></div>
                   <div id="simPayoffModalStats" style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:12px; background:#f8f9fd; border-radius:8px;"></div>
                   <canvas id="simPayoffCanvas" width="600" height="280" style="width:100%; height:280px; border-radius:8px;"></canvas>
+                  <div id="simPayoffNavControls" style="display:flex; align-items:center; justify-content:center; gap:10px; margin-top:14px;">
+                    <button onclick="payoffModalPrevBar()" style="background:#f0f1f5; border:1px solid #e0e3eb; border-radius:6px; padding:6px 14px; cursor:pointer; font-size:13px; color:#191919;" title="Previous bar"><i class="fas fa-step-backward"></i></button>
+                    <button onclick="payoffModalTogglePlay()" id="simPayoffPlayBtn" style="background:#2962ff; border:none; border-radius:6px; padding:6px 18px; cursor:pointer; font-size:13px; color:#fff;" title="Play / Pause"><i id="simPayoffPlayIcon" class="fas fa-play"></i></button>
+                    <button onclick="payoffModalNextBar()" style="background:#f0f1f5; border:1px solid #e0e3eb; border-radius:6px; padding:6px 14px; cursor:pointer; font-size:13px; color:#191919;" title="Next bar"><i class="fas fa-step-forward"></i></button>
+                    <select id="simPayoffSpeed" style="background:#f0f1f5; border:1px solid #e0e3eb; border-radius:6px; padding:5px 8px; font-size:12px; color:#191919; cursor:pointer;">
+                      <option value="1000">1x</option>
+                      <option value="500" selected>2x</option>
+                      <option value="250">4x</option>
+                      <option value="100">10x</option>
+                    </select>
+                    <span id="simPayoffBarLabel" style="font-size:11px; color:#6a6d78; margin-left:6px;"></span>
+                  </div>
                 </div>
               </div>
             </div>
