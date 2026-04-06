@@ -484,7 +484,7 @@ function renderOptionsMarketPage() {
         var expShort = r.expiration || '';
         if (expShort.length === 10) expShort = expShort.substring(5);
         html += '<tr>' +
-            '<td class="fw-semibold text-primary">' + underlying + badge + '</td>' +
+            '<td class="fw-semibold"><a href="/ticker/' + encodeURIComponent(underlying) + '" style="color:#0d6efd;text-decoration:none;cursor:pointer;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + underlying + '</a>' + badge + '</td>' +
             '<td class="text-end">' + (r.strike != null ? Number(r.strike).toFixed(0) : '-') + '</td>' +
             '<td>' + expShort + '</td>' +
             '<td class="text-end fw-semibold">' + (r.price != null ? Number(r.price).toFixed(2) : '-') + '</td>' +

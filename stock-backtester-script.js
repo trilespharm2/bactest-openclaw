@@ -35,8 +35,6 @@ function initializeStockBacktesterPage() {
             if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.4'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
             var multiRadio = document.querySelector('input[name="symbol_mode"][value="multiple"]');
             if (multiRadio) { multiRadio.disabled = true; multiRadio.parentElement.style.opacity = '0.4'; multiRadio.parentElement.title = 'Multiple symbols requires Standard or Premium plan'; }
-            var csvRadio = document.querySelector('input[name="symbol_mode"][value="all"]');
-            if (csvRadio) { csvRadio.disabled = true; csvRadio.parentElement.style.opacity = '0.4'; csvRadio.parentElement.title = 'CSV upload requires Standard or Premium plan'; }
         }
         var symEl = document.getElementById('singleSymbol');
         if (symEl) {
@@ -102,21 +100,42 @@ function initializeStockBacktesterPage() {
 // Also initialize on DOMContentLoaded (for standalone page)
 document.addEventListener('DOMContentLoaded', initializeStockBacktesterPage);
 
-// Update symbol mode sections
 function updateSymbolMode() {
     const mode = document.querySelector('input[name="symbol_mode"]:checked').value;
     
     document.getElementById('singleSymbolSection').style.display = 'none';
     document.getElementById('multipleSymbolsSection').style.display = 'none';
-    document.getElementById('csvSymbolsSection').style.display = 'none';
+    var csvSection = document.getElementById('csvSymbolsSection');
+    if (csvSection) csvSection.style.display = 'none';
     
     if (mode === 'single') {
         document.getElementById('singleSymbolSection').style.display = 'block';
     } else if (mode === 'multiple') {
         document.getElementById('multipleSymbolsSection').style.display = 'block';
-    } else {
-        document.getElementById('csvSymbolsSection').style.display = 'block';
     }
+}
+
+function handleMultiCsvUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var text = e.target.result;
+        var symbols = text.split(/[\n,]+/)
+            .map(function(s) { return s.trim().toUpperCase(); })
+            .filter(function(s) { return s && s.length > 0 && s.length <= 10; });
+        var textarea = document.getElementById('multipleSymbols');
+        if (textarea) {
+            var existing = textarea.value.trim();
+            if (existing) {
+                textarea.value = existing + ', ' + symbols.join(', ');
+            } else {
+                textarea.value = symbols.join(', ');
+            }
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
 }
 
 // Update entry type sections
@@ -673,7 +692,6 @@ async function handleSubmit(e) {
             if (!TierRestrictions.isDateAllowed(config.start_date) || !TierRestrictions.isDateAllowed(config.end_date)) { var dMin = TierRestrictions.getDateMin(); var dMax = TierRestrictions.getDateMax(); var rangeStr = (dMin && dMax) ? ' Allowed range: ' + dMin + ' to ' + dMax + '.' : ''; throw new Error('Date is outside your plan\'s allowed range.' + rangeStr + ' Upgrade for wider date access.'); }
             if (TierRestrictions.isFree() && config.entry_type === 'custom') throw new Error('Custom entry conditions require a Standard or Premium plan.');
             if (!TierRestrictions.canUseMultipleSymbols() && config.symbol_mode === 'multiple') throw new Error('Multiple symbols require a Standard or Premium plan.');
-            if (!TierRestrictions.canUseCsvUpload() && config.symbol_mode === 'all') throw new Error('CSV upload requires a Standard or Premium plan.');
         }
 
         console.log('Validating config...');
@@ -755,28 +773,6 @@ async function collectFormData() {
     } else if (config.symbol_mode === 'multiple') {
         const symbolsText = document.getElementById('multipleSymbols').value;
         config.symbols = symbolsText.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-    } else { // all
-        const csvFile = document.getElementById('csvFile').files[0];
-        if (csvFile) {
-            config.symbols = await readCSV(csvFile);
-        } else {
-            throw new Error('Please upload a CSV file for "All" mode');
-        }
-        
-        // Optional filters
-        const filterSharesMin = document.getElementById('filterSharesMin').value;
-        const filterSharesMax = document.getElementById('filterSharesMax').value;
-        const filterPriceMin = document.getElementById('filterPriceMin').value;
-        const filterPriceMax = document.getElementById('filterPriceMax').value;
-        const filterMcapMin = document.getElementById('filterMcapMin').value;
-        const filterMcapMax = document.getElementById('filterMcapMax').value;
-        
-        if (filterSharesMin) config.filter_shares_min = filterSharesMin;
-        if (filterSharesMax) config.filter_shares_max = filterSharesMax;
-        if (filterPriceMin) config.filter_price_min = filterPriceMin;
-        if (filterPriceMax) config.filter_price_max = filterPriceMax;
-        if (filterMcapMin) config.filter_mcap_min = filterMcapMin;
-        if (filterMcapMax) config.filter_mcap_max = filterMcapMax;
     }
     
     // Entry conditions
@@ -907,9 +903,6 @@ function validateConfig(config) {
         return false;
     }
     if (config.symbol_mode === 'multiple' && (!config.symbols || config.symbols.length === 0)) {
-        return false;
-    }
-    if (config.symbol_mode === 'all' && (!config.symbols || config.symbols.length === 0)) {
         return false;
     }
     

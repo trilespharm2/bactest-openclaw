@@ -1747,10 +1747,6 @@
                           <input class="form-check-input" type="radio" name="symbol_mode" id="symbolMultiple" value="multiple">
                           <label class="form-check-label" for="symbolMultiple">Multiple Symbols</label>
                         </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="symbol_mode" id="symbolCsv" value="all">
-                          <label class="form-check-label" for="symbolCsv">All (from CSV)</label>
-                        </div>
                       </div>
                       
                       <!-- Single symbol input -->
@@ -1763,38 +1759,15 @@
                       <div id="multipleSymbolsSection" class="mb-3" style="display: none;">
                         <label class="form-label">Enter symbols (comma-separated):</label>
                         <textarea class="form-control" id="multipleSymbols" rows="3" placeholder="e.g., AAPL, MSFT, TSLA, GOOGL"></textarea>
+                        <div class="mt-2">
+                          <label class="btn btn-outline-secondary btn-sm" for="csvFileMultiple" style="cursor:pointer;">
+                            <i class="fas fa-file-csv me-1"></i>Upload CSV
+                          </label>
+                          <input type="file" class="d-none" id="csvFileMultiple" accept=".csv" onchange="handleMultiCsvUpload(this)">
+                          <small class="text-muted ms-2">Or upload a CSV file with symbols (one per row)</small>
+                        </div>
                       </div>
                       
-                      <!-- CSV upload -->
-                      <div id="csvSymbolsSection" style="display: none;">
-                        <div class="mb-3">
-                          <label class="form-label">Upload CSV file:</label>
-                          <input type="file" class="form-control" id="csvFile" accept=".csv">
-                          <small class="text-muted">CSV file with ticker symbols (one per row)</small>
-                        </div>
-                        
-                        <div class="alert alert-info">
-                          <i class="fas fa-filter me-2"></i>Optional Filters for CSV Mode
-                        </div>
-                        <div class="row">
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Shares Outstanding (Min):</label>
-                            <input type="number" class="form-control" id="filterSharesMin" placeholder="e.g., 100000000">
-                          </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Shares Outstanding (Max):</label>
-                            <input type="number" class="form-control" id="filterSharesMax" placeholder="e.g., 500000000">
-                          </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Price Min ($):</label>
-                            <input type="number" class="form-control" id="filterPriceMin" step="0.01" placeholder="e.g., 5.00">
-                          </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Price Max ($):</label>
-                            <input type="number" class="form-control" id="filterPriceMax" step="0.01" placeholder="e.g., 100.00">
-                          </div>
-                        </div>
-                      </div>
                     </div>
 
                     <!-- [4/7] ENTRY CONDITIONS -->
