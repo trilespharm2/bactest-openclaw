@@ -50,6 +50,8 @@ let lwCandleSeries = null;
 let lwVolumeSeries = null;
 let lwPositionLines = [];
 let lwPnlShadingSeries = null;
+let lwIndicators = [];
+let lwIndicatorNextId = 1;
 let simUserHasDragged = false;
 let simActiveSessionId = null;
 
@@ -618,6 +620,14 @@ function setupTradingPageListeners() {
     document.getElementById('simNextBar')?.addEventListener('click', showNextBar);
     document.getElementById('simPlayPauseBtn')?.addEventListener('click', toggleAutoplay);
     document.getElementById('simResetViewBtn')?.addEventListener('click', resetViewToCurrentCandle);
+    document.getElementById('simIndicatorBtn')?.addEventListener('click', toggleSimIndicatorDropdown);
+    document.addEventListener('click', function(e) {
+        const dd = document.getElementById('simIndicatorDropdown');
+        const btn = document.getElementById('simIndicatorBtn');
+        if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
+            dd.style.display = 'none';
+        }
+    });
     document.getElementById('simGotoDateBtn')?.addEventListener('click', gotoDateTime);
     document.getElementById('simBuyBtn')?.addEventListener('click', () => executeTrade('buy'));
     document.getElementById('simSellBtn')?.addEventListener('click', () => executeTrade('sell'));
@@ -1190,27 +1200,46 @@ function createLWChart() {
         }
     });
 
-    container.addEventListener('mousedown', () => { if (lwChart) lwChart._userScrolling = true; });
-    container.addEventListener('mouseup', () => { if (lwChart) lwChart._userScrolling = false; });
-    container.addEventListener('touchstart', () => { if (lwChart) lwChart._userScrolling = true; });
-    container.addEventListener('touchend', () => { if (lwChart) lwChart._userScrolling = false; });
-    container.addEventListener('wheel', () => { simUserHasDragged = true; }, { passive: true });
+    function onMouseDown() { if (lwChart) lwChart._userScrolling = true; }
+    function onMouseUp() { if (lwChart) lwChart._userScrolling = false; }
+    function onWheel() { simUserHasDragged = true; }
+    container.addEventListener('mousedown', onMouseDown);
+    container.addEventListener('mouseup', onMouseUp);
+    container.addEventListener('touchstart', onMouseDown);
+    container.addEventListener('touchend', onMouseUp);
+    container.addEventListener('wheel', onWheel, { passive: true });
 
-    new ResizeObserver(entries => {
+    const ro = new ResizeObserver(entries => {
         if (!lwChart) return;
         const { width, height } = entries[0].contentRect;
         lwChart.applyOptions({ width, height });
-    }).observe(container);
+    });
+    ro.observe(container);
+
+    lwChart._cleanup = { container, onMouseDown, onMouseUp, onWheel, ro };
 }
 
 function destroyLWChart() {
     if (lwChart) {
+        if (lwChart._cleanup) {
+            const c = lwChart._cleanup;
+            c.container.removeEventListener('mousedown', c.onMouseDown);
+            c.container.removeEventListener('mouseup', c.onMouseUp);
+            c.container.removeEventListener('touchstart', c.onMouseDown);
+            c.container.removeEventListener('touchend', c.onMouseUp);
+            c.container.removeEventListener('wheel', c.onWheel);
+            c.ro.disconnect();
+        }
         lwChart.remove();
         lwChart = null;
         lwCandleSeries = null;
         lwVolumeSeries = null;
         lwPositionLines = [];
         lwPnlShadingSeries = null;
+        lwIndicators.forEach(ind => { ind.series = null; });
+        lwIndicators = [];
+        lwIndicatorNextId = 1;
+        refreshIndicatorsList();
     }
 }
 
@@ -1231,6 +1260,177 @@ function updateChartData() {
 
     lwCandleSeries.setData(candleData);
     lwVolumeSeries.setData(volumeData);
+    updateAllIndicators();
+}
+
+function computeSMA(bars, period) {
+    const result = [];
+    for (let i = 0; i < bars.length; i++) {
+        if (i < period - 1) continue;
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sum += bars[j].close;
+        }
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / period });
+    }
+    return result;
+}
+
+function computeEMA(bars, period) {
+    const result = [];
+    if (bars.length < period) return result;
+    let sum = 0;
+    for (let i = 0; i < period; i++) sum += bars[i].close;
+    let ema = sum / period;
+    result.push({ time: Math.floor(bars[period - 1].timestamp / 1000), value: ema });
+    const k = 2 / (period + 1);
+    for (let i = period; i < bars.length; i++) {
+        ema = bars[i].close * k + ema * (1 - k);
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: ema });
+    }
+    return result;
+}
+
+function computeVWAP(bars) {
+    const result = [];
+    let cumVol = 0;
+    let cumTP = 0;
+    let currentDay = null;
+    for (let i = 0; i < bars.length; i++) {
+        const bar = bars[i];
+        const etStr = new Date(bar.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+        if (etStr !== currentDay) {
+            cumVol = 0;
+            cumTP = 0;
+            currentDay = etStr;
+        }
+        const tp = (bar.high + bar.low + bar.close) / 3;
+        const vol = bar.volume || 0;
+        cumTP += tp * vol;
+        cumVol += vol;
+        if (cumVol > 0) {
+            result.push({ time: Math.floor(bar.timestamp / 1000), value: cumTP / cumVol });
+        }
+    }
+    return result;
+}
+
+function updateAllIndicators() {
+    if (!lwChart || simVisibleBars.length === 0) return;
+    for (const ind of lwIndicators) {
+        let data = [];
+        if (ind.type === 'sma') {
+            data = computeSMA(simVisibleBars, ind.period);
+        } else if (ind.type === 'ema') {
+            data = computeEMA(simVisibleBars, ind.period);
+        } else if (ind.type === 'vwap') {
+            data = computeVWAP(simVisibleBars);
+        }
+        if (ind.series) {
+            ind.series.setData(data);
+        }
+    }
+}
+
+function onSimIndicatorTypeChange() {
+    const type = document.getElementById('simIndicatorType').value;
+    const periodGroup = document.getElementById('simIndicatorPeriodGroup');
+    if (periodGroup) {
+        periodGroup.style.display = type === 'vwap' ? 'none' : 'block';
+    }
+}
+
+function toggleSimIndicatorDropdown() {
+    const dd = document.getElementById('simIndicatorDropdown');
+    if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function addSimIndicator() {
+    if (!lwChart) return;
+    const type = document.getElementById('simIndicatorType').value;
+    const period = parseInt(document.getElementById('simIndicatorPeriod').value) || 20;
+    const color = document.getElementById('simIndicatorColor').value || '#2962ff';
+
+    if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
+        alert('Period must be between 2 and 500.');
+        return;
+    }
+
+    const id = lwIndicatorNextId++;
+    const label = type === 'vwap' ? 'VWAP' : type.toUpperCase() + '(' + period + ')';
+
+    const series = lwChart.addLineSeries({
+        color: color,
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        crosshairMarkerVisible: false,
+        title: label
+    });
+
+    const ind = { id, type, period, color, label, series };
+    lwIndicators.push(ind);
+
+    let data = [];
+    if (type === 'sma') data = computeSMA(simVisibleBars, period);
+    else if (type === 'ema') data = computeEMA(simVisibleBars, period);
+    else if (type === 'vwap') data = computeVWAP(simVisibleBars);
+    series.setData(data);
+
+    refreshIndicatorsList();
+}
+
+function removeSimIndicator(id) {
+    const idx = lwIndicators.findIndex(ind => ind.id === id);
+    if (idx === -1) return;
+    const ind = lwIndicators[idx];
+    if (ind.series && lwChart) {
+        try { lwChart.removeSeries(ind.series); } catch(e) {}
+    }
+    lwIndicators.splice(idx, 1);
+    refreshIndicatorsList();
+}
+
+function clearAllSimIndicators() {
+    while (lwIndicators.length > 0) {
+        const ind = lwIndicators.pop();
+        if (ind.series && lwChart) {
+            try { lwChart.removeSeries(ind.series); } catch(e) {}
+        }
+    }
+    refreshIndicatorsList();
+}
+
+function refreshIndicatorsList() {
+    const container = document.getElementById('simActiveIndicators');
+    const list = document.getElementById('simActiveIndicatorsList');
+    const badge = document.getElementById('simIndicatorCount');
+    if (!container || !list) return;
+
+    if (lwIndicators.length === 0) {
+        container.style.display = 'none';
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    if (badge) {
+        badge.style.display = 'inline-block';
+        badge.textContent = lwIndicators.length;
+    }
+
+    let html = '';
+    for (const ind of lwIndicators) {
+        html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f0f3fa;">';
+        html += '<div style="display:flex; align-items:center; gap:6px;">';
+        html += '<span style="width:12px; height:12px; border-radius:50%; background:' + ind.color + '; display:inline-block;"></span>';
+        html += '<span style="font-size:12px; color:#191919;">' + ind.label + '</span>';
+        html += '</div>';
+        html += '<button type="button" onclick="removeSimIndicator(' + ind.id + ')" style="background:none; border:none; color:#f23645; cursor:pointer; font-size:13px; padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>';
+        html += '</div>';
+    }
+    html += '<button type="button" onclick="clearAllSimIndicators()" style="width:100%; margin-top:6px; padding:4px; background:#f8f9fd; border:1px solid #e0e3eb; border-radius:4px; font-size:11px; color:#6a6d78; cursor:pointer;">Clear All</button>';
+    list.innerHTML = html;
 }
 
 function updatePositionLines() {

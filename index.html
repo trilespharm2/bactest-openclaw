@@ -2362,6 +2362,39 @@
                     <input type="number" class="sim-dark-input" id="simSkipBars" value="1" min="1" max="100" style="width: 45px;">
                   </div>
                   <div style="width: 1px; height: 20px; background: #e0e3eb;"></div>
+                  <div style="position: relative; display: flex; align-items: center;">
+                    <button type="button" class="sim-nav-btn" id="simIndicatorBtn" title="Add indicator" style="font-size: 11px; padding: 3px 10px; gap: 4px; display: flex; align-items: center;">
+                      <i class="fas fa-chart-line"></i> <span style="font-size: 11px;">Indicators</span>
+                      <span id="simIndicatorCount" style="display:none; background:#2962ff; color:#fff; border-radius:50%; width:16px; height:16px; font-size:10px; line-height:16px; text-align:center; margin-left:2px;">0</span>
+                    </button>
+                    <div id="simIndicatorDropdown" style="display:none; position:absolute; top:100%; left:0; z-index:100; background:#fff; border:1px solid #e0e3eb; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.12); width:280px; padding:12px; margin-top:4px;">
+                      <div style="font-weight:600; font-size:13px; color:#191919; margin-bottom:8px;">Add Indicator</div>
+                      <div style="display:flex; flex-direction:column; gap:8px;">
+                        <div>
+                          <label style="font-size:11px; color:#6a6d78; display:block; margin-bottom:2px;">Type</label>
+                          <select class="sim-dark-select" id="simIndicatorType" style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #d1d4dc; font-size:13px;" onchange="onSimIndicatorTypeChange()">
+                            <option value="sma">SMA (Simple Moving Average)</option>
+                            <option value="ema">EMA (Exponential Moving Average)</option>
+                            <option value="vwap">VWAP (Volume Weighted Avg Price)</option>
+                          </select>
+                        </div>
+                        <div id="simIndicatorPeriodGroup">
+                          <label style="font-size:11px; color:#6a6d78; display:block; margin-bottom:2px;">Period (candles)</label>
+                          <input type="number" class="sim-dark-input" id="simIndicatorPeriod" value="20" min="2" max="500" style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #d1d4dc; font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px; color:#6a6d78; display:block; margin-bottom:2px;">Color</label>
+                          <input type="color" id="simIndicatorColor" value="#2962ff" style="width:100%; height:32px; border:1px solid #d1d4dc; border-radius:6px; cursor:pointer;">
+                        </div>
+                        <button type="button" onclick="addSimIndicator()" style="width:100%; padding:7px; background:#2962ff; color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer;">Add to Chart</button>
+                      </div>
+                      <div id="simActiveIndicators" style="margin-top:10px; border-top:1px solid #e0e3eb; padding-top:8px; display:none;">
+                        <div style="font-weight:600; font-size:12px; color:#6a6d78; margin-bottom:6px;">Active Indicators</div>
+                        <div id="simActiveIndicatorsList"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="width: 1px; height: 20px; background: #e0e3eb;"></div>
                   <div style="display: flex; align-items: center; gap: 4px;">
                     <label style="font-size: 11px; color: #6a6d78;">Go to:</label>
                     <input type="text" class="sim-dark-input" id="simGotoDate" placeholder="MM/DD/YYYY" style="width: 95px;">
