@@ -4654,9 +4654,13 @@
       function setupStockEntryType() {
         document.querySelectorAll('input[name="entry_type"]').forEach(radio => {
           radio.addEventListener('change', () => {
-            const type = document.querySelector('input[name="entry_type"]:checked').value;
-            document.getElementById('presetSection').style.display = type === 'preset' ? 'block' : 'none';
-            document.getElementById('customSection').style.display = type === 'custom' ? 'block' : 'none';
+            if (typeof updateEntryType === 'function') {
+              updateEntryType();
+            } else {
+              const type = document.querySelector('input[name="entry_type"]:checked').value;
+              document.getElementById('presetSection').style.display = type === 'preset' ? 'block' : 'none';
+              document.getElementById('customSection').style.display = type === 'custom' ? 'block' : 'none';
+            }
           });
         });
       }
