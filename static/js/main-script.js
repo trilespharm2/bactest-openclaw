@@ -123,6 +123,12 @@ async function checkAuthStatus() {
         currentUser = data.user || null;
         console.log('Auth status:', isAuthenticated ? 'Logged in as' : 'Guest', currentUser?.name || '');
         
+        if (typeof TierRestrictions !== 'undefined' && TierRestrictions.setTier) {
+            var userTier = (currentUser && currentUser.tier) ? currentUser.tier : (data.tier || 'free');
+            TierRestrictions.setTier(userTier);
+            console.log('Tier set to:', userTier);
+        }
+        
         // Apply UI state after auth check
         applyAuthUIState();
     } catch (error) {

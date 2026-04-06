@@ -332,18 +332,6 @@
       .payment-modal-actions { display: flex; flex-direction: column; gap: 12px; }
       .btn-primary-checkout { padding: 14px 24px; background: linear-gradient(135deg, #1a9988, #14b8a6); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
 
-      .dashboard-options-backtester #runBacktestBtn {
-        background: linear-gradient(135deg, #22c55e, #16a34a);
-        border-color: #16a34a;
-        color: #ffffff;
-      }
-      .dashboard-options-backtester #runBacktestBtn:hover,
-      .dashboard-options-backtester #runBacktestBtn:focus {
-        background: linear-gradient(135deg, #16a34a, #15803d);
-        border-color: #15803d;
-        color: #ffffff;
-      }
-
       .btn-app-primary { background: #3b7cff !important; border-color: #3b7cff !important; color: #fff !important; }
       .btn-app-primary:hover { background: #2f68f5 !important; border-color: #2f68f5 !important; color: #fff !important; }
       .btn-secondary-skip { padding: 12px 24px; background: none; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; cursor: pointer; }
@@ -1245,9 +1233,9 @@
                 </div>
                 <div class="card-body">
                   <form id="backtestForm">
-                    <!-- [1/14] BACKTEST NAME -->
+                    <!-- [1/13] BACKTEST NAME -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[1/14]</span> BACKTEST NAME</div>
+                      <div class="section-label"><span class="section-number">[1/13]</span> BACKTEST NAME</div>
                       <div class="mb-3">
                         <label class="form-label">Enter a name for this backtest:</label>
                         <input type="text" class="form-control" id="backtestName" placeholder="e.g., Roblox Strategy, SPX Scalp">
@@ -1255,18 +1243,18 @@
                       </div>
                     </div>
 
-                    <!-- [2/14] SYMBOL -->
+                    <!-- [2/13] SYMBOL -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[2/14]</span> SYMBOL</div>
+                      <div class="section-label"><span class="section-number">[2/13]</span> SYMBOL</div>
                       <div class="mb-3">
                         <label class="form-label">Enter symbol (e.g., SPX, AAPL):</label>
                         <input type="text" class="form-control" id="symbol" placeholder="SPX" required>
                       </div>
                     </div>
 
-                    <!-- [3/14] DATE RANGE -->
+                    <!-- [3/13] DATE RANGE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[3/14]</span> DATE RANGE</div>
+                      <div class="section-label"><span class="section-number">[3/13]</span> DATE RANGE</div>
                       <div class="row">
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Start Date:</label>
@@ -1279,9 +1267,9 @@
                       </div>
                     </div>
 
-                    <!-- [4/15] ENTRY TIME -->
+                    <!-- [4/13] ENTRY TIME -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[4/15]</span> ENTRY TIME</div>
+                      <div class="section-label"><span class="section-number">[4/13]</span> ENTRY TIME</div>
                       <div class="row">
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Entry time start (HH:MM, 09:30-16:00):</label>
@@ -1295,9 +1283,9 @@
                       </div>
                     </div>
 
-                    <!-- [5/15] UNDERLYING PRICE CONDITIONS -->
+                    <!-- [5/13] UNDERLYING PRICE CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[5/15]</span> UNDERLYING PRICE CONDITIONS <small class="text-muted">(Optional)</small></div>
+                      <div class="section-label"><span class="section-number">[5/13]</span> UNDERLYING PRICE CONDITIONS <small class="text-muted">(Optional)</small></div>
                       <p class="text-muted small mb-3">Add conditions based on the underlying stock price for trade entry.</p>
                       
                       <div class="mb-3">
@@ -1377,18 +1365,18 @@
                       </div>
                     </div>
 
-                    <!-- [6/15] DTE -->
+                    <!-- [6/13] DTE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/15]</span> DAYS TO EXPIRATION (DTE)</div>
+                      <div class="section-label"><span class="section-number">[6/13]</span> DAYS TO EXPIRATION (DTE)</div>
                       <div class="mb-3">
                         <label class="form-label">Enter DTE (0 for same day):</label>
                         <input type="number" class="form-control" id="dte" min="0" value="0" required>
                       </div>
                     </div>
 
-                    <!-- [6/14] STRATEGY TYPE -->
+                    <!-- [6/13] STRATEGY TYPE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/14]</span> STRATEGY TYPE</div>
+                      <div class="section-label"><span class="section-number">[6/13]</span> STRATEGY TYPE</div>
                       <div class="mb-3">
                         <label class="form-label">Select strategy:</label>
                         <select class="form-select" id="strategy" required>
@@ -1430,9 +1418,9 @@
                       </div>
                     </div>
 
-                    <!-- [7/14] LEG CONFIGURATION -->
+                    <!-- [7/13] LEG CONFIGURATION -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[7/14]</span> <span id="legConfigTitle">LEG CONFIGURATION</span></div>
+                      <div class="section-label"><span class="section-number">[7/13]</span> <span id="legConfigTitle">LEG CONFIGURATION</span></div>
                       <div id="legConfigSection">
                         <div class="alert alert-info">
                           <i class="fas fa-info-circle me-2"></i>Select a strategy above to configure legs
@@ -1440,9 +1428,9 @@
                       </div>
                     </div>
 
-                    <!-- [6.5/14] NET PREMIUM FILTER -->
+                    <!-- [6.5/13] NET PREMIUM FILTER -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6.5/14]</span> NET PREMIUM FILTER (Optional)</div>
+                      <div class="section-label"><span class="section-number">[6.5/13]</span> NET PREMIUM FILTER (Optional)</div>
                       <small class="text-muted d-block mb-2">Filter trades based on net premium at entry. Leave blank to skip.</small>
                       <div class="row">
                         <div class="col-md-6 mb-3">
@@ -1456,9 +1444,9 @@
                       </div>
                     </div>
 
-                    <!-- [8/14] TAKE PROFIT -->
+                    <!-- [8/13] TAKE PROFIT -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[8/14]</span> TAKE PROFIT <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Take Profit: Triggers a close order when the position's unrealized profit meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and TP = 50%, the position closes when unrealized profit reaches $500. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
+                      <div class="section-label"><span class="section-number">[8/13]</span> TAKE PROFIT <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Take Profit: Triggers a close order when the position's unrealized profit meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and TP = 50%, the position closes when unrealized profit reaches $500. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
                       <div class="mb-3">
                         <label class="form-label">Take profit by:</label>
                         <div class="form-check">
@@ -1480,9 +1468,9 @@
                       </div>
                     </div>
 
-                    <!-- [9/14] STOP LOSS -->
+                    <!-- [9/13] STOP LOSS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[9/14]</span> STOP LOSS <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Stop Loss: Triggers a close order when the position's unrealized loss meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and SL = 200%, the position closes when unrealized loss reaches $2,000. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
+                      <div class="section-label"><span class="section-number">[9/13]</span> STOP LOSS <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Stop Loss: Triggers a close order when the position's unrealized loss meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and SL = 200%, the position closes when unrealized loss reaches $2,000. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
                       <div class="mb-3">
                         <label class="form-label">Stop loss by:</label>
                         <div class="form-check">
@@ -1504,24 +1492,9 @@
                       </div>
                     </div>
 
-                    <!-- [10/14] DETECTION BARS -->
+                    <!-- [10/13] CONCURRENT TRADES -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[10/14]</span> DETECTION BARS</div>
-                      <div class="mb-3">
-                        <label class="form-label">Select bar size:</label>
-                        <select class="form-select" id="detectionBars" required>
-                          <option value="0.25">1. 15-second (High Precision)</option>
-                          <option value="1">2. 1-minute</option>
-                          <option value="5" selected>3. 5-minute</option>
-                          <option value="10">4. 10-minute</option>
-                          <option value="15">5. 15-minute</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <!-- [11/14] CONCURRENT TRADES -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[11/14]</span> CONCURRENT TRADES</div>
+                      <div class="section-label"><span class="section-number">[10/13]</span> CONCURRENT TRADES</div>
                       <div class="mb-3">
                         <label class="form-label">Allow concurrent trades?</label>
                         <div class="form-check">
@@ -1535,9 +1508,9 @@
                       </div>
                     </div>
 
-                    <!-- [12/14] PDT AVOIDANCE -->
+                    <!-- [11/13] PDT AVOIDANCE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[12/14]</span> PDT AVOIDANCE</div>
+                      <div class="section-label"><span class="section-number">[11/13]</span> PDT AVOIDANCE</div>
                       <div class="mb-3">
                         <label class="form-label">Avoid day trades?</label>
                         <div class="form-check">
@@ -1551,18 +1524,18 @@
                       </div>
                     </div>
 
-                    <!-- [13/14] STARTING CAPITAL -->
+                    <!-- [12/13] STARTING CAPITAL -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[13/14]</span> STARTING CAPITAL</div>
+                      <div class="section-label"><span class="section-number">[12/13]</span> STARTING CAPITAL</div>
                       <div class="mb-3">
                         <label class="form-label">Starting capital ($):</label>
                         <input type="number" class="form-control" id="startingCapital" min="1000" step="1" value="50000" required>
                       </div>
                     </div>
 
-                    <!-- [14/14] ALLOCATION PER TRADE -->
+                    <!-- [13/13] ALLOCATION PER TRADE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[14/14]</span> ALLOCATION PER TRADE</div>
+                      <div class="section-label"><span class="section-number">[13/13]</span> ALLOCATION PER TRADE</div>
                       <div class="mb-3">
                         <label class="form-label">Select allocation type:</label>
                         <div class="form-check">
@@ -1594,7 +1567,7 @@
 
                     <!-- Submit Buttons -->
                     <div class="d-flex gap-2 mt-4 flex-wrap">
-                      <button type="submit" class="btn btn-lg btn-app-primary" id="runBacktestBtn">
+                      <button type="submit" class="btn btn-success btn-lg" id="runBacktestBtn">
                         <i class="fas fa-play me-2"></i>Run Backtest
                       </button>
                       <button type="button" class="btn btn-secondary btn-lg" id="resetBacktestBtn">
@@ -4638,7 +4611,6 @@
             ? parseFloat(document.getElementById('stopLossDollar')?.value) || 0 : null;
         config.net_premium_min = document.getElementById('netPremiumMin')?.value ? parseFloat(document.getElementById('netPremiumMin').value) : null;
         config.net_premium_max = document.getElementById('netPremiumMax')?.value ? parseFloat(document.getElementById('netPremiumMax').value) : null;
-        config.detection_bar_size = parseFloat(document.getElementById('detectionBars')?.value) || 5;
         config.concurrent_trades = document.querySelector('input[name="concurrentTrades"]:checked')?.value === 'y';
         config.avoid_pdt = document.querySelector('input[name="avoidPdt"]:checked')?.value === 'y';
         config.starting_capital = parseFloat(document.getElementById('startingCapital')?.value) || 50000;
