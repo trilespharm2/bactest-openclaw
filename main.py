@@ -6403,7 +6403,7 @@ def get_simulated_trading_option_bars():
         if not api_key:
             return jsonify({'error': 'Polygon API key not configured'}), 400
         
-        from polygon import RESTClient
+        from polygon.rest import RESTClient
         from datetime import datetime as dt
         client = RESTClient(api_key)
         
@@ -6566,7 +6566,7 @@ def get_option_bars_by_symbol():
         if not api_key:
             return jsonify({'error': 'Polygon API key not configured'}), 400
 
-        from polygon import RESTClient
+        from polygon.rest import RESTClient
         from datetime import datetime as _dt_cls, timezone as _tz
         import pytz
         client = RESTClient(api_key)
