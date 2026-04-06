@@ -1247,16 +1247,16 @@ function updateChartData() {
     if (!lwCandleSeries || !lwVolumeSeries) return;
     if (simVisibleBars.length === 0) return;
 
-    const candleData = simVisibleBars.map(bar => ({
-        time: Math.floor(bar.timestamp / 1000),
-        open: bar.open, high: bar.high, low: bar.low, close: bar.close
-    }));
-
-    const volumeData = simVisibleBars.map(bar => ({
-        time: Math.floor(bar.timestamp / 1000),
-        value: bar.volume || 0,
-        color: bar.close >= bar.open ? 'rgba(8,153,129,0.4)' : 'rgba(242,54,69,0.4)'
-    }));
+    const seen = new Set();
+    const candleData = [];
+    const volumeData = [];
+    for (const bar of simVisibleBars) {
+        const t = Math.floor(bar.timestamp / 1000);
+        if (seen.has(t)) continue;
+        seen.add(t);
+        candleData.push({ time: t, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
+        volumeData.push({ time: t, value: bar.volume || 0, color: bar.close >= bar.open ? 'rgba(8,153,129,0.4)' : 'rgba(242,54,69,0.4)' });
+    }
 
     lwCandleSeries.setData(candleData);
     lwVolumeSeries.setData(volumeData);
@@ -1315,19 +1315,37 @@ function computeVWAP(bars) {
     return result;
 }
 
+function deduplicateTimeSeries(data) {
+    if (data.length <= 1) return data;
+    const seen = new Set();
+    const result = [];
+    for (const d of data) {
+        if (!seen.has(d.time)) {
+            seen.add(d.time);
+            result.push(d);
+        }
+    }
+    return result;
+}
+
 function updateAllIndicators() {
     if (!lwChart || simVisibleBars.length === 0) return;
     for (const ind of lwIndicators) {
         let data = [];
-        if (ind.type === 'sma') {
-            data = computeSMA(simVisibleBars, ind.period);
-        } else if (ind.type === 'ema') {
-            data = computeEMA(simVisibleBars, ind.period);
-        } else if (ind.type === 'vwap') {
-            data = computeVWAP(simVisibleBars);
-        }
-        if (ind.series) {
-            ind.series.setData(data);
+        try {
+            if (ind.type === 'sma') {
+                data = computeSMA(simVisibleBars, ind.period);
+            } else if (ind.type === 'ema') {
+                data = computeEMA(simVisibleBars, ind.period);
+            } else if (ind.type === 'vwap') {
+                data = computeVWAP(simVisibleBars);
+            }
+            data = deduplicateTimeSeries(data);
+            if (ind.series) {
+                ind.series.setData(data);
+            }
+        } catch (e) {
+            console.warn('Indicator update error for ' + ind.label + ':', e);
         }
     }
 }
@@ -1504,12 +1522,13 @@ function updatePnlShading() {
     });
 
     const data = [];
+    const seenTimes = new Set();
     for (let i = entryBarIdx; i < simVisibleBars.length; i++) {
         const bar = simVisibleBars[i];
-        data.push({
-            time: Math.floor(bar.timestamp / 1000),
-            value: bar.close
-        });
+        const t = Math.floor(bar.timestamp / 1000);
+        if (seenTimes.has(t)) continue;
+        seenTimes.add(t);
+        data.push({ time: t, value: bar.close });
     }
 
     baselineSeries.setData(data);
