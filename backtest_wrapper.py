@@ -78,6 +78,25 @@ def load_config_from_json(json_path):
         if 'price_conditions' in web_config and web_config['price_conditions']:
             config['price_conditions'] = web_config['price_conditions']
     
+    # Handle exit conditions (signal-based, optional)
+    options_exit_type = web_config.get('options_exit_cond_type', 'preset')
+    config['options_exit_cond_type'] = options_exit_type
+    
+    if options_exit_type == 'preset' and web_config.get('exit_preset_condition'):
+        config['exit_preset_condition'] = web_config['exit_preset_condition']
+        config['exit_preset_operator'] = web_config.get('exit_preset_operator', '>')
+        try:
+            config['exit_preset_threshold'] = float(web_config.get('exit_preset_threshold') or 0)
+        except (ValueError, TypeError):
+            config['exit_preset_threshold'] = 0
+        if web_config.get('exit_preset_condition') == '5':
+            try:
+                config['exit_velocity_lookback'] = int(web_config.get('exit_velocity_lookback') or 5)
+            except (ValueError, TypeError):
+                config['exit_velocity_lookback'] = 5
+    elif options_exit_type == 'custom':
+        config['exit_price_conditions'] = web_config.get('exit_price_conditions', [])
+    
     return config
 
 def main():

@@ -2,6 +2,8 @@
 // Matches EXACT structure of options_backtester_v2_3_3-5.py
 
 var priceConditionCount = 0;
+var optExitConditionCount = 0;
+var optExitConditionNextId = 0;
 
 // =============================================================================
 // UNDERLYING PRICE CONDITIONS
@@ -80,6 +82,308 @@ function updateOptionsPresetFields() {
         if (velocityFields) velocityFields.style.display = 'none';
     }
 }
+
+// =============================================================================
+// EXIT CONDITIONS (signal-based)
+// =============================================================================
+
+function updateOptExitCondType() {
+    const type = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'preset';
+    const presetSection = document.getElementById('optExitPresetSection');
+    const customSection = document.getElementById('optExitCustomSection');
+    
+    if (presetSection) presetSection.style.display = type === 'preset' ? 'block' : 'none';
+    if (customSection) customSection.style.display = type === 'custom' ? 'block' : 'none';
+    
+    if (type === 'custom') {
+        const container = document.getElementById('optExitConditionsContainer');
+        if (container && container.querySelectorAll('.opt-exit-condition-row').length === 0) {
+            addOptExitCondition();
+        }
+    }
+}
+
+function updateOptExitPresetFields() {
+    var sel = document.getElementById('optExitPresetCondition');
+    var val = sel ? sel.value : '';
+    var isVelocity = val === '5';
+    var hasVal = val !== '';
+    document.getElementById('optExitStandardPresetFields').style.display = (hasVal && !isVelocity) ? 'flex' : 'none';
+    document.getElementById('optExitVelocityFields').style.display = (hasVal && isVelocity) ? 'flex' : 'none';
+}
+
+function addOptExitCondition() {
+    optExitConditionNextId++;
+    optExitConditionCount++;
+    const container = document.getElementById('optExitConditionsContainer');
+    if (!container) return;
+    
+    if (optExitConditionCount > 3) {
+        optExitConditionCount--;
+        appAlert('Maximum of 3 exit conditions allowed.');
+        return;
+    }
+    
+    const n = optExitConditionNextId;
+    const conditionDiv = document.createElement('div');
+    conditionDiv.className = 'opt-exit-condition-row card p-3 mb-3';
+    conditionDiv.id = `optExitCondition${n}`;
+    conditionDiv.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6;';
+    
+    conditionDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong class="text-muted">Exit Condition ${optExitConditionCount}</strong>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeOptExitCondition(${n})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="condition-left-side mb-3">
+            <label class="form-label fw-bold">Left Side (Compare this)</label>
+            <div class="row g-2">
+                <div class="col-md-4 col-sm-6">
+                    <label class="form-label small">Metric</label>
+                    <select class="form-select form-select-sm" id="optExitMetric${n}" onchange="updateOptExitConditionFields(${n})">
+                        ${METRICS.map(m => '<option value="' + m.value + '">' + m.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="optExitLeftDayGroup${n}">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="optExitLeftDay${n}">
+                        ${DAY_OPTIONS.map(d => '<option value="' + d.value + '">' + d.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="optExitLeftCandleTypeGroup${n}">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="optExitLeftCandleType${n}">
+                        ${CANDLE_TYPES.map(c => '<option value="' + c.value + '">' + c.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitLeftMultiplierGroup${n}">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="optExitLeftMultiplier${n}" value="1" min="1" max="60">
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitLeftWindowGroup${n}" style="display:none;">
+                    <label class="form-label small" id="optExitLeftWindowLabel${n}">Window</label>
+                    <input type="number" class="form-control form-control-sm" id="optExitLeftWindow${n}" value="14" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitLeftSeriesTypeGroup${n}">
+                    <label class="form-label small" id="optExitLeftSeriesLabel${n}">Series Type</label>
+                    <select class="form-select form-select-sm" id="optExitLeftSeriesType${n}">
+                        ${SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="condition-operator mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Operator</label>
+                    <select class="form-select" id="optExitOperator${n}">
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">&gt;=</option>
+                        <option value="<=">&lt;=</option>
+                        <option value="==">=</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Comparator</label>
+                    <select class="form-select" id="optExitComparator${n}" onchange="updateOptExitRightSide(${n})">
+                        <option value="value">Value</option>
+                        <option value="compare_price">Compare Price</option>
+                        <option value="compare_sma">Compare SMA</option>
+                        <option value="compare_ema">Compare EMA</option>
+                    </select>
+                </div>
+                <div class="col-md-3" id="optExitValueInputGroup${n}">
+                    <label class="form-label">Value</label>
+                    <input type="number" class="form-control" id="optExitCompareValue${n}" step="0.01" placeholder="e.g., 50">
+                </div>
+            </div>
+        </div>
+        
+        <div class="condition-right-side mb-3" id="optExitRightSide${n}" style="display:none;">
+            <label class="form-label fw-bold">Right Side (To this)</label>
+            <div class="row g-2">
+                <div class="col-md-4 col-sm-6" id="optExitRightDayGroup${n}">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="optExitRightDay${n}">
+                        ${DAY_OPTIONS.map(d => '<option value="' + d.value + '">' + d.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="optExitRightCandleTypeGroup${n}">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="optExitRightCandleType${n}">
+                        ${CANDLE_TYPES.map(c => '<option value="' + c.value + '">' + c.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitRightMultiplierGroup${n}">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="optExitRightMultiplier${n}" value="1" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitRightWindowGroup${n}" style="display:none;">
+                    <label class="form-label small">Window</label>
+                    <input type="number" class="form-control form-control-sm" id="optExitRightWindow${n}" value="14" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitRightSeriesTypeGroup${n}">
+                    <label class="form-label small">Series Type</label>
+                    <select class="form-select form-select-sm" id="optExitRightSeriesType${n}">
+                        ${SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Threshold Unit</label>
+                    <select class="form-select form-select-sm" id="optExitThresholdUnit${n}">
+                        <option value="percent">Percent (%)</option>
+                        <option value="dollar">Dollar ($)</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="optExitThresholdValue${n}" step="0.01" placeholder="e.g., 2.5">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(conditionDiv);
+    updateOptExitConditionFields(n);
+}
+
+function updateOptExitConditionFields(n) {
+    var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
+    var isCurrentPrice = metric === 'current_price';
+    var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
+    var showSeries = metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1;
+    
+    var el;
+    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
+    el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
+    el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
+    el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
+    el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = showSeries ? '' : 'none';
+    
+    var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
+    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
+    var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
+    if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
+    
+    updateOptExitComparatorOptions(n);
+}
+
+function updateOptExitComparatorOptions(n) {
+    var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
+    var comp = document.getElementById('optExitComparator' + n);
+    if (!comp) return;
+    var opts = '<option value="value">Value</option>';
+    if (metric !== 'rsi' && metric !== 'macd') {
+        opts += '<option value="compare_price">Compare Price</option>';
+        opts += '<option value="compare_sma">Compare SMA</option>';
+        opts += '<option value="compare_ema">Compare EMA</option>';
+    }
+    comp.innerHTML = opts;
+    updateOptExitRightSide(n);
+}
+
+function updateOptExitRightSide(n) {
+    var comp = (document.getElementById('optExitComparator' + n) || {}).value || 'value';
+    var rightSide = document.getElementById('optExitRightSide' + n);
+    var valueGroup = document.getElementById('optExitValueInputGroup' + n);
+    
+    if (comp === 'value') {
+        if (rightSide) rightSide.style.display = 'none';
+        if (valueGroup) valueGroup.style.display = '';
+    } else {
+        if (rightSide) rightSide.style.display = 'block';
+        if (valueGroup) valueGroup.style.display = 'none';
+        
+        var isComparePrice = comp === 'compare_price';
+        var el;
+        el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
+        el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
+    }
+}
+
+function removeOptExitCondition(id) {
+    var element = document.getElementById('optExitCondition' + id);
+    if (element) {
+        element.remove();
+        optExitConditionCount--;
+        renumberOptExitConditions();
+    }
+}
+
+function renumberOptExitConditions() {
+    var conditions = document.querySelectorAll('.opt-exit-condition-row');
+    optExitConditionCount = conditions.length;
+    conditions.forEach(function(cond, index) {
+        var label = cond.querySelector('strong.text-muted');
+        if (label) label.textContent = 'Exit Condition ' + (index + 1);
+    });
+}
+
+function collectOptExitConditions() {
+    var conditions = [];
+    var container = document.getElementById('optExitConditionsContainer');
+    if (!container) return conditions;
+    
+    var conditionRows = container.querySelectorAll('.opt-exit-condition-row');
+    conditionRows.forEach(function(row) {
+        var id = row.id.replace('optExitCondition', '');
+        var metric = (document.getElementById('optExitMetric' + id) || {}).value || 'current_price';
+        var comparator = (document.getElementById('optExitComparator' + id) || {}).value || 'value';
+        
+        var effectiveMetric = metric === 'current_price' ? 'price' : metric;
+        var condition = {
+            metric: effectiveMetric,
+            left: {
+                day: metric === 'current_price' ? '0' : ((document.getElementById('optExitLeftDay' + id) || {}).value || '0'),
+                candle_type: metric === 'current_price' ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
+                multiplier: metric === 'current_price' ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
+                series_type: metric === 'current_price' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
+            },
+            operator: (document.getElementById('optExitOperator' + id) || {}).value || '>',
+            comparator: comparator
+        };
+        
+        if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
+            condition.left.window = parseInt((document.getElementById('optExitLeftWindow' + id) || {}).value) || 14;
+        }
+        
+        if (comparator === 'value') {
+            var rawVal = (document.getElementById('optExitCompareValue' + id) || {}).value;
+            condition.compare_value = rawVal !== '' && rawVal !== undefined ? parseFloat(rawVal) : null;
+        } else {
+            condition.right = {
+                day: (document.getElementById('optExitRightDay' + id) || {}).value || '0',
+                candle_type: (document.getElementById('optExitRightCandleType' + id) || {}).value || 'minute',
+                multiplier: parseInt((document.getElementById('optExitRightMultiplier' + id) || {}).value) || 1,
+                series_type: (document.getElementById('optExitRightSeriesType' + id) || {}).value || 'close'
+            };
+            
+            if (comparator === 'compare_sma' || comparator === 'compare_ema') {
+                condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
+            }
+            
+            condition.threshold = {
+                unit: (document.getElementById('optExitThresholdUnit' + id) || {}).value || 'percent',
+                value: parseFloat((document.getElementById('optExitThresholdValue' + id) || {}).value) || 0
+            };
+        }
+        
+        conditions.push(condition);
+    });
+    
+    return conditions;
+}
+
+// =============================================================================
+// ENTRY PRICE CONDITIONS BUILDER
+// =============================================================================
 
 function addPriceCondition() {
     const container = document.getElementById('priceConditionsContainer');
@@ -1716,6 +2020,23 @@ function buildOptConfigSummaryHtml(config) {
         }).join('');
     }
 
+    let exitCondHtml = '<span style="color:#94a3b8;">None</span>';
+    if (config.options_exit_cond_type === 'preset' && config.exit_preset_condition) {
+        const exitCondName = presetNames[config.exit_preset_condition] || `Preset #${config.exit_preset_condition}`;
+        if (config.exit_preset_condition === '5') {
+            exitCondHtml = `${exitCondName}: ${config.exit_preset_operator || '>'} ${config.exit_preset_threshold || 0}% over ${config.exit_velocity_lookback || 5} min`;
+        } else {
+            exitCondHtml = `${exitCondName}: ${config.exit_preset_operator || '>'} ${config.exit_preset_threshold || 0}%`;
+        }
+    } else if (config.exit_price_conditions && config.exit_price_conditions.length > 0) {
+        exitCondHtml = config.exit_price_conditions.map(function(pc) {
+            var metric = (pc.metric || 'price').toUpperCase();
+            var op = pc.operator || '>';
+            var rightDesc = pc.comparator === 'value' ? String(pc.compare_value != null ? pc.compare_value : '') : (pc.comparator || '').replace('compare_', '').toUpperCase();
+            return '<div style="margin-bottom:4px;">' + metric + ' ' + op + ' ' + rightDesc + '</div>';
+        }).join('');
+    }
+
     return `
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i>Period</div>
@@ -1736,6 +2057,10 @@ function buildOptConfigSummaryHtml(config) {
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Exit Criteria</div>
             <div style="${valueStyle}">Take Profit: ${tpText} &nbsp;|&nbsp; Stop Loss: ${slText}</div>
+        </div>
+        <div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-door-open" style="margin-right:6px;"></i>Exit Conditions</div>
+            <div style="${valueStyle}">${exitCondHtml}</div>
         </div>
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-coins" style="margin-right:6px;"></i>Position Sizing</div>
@@ -1910,6 +2235,23 @@ function validateOptionsConfig(config) {
                     }
                 }
             }
+        }
+    }
+    
+    if (config.options_exit_cond_type === 'preset' && config.exit_preset_condition) {
+        if (!config.exit_preset_operator || config.exit_preset_threshold === undefined || config.exit_preset_threshold === '') {
+            errors.push('Exit preset condition requires an operator and threshold');
+        }
+        if (config.exit_preset_condition === '5') {
+            const lookback = parseInt(config.exit_velocity_lookback);
+            if (!lookback || lookback < 1 || lookback > 120) {
+                errors.push('Exit velocity lookback must be between 1 and 120 minutes');
+            }
+        }
+    }
+    if (config.options_exit_cond_type === 'custom') {
+        if (!config.exit_price_conditions || config.exit_price_conditions.length === 0) {
+            errors.push('Custom exit conditions selected but no conditions added');
         }
     }
     
@@ -2181,6 +2523,30 @@ function collectFormData() {
         const priceConditions = collectPriceConditions();
         if (priceConditions && priceConditions.length > 0) {
             config.price_conditions = priceConditions;
+        }
+    }
+    
+    // Collect exit conditions (signal-based)
+    const optExitCondType = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'preset';
+    config.options_exit_cond_type = optExitCondType;
+    
+    if (optExitCondType === 'preset') {
+        var exitPresetVal = document.getElementById('optExitPresetCondition')?.value || '';
+        if (exitPresetVal) {
+            config.exit_preset_condition = exitPresetVal;
+            if (exitPresetVal === '5') {
+                config.exit_velocity_lookback = document.getElementById('optExitVelocityLookback')?.value;
+                config.exit_preset_operator = document.getElementById('optExitVelocityOperator')?.value;
+                config.exit_preset_threshold = document.getElementById('optExitVelocityThreshold')?.value;
+            } else {
+                config.exit_preset_operator = document.getElementById('optExitPresetOperator')?.value;
+                config.exit_preset_threshold = document.getElementById('optExitPresetThreshold')?.value;
+            }
+        }
+    } else if (optExitCondType === 'custom') {
+        var exitPriceConditions = collectOptExitConditions();
+        if (exitPriceConditions && exitPriceConditions.length > 0) {
+            config.exit_price_conditions = exitPriceConditions;
         }
     }
     

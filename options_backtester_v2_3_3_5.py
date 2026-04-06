@@ -458,8 +458,10 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     symbol = config['symbol']
     underlying_sym = f"I:{symbol}" if symbol == "SPX" else symbol
     price_conditions = config.get('price_conditions', [])
+    exit_price_conditions = config.get('exit_price_conditions', [])
+    all_conditions = list(price_conditions) + list(exit_price_conditions)
     
-    if not price_conditions:
+    if not all_conditions:
         return {}
     
     indicators = {}
@@ -470,7 +472,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     needs_day_price = False
     needs_minute_price = False
     
-    for condition in price_conditions:
+    for condition in all_conditions:
         metric = condition.get('metric', 'price')
         left_params = condition.get('left', {})
         left_candle_type = left_params.get('candle_type', 'minute')
@@ -3107,11 +3109,14 @@ def run_backtest(config: Dict, client: RESTClient):
     option_cache_detection = {}
     
     price_conditions = config.get('price_conditions', [])
+    exit_price_conditions = config.get('exit_price_conditions', [])
+    all_price_conditions = list(price_conditions) + list(exit_price_conditions)
     has_preset = config.get('options_entry_type') == 'preset'
+    has_exit_signal = bool(config.get('options_exit_cond_type'))
     indicators_cache = {}
-    if price_conditions:
+    if all_price_conditions:
         max_day_offset = 0
-        for cond in price_conditions:
+        for cond in all_price_conditions:
             try:
                 left_offset = abs(int(cond.get('left', {}).get('day', 0) or 0))
             except (ValueError, TypeError):
@@ -3151,9 +3156,9 @@ def run_backtest(config: Dict, client: RESTClient):
             bars_1min_today = underlying_bars_1min.get(date_str, [])
             bars_detection_today = underlying_bars_detection.get(date_str, [])
             
-            # Get previous day's bars for preset condition evaluation
+            # Get previous day's bars for preset condition evaluation (entry or exit)
             _prev_day_bars = []
-            if has_preset:
+            if has_preset or has_exit_signal:
                 sorted_dates = sorted(underlying_bars_1min.keys())
                 for d in sorted_dates:
                     if d < date_str:
@@ -3569,6 +3574,40 @@ def run_backtest(config: Dict, client: RESTClient):
                     aligned_bars, legs_info, net_credit, config, 
                     entry_time, is_entry_day, pdt_0dte_mode
                 )
+                
+                # Also check exit signal conditions and use the EARLIER trigger
+                if has_exit_signal:
+                    underlying_bars_mon_1min = underlying_bars_1min.get(mon_date_str, [])
+                    _mon_prev_day_bars = []
+                    sorted_dates_for_mon = sorted(underlying_bars_1min.keys())
+                    for d in sorted_dates_for_mon:
+                        if d < mon_date_str:
+                            _mon_prev_day_bars = underlying_bars_1min.get(d, [])
+                        else:
+                            break
+                    
+                    for abar in aligned_bars:
+                        bar_time_str = abar['time']
+                        if is_entry_day and bar_time_str <= entry_time:
+                            continue
+                        # If TP/SL already triggered earlier, no need to check further
+                        if exit_hit and bar_time_str >= exit_time:
+                            break
+                        
+                        sig_exit, sig_reason = check_exit_signal_conditions(
+                            config, underlying_bars_mon_1min, _mon_prev_day_bars,
+                            bar_time_str, indicators_cache, 
+                            monitoring_date
+                        )
+                        if sig_exit:
+                            exit_hit = True
+                            exit_reason = sig_reason
+                            exit_time = bar_time_str
+                            exit_premium = calculate_net_premium(abar, legs_info)
+                            exit_leg_prices = [lp.get('vw', lp['close']) for lp in abar['leg_prices']]
+                            print(f"  🚪 Exit signal triggered @ {bar_time_str}: {sig_reason}")
+                            break
+                
                 if exit_hit:
                     # Get timestamp and underlying price at exit
                     underlying_bars_mon = underlying_bars_detection.get(mon_date_str, [])
@@ -3966,6 +4005,70 @@ def check_exit_conditions_detailed(aligned_bars: List[Dict], legs_info: List[Dic
         sl_met_prev = sl_met
     
     return (False, "", "", 0, [])
+
+
+def check_exit_signal_conditions(config: Dict, underlying_bars_today: List[Dict],
+                                  prev_day_bars: List[Dict], bar_time: str,
+                                  indicators_cache: Dict = None, 
+                                  trade_date=None) -> Tuple[bool, str]:
+    """
+    Check signal-based exit conditions (preset or custom) on the underlying price.
+    Called after TP/SL check on each monitoring bar.
+    Returns (should_exit, reason_string)
+    """
+    exit_type = config.get('options_exit_cond_type', '')
+    
+    if not exit_type:
+        return False, ""
+    
+    if exit_type == 'preset' and config.get('exit_preset_condition'):
+        exit_config = {
+            'preset_condition': config['exit_preset_condition'],
+            'preset_operator': config.get('exit_preset_operator', '>'),
+            'preset_threshold': config.get('exit_preset_threshold', 0),
+            'velocity_lookback': config.get('exit_velocity_lookback', 5)
+        }
+        
+        current_bar = None
+        for b in sorted(underlying_bars_today, key=lambda x: x.get('time', '')):
+            if b.get('time', '') >= bar_time:
+                current_bar = b
+                break
+        
+        if not current_bar:
+            if underlying_bars_today:
+                current_bar = max(underlying_bars_today, key=lambda x: x.get('time', ''))
+            else:
+                return False, ""
+        
+        met, reason = evaluate_preset_condition(exit_config, underlying_bars_today, current_bar, prev_day_bars)
+        if met:
+            return True, f"EXIT_SIGNAL_PRESET: {reason}"
+        return False, ""
+    
+    elif exit_type == 'custom' and config.get('exit_price_conditions'):
+        if not indicators_cache:
+            return False, ""
+        
+        current_bar = None
+        for b in sorted(underlying_bars_today, key=lambda x: x.get('time', '')):
+            if b.get('time', '') >= bar_time:
+                current_bar = b
+                break
+        
+        if not current_bar:
+            return False, ""
+        
+        exit_config_for_eval = dict(config)
+        exit_config_for_eval['price_conditions'] = config['exit_price_conditions']
+        
+        met, reason = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date)
+        if met:
+            return True, f"EXIT_SIGNAL_CUSTOM: {reason}"
+        return False, ""
+    
+    return False, ""
+
 
 # ==================== ANALYSIS ====================
 
