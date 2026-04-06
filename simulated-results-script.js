@@ -394,7 +394,7 @@ function renderTradeLog(data) {
         `;
     } else {
         headerRow.innerHTML = `
-            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>P&L</th><th>Qty</th>
+            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>Leg Symbol(s)</th><th>P&L</th><th>Qty</th>
             <th>Underlying</th><th>Entry Time</th><th>Exit Time</th>
             <th>Duration</th><th>Expiration</th><th>Exit Reason</th>
             <th>Net Prem Entry</th><th>Net Prem Exit</th>
@@ -454,7 +454,7 @@ function renderTradeLogPage(data) {
             </tr>`;
         }).join('');
     } else {
-        const colCount = 13;
+        const colCount = 14;
         tbody.innerHTML = pageTrades.map(t => {
             const pnlColor = t.pnl >= 0 ? '#26a69a' : '#ef5350';
             const pnlSign = t.pnl >= 0 ? '+' : '';
@@ -467,6 +467,7 @@ function renderTradeLogPage(data) {
             const underlyingStr = t.underlyingAtEntry != null ? '$' + t.underlyingAtEntry.toFixed(2) : '--';
             const rowId = 'simTradeRow_' + t.id;
             const hasLegs = t.legDetails && t.legDetails.length > 0;
+            const legSymbolsStr = hasLegs ? t.legDetails.map(l => l.symbol || '--').join('<br>') : '--';
             const fmtG = (v, d) => v != null ? v.toFixed(d || 4) : '--';
 
             let legSubRows = '';
@@ -514,6 +515,7 @@ function renderTradeLogPage(data) {
                 <td>${hasLegs ? `<i id="${rowId}_icon" class="fas fa-chevron-right" style="font-size:10px;color:#999;"></i>` : ''}</td>
                 <td>${t.id}</td>
                 <td>${t.strategy}</td>
+                <td style="font-size:11px;font-family:monospace;color:#6c757d;">${legSymbolsStr}</td>
                 <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${t.pnl.toFixed(2)}</td>
                 <td>${t.quantity}</td>
                 <td>${underlyingStr}</td>

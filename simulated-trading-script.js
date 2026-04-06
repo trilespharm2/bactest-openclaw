@@ -441,6 +441,7 @@ function enrichOptionTrade(t, i) {
         id: i + 1,
         strategy: t.strategy,
         legs: legDetails.map(l => l.name).join(' / '),
+        legSymbols: legDetails.map(l => l.symbol).filter(s => s).join(' / '),
         legDetails: legDetails,
         quantity: t.quantity,
         entryPremium: t.totalEntryPremium,
