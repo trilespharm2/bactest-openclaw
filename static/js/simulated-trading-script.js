@@ -1380,12 +1380,29 @@ function toggleSimIndicatorDropdown() {
     if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
 }
 
+function getMaxIndicators() {
+    if (typeof TierRestrictions !== 'undefined') {
+        var tier = TierRestrictions.getTier();
+        if (tier === 'premium') return 20;
+        if (tier === 'standard') return 5;
+    }
+    return 1;
+}
+
 function addSimIndicator(config) {
     if (!lwChart) return;
     const type = config ? config.type : document.getElementById('simIndicatorType').value;
     const period = config ? config.period : (parseInt(document.getElementById('simIndicatorPeriod').value) || 20);
     const color = config ? config.color : (document.getElementById('simIndicatorColor').value || '#2962ff');
     const lineWidth = config ? (config.lineWidth || 2) : (parseInt(document.getElementById('simIndicatorLineWidth').value) || 2);
+
+    var maxInd = getMaxIndicators();
+    if (lwIndicators.length >= maxInd) {
+        var tierName = (typeof TierRestrictions !== 'undefined') ? TierRestrictions.getTier() : 'free';
+        var upgradeMsg = tierName === 'premium' ? '' : ' Upgrade your plan for more.';
+        alert('Maximum of ' + maxInd + ' indicator' + (maxInd > 1 ? 's' : '') + ' allowed on your ' + tierName + ' plan.' + upgradeMsg);
+        return;
+    }
 
     if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
         alert('Period must be between 2 and 500.');
