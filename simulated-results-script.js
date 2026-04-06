@@ -394,10 +394,12 @@ function renderTradeLog(data) {
         `;
     } else {
         headerRow.innerHTML = `
-            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>Leg Symbol(s)</th><th>P&L</th><th>Qty</th>
+            <th style="width:30px"></th><th>#</th><th>Strategy</th><th>P&L</th><th>Qty</th>
             <th>Underlying</th><th>Entry Time</th><th>Exit Time</th>
             <th>Duration</th><th>Expiration</th><th>Exit Reason</th>
             <th>Net Prem Entry</th><th>Net Prem Exit</th>
+            <th>Leg Symbol(s)</th>
+            <th>IV</th><th>\u0394</th><th>\u0393</th><th>\u0398</th><th>Vega</th>
         `;
     }
 
@@ -454,7 +456,7 @@ function renderTradeLogPage(data) {
             </tr>`;
         }).join('');
     } else {
-        const colCount = 14;
+        const colCount = 19;
         tbody.innerHTML = pageTrades.map(t => {
             const pnlColor = t.pnl >= 0 ? '#26a69a' : '#ef5350';
             const pnlSign = t.pnl >= 0 ? '+' : '';
@@ -469,6 +471,20 @@ function renderTradeLogPage(data) {
             const hasLegs = t.legDetails && t.legDetails.length > 0;
             const legSymbolsStr = hasLegs ? t.legDetails.map(l => l.symbol || '--').join('<br>') : '--';
             const fmtG = (v, d) => v != null ? v.toFixed(d || 4) : '--';
+            let netIV = null, netDelta = null, netGamma = null, netTheta = null, netVega = null;
+            if (hasLegs) {
+                let ivCount = 0;
+                t.legDetails.forEach(l => {
+                    const sign = l.position === 'long' ? 1 : -1;
+                    if (l.iv != null) { netIV = (netIV || 0) + l.iv; ivCount++; }
+                    if (l.delta != null) netDelta = (netDelta || 0) + l.delta * sign;
+                    if (l.gamma != null) netGamma = (netGamma || 0) + l.gamma * sign;
+                    if (l.theta != null) netTheta = (netTheta || 0) + l.theta * sign;
+                    if (l.vega != null) netVega = (netVega || 0) + l.vega * sign;
+                });
+                if (netIV != null && ivCount > 0) netIV = netIV / ivCount;
+            }
+            const avgIvStr = netIV != null ? (netIV * 100).toFixed(1) + '%' : '--';
 
             let legSubRows = '';
             if (hasLegs) {
@@ -515,7 +531,6 @@ function renderTradeLogPage(data) {
                 <td>${hasLegs ? `<i id="${rowId}_icon" class="fas fa-chevron-right" style="font-size:10px;color:#999;"></i>` : ''}</td>
                 <td>${t.id}</td>
                 <td>${t.strategy}</td>
-                <td style="font-size:11px;font-family:monospace;color:#6c757d;">${legSymbolsStr}</td>
                 <td style="color: ${pnlColor}; font-weight: 600;">${pnlSign}$${t.pnl.toFixed(2)}</td>
                 <td>${t.quantity}</td>
                 <td>${underlyingStr}</td>
@@ -526,6 +541,12 @@ function renderTradeLogPage(data) {
                 <td><span class="badge bg-secondary">${t.exitReason}</span></td>
                 <td style="color:${netEntryColor};font-weight:500;">${netEntryStr}</td>
                 <td style="color:${netExitColor};font-weight:500;">${netExitStr}</td>
+                <td style="font-size:11px;font-family:monospace;color:#6c757d;">${legSymbolsStr}</td>
+                <td>${avgIvStr}</td>
+                <td>${fmtG(netDelta)}</td>
+                <td>${fmtG(netGamma, 6)}</td>
+                <td>${fmtG(netTheta)}</td>
+                <td>${fmtG(netVega)}</td>
             </tr>${legSubRows}`;
         }).join('');
     }
@@ -573,7 +594,8 @@ function downloadTradeCsv(data) {
         const maxLegs = Math.max(...data.trades.map(t => (t.legDetails || []).length), 1);
         headers = ['#', 'Strategy', 'P&L', 'Quantity',
             'Underlying At Entry', 'Entry Time', 'Exit Time', 'Duration', 'Expiration', 'Exit Reason',
-            'Net Premium Entry', 'Net Premium Exit'];
+            'Net Premium Entry', 'Net Premium Exit',
+            'Net IV', 'Net Delta', 'Net Gamma', 'Net Theta', 'Net Vega'];
         for (let li = 1; li <= maxLegs; li++) {
             headers.push(`Leg${li} Name`, `Leg${li} Symbol`, `Leg${li} Type`, `Leg${li} Position`,
                 `Leg${li} Strike`, `Leg${li} Entry Price`, `Leg${li} Exit Price`,
@@ -583,12 +605,25 @@ function downloadTradeCsv(data) {
         const fmtNum = (v) => v != null ? v.toFixed(2) : '';
         const fmtG = (v, d) => v != null ? v.toFixed(d || 4) : '';
         rows = data.trades.map(t => {
+            let csvIV = null, csvDelta = null, csvGamma = null, csvTheta = null, csvVega = null;
+            let csvIVCount = 0;
+            (t.legDetails || []).forEach(l => {
+                const sign = l.position === 'long' ? 1 : -1;
+                if (l.iv != null) { csvIV = (csvIV || 0) + l.iv; csvIVCount++; }
+                if (l.delta != null) csvDelta = (csvDelta || 0) + l.delta * sign;
+                if (l.gamma != null) csvGamma = (csvGamma || 0) + l.gamma * sign;
+                if (l.theta != null) csvTheta = (csvTheta || 0) + l.theta * sign;
+                if (l.vega != null) csvVega = (csvVega || 0) + l.vega * sign;
+            });
+            if (csvIV != null && csvIVCount > 0) csvIV = csvIV / csvIVCount;
             const row = [
                 t.id, t.strategy, t.pnl.toFixed(2), t.quantity,
                 fmtNum(t.underlyingAtEntry),
                 t.entryTime, t.exitTime, calcTradeDuration(t.entryTime, t.exitTime),
                 t.expiration || '', t.exitReason,
-                fmtNum(t.netPremiumEntry), fmtNum(t.netPremiumExit)
+                fmtNum(t.netPremiumEntry), fmtNum(t.netPremiumExit),
+                csvIV != null ? (csvIV * 100).toFixed(1) + '%' : '',
+                fmtG(csvDelta), fmtG(csvGamma, 6), fmtG(csvTheta), fmtG(csvVega)
             ];
             for (let li = 0; li < maxLegs; li++) {
                 const l = (t.legDetails || [])[li];
