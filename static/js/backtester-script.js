@@ -180,7 +180,7 @@ function addOptExitCondition() {
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Operator</label>
-                    <select class="form-select" id="optExitOperator${n}">
+                    <select class="form-select" id="optExitOperator${n}" onchange="updateOptExitRightSide(${n})">
                         <option value=">">&gt;</option>
                         <option value="<">&lt;</option>
                         <option value=">=">&gt;=</option>
@@ -265,7 +265,7 @@ function updateOptExitConditionFields(n) {
     el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
-    el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = showSeries ? '' : 'none';
+    el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
     
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
@@ -291,8 +291,10 @@ function updateOptExitComparatorOptions(n) {
 
 function updateOptExitRightSide(n) {
     var comp = (document.getElementById('optExitComparator' + n) || {}).value || 'value';
+    var operator = (document.getElementById('optExitOperator' + n) || {}).value || '>';
     var rightSide = document.getElementById('optExitRightSide' + n);
     var valueGroup = document.getElementById('optExitValueInputGroup' + n);
+    var isEquals = (operator === '==');
     
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';
@@ -305,6 +307,11 @@ function updateOptExitRightSide(n) {
         var el;
         el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
         el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
+        
+        var thresholdUnit = document.getElementById('optExitThresholdUnit' + n);
+        var thresholdValue = document.getElementById('optExitThresholdValue' + n);
+        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
+        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
 }
 
@@ -476,7 +483,7 @@ function addPriceCondition() {
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Operator</label>
-                    <select class="form-select" id="operator${conditionId}">
+                    <select class="form-select" id="operator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
                         ${OPERATORS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
                     </select>
                 </div>
@@ -794,9 +801,11 @@ function updateMacdComparatorOptions(conditionId) {
 
 function updateRightSideVisibility(conditionId) {
     const comparator = document.getElementById(`comparator${conditionId}`)?.value;
+    const operator = document.getElementById(`operator${conditionId}`)?.value || '>';
     const rightSide = document.getElementById(`rightSide${conditionId}`);
     const valueInputGroup = document.getElementById(`valueInputGroup${conditionId}`);
     const metric = document.getElementById(`metric${conditionId}`)?.value;
+    const isEquals = (operator === '==' || operator === '=');
     
     if (!rightSide || !valueInputGroup) return;
     
@@ -809,6 +818,13 @@ function updateRightSideVisibility(conditionId) {
         
         // Update right side fields based on comparator type
         updateRightSideFields(conditionId, comparator);
+        
+        var thresholdUnit = document.getElementById(`thresholdUnit${conditionId}`);
+        var thresholdValue = document.getElementById(`thresholdValue${conditionId}`);
+        var threshUnitCol = thresholdUnit ? thresholdUnit.closest('.col-md-3') : null;
+        var threshValCol = thresholdValue ? thresholdValue.closest('.col-md-3') : null;
+        if (threshUnitCol) threshUnitCol.style.display = isEquals ? 'none' : '';
+        if (threshValCol) threshValCol.style.display = isEquals ? 'none' : '';
     }
 }
 

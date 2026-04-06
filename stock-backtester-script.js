@@ -349,7 +349,7 @@ function addCondition() {
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Operator</label>
-                    <select class="form-select" id="operator-${n}">
+                    <select class="form-select" id="operator-${n}" onchange="updateStockRightSide(${n})">
                         <option value=">">&gt;</option>
                         <option value="<">&lt;</option>
                         <option value=">=">&gt;=</option>
@@ -499,11 +499,13 @@ function updateStockComparatorOptions(n, options) {
 
 function updateStockRightSide(n) {
     var comparator = document.getElementById('comparator-' + n);
+    var operator = document.getElementById('operator-' + n);
     var rightSide = document.getElementById('right-side-' + n);
     var valueGroup = document.getElementById('value-input-group-' + n);
     if (!comparator || !rightSide || !valueGroup) return;
 
     var comp = comparator.value;
+    var isEquals = operator && (operator.value === '=' || operator.value === '==');
     if (comp === 'value') {
         rightSide.style.display = 'none';
         valueGroup.style.display = 'block';
@@ -518,6 +520,11 @@ function updateStockRightSide(n) {
         } else {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         }
+
+        var thresholdUnit = document.getElementById('threshold-unit-' + n);
+        var thresholdValue = document.getElementById('threshold-value-' + n);
+        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
+        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
 }
 
@@ -664,7 +671,7 @@ function addExitCondition() {
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Operator</label>
-                    <select class="form-select" id="exit-operator-${n}">
+                    <select class="form-select" id="exit-operator-${n}" onchange="updateExitRightSide(${n})">
                         <option value=">">&gt;</option>
                         <option value="<">&lt;</option>
                         <option value=">=">&gt;=</option>
@@ -764,7 +771,7 @@ function updateExitConditionFields(n) {
     el = document.getElementById('exit-left-candle-group-' + n); if (el) el.style.display = showCandle ? '' : 'none';
     el = document.getElementById('exit-left-mult-group-' + n); if (el) el.style.display = showMult ? '' : 'none';
     el = document.getElementById('exit-left-window-group-' + n); if (el) el.style.display = showWindow ? '' : 'none';
-    el = document.getElementById('exit-left-series-group-' + n); if (el) el.style.display = showSeries ? '' : 'none';
+    el = document.getElementById('exit-left-series-group-' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
 
     var windowLabel = document.getElementById('exit-left-window-label-' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
@@ -798,8 +805,10 @@ function updateExitComparatorOptions(n) {
 
 function updateExitRightSide(n) {
     var comp = (document.getElementById('exit-comparator-' + n) || {}).value || 'value';
+    var operator = (document.getElementById('exit-operator-' + n) || {}).value || '>';
     var rightSide = document.getElementById('exit-right-side-' + n);
     var valueGroup = document.getElementById('exit-value-input-group-' + n);
+    var isEquals = (operator === '=' || operator === '==');
 
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';
@@ -812,6 +821,11 @@ function updateExitRightSide(n) {
         var el;
         el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
         el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
+
+        var thresholdUnit = document.getElementById('exit-threshold-unit-' + n);
+        var thresholdValue = document.getElementById('exit-threshold-value-' + n);
+        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
+        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
 }
 
