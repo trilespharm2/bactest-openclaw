@@ -56,60 +56,6 @@
         return show(msg, true);
     };
 
-    window.appGuestSimWarning = function(signInUrl) {
-        ensureDOM();
-        return new Promise(function(resolve) {
-            dialog.innerHTML =
-                '<div style="text-align:center;margin-bottom:16px;">' +
-                  '<div style="width:48px;height:48px;background:#fff7ed;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">' +
-                    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
-                  '</div>' +
-                  '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin-bottom:8px;">Not Signed In</div>' +
-                  '<div style="font-size:13px;color:#6b7280;line-height:1.6;">Your session results <strong>will not be saved</strong> after this session ends. You can view your results at the end of the session, but once you leave they will be gone.</div>' +
-                '</div>' +
-                '<div style="display:flex;flex-direction:column;gap:10px;">' +
-                  '<button id="appGuestSignIn" style="padding:10px 20px;border-radius:8px;border:none;background:#3b6df0;color:#fff;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Sign In to Save Results</button>' +
-                  '<button id="appGuestContinue" style="padding:10px 20px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Continue as Guest</button>' +
-                '</div>';
-            overlay.style.display = 'flex';
-
-            function close(val) { overlay.style.display = 'none'; resolve(val); }
-
-            document.getElementById('appGuestSignIn').onclick = function() {
-                close('signin');
-                if (signInUrl) window.location.href = signInUrl;
-                else if (typeof navigateToPage === 'function') navigateToPage('login');
-            };
-            document.getElementById('appGuestContinue').onclick = function() { close('guest'); };
-            overlay.onclick = function(e) { if (e.target === overlay) close('cancel'); };
-        });
-    };
-
-    window.appGuestLeaveWarning = function() {
-        ensureDOM();
-        return new Promise(function(resolve) {
-            dialog.innerHTML =
-                '<div style="text-align:center;margin-bottom:16px;">' +
-                  '<div style="width:48px;height:48px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">' +
-                    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
-                  '</div>' +
-                  '<div style="font-size:16px;font-weight:700;color:#1a1e2e;margin-bottom:8px;">Active Session Will Be Lost</div>' +
-                  '<div style="font-size:13px;color:#6b7280;line-height:1.6;">You are not signed in. If you leave now, your active session and all trades <strong>will be permanently lost</strong> and cannot be recovered. Sign in before leaving to save your progress.</div>' +
-                '</div>' +
-                '<div style="display:flex;flex-direction:column;gap:10px;">' +
-                  '<button id="appLeaveStay" style="padding:10px 20px;border-radius:8px;border:none;background:#3b6df0;color:#fff;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Stay in Session</button>' +
-                  '<button id="appLeaveGo" style="padding:10px 20px;border-radius:8px;border:1px solid #fca5a5;background:#fff;color:#ef4444;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Leave Anyway</button>' +
-                '</div>';
-            overlay.style.display = 'flex';
-
-            function close(val) { overlay.style.display = 'none'; resolve(val); }
-
-            document.getElementById('appLeaveStay').onclick = function() { close(false); };
-            document.getElementById('appLeaveGo').onclick = function() { close(true); };
-            overlay.onclick = function(e) { if (e.target === overlay) close(false); };
-        });
-    };
-
     window.appPrompt = function(msg, defaultVal) {
         ensureDOM();
         return new Promise(function(resolve) {

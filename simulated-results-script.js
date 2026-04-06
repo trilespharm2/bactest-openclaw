@@ -9,45 +9,6 @@ const SIM_TRADES_PER_PAGE = 15;
 
 function initSimResultsPage() {
     console.log('Initializing Simulated Trading Results page');
-
-    const isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : false;
-    if (isGuest) {
-        const tableCard = document.getElementById('simResultsTableCard');
-        const empty = document.getElementById('simResultsEmpty');
-        const filterCard = document.querySelector('#simResultsPage .sim-filter-btn')?.closest('.card');
-        if (tableCard) tableCard.style.display = 'none';
-        if (empty) empty.style.display = 'none';
-        if (filterCard) filterCard.style.display = 'none';
-
-        const section = document.getElementById('simResultsPage');
-        const gate = document.getElementById('simResultsGuestGate');
-        if (!gate && section) {
-            const el = document.createElement('div');
-            el.id = 'simResultsGuestGate';
-            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;';
-            el.innerHTML =
-                '<div style="width:64px;height:64px;background:#eff6ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">' +
-                  '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b6df0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' +
-                '</div>' +
-                '<h5 style="font-weight:700;color:#1a1e2e;margin-bottom:10px;">Sign In to View Saved Results</h5>' +
-                '<p style="color:#6b7280;font-size:14px;max-width:380px;line-height:1.6;margin-bottom:24px;">Your simulated trading history is saved to your account. Sign in or create a free account to track and review all your past sessions.</p>' +
-                '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">' +
-                  '<button id="simResultsGuestSignIn" style="padding:10px 28px;background:#3b6df0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Sign In</button>' +
-                  '<button id="simResultsGuestCreate" style="padding:10px 28px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Create Free Account</button>' +
-                '</div>';
-            const pageHeader = section.querySelector('.page-header');
-            if (pageHeader) pageHeader.after(el);
-            else section.prepend(el);
-            document.getElementById('simResultsGuestSignIn')?.addEventListener('click', () => {
-                if (typeof navigateToPage === 'function') navigateToPage('login');
-            });
-            document.getElementById('simResultsGuestCreate')?.addEventListener('click', () => {
-                if (typeof navigateToPage === 'function') navigateToPage('register');
-            });
-        }
-        return;
-    }
-
     loadSimResultSessions();
 
     const tableCard = document.getElementById('simResultsTableCard');
@@ -249,12 +210,8 @@ function viewSimResultDetail(sessionId) {
 
 function initSimResultDetailPage() {
     console.log('Initializing Simulated Trading Result Detail page');
-    const isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : false;
     let data = window._pendingSimResultDetail;
-    if (!data && isGuest) {
-        data = window._guestSimResult || null;
-    }
-    if (!data && !isGuest) {
+    if (!data) {
         try {
             const sessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]');
             if (sessions.length > 0) data = sessions[0];
@@ -262,28 +219,8 @@ function initSimResultDetailPage() {
     }
     if (!data) {
         console.warn('No session data for detail view');
-        if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
+        if (typeof navigateToPage === 'function') navigateToPage('simResults');
         return;
-    }
-
-    if (isGuest) {
-        const guestNote = document.getElementById('simDetailGuestNote');
-        if (!guestNote) {
-            const headerEl = document.getElementById('simDetailSessionId')?.closest('.card, .result-header, .row');
-            if (headerEl) {
-                const note = document.createElement('div');
-                note.id = 'simDetailGuestNote';
-                note.style.cssText = 'display:flex;align-items:flex-start;gap:10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#92400e;line-height:1.6;';
-                note.innerHTML =
-                    '<svg style="flex-shrink:0;margin-top:1px;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
-                    '<span><strong>Guest session</strong> — these results are only available for this browser session. <a href="#" id="simDetailSignInLink" style="color:#1d4ed8;font-weight:600;text-decoration:underline;">Sign in</a> to save your history going forward.</span>';
-                headerEl.prepend(note);
-                document.getElementById('simDetailSignInLink')?.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (typeof navigateToPage === 'function') navigateToPage('login');
-                });
-            }
-        }
     }
     simResultDetailData = data;
     simResultTradeLogPage = 1;
