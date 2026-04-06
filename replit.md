@@ -15,7 +15,7 @@ The frontend is a vanilla JavaScript and HTML Single Page Application (SPA) with
 Built with Flask, the backend provides a RESTful API and serves static files. It uses Flask-Login for authentication, supporting both authenticated and unauthenticated access via a hybrid cookie + Bearer token approach.
 
 ### Backtesting Engines
-The system includes specialized backtesting engines for options (supporting 16+ strategies) and stocks (with custom condition builders), both exposed via web APIs. The options engine supports 6 strike selection methods, including mid-price range, distance from underlying (percentage or dollar), distance from another leg, and delta-based selection.
+The system includes specialized backtesting engines for options (supporting 22+ strategies including calendar/diagonal spreads) and stocks (with custom condition builders), both exposed via web APIs. The options engine supports 6 strike selection methods, including mid-price range, distance from underlying (percentage or dollar), distance from another leg, and delta-based selection. Calendar and diagonal strategies use per-leg DTE (each leg can have its own expiration), with the global DTE field grayed out when these strategies are selected. An IV% entry condition filter allows skipping trades when ATM implied volatility doesn't meet a threshold.
 
 ### Data Storage
 Backtest results use a hybrid storage model: metadata in PostgreSQL, and detailed JSON results, trade logs, and equity curves stored on the filesystem, with access secured by authentication and ownership verification.

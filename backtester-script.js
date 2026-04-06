@@ -992,6 +992,14 @@ function initializeBacktesterPage() {
     setupFormControls();
     setupStrategySelection();
     
+    var ivCheckbox = document.getElementById('ivConditionEnabled');
+    if (ivCheckbox) {
+        ivCheckbox.addEventListener('change', function() {
+            var params = document.getElementById('ivConditionParams');
+            if (params) params.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+    
     var loadingDiv = document.getElementById('backtestLoading');
     if (loadingDiv) loadingDiv.style.display = 'none';
     var errorDiv = document.getElementById('backtestError');
@@ -1117,6 +1125,8 @@ function setupStrategySelection() {
         const wingConfigForm = document.getElementById('wingConfigForm');
         const legConfigTitle = document.getElementById('legConfigTitle');
         const legConfigSection = document.getElementById('legConfigSection');
+        const dteInput = document.getElementById('dte');
+        const dteCalendarNotice = document.getElementById('dteCalendarNotice');
         
         if (strategy) {
             currentStrategy = strategy;
@@ -1125,6 +1135,16 @@ function setupStrategySelection() {
             const isIronStrategy = strategy.includes('Iron');
             if (wingConfigSection) wingConfigSection.style.display = isIronStrategy ? 'flex' : 'none';
             if (wingConfigForm) wingConfigForm.style.display = isIronStrategy ? 'block' : 'none';
+            
+            // Gray out global DTE for calendar/diagonal strategies
+            const isCalDiag = isCalendarDiagonalStrategy(strategy);
+            if (dteInput) {
+                dteInput.disabled = isCalDiag;
+                dteInput.style.opacity = isCalDiag ? '0.5' : '1';
+            }
+            if (dteCalendarNotice) {
+                dteCalendarNotice.style.display = isCalDiag ? 'block' : 'none';
+            }
             
             // Update leg configuration title
             if (legConfigTitle) legConfigTitle.textContent = `LEG CONFIGURATION - ${strategy}`;
@@ -1135,6 +1155,8 @@ function setupStrategySelection() {
             // Reset if no strategy selected
             if (wingConfigSection) wingConfigSection.style.display = 'none';
             if (wingConfigForm) wingConfigForm.style.display = 'none';
+            if (dteInput) { dteInput.disabled = false; dteInput.style.opacity = '1'; }
+            if (dteCalendarNotice) dteCalendarNotice.style.display = 'none';
             if (legConfigSection) {
                 legConfigSection.innerHTML = `
                     <div class="info-box">
@@ -1181,12 +1203,21 @@ function buildLegConfiguration(strategy) {
             <option value="delta">${legDefinitions.length > 1 ? '6' : '4'}. Delta-based Strike Selection</option>
         `;
         
+        const dteFieldHTML = leg.dte_label ? `
+                <div class="form-group" style="margin-top:8px; padding:8px 12px; background:#e8f4fd; border:1px solid #b8daff; border-radius:6px;">
+                    <label style="font-weight:600; color:#004085;"><i class="fas fa-calendar-alt"></i> ${leg.dte_label}:</label>
+                    <input type="number" class="leg-dte-input" data-leg-index="${index}" min="0" value="${leg.position === 'long' ? 30 : 7}" style="width:80px; display:inline-block; margin-left:8px;">
+                    <span style="font-size:11px; color:#6c757d; margin-left:6px;">business days</span>
+                </div>
+        ` : '';
+
         html += `
             <div class="leg-config-card" id="legCard${index}">
                 <div class="leg-header">
                     <span class="leg-title">Leg ${index + 1}: ${leg.name}</span>
                     <span class="leg-badge">${leg.type === 'C' ? 'Call' : 'Put'} - ${leg.position}</span>
                 </div>
+                ${dteFieldHTML}
                 
                 <div class="form-group">
                     <label>→ Select configuration method:</label>
@@ -1196,7 +1227,6 @@ function buildLegConfiguration(strategy) {
                 </div>
                 
                 <div id="legParams${index}" class="leg-params-container">
-                    <!-- Parameters will be inserted here -->
                 </div>
             </div>
         `;
@@ -1583,10 +1613,42 @@ function getStrategyLegs(strategy) {
         'Short Strangle': [
             {name: 'Short Put', type: 'P', position: 'short'},
             {name: 'Short Call', type: 'C', position: 'short'}
+        ],
+        'Calendar Call Spread': [
+            {name: 'Short Call (Near)', type: 'C', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Call (Far)', type: 'C', position: 'long', dte_label: 'Far-Term DTE'}
+        ],
+        'Calendar Put Spread': [
+            {name: 'Short Put (Near)', type: 'P', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Put (Far)', type: 'P', position: 'long', dte_label: 'Far-Term DTE'}
+        ],
+        'Diagonal Call Spread': [
+            {name: 'Short Call (Near)', type: 'C', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Call (Far)', type: 'C', position: 'long', dte_label: 'Far-Term DTE'}
+        ],
+        'Diagonal Put Spread': [
+            {name: 'Short Put (Near)', type: 'P', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Put (Far)', type: 'P', position: 'long', dte_label: 'Far-Term DTE'}
+        ],
+        'Double Calendar': [
+            {name: 'Short Put (Near)', type: 'P', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Put (Far)', type: 'P', position: 'long', dte_label: 'Far-Term DTE'},
+            {name: 'Short Call (Near)', type: 'C', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Call (Far)', type: 'C', position: 'long', dte_label: 'Far-Term DTE'}
+        ],
+        'Double Diagonal': [
+            {name: 'Short Put (Near)', type: 'P', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Put (Far)', type: 'P', position: 'long', dte_label: 'Far-Term DTE'},
+            {name: 'Short Call (Near)', type: 'C', position: 'short', dte_label: 'Near-Term DTE'},
+            {name: 'Long Call (Far)', type: 'C', position: 'long', dte_label: 'Far-Term DTE'}
         ]
     };
     
     return legMaps[strategy] || [];
+}
+
+function isCalendarDiagonalStrategy(strategy) {
+    return ['Calendar Call Spread', 'Calendar Put Spread', 'Diagonal Call Spread', 'Diagonal Put Spread', 'Double Calendar', 'Double Diagonal'].includes(strategy);
 }
 
 function topologicalSortLegs(legs) {
@@ -1933,7 +1995,14 @@ function validateStrikeConfiguration(strategy, legs) {
             }
             
             return {valid: true};
-        }
+        },
+        
+        'Calendar Call Spread': () => { return {valid: true}; },
+        'Calendar Put Spread': () => { return {valid: true}; },
+        'Diagonal Call Spread': () => { return {valid: true}; },
+        'Diagonal Put Spread': () => { return {valid: true}; },
+        'Double Calendar': () => { return {valid: true}; },
+        'Double Diagonal': () => { return {valid: true}; }
     };
     
     // Run validation if rule exists
@@ -1977,7 +2046,8 @@ function buildOptConfigSummaryHtml(config) {
                 else if (leg.config_type === 'dollar_underlying') paramStr = `${p.direction || ''} $${p.amount || 0}`;
                 else if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') paramStr = `From ${p.reference_leg || 'Leg'}: ${p.pct || p.amount || 0}${leg.config_type === 'pct_leg' ? '%' : '$'}`;
             }
-            return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}</div>`;
+            const dteStr = leg.dte !== undefined ? ` (DTE: ${leg.dte})` : '';
+            return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}${dteStr}</div>`;
         }).join('');
     }
 
@@ -2064,7 +2134,7 @@ function buildOptConfigSummaryHtml(config) {
         </div>
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-chess" style="margin-right:6px;"></i>Strategy</div>
-            <div style="${valueStyle}">${config.strategy} &nbsp;|&nbsp; DTE: ${config.dte} &nbsp;|&nbsp; Entry: ${config.entry_time}${config.entry_time_max ? ' - ' + config.entry_time_max : ''}</div>
+            <div style="${valueStyle}">${config.strategy} &nbsp;|&nbsp; ${config.legs && config.legs.some(l => l.dte !== undefined) ? 'Per-leg DTE' : 'DTE: ' + config.dte} &nbsp;|&nbsp; Entry: ${config.entry_time}${config.entry_time_max ? ' - ' + config.entry_time_max : ''}</div>
         </div>
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-layer-group" style="margin-right:6px;"></i>Legs</div>
@@ -2078,6 +2148,10 @@ function buildOptConfigSummaryHtml(config) {
             <div style="${labelStyle}"><i class="fas fa-door-open" style="margin-right:6px;"></i>Exit Conditions</div>
             <div style="${valueStyle}">${exitCondHtml}</div>
         </div>
+        ${config.iv_entry_condition ? `<div style="${sectionStyle}">
+            <div style="${labelStyle}"><i class="fas fa-chart-area" style="margin-right:6px;"></i>IV% Filter</div>
+            <div style="${valueStyle}">ATM IV ${config.iv_entry_condition.operator} ${config.iv_entry_condition.threshold}%</div>
+        </div>` : ''}
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-coins" style="margin-right:6px;"></i>Position Sizing</div>
             <div style="${valueStyle}">${config.allocation_value} ${allocLabel} &nbsp;|&nbsp; Capital: $${config.starting_capital?.toLocaleString() || '—'}</div>
@@ -2171,6 +2245,23 @@ function validateOptionsConfig(config) {
                 const refIdx = parseInt(leg.params.reference);
                 if (refIdx === leg.original_index) {
                     errors.push(`${leg.name}: Cannot reference itself as the reference leg`);
+                }
+            }
+            if (leg.dte !== undefined && (isNaN(leg.dte) || leg.dte < 0)) {
+                errors.push(`${leg.name}: DTE must be 0 or greater`);
+            }
+        }
+        
+        if (isCalendarDiagonalStrategy(config.strategy)) {
+            const shortLegs = config.legs.filter(l => l.position === 'short');
+            const longLegs = config.legs.filter(l => l.position === 'long');
+            for (const shortLeg of shortLegs) {
+                for (const longLeg of longLegs) {
+                    if (shortLeg.dte !== undefined && longLeg.dte !== undefined) {
+                        if (shortLeg.dte >= longLeg.dte) {
+                            errors.push(`Near-term DTE (${shortLeg.dte}) must be less than far-term DTE (${longLeg.dte}) for ${config.strategy}`);
+                        }
+                    }
                 }
             }
         }
@@ -2444,14 +2535,21 @@ function collectFormData() {
             }
         }
         
-        legs.push({
+        const legData = {
             name: legDefinitions[i].name,
             type: legDefinitions[i].type,
             position: legDefinitions[i].position,
             config_type: method,
             params: params,
-            original_index: i  // Track original position
-        });
+            original_index: i
+        };
+        
+        const legDteInput = document.querySelector(`.leg-dte-input[data-leg-index="${i}"]`);
+        if (legDteInput) {
+            legData.dte = parseInt(legDteInput.value);
+        }
+        
+        legs.push(legData);
     }
     
     // CRITICAL: Sort legs by dependencies
@@ -2519,6 +2617,15 @@ function collectFormData() {
     const entryTimeMax = document.getElementById('entryTimeMax')?.value;
     if (entryTimeMax) {
         config.entry_time_max = entryTimeMax;
+    }
+    
+    // Collect IV% entry condition
+    const ivCondEnabled = document.getElementById('ivConditionEnabled')?.checked;
+    if (ivCondEnabled) {
+        config.iv_entry_condition = {
+            operator: document.getElementById('ivConditionOperator')?.value || '>',
+            threshold: parseFloat(document.getElementById('ivConditionThreshold')?.value || '0')
+        };
     }
     
     // Collect entry conditions based on type

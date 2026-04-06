@@ -97,6 +97,9 @@ def load_config_from_json(json_path):
     elif options_exit_type == 'custom':
         config['exit_price_conditions'] = web_config.get('exit_price_conditions', [])
     
+    if 'iv_entry_condition' in web_config and web_config['iv_entry_condition']:
+        config['iv_entry_condition'] = web_config['iv_entry_condition']
+    
     return config
 
 def main():

@@ -2322,6 +2322,100 @@ def calculate_strike_simple(underlying_price: float, leg_config: Dict,
     # Round using new intelligent rounding with fallback
     return round_strike_with_direction(target_strike, increment, direction, strike_fallback)
 
+def check_iv_entry_condition(client: RESTClient, config: Dict, underlying_price: float,
+                             trade_date: datetime, exp_date: datetime, iv_cond: Dict) -> Tuple[bool, str]:
+    """
+    Check if ATM implied volatility meets the entry condition.
+    Fetches ATM option chain and calculates IV from the nearest ATM strike.
+    
+    Returns: (condition_met, reason_string)
+    """
+    try:
+        operator = iv_cond.get('operator', '>')
+        threshold = float(iv_cond.get('threshold', 0))
+        
+        symbol = config['symbol']
+        option_prefix = "SPX" if symbol == "SPX" else symbol
+        
+        exp_str = exp_date.strftime("%Y-%m-%d")
+        
+        atm_strike = round(underlying_price)
+        increment = 5 if symbol in ['SPX', 'NDX', 'RUT'] else 1
+        atm_strike = round(underlying_price / increment) * increment
+        
+        for opt_type in ['C', 'P']:
+            try:
+                ticker = f"O:{option_prefix}{exp_date.strftime('%y%m%d')}{opt_type}{int(atm_strike * 1000):08d}"
+                
+                aggs = list(client.get_aggs(
+                    ticker,
+                    1, "minute",
+                    trade_date.strftime("%Y-%m-%d"),
+                    trade_date.strftime("%Y-%m-%d"),
+                    limit=50000
+                ))
+                
+                if not aggs:
+                    continue
+                
+                # Use entry_time from config to find bar closest to intended entry
+                entry_time_str = config.get('entry_time', '10:00')
+                eastern = pytz.timezone('US/Eastern')
+                entry_dt = eastern.localize(datetime.strptime(f"{trade_date.strftime('%Y-%m-%d')} {entry_time_str}", "%Y-%m-%d %H:%M"))
+                entry_ts = int(entry_dt.timestamp() * 1000)
+                
+                # Find bar closest to entry time
+                best_agg = None
+                best_diff = float('inf')
+                for agg_item in aggs:
+                    diff = abs(agg_item.timestamp - entry_ts)
+                    if diff < best_diff:
+                        best_diff = diff
+                        best_agg = agg_item
+                
+                if best_agg is None:
+                    continue
+                
+                option_price = best_agg.close
+                if option_price <= 0:
+                    continue
+                
+                T = max((exp_date - trade_date).days / 365.25, 1/365.25)
+                r = config.get('risk_free_rate', 0.045)
+                q = config.get('dividend_yield', 0.013)
+                
+                calc = GreeksCalculator(
+                    S=underlying_price,
+                    K=atm_strike,
+                    T=T,
+                    r=r,
+                    q=q,
+                    option_type='call' if opt_type == 'C' else 'put'
+                )
+                
+                iv = calc.calculate_implied_volatility(option_price)
+                
+                if iv is not None and iv > 0:
+                    iv_pct = iv * 100
+                    
+                    if operator == '>' and iv_pct > threshold:
+                        return True, f"ATM IV {iv_pct:.1f}% > {threshold}%"
+                    elif operator == '>=' and iv_pct >= threshold:
+                        return True, f"ATM IV {iv_pct:.1f}% >= {threshold}%"
+                    elif operator == '<' and iv_pct < threshold:
+                        return True, f"ATM IV {iv_pct:.1f}% < {threshold}%"
+                    elif operator == '<=' and iv_pct <= threshold:
+                        return True, f"ATM IV {iv_pct:.1f}% <= {threshold}%"
+                    else:
+                        return False, f"ATM IV {iv_pct:.1f}% does not meet condition {operator} {threshold}%"
+            except Exception as e:
+                continue
+        
+        return False, "Could not calculate ATM IV (no valid option data)"
+    except Exception as e:
+        print(f"  IV condition check error: {e}")
+        return False, f"IV check error: {str(e)}"
+
 def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_price: float,
                                  trade_date: datetime, exp_date: datetime) -> Tuple[bool, List[Dict], List[str]]:
     """
@@ -2468,9 +2562,12 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             leg_name = leg_config.get('name', f"Leg {i+1}")
             print(f"    {leg_name}: Delta-based selection (target Δ={target_delta})")
             
+            # Use per-leg exp_date if available (calendar/diagonal strategies)
+            leg_exp_date = leg_config.get('_exp_date', exp_date)
+            
             # Initialize Delta selector
             selector = DeltaStrikeSelector(
-                client, config['symbol'], exp_date,
+                client, config['symbol'], leg_exp_date,
                 leg_config['type'], r, q
             )
             
@@ -2509,17 +2606,23 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     if delta_leg_data:
         time.sleep(0.5)  # 500ms delay before OHLCV fetch
     
-    # STEP 2: Format ALL option symbols
+    # STEP 2: Format ALL option symbols (using per-leg exp_date when available)
     option_symbols = []
+    leg_exp_dates = []
     for i, leg_config in enumerate(config['legs']):
         strike = calculated_strikes[i]
+        leg_exp = leg_config.get('_exp_date', exp_date)
+        leg_exp_dates.append(leg_exp)
         symbol = format_option_symbol(
             config['symbol'], 
-            exp_date, 
+            leg_exp, 
             strike, 
             leg_config['type']
         )
         option_symbols.append(symbol)
+    
+    # For monitoring range, use the farthest expiration
+    max_exp_date = max(leg_exp_dates) if leg_exp_dates else exp_date
     
     # STEP 3: Fetch OHLCV for ALL contracts simultaneously (PRIMARY - FAST!)
     print(f"  Fetching OHLCV for {len(option_symbols)} contracts simultaneously...")
@@ -2527,6 +2630,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     missing_indices = []
     
     for i, symbol in enumerate(option_symbols):
+        leg_exp = leg_exp_dates[i] if i < len(leg_exp_dates) else exp_date
         try:
             aggs = []
             for a in client.list_aggs(
@@ -2534,7 +2638,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
                 1,
                 "minute",
                 trade_date.strftime("%Y-%m-%d"),
-                exp_date.strftime("%Y-%m-%d"),
+                leg_exp.strftime("%Y-%m-%d"),
                 adjusted="true",
                 sort="asc",
                 limit=50000
@@ -2592,11 +2696,12 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
         leg_config = config['legs'][idx]
         target_strike = calculated_strikes[idx]
         
-        # Get available strikes from chain
+        # Get available strikes from chain (use per-leg exp_date if available)
+        leg_exp = leg_config.get('_exp_date', exp_date)
         available_strikes = get_available_strikes(
             client, 
             config['symbol'], 
-            exp_date, 
+            leg_exp, 
             leg_config['type']
         )
         
@@ -2612,8 +2717,9 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             print(f"  → Adjusted {leg_config['name']}: {target_strike} → {best_strike}")
         
         # Format adjusted symbol
+        leg_exp = leg_config.get('_exp_date', exp_date)
         adjusted_symbol = format_option_symbol(
-            config['symbol'], exp_date, best_strike, leg_config['type']
+            config['symbol'], leg_exp, best_strike, leg_config['type']
         )
         adjusted_symbols[idx] = adjusted_symbol
         
@@ -2625,7 +2731,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
                 1,
                 "minute",
                 trade_date.strftime("%Y-%m-%d"),
-                exp_date.strftime("%Y-%m-%d"),
+                leg_exp.strftime("%Y-%m-%d"),
                 adjusted="true",
                 sort="asc",
                 limit=50000
@@ -3051,14 +3157,33 @@ def run_backtest(config: Dict, client: RESTClient):
     trading_days = get_trading_days(config['start_date'], config['end_date'])
     print(f"\nTrading days: {len(trading_days)}")
     
+    # Check if any legs have per-leg DTE (calendar/diagonal strategies)
+    has_per_leg_dte = any(leg.get('dte') is not None for leg in config.get('legs', []))
+    
     # Calculate expirations
     exp_map = {}
+    per_leg_exp_map = {}
     latest_exp = None
-    for td in trading_days:
-        exp = find_expiration_date(td, config['dte'])
-        exp_map[td.strftime("%Y-%m-%d")] = exp
-        if latest_exp is None or exp > latest_exp:
-            latest_exp = exp
+    
+    if has_per_leg_dte:
+        print(f"\n  Per-leg DTE mode (calendar/diagonal strategy)")
+        for td in trading_days:
+            td_str = td.strftime("%Y-%m-%d")
+            leg_exps = []
+            for leg in config['legs']:
+                leg_dte = leg.get('dte', config['dte'])
+                leg_exp = find_expiration_date(td, leg_dte)
+                leg_exps.append(leg_exp)
+                if latest_exp is None or leg_exp > latest_exp:
+                    latest_exp = leg_exp
+            per_leg_exp_map[td_str] = leg_exps
+            exp_map[td_str] = min(leg_exps)
+    else:
+        for td in trading_days:
+            exp = find_expiration_date(td, config['dte'])
+            exp_map[td.strftime("%Y-%m-%d")] = exp
+            if latest_exp is None or exp > latest_exp:
+                latest_exp = exp
     
     # Handle case when no trading days in range
     if not trading_days or latest_exp is None:
@@ -3259,6 +3384,28 @@ def run_backtest(config: Dict, client: RESTClient):
             entry_time = entry_bar['time']
             entry_timestamp = entry_bar['timestamp']
             exp_date = exp_map[date_str]
+            
+            # IV% entry condition check
+            iv_cond = config.get('iv_entry_condition')
+            if iv_cond:
+                iv_ok, iv_reason = check_iv_entry_condition(
+                    client, config, underlying_price, trade_date, exp_date, iv_cond
+                )
+                if not iv_ok:
+                    print(f"  IV condition not met: {iv_reason}")
+                    day_entry['events'].append({'type': 'iv_skip', 'reason': iv_reason})
+                    decision_log.append(day_entry)
+                    continue
+                else:
+                    print(f"  IV condition met: {iv_reason}")
+                    day_entry['events'].append({'type': 'iv_met', 'reason': iv_reason})
+            
+            # Per-leg DTE: override exp_date per leg in config for fetch
+            if has_per_leg_dte and date_str in per_leg_exp_map:
+                leg_exp_dates = per_leg_exp_map[date_str]
+                for i, leg in enumerate(config['legs']):
+                    if i < len(leg_exp_dates):
+                        leg['_exp_date'] = leg_exp_dates[i]
         
             # NEW OPTIMIZED APPROACH: Fetch all options data with 3-tier fallback
             success, fetched_legs, option_symbols = fetch_options_data_optimized(
@@ -3374,7 +3521,8 @@ def run_backtest(config: Dict, client: RESTClient):
         
             # For 0-DTE, use first timestamp (market closes soon)
             # For DTE > 0, use 2nd timestamp (ensures active trading)
-            if config['dte'] == 0:
+            effective_dte = min((leg.get('dte', config['dte']) for leg in config['legs']), default=config['dte']) if has_per_leg_dte else config['dte']
+            if effective_dte == 0:
                 entry_timestamp = valid_timestamps[0]
             else:
                 if len(valid_timestamps) < 2:
@@ -3403,14 +3551,16 @@ def run_backtest(config: Dict, client: RESTClient):
                 # Calculate Greeks at entry
                 try:
                     # Calculate time to expiration in years
+                    # Use per-leg exp_date for calendar/diagonal strategies
+                    leg_specific_exp = config['legs'][i].get('_exp_date', exp_date) if i < len(config['legs']) else exp_date
                     eastern = pytz.timezone('US/Eastern')
                     entry_dt = datetime.fromtimestamp(entry_timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
                     # Expiration is at 4:00 PM ET - handle both date and datetime objects
-                    if isinstance(exp_date, datetime):
-                        exp_date_dt = exp_date.replace(hour=16, minute=0, second=0, microsecond=0)
+                    if isinstance(leg_specific_exp, datetime):
+                        exp_date_dt = leg_specific_exp.replace(hour=16, minute=0, second=0, microsecond=0)
                     else:
                         # exp_date is a date object, convert to datetime
-                        exp_date_dt = datetime.combine(exp_date, datetime.min.time()).replace(hour=16, minute=0, second=0)
+                        exp_date_dt = datetime.combine(leg_specific_exp, datetime.min.time()).replace(hour=16, minute=0, second=0)
                     # Localize if not already timezone aware
                     if exp_date_dt.tzinfo is None:
                         exp_dt = eastern.localize(exp_date_dt)
@@ -3511,8 +3661,17 @@ def run_backtest(config: Dict, client: RESTClient):
                 decision_log.append(day_entry)
                 continue
         
+            # For calendar/diagonal strategies, determine monitoring exp dates
+            if has_per_leg_dte and date_str in per_leg_exp_map:
+                near_exp = min(per_leg_exp_map[date_str])
+                far_exp = max(per_leg_exp_map[date_str])
+            else:
+                near_exp = exp_date
+                far_exp = exp_date
+            
             # Check PDT - Set flag for 0-DTE + avoid_pdt mode
-            pdt_0dte_mode = config['avoid_pdt'] and config['dte'] == 0
+            min_dte_val = min((leg.get('dte', config['dte']) for leg in config['legs']), default=config['dte'])
+            pdt_0dte_mode = config['avoid_pdt'] and min_dte_val == 0
         
             if pdt_0dte_mode:
                 print(f"  ✓ 0-DTE with PDT avoidance: Exit at EXPIRATION only (TP/SL disabled)")
@@ -3537,7 +3696,9 @@ def run_backtest(config: Dict, client: RESTClient):
             })
         
             # Monitor position using DETECTION bars
-            trading_range = get_business_days_between(trade_date, exp_date)
+            # For calendar/diagonal: monitor until near-term leg expires
+            monitoring_exp = near_exp if has_per_leg_dte else exp_date
+            trading_range = get_business_days_between(trade_date, monitoring_exp)
         
             exit_hit = False
             exit_reason = ""
@@ -3688,7 +3849,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 final_premium = exit_premium
                 final_leg_prices = exit_leg_prices
             else:
-                # Held to expiration - calculate intrinsic value
+                # Held to expiration - calculate values
                 exit_reason = "EXPIRATION"
                 exit_time = "16:00"
                 exit_timestamp = 0
@@ -3696,13 +3857,13 @@ def run_backtest(config: Dict, client: RESTClient):
                 # Get underlying price at expiration using day bar (official close)
                 underlying_sym = f"I:{config['symbol']}" if config['symbol'] == "SPX" else config['symbol']
                 expiration_underlying_price = get_underlying_close_at_expiration(
-                    client, underlying_sym, exp_date
+                    client, underlying_sym, monitoring_exp
                 )
             
                 if expiration_underlying_price is None:
                     # Fallback: try last available detection bar
-                    exp_date_str = exp_date.strftime("%Y-%m-%d")
-                    exp_underlying_bars = underlying_bars_detection.get(exp_date_str, [])
+                    mon_exp_str = monitoring_exp.strftime("%Y-%m-%d")
+                    exp_underlying_bars = underlying_bars_detection.get(mon_exp_str, [])
                 
                     if exp_underlying_bars:
                         last_bar = max(exp_underlying_bars, key=lambda x: x['time'])
@@ -3716,15 +3877,50 @@ def run_backtest(config: Dict, client: RESTClient):
                 # Set exit underlying price to expiration price
                 exit_underlying_price = expiration_underlying_price
             
-                # Calculate expiration values using ONLY intrinsic values
-                final_premium, final_leg_prices = calculate_expiration_values(
-                    legs_info, expiration_underlying_price
-                )
+                if has_per_leg_dte and date_str in per_leg_exp_map:
+                    # Calendar/diagonal: mark-to-market for far legs, intrinsic for expired near legs
+                    final_leg_prices = []
+                    leg_exp_list = per_leg_exp_map[date_str]
+                    for i, leg in enumerate(legs_info):
+                        leg_specific_exp = leg_exp_list[i] if i < len(leg_exp_list) else monitoring_exp
+                        if leg_specific_exp <= monitoring_exp:
+                            # Near-term leg: expired, use intrinsic value
+                            if leg['type'] == 'C':
+                                intrinsic = max(0, expiration_underlying_price - leg['strike'])
+                            else:
+                                intrinsic = max(0, leg['strike'] - expiration_underlying_price)
+                            final_leg_prices.append(intrinsic)
+                        else:
+                            # Far-term leg: still has time value, use last market price
+                            mon_exp_str = monitoring_exp.strftime("%Y-%m-%d")
+                            leg_bars = option_cache_1min.get(leg['symbol'], {}).get(mon_exp_str, [])
+                            if leg_bars:
+                                last_bar = max(leg_bars, key=lambda x: x['time'])
+                                mtm_price = last_bar.get('vw', last_bar['close'])
+                                final_leg_prices.append(mtm_price)
+                                print(f"    {leg['name']} (far leg): mark-to-market = {mtm_price:.4f}")
+                            else:
+                                # Fallback to intrinsic if no market data
+                                if leg['type'] == 'C':
+                                    intrinsic = max(0, expiration_underlying_price - leg['strike'])
+                                else:
+                                    intrinsic = max(0, leg['strike'] - expiration_underlying_price)
+                                final_leg_prices.append(intrinsic)
+                                print(f"    {leg['name']} (far leg): no market data, using intrinsic = {intrinsic:.4f}")
+                    
+                    final_premium = sum(final_leg_prices[i] if legs_info[i]['position'] == 'short' else -final_leg_prices[i]
+                                       for i in range(len(legs_info)))
+                    final_premium = -final_premium
+                else:
+                    # Standard strategies: use intrinsic values
+                    final_premium, final_leg_prices = calculate_expiration_values(
+                        legs_info, expiration_underlying_price
+                    )
             
-                # Log intrinsic values for each leg
+                # Log values for each leg
                 print(f"  Expiration: Underlying = {expiration_underlying_price:.2f}, Net Premium = {final_premium:.4f}")
                 for i, leg in enumerate(legs_info):
-                    print(f"    {leg['name']} @ {leg['strike']}: Intrinsic = {final_leg_prices[i]:.4f}")
+                    print(f"    {leg['name']} @ {leg['strike']}: Value = {final_leg_prices[i]:.4f}")
         
             pnl = (net_credit - final_premium) * num_contracts * 100
             capital += pnl
@@ -3744,7 +3940,10 @@ def run_backtest(config: Dict, client: RESTClient):
                 day_entry['status'] = 'EXIT'
         
             # Calculate DTE (Days to Expiration at entry)
-            dte_days = config['dte']
+            if has_per_leg_dte:
+                dte_days = min((leg.get('dte', config['dte']) for leg in config['legs']), default=config['dte'])
+            else:
+                dte_days = config['dte']
         
             # Calculate DIT (Days in Trade with 1 decimal precision)
             # Use US/Eastern timezone for all datetime calculations
