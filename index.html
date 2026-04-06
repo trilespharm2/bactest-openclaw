@@ -2468,6 +2468,7 @@
                   <span>L <span id="simOHLC_L" style="color: #f23645;">-</span></span>
                   <span>C <span id="simOHLC_C" style="color: #191919;">-</span></span>
                   <span>Vol <span id="simOHLC_V" style="color: #6a6d78;">-</span></span>
+                  <span style="margin-left: 4px; border-left: 1px solid #e0e3eb; padding-left: 8px;">IV <span id="simOHLC_IV" style="color: #7c3aed; font-weight: 600;">-</span></span>
                 </div>
 
                 <div id="simChartContainer" style="position: relative; height: calc(100vh - 330px); min-height: 400px; background: #ffffff;">
@@ -2523,22 +2524,38 @@
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Strategy:</label>
                         <select class="sim-dark-select" id="simOptionStrategy" style="width: 155px;">
-                          <option value="Long Call">Long Call</option>
-                          <option value="Long Put">Long Put</option>
-                          <option value="Naked Short Call">Naked Short Call</option>
-                          <option value="Naked Short Put">Naked Short Put</option>
-                          <option value="Short Put Spread">Short Put Spread</option>
-                          <option value="Short Call Spread">Short Call Spread</option>
-                          <option value="Short Iron Condor">Short Iron Condor</option>
-                          <option value="Short Iron Butterfly">Short Iron Butterfly</option>
-                          <option value="Long Call Spread">Long Call Spread</option>
-                          <option value="Long Put Spread">Long Put Spread</option>
-                          <option value="Long Straddle">Long Straddle</option>
-                          <option value="Long Strangle">Long Strangle</option>
-                          <option value="Long Iron Butterfly">Long Iron Butterfly</option>
-                          <option value="Long Iron Condor">Long Iron Condor</option>
-                          <option value="Short Straddle">Short Straddle</option>
-                          <option value="Short Strangle">Short Strangle</option>
+                          <optgroup label="Single Leg">
+                            <option value="Long Call">Long Call</option>
+                            <option value="Long Put">Long Put</option>
+                            <option value="Naked Short Call">Naked Short Call</option>
+                            <option value="Naked Short Put">Naked Short Put</option>
+                          </optgroup>
+                          <optgroup label="Vertical Spreads">
+                            <option value="Short Put Spread">Short Put Spread</option>
+                            <option value="Short Call Spread">Short Call Spread</option>
+                            <option value="Long Call Spread">Long Call Spread</option>
+                            <option value="Long Put Spread">Long Put Spread</option>
+                          </optgroup>
+                          <optgroup label="Iron Strategies">
+                            <option value="Short Iron Condor">Short Iron Condor</option>
+                            <option value="Short Iron Butterfly">Short Iron Butterfly</option>
+                            <option value="Long Iron Butterfly">Long Iron Butterfly</option>
+                            <option value="Long Iron Condor">Long Iron Condor</option>
+                          </optgroup>
+                          <optgroup label="Straddles &amp; Strangles">
+                            <option value="Long Straddle">Long Straddle</option>
+                            <option value="Long Strangle">Long Strangle</option>
+                            <option value="Short Straddle">Short Straddle</option>
+                            <option value="Short Strangle">Short Strangle</option>
+                          </optgroup>
+                          <optgroup label="Calendar &amp; Diagonal">
+                            <option value="Calendar Call Spread">Calendar Call Spread</option>
+                            <option value="Calendar Put Spread">Calendar Put Spread</option>
+                            <option value="Diagonal Call Spread">Diagonal Call Spread</option>
+                            <option value="Diagonal Put Spread">Diagonal Put Spread</option>
+                            <option value="Double Calendar">Double Calendar</option>
+                            <option value="Double Diagonal">Double Diagonal</option>
+                          </optgroup>
                         </select>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">

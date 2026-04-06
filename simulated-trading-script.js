@@ -634,7 +634,22 @@ function setupTradingPageListeners() {
     document.getElementById('simEndSessionBtn')?.addEventListener('click', handleEndSession);
     document.getElementById('simCloseAllBtn')?.addEventListener('click', handleCloseAll);
     document.getElementById('simOptionTradeBtn')?.addEventListener('click', executeOptionTrade);
-    document.getElementById('simOptionStrategy')?.addEventListener('change', buildSimLegConfiguration);
+    document.getElementById('simOptionStrategy')?.addEventListener('change', function() {
+        buildSimLegConfiguration();
+        const strategy = this.value;
+        const dteInput = document.getElementById('simOptionDTE');
+        if (dteInput) {
+            if (isSimCalendarDiagonalStrategy(strategy)) {
+                dteInput.disabled = true;
+                dteInput.style.opacity = '0.5';
+                dteInput.title = 'DTE is configured per-leg for calendar/diagonal strategies';
+            } else {
+                dteInput.disabled = false;
+                dteInput.style.opacity = '1';
+                dteInput.title = '';
+            }
+        }
+    });
 
     document.getElementById('simAutoplaySpeed')?.addEventListener('change', () => {
         if (simIsPlaying) { stopAutoplay(); startAutoplay(); }
@@ -1613,6 +1628,7 @@ function showNextBar() {
         updatePositionLines();
         updatePnlShading();
         refreshPayoffModal();
+        updateSimIVDisplay();
         if (!simUserHasDragged) {
             lwChart?.timeScale().scrollToPosition(5, false);
         }
@@ -1633,6 +1649,7 @@ function showPreviousBar() {
         updatePositionLines();
         updatePnlShading();
         refreshPayoffModal();
+        updateSimIVDisplay();
     }
 }
 
@@ -1671,6 +1688,7 @@ function autoplayAdvance() {
     updatePositionLines();
     updatePnlShading();
     refreshPayoffModal();
+    updateSimIVDisplay();
     if (!simUserHasDragged) {
         lwChart?.timeScale().scrollToPosition(5, false);
     }
@@ -1809,6 +1827,63 @@ function updateOHLCDisplayForBar(bar) {
     if (lEl) lEl.textContent = bar.low.toFixed(2);
     if (cEl) cEl.textContent = bar.close.toFixed(2);
     if (vEl) vEl.textContent = bar.volume ? formatVolume(bar.volume) : '-';
+}
+
+function updateSimIVDisplay() {
+    const ivEl = document.getElementById('simOHLC_IV');
+    if (!ivEl) return;
+
+    if (simOpenOptionPositions.length === 0) {
+        ivEl.textContent = '-';
+        return;
+    }
+
+    const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+    if (!currentMinuteBar) { ivEl.textContent = '-'; return; }
+
+    const underlyingPrice = currentMinuteBar.close;
+    const currentTimestamp = currentMinuteBar.timestamp;
+    let bestIV = null;
+    let closestATMDist = Infinity;
+
+    for (const pos of simOpenOptionPositions) {
+        for (const leg of pos.legs) {
+            const strikeDist = Math.abs(leg.strike - underlyingPrice);
+            if (strikeDist < closestATMDist) {
+                const optBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
+                if (optBar && typeof BlackScholes !== 'undefined') {
+                    const optPrice = optBar.vwap || optBar.close;
+                    const legExp = leg.expiration || pos.expiration;
+                    const expParts = legExp.split('-');
+                    const expYear = parseInt(expParts[0]), expMonth = parseInt(expParts[1]), expDay = parseInt(expParts[2]);
+                    const entryMs = typeof currentTimestamp === 'number' ? currentTimestamp : new Date(currentTimestamp).getTime();
+                    const testDate = new Date(expYear, expMonth - 1, expDay);
+                    const marSecondSun = new Date(expYear, 2, 8 + (7 - new Date(expYear, 2, 8).getDay()) % 7);
+                    const novFirstSun = new Date(expYear, 10, 1 + (7 - new Date(expYear, 10, 1).getDay()) % 7);
+                    const isDST = testDate >= marSecondSun && testDate < novFirstSun;
+                    const etOffsetHours = isDST ? -4 : -5;
+                    const expMsCalc = Date.UTC(expYear, expMonth - 1, expDay, 16 - etOffsetHours, 0, 0);
+                    const diffMs = expMsCalc - entryMs;
+                    const T = Math.max(diffMs / (365.25 * 24 * 3600 * 1000), 1e-10);
+                    const r = 0.045, q = 0.013;
+                    const optType = leg.type === 'P' ? 'put' : 'call';
+                    const iv = BlackScholes.impliedVolatility(underlyingPrice, leg.strike, T, r, q, optPrice, optType);
+                    if (iv !== null && iv > 0 && iv < 5) {
+                        closestATMDist = strikeDist;
+                        bestIV = iv;
+                    }
+                }
+            }
+        }
+    }
+
+    if (bestIV !== null) {
+        const ivPct = (bestIV * 100).toFixed(1);
+        ivEl.textContent = ivPct + '%';
+        ivEl.style.color = bestIV > 0.3 ? '#f23645' : bestIV > 0.2 ? '#e67e22' : '#089981';
+    } else {
+        ivEl.textContent = '-';
+    }
 }
 
 function formatVolume(vol) {
@@ -1991,7 +2066,13 @@ const SIM_STRATEGY_LEGS = {
     'Long Iron Butterfly': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
     'Long Iron Condor': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
     'Short Straddle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}],
-    'Short Strangle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}]
+    'Short Strangle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}],
+    'Calendar Call Spread': [{name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}],
+    'Calendar Put Spread': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}],
+    'Diagonal Call Spread': [{name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}],
+    'Diagonal Put Spread': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}],
+    'Double Calendar': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}, {name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}],
+    'Double Diagonal': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}, {name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}]
 };
 
 const SIM_LEG_DIRECTION_RULES = {
@@ -2004,6 +2085,10 @@ const SIM_LEG_DIRECTION_RULES = {
     'Long Iron Condor': { 0: 'below', 3: 'above' },
     'Long Iron Butterfly': { 0: 'below', 3: 'above' }
 };
+
+function isSimCalendarDiagonalStrategy(strategy) {
+    return ['Calendar Call Spread', 'Calendar Put Spread', 'Diagonal Call Spread', 'Diagonal Put Spread', 'Double Calendar', 'Double Diagonal'].includes(strategy);
+}
 
 function getLegDirectionRequirement(strategy, legIndex) {
     const rules = SIM_LEG_DIRECTION_RULES[strategy];
@@ -2029,11 +2114,14 @@ function buildSimLegConfiguration() {
     const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
 
+    const isCalDiag = isSimCalendarDiagonalStrategy(strategy);
+
     legs.forEach((leg, index) => {
         const badgeColor = leg.type === 'C' ? '#3b7cff' : '#f4a261';
         const positionBadge = leg.position === 'long' ? '#089981' : '#f23645';
         const legDirection = getLegDirectionRequirement(strategy, index);
         const dirLabel = legDirection ? legDirection : 'from';
+        const defaultDte = isCalDiag ? (leg.position === 'short' ? 7 : 30) : null;
 
         html += `
             <div style="background: #f8f9fd; border: 1px solid #e0e3eb; border-radius: 6px; padding: 8px; min-width: 190px;">
@@ -2042,6 +2130,10 @@ function buildSimLegConfiguration() {
                     <span style="background: ${badgeColor}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.type === 'C' ? 'Call' : 'Put'}</span>
                     <span style="background: ${positionBadge}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.position}</span>
                 </div>
+                ${isCalDiag ? `<div style="margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                    <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">DTE:</label>
+                    <input type="number" class="sim-leg-dte" data-leg-index="${index}" value="${defaultDte}" min="0" max="365" style="${inputStyle} width: 50px;">
+                </div>` : ''}
                 <div style="margin-bottom: 4px;">
                     <select class="sim-leg-method" data-leg-index="${index}" style="${inputStyle} width: 100%;">
                         <option value="pct_underlying" selected>% from Underlying</option>
@@ -2174,6 +2266,11 @@ function collectSimLegConfigurations() {
         const legInfo = strategyLegs[index];
         const leg = { method, name: legInfo.name, type: legInfo.type, position: legInfo.position };
 
+        const legDteInput = card.querySelector('.sim-leg-dte');
+        if (legDteInput) {
+            leg.dte = parseInt(legDteInput.value) || 0;
+        }
+
         const directionSelect = card.querySelector('.sim-leg-direction');
         const direction = directionSelect ? directionSelect.value : 'below';
 
@@ -2230,7 +2327,8 @@ function fetchServerGreeks(position) {
     const legs = position.legs.map(leg => ({
         strike: leg.strike,
         entryPrice: leg.entryPrice,
-        type: leg.type
+        type: leg.type,
+        expiration_date: leg.expiration || position.expiration
     }));
     fetch('/api/simulated-trading/compute-greeks', {
         method: 'POST',
@@ -2277,7 +2375,7 @@ async function executeOptionTrade() {
         }
     }
 
-    const dte = parseInt(document.getElementById('simOptionDTE')?.value) || 0;
+    const globalDte = parseInt(document.getElementById('simOptionDTE')?.value) || 0;
     const strategy = document.getElementById('simOptionStrategy')?.value;
     const tpRaw = document.getElementById('simOptionTP')?.value;
     const slRaw = document.getElementById('simOptionSL')?.value;
@@ -2303,14 +2401,12 @@ async function executeOptionTrade() {
 
     const etTimeStr = entryDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
     const [etHour, etMinute] = etTimeStr.split(':').map(Number);
-    if (dte === 0 && (etHour * 60 + etMinute) >= 960) {
+    const isCalDiag = isSimCalendarDiagonalStrategy(strategy);
+    if (!isCalDiag && globalDte === 0 && (etHour * 60 + etMinute) >= 960) {
         appAlert('Cannot open 0DTE trades after 4:00 PM ET.');
         return;
     }
 
-    const expirationDate = new Date(entryDate);
-    expirationDate.setDate(expirationDate.getDate() + dte);
-    const expDateStr = expirationDate.toISOString().split('T')[0];
     const startDateStr = entryDate.toISOString().split('T')[0];
 
     const tradeBtn = document.getElementById('simOptionTradeBtn');
@@ -2320,8 +2416,15 @@ async function executeOptionTrade() {
         const resolvedStrikes = [];
         const positionLegs = [];
 
+        const legExpirations = [];
         for (let i = 0; i < legConfigs.length; i++) {
             const legConfig = legConfigs[i];
+            const legDte = (legConfig.dte !== undefined) ? legConfig.dte : globalDte;
+            const legExpDate = new Date(entryDate);
+            legExpDate.setDate(legExpDate.getDate() + legDte);
+            const legExpDateStr = legExpDate.toISOString().split('T')[0];
+            legExpirations.push(legExpDateStr);
+
             if (legConfig.method === 'dollar_leg' || legConfig.method === 'pct_leg') {
                 const refStrike = resolvedStrikes[legConfig.refLeg !== undefined ? legConfig.refLeg : 0];
                 if (refStrike !== undefined) {
@@ -2335,7 +2438,7 @@ async function executeOptionTrade() {
                 }
             }
 
-            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, expDateStr, startDateStr, simChartDates.end, detectionBar, legConfig, underlyingPrice);
+            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, legExpDateStr, startDateStr, simChartDates.end, detectionBar, legConfig, underlyingPrice);
             if (!optionData.bars || optionData.bars.length === 0) {
                 appAlert('No option data found for leg ' + (i + 1) + ': ' + legConfig.name);
                 return;
@@ -2349,7 +2452,8 @@ async function executeOptionTrade() {
             positionLegs.push({
                 legIndex: i, name: legConfig.name, type: legConfig.type, position: legConfig.position,
                 strike: optionData.actualStrike, entryPrice: entryBar.vwap || entryBar.close,
-                entryBarTimestamp: entryBar.timestamp, optionBars: optionData.bars, optionSymbol: optionData.optionSymbol
+                entryBarTimestamp: entryBar.timestamp, optionBars: optionData.bars, optionSymbol: optionData.optionSymbol,
+                expiration: legExpDateStr
             });
         }
 
@@ -2362,8 +2466,9 @@ async function executeOptionTrade() {
             totalEntryPremium += leg.position === 'long' ? -premium : premium;
         });
 
+        const nearExpStr = isCalDiag ? legExpirations.reduce((a, b) => a < b ? a : b) : legExpirations[0];
         const position = {
-            id: Date.now(), strategy, legs: positionLegs, expiration: expDateStr,
+            id: Date.now(), strategy, legs: positionLegs, expiration: nearExpStr,
             quantity, remainingQuantity: quantity, totalEntryPremium,
             entryTimestamp, entryMinuteIndex: simCurrentMinuteIndex,
             underlyingAtEntry: underlyingPrice, tp, sl, tpType, slType, detectionBar,
@@ -2376,6 +2481,7 @@ async function executeOptionTrade() {
         updatePositionLines();
 
         fetchServerGreeks(position);
+        updateSimIVDisplay();
     } catch (error) {
         console.error('Error opening option position:', error);
         appAlert('Error opening option position: ' + error.message);
@@ -2537,6 +2643,7 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
     updateOptionsPnlDisplay();
     updateOptionsPositionsCard();
     updatePositionLines();
+    updateSimIVDisplay();
 }
 
 function showTradeToast(strategy, reason, pnl, quantity) {

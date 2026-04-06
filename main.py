@@ -6607,8 +6607,19 @@ def compute_option_greeks():
                 results.append({'iv': None, 'delta': None, 'gamma': None, 'theta': None, 'vega': None})
                 continue
 
+            leg_exp = leg.get('expiration_date', expiration_date)
+            if leg_exp and leg_exp != expiration_date:
+                try:
+                    lep = str(leg_exp).split('-')
+                    leg_exp_dt = eastern.localize(_dt(int(lep[0]), int(lep[1]), int(lep[2]), 16, 0, 0))
+                    leg_T = max((leg_exp_dt - entry_dt).total_seconds() / (365.25 * 24 * 3600), 1 / (365.25 * 24 * 60))
+                except (ValueError, IndexError):
+                    leg_T = T
+            else:
+                leg_T = T
+
             try:
-                calc = GreeksCalculator(S=underlying_price, K=strike, T=T, r=r, q=q, option_type=option_type)
+                calc = GreeksCalculator(S=underlying_price, K=strike, T=leg_T, r=r, q=q, option_type=option_type)
                 iv = calc.calculate_implied_volatility(entry_price)
                 if iv is not None and iv > 0:
                     greeks = calc.calculate_greeks(iv)
