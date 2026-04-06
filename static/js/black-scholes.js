@@ -30,21 +30,39 @@
 
     function impliedVolatility(S, K, T, r, q, marketPrice, optType) {
         if (T <= 1e-10 || marketPrice <= 0) return null;
-        var sigma = 0.3;
-        for (var i = 0; i < 100; i++) {
-            var price = bsPrice(S, K, T, r, q, sigma, optType);
-            var sqrtT = Math.sqrt(T);
-            var d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
-            var vega = S * Math.exp(-q * T) * normPDF(d1) * sqrtT;
-            if (Math.abs(vega) < 1e-10) break;
-            var diff = marketPrice - price;
-            if (Math.abs(diff) < 1e-6) return sigma;
-            sigma = sigma + diff / vega;
-            sigma = Math.max(0.001, Math.min(sigma, 5.0));
+        var intrinsic = optType === 'call' ? Math.max(0, S * Math.exp(-q * T) - K * Math.exp(-r * T)) : Math.max(0, K * Math.exp(-r * T) - S * Math.exp(-q * T));
+        if (marketPrice < intrinsic * 0.5) return null;
+        var bestSigma = null, bestErr = Infinity;
+        var seeds = [0.3, 0.5, 0.15, 0.8, 1.2, 0.05, 2.0];
+        for (var s = 0; s < seeds.length; s++) {
+            var sigma = seeds[s];
+            for (var i = 0; i < 100; i++) {
+                var price = bsPrice(S, K, T, r, q, sigma, optType);
+                var sqrtT = Math.sqrt(T);
+                var d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+                var vega = S * Math.exp(-q * T) * normPDF(d1) * sqrtT;
+                if (Math.abs(vega) < 1e-10) break;
+                var diff = marketPrice - price;
+                if (Math.abs(diff) < 1e-6) return sigma;
+                sigma = sigma + diff / vega;
+                sigma = Math.max(0.001, Math.min(sigma, 5.0));
+            }
+            var finalPrice = bsPrice(S, K, T, r, q, sigma, optType);
+            var err = Math.abs(finalPrice - marketPrice);
+            if (err < bestErr) { bestErr = err; bestSigma = sigma; }
+            if (err < 0.01) return sigma;
         }
-        var finalPrice = bsPrice(S, K, T, r, q, sigma, optType);
-        if (Math.abs(finalPrice - marketPrice) < 0.01) return sigma;
-        return null;
+        if (bestSigma != null && bestErr < marketPrice * 0.1) return bestSigma;
+        var lo = 0.001, hi = 5.0;
+        for (var j = 0; j < 100; j++) {
+            var mid = (lo + hi) / 2;
+            var p = bsPrice(S, K, T, r, q, mid, optType);
+            if (Math.abs(p - marketPrice) < 1e-4) return mid;
+            if (p < marketPrice) lo = mid; else hi = mid;
+        }
+        var bisectPrice = bsPrice(S, K, T, r, q, (lo + hi) / 2, optType);
+        if (Math.abs(bisectPrice - marketPrice) < marketPrice * 0.1) return (lo + hi) / 2;
+        return bestSigma;
     }
 
     function calculateGreeks(S, K, T, r, q, sigma, optType) {

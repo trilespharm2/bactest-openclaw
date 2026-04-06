@@ -235,6 +235,23 @@ function initSimResultDetailPage() {
         if (typeof navigateToPage === 'function') navigateToPage('simResults');
         return;
     }
+    if (data.mode !== 'stock' && typeof BlackScholes !== 'undefined') {
+        (data.trades || []).forEach(function(t) {
+            if (!t.legDetails) return;
+            t.legDetails.forEach(function(l) {
+                if (l.iv == null && l.strike && l.entryPrice && t.underlyingAtEntry && t.expiration) {
+                    var greeks = BlackScholes.computeLegGreeks(t.underlyingAtEntry, l.strike, l.type, l.entryPrice, t.entryTime, t.expiration);
+                    if (greeks) {
+                        l.iv = greeks.iv;
+                        l.delta = greeks.delta;
+                        l.gamma = greeks.gamma;
+                        l.theta = greeks.theta;
+                        l.vega = greeks.vega;
+                    }
+                }
+            });
+        });
+    }
     simResultDetailData = data;
     simResultTradeLogPage = 1;
 
