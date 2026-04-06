@@ -1,3 +1,42 @@
+const BSCalc = {
+    cdf: function(x) {
+        const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+        const sign = x < 0 ? -1 : 1;
+        x = Math.abs(x) / Math.SQRT2;
+        const t = 1.0 / (1.0 + p * x);
+        const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+        return 0.5 * (1.0 + sign * y);
+    },
+    price: function(S, K, T, r, q, sigma, type) {
+        if (T <= 0 || sigma <= 0) return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S);
+        const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+        const d2 = d1 - sigma * Math.sqrt(T);
+        if (type === 'call') return S * Math.exp(-q * T) * this.cdf(d1) - K * Math.exp(-r * T) * this.cdf(d2);
+        else return K * Math.exp(-r * T) * this.cdf(-d2) - S * Math.exp(-q * T) * this.cdf(-d1);
+    },
+    vega: function(S, K, T, r, q, sigma) {
+        if (T <= 0 || sigma <= 0) return 0;
+        const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+        return S * Math.exp(-q * T) * Math.sqrt(T) * Math.exp(-0.5 * d1 * d1) / Math.sqrt(2 * Math.PI);
+    },
+    impliedVolatility: function(S, K, T, r, q, marketPrice, type) {
+        if (T <= 0 || marketPrice <= 0) return null;
+        let sigma = 0.3;
+        for (let i = 0; i < 100; i++) {
+            const p = this.price(S, K, T, r, q, sigma, type);
+            const diff = p - marketPrice;
+            if (Math.abs(diff) < 1e-8) return sigma;
+            const v = this.vega(S, K, T, r, q, sigma);
+            if (v < 1e-12) break;
+            sigma -= diff / v;
+            if (sigma <= 0.001) sigma = 0.001;
+            if (sigma > 10) sigma = 10;
+        }
+        const p = this.price(S, K, T, r, q, sigma, type);
+        return Math.abs(p - marketPrice) < 0.5 ? sigma : null;
+    }
+};
+
 let simAllBars = [];
 let simVisibleBars = [];
 let simCurrentBarIndex = 0;
@@ -1851,7 +1890,7 @@ function updateSimIVDisplay() {
             const strikeDist = Math.abs(leg.strike - underlyingPrice);
             if (strikeDist < closestATMDist) {
                 const optBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
-                if (optBar && typeof BlackScholes !== 'undefined') {
+                if (optBar) {
                     const optPrice = optBar.vwap || optBar.close;
                     const legExp = leg.expiration || pos.expiration;
                     const expParts = legExp.split('-');
@@ -1867,7 +1906,7 @@ function updateSimIVDisplay() {
                     const T = Math.max(diffMs / (365.25 * 24 * 3600 * 1000), 1e-10);
                     const r = 0.045, q = 0.013;
                     const optType = leg.type === 'P' ? 'put' : 'call';
-                    const iv = BlackScholes.impliedVolatility(underlyingPrice, leg.strike, T, r, q, optPrice, optType);
+                    const iv = BSCalc.impliedVolatility(underlyingPrice, leg.strike, T, r, q, optPrice, optType);
                     if (iv !== null && iv > 0 && iv < 5) {
                         closestATMDist = strikeDist;
                         bestIV = iv;
@@ -2982,16 +3021,45 @@ function showPayoffModal(positionId) {
     let maxProfit = -Infinity;
     let maxLoss = Infinity;
 
+    const isCalDiag = isSimCalendarDiagonalStrategy(pos.strategy);
+    let nearExpT = 0, farLegIVs = [];
+    if (isCalDiag) {
+        const nearExp = pos.expiration;
+        const r = 0.045, q = 0.013;
+        pos.legs.forEach(leg => {
+            const legExp = leg.expiration || pos.expiration;
+            if (legExp > nearExp) {
+                const nParts = nearExp.split('-'), fParts = legExp.split('-');
+                const nearMs = Date.UTC(parseInt(nParts[0]), parseInt(nParts[1]) - 1, parseInt(nParts[2]), 20, 0, 0);
+                const farMs = Date.UTC(parseInt(fParts[0]), parseInt(fParts[1]) - 1, parseInt(fParts[2]), 20, 0, 0);
+                const remainT = Math.max((farMs - nearMs) / (365.25 * 24 * 3600 * 1000), 1 / (365.25 * 24 * 60));
+                const entryIV = (leg.entryGreeks && leg.entryGreeks.iv) ? leg.entryGreeks.iv : 0.25;
+                farLegIVs.push({ legIdx: pos.legs.indexOf(leg), T: remainT, iv: entryIV });
+            }
+        });
+    }
+
     for (let price = priceMin; price <= priceMax; price += step) {
         let totalPayoff = 0;
         pos.legs.forEach((leg, i) => {
             const K = strikes[i];
             const prem = premiums[i];
-            let intrinsic = 0;
-            if (leg.type === 'C') intrinsic = Math.max(0, price - K);
-            else intrinsic = Math.max(0, K - price);
-            if (leg.position === 'long') totalPayoff += (intrinsic - prem) * multiplier * quantity;
-            else totalPayoff += (prem - intrinsic) * multiplier * quantity;
+            const farInfo = isCalDiag ? farLegIVs.find(f => f.legIdx === i) : null;
+            if (farInfo && price > 0) {
+                const optType = leg.type === 'C' ? 'call' : 'put';
+                const bsVal = BSCalc.price(Math.max(price, 0.01), K, farInfo.T, 0.045, 0.013, farInfo.iv, optType);
+                const legPnl = leg.position === 'long' ? (bsVal - prem) : (prem - bsVal);
+                totalPayoff += (Number.isFinite(legPnl) ? legPnl : 0) * multiplier * quantity;
+            } else if (farInfo) {
+                if (leg.position === 'long') totalPayoff += (-prem) * multiplier * quantity;
+                else totalPayoff += (prem) * multiplier * quantity;
+            } else {
+                let intrinsic = 0;
+                if (leg.type === 'C') intrinsic = Math.max(0, price - K);
+                else intrinsic = Math.max(0, K - price);
+                if (leg.position === 'long') totalPayoff += (intrinsic - prem) * multiplier * quantity;
+                else totalPayoff += (prem - intrinsic) * multiplier * quantity;
+            }
         });
         payoffPoints.push({ price, payoff: totalPayoff });
         if (totalPayoff > maxProfit) maxProfit = totalPayoff;
