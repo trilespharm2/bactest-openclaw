@@ -791,7 +791,13 @@ function saveCurrentSessionState() {
             ...t,
             legs: t.legs ? t.legs.map(l => ({ ...l, optionBars: [] })) : []
         })),
-        createdAt: simActiveSessionId || new Date().toISOString()
+        createdAt: simActiveSessionId || new Date().toISOString(),
+        indicators: lwIndicators.map(ind => ({
+            type: ind.type,
+            period: ind.period,
+            color: ind.color,
+            lineWidth: ind.lineWidth || 2
+        }))
     };
 
     let activeSessions = [];
@@ -849,6 +855,16 @@ async function restoreSession(savedState) {
 
     await loadSimulatedChart(targetMinuteIndex);
     await restoreOptionBarsForOpenPositions();
+
+    if (savedState.indicators && savedState.indicators.length > 0) {
+        for (const indConfig of savedState.indicators) {
+            try {
+                addSimIndicator(indConfig);
+            } catch (e) {
+                console.warn('Failed to restore indicator:', indConfig, e);
+            }
+        }
+    }
 }
 
 async function restoreOptionBarsForOpenPositions() {
@@ -1291,25 +1307,22 @@ function computeEMA(bars, period) {
     return result;
 }
 
-function computeVWAP(bars) {
+function computeVWAP(bars, period) {
+    period = period || 14;
     const result = [];
-    let cumVol = 0;
-    let cumTP = 0;
-    let currentDay = null;
     for (let i = 0; i < bars.length; i++) {
-        const bar = bars[i];
-        const etStr = new Date(bar.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' });
-        if (etStr !== currentDay) {
-            cumVol = 0;
-            cumTP = 0;
-            currentDay = etStr;
+        const start = Math.max(0, i - period + 1);
+        let cumVol = 0;
+        let cumTP = 0;
+        for (let j = start; j <= i; j++) {
+            const bar = bars[j];
+            const tp = (bar.high + bar.low + bar.close) / 3;
+            const vol = bar.volume || 0;
+            cumTP += tp * vol;
+            cumVol += vol;
         }
-        const tp = (bar.high + bar.low + bar.close) / 3;
-        const vol = bar.volume || 0;
-        cumTP += tp * vol;
-        cumVol += vol;
         if (cumVol > 0) {
-            result.push({ time: Math.floor(bar.timestamp / 1000), value: cumTP / cumVol });
+            result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTP / cumVol });
         }
     }
     return result;
@@ -1338,7 +1351,7 @@ function updateAllIndicators() {
             } else if (ind.type === 'ema') {
                 data = computeEMA(simVisibleBars, ind.period);
             } else if (ind.type === 'vwap') {
-                data = computeVWAP(simVisibleBars);
+                data = computeVWAP(simVisibleBars, ind.period);
             }
             data = deduplicateTimeSeries(data);
             if (ind.series) {
@@ -1353,8 +1366,12 @@ function updateAllIndicators() {
 function onSimIndicatorTypeChange() {
     const type = document.getElementById('simIndicatorType').value;
     const periodGroup = document.getElementById('simIndicatorPeriodGroup');
+    const periodInput = document.getElementById('simIndicatorPeriod');
     if (periodGroup) {
-        periodGroup.style.display = type === 'vwap' ? 'none' : 'block';
+        periodGroup.style.display = 'block';
+    }
+    if (periodInput && type === 'vwap') {
+        periodInput.value = '14';
     }
 }
 
@@ -1363,11 +1380,12 @@ function toggleSimIndicatorDropdown() {
     if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
 }
 
-function addSimIndicator() {
+function addSimIndicator(config) {
     if (!lwChart) return;
-    const type = document.getElementById('simIndicatorType').value;
-    const period = parseInt(document.getElementById('simIndicatorPeriod').value) || 20;
-    const color = document.getElementById('simIndicatorColor').value || '#2962ff';
+    const type = config ? config.type : document.getElementById('simIndicatorType').value;
+    const period = config ? config.period : (parseInt(document.getElementById('simIndicatorPeriod').value) || 20);
+    const color = config ? config.color : (document.getElementById('simIndicatorColor').value || '#2962ff');
+    const lineWidth = config ? (config.lineWidth || 2) : (parseInt(document.getElementById('simIndicatorLineWidth').value) || 2);
 
     if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
         alert('Period must be between 2 and 500.');
@@ -1375,27 +1393,28 @@ function addSimIndicator() {
     }
 
     const id = lwIndicatorNextId++;
-    const label = type === 'vwap' ? 'VWAP' : type.toUpperCase() + '(' + period + ')';
+    const label = type === 'vwap' ? 'VWAP(' + period + ')' : type.toUpperCase() + '(' + period + ')';
 
     const series = lwChart.addLineSeries({
         color: color,
-        lineWidth: 2,
+        lineWidth: lineWidth,
         priceLineVisible: false,
         lastValueVisible: true,
         crosshairMarkerVisible: false,
         title: label
     });
 
-    const ind = { id, type, period, color, label, series };
+    const ind = { id, type, period, color, lineWidth, label, series };
     lwIndicators.push(ind);
 
     let data = [];
     if (type === 'sma') data = computeSMA(simVisibleBars, period);
     else if (type === 'ema') data = computeEMA(simVisibleBars, period);
-    else if (type === 'vwap') data = computeVWAP(simVisibleBars);
+    else if (type === 'vwap') data = computeVWAP(simVisibleBars, period);
     series.setData(data);
 
     refreshIndicatorsList();
+    saveCurrentSessionState();
 }
 
 function removeSimIndicator(id) {
@@ -1407,16 +1426,19 @@ function removeSimIndicator(id) {
     }
     lwIndicators.splice(idx, 1);
     refreshIndicatorsList();
+    saveCurrentSessionState();
 }
 
 function clearAllSimIndicators() {
     while (lwIndicators.length > 0) {
         const ind = lwIndicators.pop();
+
         if (ind.series && lwChart) {
             try { lwChart.removeSeries(ind.series); } catch(e) {}
         }
     }
     refreshIndicatorsList();
+    saveCurrentSessionState();
 }
 
 function refreshIndicatorsList() {
