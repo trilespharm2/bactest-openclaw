@@ -410,11 +410,20 @@ async function navigateToPage(pageName, skipPushState = false) {
     if (pageName === currentPage && !skipPushState) return;
 
     if (currentPage === 'simTradingActive' && pageName !== 'simTradingActive') {
-        try {
-            if (typeof stopAutoplay === 'function') stopAutoplay();
-            if (typeof saveCurrentSessionState === 'function') saveCurrentSessionState();
-            console.log('Auto-saved sim trading session before navigating away');
-        } catch(e) { console.error('Error auto-saving sim session:', e); }
+        if (window._simGuestSession && typeof simCurrentSymbol !== 'undefined' && simCurrentSymbol) {
+            if (!confirm('You are not signed in. Leaving this page will end your active session and all data will be lost. Are you sure you want to leave?')) {
+                return;
+            }
+            try { if (typeof stopAutoplay === 'function') stopAutoplay(); } catch(e) {}
+            window._simPendingSession = null;
+            window._simGuestSession = false;
+        } else {
+            try {
+                if (typeof stopAutoplay === 'function') stopAutoplay();
+                if (typeof saveCurrentSessionState === 'function') saveCurrentSessionState();
+                console.log('Auto-saved sim trading session before navigating away');
+            } catch(e) { console.error('Error auto-saving sim session:', e); }
+        }
     }
     
     // Update current page

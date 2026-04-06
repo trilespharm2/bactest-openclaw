@@ -9,6 +9,19 @@ const SIM_TRADES_PER_PAGE = 15;
 
 function initSimResultsPage() {
     console.log('Initializing Simulated Trading Results page');
+
+    var signInLock = document.getElementById('simResultsSignInLock');
+    var resultsContent = document.getElementById('simResultsContent');
+    var authed = typeof window.isAuthenticated === 'function' ? window.isAuthenticated() : false;
+
+    if (!authed) {
+        if (signInLock) signInLock.style.display = '';
+        if (resultsContent) resultsContent.style.display = 'none';
+        return;
+    }
+    if (signInLock) signInLock.style.display = 'none';
+    if (resultsContent) resultsContent.style.display = '';
+
     loadSimResultSessions();
 
     const tableCard = document.getElementById('simResultsTableCard');

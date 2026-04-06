@@ -135,6 +135,9 @@ function renderActiveSessionCards() {
     const container = document.getElementById('simActiveSessionCards');
     if (!section || !container) return;
 
+    var isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : true;
+    if (isGuest) { section.style.display = 'none'; return; }
+
     let activeSessions = [];
     try {
         activeSessions = JSON.parse(localStorage.getItem('simActiveSessions') || '[]');
@@ -230,6 +233,15 @@ function startNewSession() {
         dateErrorText.textContent = 'Trading start date cannot be after chart end date';
         dateErrorDiv.classList.remove('d-none');
         return;
+    }
+
+    var isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : true;
+    if (isGuest) {
+        window._simGuestSession = true;
+        var alertFn = typeof appAlert === 'function' ? appAlert : alert;
+        alertFn('You are not signed in. Your session results will only be available at the end of this session and will not be saved. Sign in to keep your results.');
+    } else {
+        window._simGuestSession = false;
     }
 
     window._simPendingSession = {
@@ -552,6 +564,7 @@ function buildAnalyticsFromTrades(enrichedTrades, session) {
 }
 
 function saveCompletedSession(sessionData) {
+    if (window._simGuestSession) return;
     let savedSessions = [];
     try { savedSessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]'); } catch(e) {}
     savedSessions.unshift(sessionData);
@@ -591,9 +604,14 @@ function setupTradingPageListeners() {
     if (_tradingPageListenersSet) return;
     _tradingPageListenersSet = true;
 
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function(e) {
         if (typeof simCurrentSymbol !== 'undefined' && simCurrentSymbol) {
-            try { saveCurrentSessionState(); } catch(e) {}
+            if (window._simGuestSession) {
+                e.preventDefault();
+                e.returnValue = 'You have an active trading session that will be lost if you leave. Are you sure?';
+                return e.returnValue;
+            }
+            try { saveCurrentSessionState(); } catch(e2) {}
         }
     });
 
@@ -621,7 +639,13 @@ function setupTradingPageListeners() {
 
 function handleBackToConfig() {
     stopAutoplay();
-    saveCurrentSessionState();
+    if (window._simGuestSession) {
+        if (!confirm('You are not signed in. Leaving will discard your current session. Are you sure?')) return;
+        window._simPendingSession = null;
+        window._simGuestSession = false;
+    } else {
+        saveCurrentSessionState();
+    }
     if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
 }
 
@@ -636,21 +660,28 @@ async function handleEndSession() {
         await appAlert('Please close all open positions before ending the session.');
         return;
     }
-    if (!(await appConfirm('End this session and save results?'))) return;
 
-    removeActiveSession();
+    var isGuest = window._simGuestSession;
+    var confirmMsg = isGuest
+        ? 'End this session? As a guest, results will be shown but not saved. Sign in to save your results.'
+        : 'End this session and save results?';
+    if (!(await appConfirm(confirmMsg))) return;
+
+    if (!isGuest) removeActiveSession();
     simCurrentSymbol = '';
     window._simPendingSession = null;
 
     if (trades.length === 0) {
+        if (isGuest) window._simGuestSession = false;
         if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
         return;
     }
 
-    const sessionData = buildCurrentSessionData();
+    var sessionData = buildCurrentSessionData();
     saveCompletedSession(sessionData);
 
     window._pendingSimResultDetail = sessionData;
+    if (isGuest) window._simGuestSession = false;
     if (typeof navigateToPage === 'function') navigateToPage('simResultDetail');
 }
 
@@ -711,6 +742,7 @@ function buildCurrentSessionData() {
 
 function saveCurrentSessionState() {
     if (!simCurrentSymbol || !simDataLoaded) return;
+    if (window._simGuestSession) return;
     const mode = window._simTradingMode || 'stock';
 
     let unrealizedPnl = 0;
