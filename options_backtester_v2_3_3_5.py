@@ -3569,44 +3569,81 @@ def run_backtest(config: Dict, client: RESTClient):
                 if not aligned_bars:
                     continue
             
-                # Check for exits (disable TP/SL if 0-DTE + PDT avoidance)
-                exit_hit, exit_reason, exit_time, exit_premium, exit_leg_prices = check_exit_conditions_detailed(
-                    aligned_bars, legs_info, net_credit, config, 
-                    entry_time, is_entry_day, pdt_0dte_mode
-                )
-                
-                # Also check exit signal conditions and use the EARLIER trigger
-                if has_exit_signal:
-                    underlying_bars_mon_1min = underlying_bars_1min.get(mon_date_str, [])
+                # Unified per-bar exit check: TP/SL and exit signals evaluated
+                # at each bar chronologically — whichever triggers first wins
+                if not pdt_0dte_mode:
+                    take_profit_pct = config.get('take_profit_pct')
+                    take_profit_dollar = config.get('take_profit_dollar')
+                    stop_loss_pct = config.get('stop_loss_pct')
+                    stop_loss_dollar = config.get('stop_loss_dollar')
+                    tp_met_prev = False
+                    sl_met_prev = False
+                    
+                    underlying_bars_mon_1min = underlying_bars_1min.get(mon_date_str, []) if has_exit_signal else []
                     _mon_prev_day_bars = []
-                    sorted_dates_for_mon = sorted(underlying_bars_1min.keys())
-                    for d in sorted_dates_for_mon:
-                        if d < mon_date_str:
-                            _mon_prev_day_bars = underlying_bars_1min.get(d, [])
-                        else:
-                            break
+                    if has_exit_signal:
+                        sorted_dates_for_mon = sorted(underlying_bars_1min.keys())
+                        for d in sorted_dates_for_mon:
+                            if d < mon_date_str:
+                                _mon_prev_day_bars = underlying_bars_1min.get(d, [])
+                            else:
+                                break
                     
                     for abar in aligned_bars:
                         bar_time_str = abar['time']
                         if is_entry_day and bar_time_str <= entry_time:
                             continue
-                        # If TP/SL already triggered earlier, no need to check further
-                        if exit_hit and bar_time_str >= exit_time:
+                        
+                        current_premium = calculate_net_premium(abar, legs_info)
+                        pnl = net_credit - current_premium
+                        pnl_pct = (pnl / abs(net_credit)) * 100 if net_credit != 0 else 0
+                        
+                        tp_met = False
+                        if take_profit_pct:
+                            tp_met = pnl_pct >= take_profit_pct
+                        elif take_profit_dollar is not None:
+                            tp_met = pnl >= take_profit_dollar / 100
+                        
+                        sl_met = False
+                        if stop_loss_pct:
+                            sl_met = pnl_pct <= -stop_loss_pct
+                        elif stop_loss_dollar is not None:
+                            sl_met = pnl <= -stop_loss_dollar / 100
+                        
+                        bar_leg_prices = [lp.get('vw', lp['close']) for lp in abar['leg_prices']]
+                        
+                        if tp_met and tp_met_prev:
+                            exit_hit = True
+                            exit_reason = "TAKE_PROFIT"
+                            exit_time = bar_time_str
+                            exit_premium = current_premium
+                            exit_leg_prices = bar_leg_prices
                             break
                         
-                        sig_exit, sig_reason = check_exit_signal_conditions(
-                            config, underlying_bars_mon_1min, _mon_prev_day_bars,
-                            bar_time_str, indicators_cache, 
-                            monitoring_date
-                        )
-                        if sig_exit:
+                        if sl_met and sl_met_prev:
                             exit_hit = True
-                            exit_reason = sig_reason
+                            exit_reason = "STOP_LOSS"
                             exit_time = bar_time_str
-                            exit_premium = calculate_net_premium(abar, legs_info)
-                            exit_leg_prices = [lp.get('vw', lp['close']) for lp in abar['leg_prices']]
-                            print(f"  🚪 Exit signal triggered @ {bar_time_str}: {sig_reason}")
+                            exit_premium = current_premium
+                            exit_leg_prices = bar_leg_prices
                             break
+                        
+                        if has_exit_signal:
+                            sig_exit, sig_reason = check_exit_signal_conditions(
+                                config, underlying_bars_mon_1min, _mon_prev_day_bars,
+                                bar_time_str, indicators_cache, monitoring_date
+                            )
+                            if sig_exit:
+                                exit_hit = True
+                                exit_reason = sig_reason
+                                exit_time = bar_time_str
+                                exit_premium = current_premium
+                                exit_leg_prices = bar_leg_prices
+                                print(f"  🚪 Exit signal triggered @ {bar_time_str}: {sig_reason}")
+                                break
+                        
+                        tp_met_prev = tp_met
+                        sl_met_prev = sl_met
                 
                 if exit_hit:
                     # Get timestamp and underlying price at exit
