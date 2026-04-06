@@ -672,7 +672,7 @@ async function loadPageContent(pageName) {
 function loadScript(src, pageName) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = src;
+        script.src = src + (src.indexOf('?') === -1 ? '?' : '&') + '_v=' + Date.now();
         script.onload = () => {
             console.log('Script loaded successfully:', src);
             loadedScripts.add(pageName);

@@ -1,38 +1,5 @@
 // Main Dashboard JavaScript
 
-function showSimInfoTip(el) {
-    const existing = document.getElementById('simInfoPopover');
-    if (existing) existing.remove();
-    const text = el.getAttribute('data-tip');
-    if (!text) return;
-    const rect = el.getBoundingClientRect();
-    const popover = document.createElement('div');
-    popover.id = 'simInfoPopover';
-    popover.style.cssText = 'position:fixed;z-index:10001;background:#2d3748;color:#fff;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;max-width:280px;box-shadow:0 8px 24px rgba(0,0,0,0.25);pointer-events:auto;';
-    popover.textContent = text;
-    const close = document.createElement('span');
-    close.textContent = '\u00d7';
-    close.style.cssText = 'position:absolute;top:4px;right:8px;cursor:pointer;font-size:16px;color:#a0aec0;font-weight:bold;';
-    close.onclick = (e) => { e.stopPropagation(); popover.remove(); };
-    popover.appendChild(close);
-    document.body.appendChild(popover);
-    const pw = popover.offsetWidth, ph = popover.offsetHeight;
-    let left = rect.left + rect.width / 2 - pw / 2;
-    let top = rect.bottom + 8;
-    if (left < 8) left = 8;
-    if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
-    if (top + ph > window.innerHeight - 8) top = rect.top - ph - 8;
-    popover.style.left = left + 'px';
-    popover.style.top = top + 'px';
-    const dismiss = (e) => {
-        if (!popover.contains(e.target) && e.target !== el) {
-            popover.remove();
-            document.removeEventListener('click', dismiss);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', dismiss), 10);
-}
-
 // API Configuration - Dynamic to work with any port
 const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
 
@@ -133,18 +100,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupProfileDropdown();
     setupMobileMenu();
     
+    // Check for URL parameters to navigate to specific section
     const urlParams = new URLSearchParams(window.location.search);
     const section = urlParams.get('section');
-    const pageParam = urlParams.get('page');
-    const idParam = urlParams.get('id');
     
-    if (pageParam === 'optionsResultDetail' && idParam) {
-        window._pendingOptDetailId = idParam;
-        await navigateToPage('optionsResultDetail');
-    } else if (pageParam === 'stockResultDetail' && idParam) {
-        window._pendingStkDetailId = idParam;
-        await navigateToPage('stockResultDetail');
-    } else if (section) {
+    if (section) {
         await navigateToPage(section);
     } else {
         await loadPageContent('home');
@@ -161,11 +121,9 @@ async function checkAuthStatus() {
         const data = await response.json();
         isAuthenticated = data.authenticated;
         currentUser = data.user || null;
-        if (typeof TierRestrictions !== 'undefined') {
-            TierRestrictions.setTier(data.authenticated && data.user ? data.user.tier : (data.tier || 'free'));
-        }
         console.log('Auth status:', isAuthenticated ? 'Logged in as' : 'Guest', currentUser?.name || '');
         
+        // Apply UI state after auth check
         applyAuthUIState();
     } catch (error) {
         console.log('Auth check failed:', error);
@@ -221,16 +179,13 @@ function applyAuthUIState() {
         
         renderNavAvatars(currentUser);
         if (typeof loadUnreadNotifCount === 'function') loadUnreadNotifCount();
-        const notifBellItem = document.getElementById('notifBellItem');
-        if (notifBellItem) notifBellItem.style.display = '';
     } else {
+        // Show guest nav, hide user profile
         if (userProfileNav) userProfileNav.style.display = 'none';
         if (guestNav) {
             guestNav.classList.add('d-flex');
             guestNav.style.display = '';
         }
-        const notifBellItem = document.getElementById('notifBellItem');
-        if (notifBellItem) notifBellItem.style.display = 'none';
     }
     
     // Update subscription/pricing text and settings visibility
@@ -259,14 +214,6 @@ function applyAuthUIState() {
         if (subscriptionContent) subscriptionContent.style.display = 'none';
         // Hide settings for guests
         if (settingsNavItem) settingsNavItem.style.display = 'none';
-    }
-
-    var notifNav = document.getElementById('nav-notifications');
-    if (notifNav) {
-        notifNav.style.display = '';
-        notifNav.style.opacity = '';
-        notifNav.style.pointerEvents = '';
-        notifNav.title = '';
     }
 }
 
@@ -368,93 +315,8 @@ function showLoginTooltip(element) {
     setTimeout(() => tooltip.remove(), 3000);
 }
 
-function setupUpgradeRequiredFields(containerSelector, message) {
-    if (!isAuthenticated) return;
-    if (typeof TierRestrictions === 'undefined') return;
-    if (TierRestrictions.canUseNotifications()) return;
-
-    const container = document.querySelector(containerSelector);
-    if (!container) return;
-
-    const pageHeader = container.querySelector('.page-header');
-    const existingBanner = container.querySelector('.login-banner, .upgrade-banner');
-    if (!existingBanner) {
-        const banner = document.createElement('div');
-        banner.className = 'login-banner upgrade-banner';
-        banner.innerHTML = `
-            <div class="login-banner-text">
-                <i class="fas fa-lock"></i>
-                <span>${message || 'Upgrade to Standard or Premium to access this feature'}</span>
-            </div>
-            <div class="login-banner-actions">
-                <a href="/?section=subscription" class="btn-login" onclick="event.preventDefault();if(typeof navigateTo==='function')navigateTo('subscription');">Upgrade Plan</a>
-            </div>
-        `;
-        if (pageHeader) {
-            pageHeader.after(banner);
-        } else {
-            container.insertBefore(banner, container.firstChild);
-        }
-    }
-
-    const formElements = container.querySelectorAll('input, select, textarea, button[type="submit"], .btn-primary');
-    formElements.forEach(el => {
-        el.disabled = true;
-        el.classList.add('disabled-field');
-        el.style.opacity = '0.5';
-        el.style.cursor = 'not-allowed';
-        el.style.backgroundColor = '#f5f5f5';
-    });
-
-    const formSections = container.querySelectorAll('.backtester-section, .card-body form, .card-body');
-    formSections.forEach(section => {
-        section.classList.add('login-required-overlay');
-    });
-
-    container.addEventListener('click', (e) => {
-        const target = e.target;
-        if (target.classList.contains('disabled-field') || target.disabled) {
-            e.preventDefault();
-            e.stopPropagation();
-            showUpgradeTooltip(target);
-        }
-    });
-}
-
-function showUpgradeTooltip(element) {
-    document.querySelectorAll('.login-field-tooltip').forEach(t => t.remove());
-
-    const tooltip = document.createElement('div');
-    tooltip.className = 'login-field-tooltip';
-    tooltip.innerHTML = '<a href="/?section=subscription" onclick="event.preventDefault();if(typeof navigateTo===\'function\')navigateTo(\'subscription\');">Upgrade to Standard or Premium</a> to use this feature';
-    tooltip.style.cssText = `
-        position: absolute;
-        background: #1a2332;
-        color: white;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 13px;
-        z-index: 10000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        white-space: nowrap;
-    `;
-
-    document.body.appendChild(tooltip);
-
-    const rect = element.getBoundingClientRect();
-    tooltip.style.left = `${rect.left + window.scrollX}px`;
-    tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
-
-    tooltip.querySelectorAll('a').forEach(a => {
-        a.style.color = '#3b7cff';
-        a.style.textDecoration = 'none';
-    });
-
-    setTimeout(() => tooltip.remove(), 3000);
-}
-
+// Make function globally available
 window.setupLoginRequiredFields = setupLoginRequiredFields;
-window.setupUpgradeRequiredFields = setupUpgradeRequiredFields;
 window.isAuthenticated = () => isAuthenticated;
 
 // Setup Profile Dropdown
@@ -629,14 +491,7 @@ async function navigateToPage(pageName, skipPushState = false) {
         'faq': 'FAQ',
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
-        'simResultDetail': 'Simulated Trading Analysis',
-        'optionsResultDetail': 'Options Backtest Analysis',
-        'stockResultDetail': 'Stock Backtest Analysis',
-        'learnOptionsBacktest': 'Options Backtester',
-        'learnStockBacktest': 'Stock Backtester',
-        'learnSimTrading': 'Simulated Trading',
-        'learnScreener': 'Stock Screener',
-        'learnNotifications': 'Smart Notifications'
+        'simResultDetail': 'Simulated Trading Analysis'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -712,12 +567,11 @@ async function loadPageContent(pageName) {
                 
                 if (pageName === 'stockBacktester') {
                     fileName = 'stock-backtester';
-                    scriptName = 'static/js/stock-backtester-script.js';
+                    scriptName = 'stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
                     scriptName = 'simulated-trading-script.js';
-                    if (!window.BlackScholes) await loadScript('static/js/black-scholes.js', '_blackScholes');
                 }
                 if (pageName === 'screener') {
                     scriptName = 'static/js/screener-script.js';
@@ -725,6 +579,7 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
                 }
+                
                 const response = await fetch(`${fileName}.html`);
                 
                 if (!response.ok) {
@@ -758,7 +613,7 @@ async function loadPageContent(pageName) {
         } else {
             console.log('Content already loaded for:', pageName);
             // Pages with inline scripts (no separate script file needed)
-            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings', 'learnOptionsBacktest', 'learnStockBacktest', 'learnSimTrading', 'learnScreener', 'learnNotifications'];
+            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings'];
             
             if (inlineScriptPages.includes(pageName)) {
                 // These pages have their init functions defined inline or in pre-loaded scripts
@@ -769,11 +624,10 @@ async function loadPageContent(pageName) {
                 console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
                 if (pageName === 'stockBacktester') {
-                    scriptName = 'static/js/stock-backtester-script.js';
+                    scriptName = 'stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     scriptName = 'simulated-trading-script.js';
-                    if (!window.BlackScholes) await loadScript('static/js/black-scholes.js', '_blackScholes');
                     if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
@@ -789,14 +643,6 @@ async function loadPageContent(pageName) {
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
                     scriptName = 'simulated-results-script.js';
                     if (loadedScripts.has('simResults') || loadedScripts.has('simResultDetail')) {
-                        loadedScripts.add(pageName);
-                        initializePage(pageName);
-                        scriptName = null;
-                    }
-                }
-                if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
-                    scriptName = 'backtest-result-detail-script.js';
-                    if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
                         scriptName = null;
@@ -826,7 +672,7 @@ async function loadPageContent(pageName) {
 function loadScript(src, pageName) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = src;
+        script.src = src + (src.indexOf('?') === -1 ? '?' : '&') + '_v=' + Date.now();
         script.onload = () => {
             console.log('Script loaded successfully:', src);
             loadedScripts.add(pageName);
@@ -877,7 +723,6 @@ function initializePage(pageName) {
         } else if (pageName === 'notifications' && typeof initNotificationsPage === 'function') {
             initNotificationsPage();
             setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
-            setTimeout(() => setupUpgradeRequiredFields('#notificationsPage', 'Upgrade to Standard or Premium to access notifications'), 150);
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
         } else if (pageName === 'simTradingActive' && typeof initSimTradingActive === 'function') {
@@ -886,24 +731,10 @@ function initializePage(pageName) {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
             initSimResultDetailPage();
-        } else if (pageName === 'optionsResultDetail' && typeof initOptionsResultDetailPage === 'function') {
-            initOptionsResultDetailPage();
-        } else if (pageName === 'stockResultDetail' && typeof initStockResultDetailPage === 'function') {
-            initStockResultDetailPage();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);
     }
-}
-
-function viewOptionsResultDetail(backtestId) {
-    window._pendingOptDetailId = backtestId;
-    navigateToPage('optionsResultDetail');
-}
-
-function viewStockResultDetail(backtestId) {
-    window._pendingStkDetailId = backtestId;
-    navigateToPage('stockResultDetail');
 }
 
 // Setup Quick Links
