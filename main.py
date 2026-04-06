@@ -6548,6 +6548,91 @@ def get_simulated_trading_option_bars():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/simulated-trading/compute-greeks', methods=['POST'])
+def compute_option_greeks():
+    """Compute option Greeks using the same GreeksCalculator as the backtester"""
+    try:
+        from options_backtester_v2_3_3_5 import GreeksCalculator
+        data = request.json
+        if not data or not isinstance(data, dict):
+            return jsonify({'error': 'Invalid request body'}), 400
+
+        legs = data.get('legs', [])
+        underlying_price = float(data.get('underlying_price', 0))
+        entry_timestamp = data.get('entry_timestamp')
+        expiration_date = data.get('expiration_date')
+
+        if not underlying_price or not entry_timestamp or not expiration_date or not legs:
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        import pytz
+        from datetime import datetime as _dt
+
+        eastern = pytz.timezone('US/Eastern')
+
+        if isinstance(entry_timestamp, (int, float)):
+            entry_dt = _dt.fromtimestamp(entry_timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
+        elif isinstance(entry_timestamp, str):
+            try:
+                ts_val = float(entry_timestamp)
+                entry_dt = _dt.fromtimestamp(ts_val / 1000, tz=pytz.UTC).astimezone(eastern)
+            except ValueError:
+                entry_dt = _dt.fromisoformat(entry_timestamp.replace('Z', '+00:00')).astimezone(eastern)
+        else:
+            return jsonify({'error': 'Invalid entry_timestamp format'}), 400
+
+        try:
+            exp_parts = str(expiration_date).split('-')
+            exp_date_dt = _dt(int(exp_parts[0]), int(exp_parts[1]), int(exp_parts[2]), 16, 0, 0)
+        except (ValueError, IndexError):
+            return jsonify({'error': 'Invalid expiration_date format, expected YYYY-MM-DD'}), 400
+
+        exp_dt = eastern.localize(exp_date_dt)
+        T = max((exp_dt - entry_dt).total_seconds() / (365.25 * 24 * 3600), 1 / (365.25 * 24 * 60))
+
+        r = 0.045
+        q = 0.013
+
+        results = []
+        for leg in legs:
+            strike = float(leg.get('strike', 0))
+            entry_price = float(leg.get('entryPrice', 0))
+            option_type = leg.get('type', 'call').lower()
+            if option_type in ('c', 'call'):
+                option_type = 'call'
+            else:
+                option_type = 'put'
+
+            if not strike or not entry_price:
+                results.append({'iv': None, 'delta': None, 'gamma': None, 'theta': None, 'vega': None})
+                continue
+
+            try:
+                calc = GreeksCalculator(S=underlying_price, K=strike, T=T, r=r, q=q, option_type=option_type)
+                iv = calc.calculate_implied_volatility(entry_price)
+                if iv is not None and iv > 0:
+                    greeks = calc.calculate_greeks(iv)
+                    results.append({
+                        'iv': round(float(iv), 6),
+                        'delta': round(float(greeks['delta']), 6),
+                        'gamma': round(float(greeks['gamma']), 8),
+                        'theta': round(float(greeks['theta']), 6),
+                        'vega': round(float(greeks['vega']), 6)
+                    })
+                else:
+                    results.append({'iv': None, 'delta': None, 'gamma': None, 'theta': None, 'vega': None})
+            except Exception as leg_err:
+                print(f"[SimTrading Greeks] Error computing Greeks for leg: {leg_err}")
+                results.append({'iv': None, 'delta': None, 'gamma': None, 'theta': None, 'vega': None})
+
+        return jsonify({'success': True, 'greeks': results})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/simulated-trading/option-bars-by-symbol', methods=['POST'])
 @login_required
 def get_option_bars_by_symbol():

@@ -641,9 +641,6 @@ async function loadPageContent(pageName) {
                     scriptName = 'static/js/notifications-script.js';
                 }
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
-                    if (!loadedScripts.has('_blackScholes')) {
-                        await loadScript('static/js/black-scholes.js', '_blackScholes');
-                    }
                     scriptName = 'simulated-results-script.js';
                     if (loadedScripts.has('simResults') || loadedScripts.has('simResultDetail')) {
                         loadedScripts.add(pageName);
