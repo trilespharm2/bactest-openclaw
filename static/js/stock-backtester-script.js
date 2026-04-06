@@ -255,107 +255,117 @@ function addCondition() {
     conditionDiv.id = `condition-${conditionCount}`;
     
     conditionDiv.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h4>Condition #${conditionCount} ${conditionCount === 1 ? '(Entry Trigger)' : '(Prerequisite)'}</h4>
-            <button type="button" class="btn-remove" onclick="removeCondition(${conditionCount})">Remove</button>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong class="text-muted">Condition #${conditionCount} ${conditionCount === 1 ? '(Entry Trigger)' : '(Prerequisite)'}</strong>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCondition(${conditionCount})">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
         
-        <div class="side-label">Left Side (Compare this):</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-            <div>
-                <label>Day</label>
-                <select id="left-day-${conditionCount}" onchange="toggleCustomDay('left', ${conditionCount})">
-                    <option value="0">Today (0)</option>
-                    <option value="-1">Yesterday (-1)</option>
-                    <option value="-2">2 Days Ago (-2)</option>
-                    <option value="-3">3 Days Ago (-3)</option>
-                    <option value="custom">Custom...</option>
-                </select>
-                <input type="number" id="left-day-custom-${conditionCount}" style="display: none; margin-top: 6px;" placeholder="e.g., -5" max="0">
-            </div>
-            <div>
-                <label>Candle Type</label>
-                <select id="left-candle-${conditionCount}" onchange="onStockCandleChange('left', ${conditionCount})">
-                    <option value="min">Minute</option>
-                    <option value="hr">Hour</option>
-                    <option value="day">Day</option>
-                </select>
-            </div>
-            <div>
-                <label>Multiplier</label>
-                <input type="number" id="left-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 5">
-            </div>
-            <div>
-                <label>Price Type</label>
-                <select id="left-type-${conditionCount}">
-                    <option value="open">Open</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                    <option value="close">Close</option>
-                    <option value="vwap">VWAP</option>
-                </select>
-            </div>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-            <label>Operator</label>
-            <select id="operator-${conditionCount}">
-                <option value=">">></option>
-                <option value="<"><</option>
-                <option value=">=">>=</option>
-                <option value="<="><=</option>
-                <option value="=">=</option>
-            </select>
-        </div>
-        
-        <div class="side-label">Right Side (To this):</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-            <div>
-                <label>Day</label>
-                <select id="right-day-${conditionCount}" onchange="toggleCustomDay('right', ${conditionCount})">
-                    <option value="0">Today (0)</option>
-                    <option value="-1">Yesterday (-1)</option>
-                    <option value="-2">2 Days Ago (-2)</option>
-                    <option value="-3">3 Days Ago (-3)</option>
-                    <option value="custom">Custom...</option>
-                </select>
-                <input type="number" id="right-day-custom-${conditionCount}" style="display: none; margin-top: 6px;" placeholder="e.g., -5" max="0">
-            </div>
-            <div>
-                <label>Candle Type</label>
-                <select id="right-candle-${conditionCount}" onchange="onStockCandleChange('right', ${conditionCount})">
-                    <option value="min">Minute</option>
-                    <option value="hr">Hour</option>
-                    <option value="day">Day</option>
-                </select>
-            </div>
-            <div>
-                <label>Multiplier</label>
-                <input type="number" id="right-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 1">
-            </div>
-            <div>
-                <label>Price Type</label>
-                <select id="right-type-${conditionCount}">
-                    <option value="open">Open</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                    <option value="close">Close</option>
-                    <option value="vwap">VWAP</option>
-                </select>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Left Side (Compare this)</label>
+            <div class="row g-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="left-day-${conditionCount}" onchange="toggleCustomDay('left', ${conditionCount})">
+                        <option value="0">Today (0)</option>
+                        <option value="-1">Yesterday (-1)</option>
+                        <option value="-2">2 Days Ago (-2)</option>
+                        <option value="-3">3 Days Ago (-3)</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                    <input type="number" class="form-control form-control-sm mt-1" id="left-day-custom-${conditionCount}" style="display: none;" placeholder="e.g., -5" max="0">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="left-candle-${conditionCount}" onchange="onStockCandleChange('left', ${conditionCount})">
+                        <option value="min">Minute</option>
+                        <option value="hr">Hour</option>
+                        <option value="day">Day</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="left-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 5">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Price Type</label>
+                    <select class="form-select form-select-sm" id="left-type-${conditionCount}">
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                        <option value="close">Close</option>
+                        <option value="vwap">VWAP</option>
+                    </select>
+                </div>
             </div>
         </div>
         
-        <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px;">
-            <div>
-                <label>Threshold Unit</label>
-                <select id="threshold-unit-${conditionCount}">
+        <div class="mb-3">
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Operator</label>
+                    <select class="form-select" id="operator-${conditionCount}">
+                        <option value=">">></option>
+                        <option value="<"><</option>
+                        <option value=">=">>=</option>
+                        <option value="<="><=</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label fw-bold">Right Side (To this)</label>
+            <div class="row g-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="right-day-${conditionCount}" onchange="toggleCustomDay('right', ${conditionCount})">
+                        <option value="0">Today (0)</option>
+                        <option value="-1">Yesterday (-1)</option>
+                        <option value="-2">2 Days Ago (-2)</option>
+                        <option value="-3">3 Days Ago (-3)</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                    <input type="number" class="form-control form-control-sm mt-1" id="right-day-custom-${conditionCount}" style="display: none;" placeholder="e.g., -5" max="0">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="right-candle-${conditionCount}" onchange="onStockCandleChange('right', ${conditionCount})">
+                        <option value="min">Minute</option>
+                        <option value="hr">Hour</option>
+                        <option value="day">Day</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="right-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 1">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Price Type</label>
+                    <select class="form-select form-select-sm" id="right-type-${conditionCount}">
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                        <option value="close">Close</option>
+                        <option value="vwap">VWAP</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-2">
+            <div class="col-md-4 col-sm-6">
+                <label class="form-label small">Threshold Unit</label>
+                <select class="form-select form-select-sm" id="threshold-unit-${conditionCount}">
                     <option value="%">Percent (%)</option>
                     <option value="$">Dollar ($)</option>
                 </select>
             </div>
-            <div>
-                <label>Threshold Value</label>
-                <input type="number" id="threshold-value-${conditionCount}" step="0.01" placeholder="e.g., 2.5">
+            <div class="col-md-4 col-sm-6">
+                <label class="form-label small">Threshold Value</label>
+                <input type="number" class="form-control form-control-sm" id="threshold-value-${conditionCount}" step="0.01" placeholder="e.g., 2.5">
             </div>
         </div>
     `;

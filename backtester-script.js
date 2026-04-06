@@ -110,53 +110,53 @@ function addPriceCondition() {
         <div class="condition-left-side mb-3">
             <label class="form-label fw-bold">Left Side (Compare this)</label>
             <div class="row g-2">
-                <div class="col-md-2">
+                <div class="col-md-4 col-sm-6">
                     <label class="form-label small">Metric</label>
                     <select class="form-select form-select-sm" id="metric${conditionId}" onchange="updateConditionFields(${conditionId})">
                         ${METRICS.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2" id="leftDayGroup${conditionId}">
+                <div class="col-md-4 col-sm-6" id="leftDayGroup${conditionId}">
                     <label class="form-label small">Day</label>
                     <select class="form-select form-select-sm" id="leftDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2" id="leftCandleTypeGroup${conditionId}">
+                <div class="col-md-4 col-sm-6" id="leftCandleTypeGroup${conditionId}">
                     <label class="form-label small">Candle Type</label>
                     <select class="form-select form-select-sm" id="leftCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2" id="leftMultiplierGroup${conditionId}">
+                <div class="col-md-3 col-sm-6" id="leftMultiplierGroup${conditionId}">
                     <label class="form-label small">Multiplier</label>
                     <input type="number" class="form-control form-control-sm" id="leftMultiplier${conditionId}" value="1" min="1" max="60">
                 </div>
-                <div class="col-md-2" id="leftWindowGroup${conditionId}">
+                <div class="col-md-3 col-sm-6" id="leftWindowGroup${conditionId}">
                     <label class="form-label small" id="leftWindowLabel${conditionId}">Window</label>
                     <input type="number" class="form-control form-control-sm" id="leftWindow${conditionId}" value="14" min="1">
                 </div>
-                <div class="col-md-2" id="leftSeriesTypeGroup${conditionId}">
+                <div class="col-md-3 col-sm-6" id="leftSeriesTypeGroup${conditionId}">
                     <label class="form-label small" id="leftSeriesLabel${conditionId}">Series Type</label>
                     <select class="form-select form-select-sm" id="leftSeriesType${conditionId}">
                         ${SERIES_TYPES.map(s => `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`).join('')}
                     </select>
                 </div>
                 <!-- MACD specific fields -->
-                <div class="col-md-2" id="leftMacdShortGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="leftMacdShortGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Short Window</label>
                     <input type="number" class="form-control form-control-sm" id="leftMacdShort${conditionId}" value="12" min="1">
                 </div>
-                <div class="col-md-2" id="leftMacdLongGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="leftMacdLongGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Long Window</label>
                     <input type="number" class="form-control form-control-sm" id="leftMacdLong${conditionId}" value="26" min="1">
                 </div>
-                <div class="col-md-2" id="leftMacdSignalGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="leftMacdSignalGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Signal Window</label>
                     <input type="number" class="form-control form-control-sm" id="leftMacdSignal${conditionId}" value="9" min="1">
                 </div>
                 <!-- MACD Component selector -->
-                <div class="col-md-2" id="leftMacdComponentGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="leftMacdComponentGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Component</label>
                     <select class="form-select form-select-sm" id="leftMacdComponent${conditionId}" onchange="updateComparatorOptions(${conditionId})">
                         <option value="histogram">Histogram</option>
@@ -196,42 +196,42 @@ function addPriceCondition() {
         <div class="condition-right-side mb-3" id="rightSide${conditionId}" style="display: none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
             <div class="row g-2">
-                <div class="col-md-2">
+                <div class="col-md-4 col-sm-6">
                     <label class="form-label small">Day</label>
                     <select class="form-select form-select-sm" id="rightDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-4 col-sm-6">
                     <label class="form-label small">Candle Type</label>
                     <select class="form-select form-select-sm" id="rightCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-2" id="rightMultiplierGroup${conditionId}">
+                <div class="col-md-3 col-sm-6" id="rightMultiplierGroup${conditionId}">
                     <label class="form-label small">Multiplier</label>
                     <input type="number" class="form-control form-control-sm" id="rightMultiplier${conditionId}" value="1" min="1" max="60">
                 </div>
-                <div class="col-md-2" id="rightWindowGroup${conditionId}">
+                <div class="col-md-3 col-sm-6" id="rightWindowGroup${conditionId}">
                     <label class="form-label small">Window</label>
                     <input type="number" class="form-control form-control-sm" id="rightWindow${conditionId}" value="14" min="1">
                 </div>
-                <div class="col-md-2" id="rightSeriesTypeGroup${conditionId}">
+                <div class="col-md-3 col-sm-6" id="rightSeriesTypeGroup${conditionId}">
                     <label class="form-label small" id="rightSeriesLabel${conditionId}">Series Type</label>
                     <select class="form-select form-select-sm" id="rightSeriesType${conditionId}">
                         ${SERIES_TYPES.map(s => `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`).join('')}
                     </select>
                 </div>
                 <!-- MACD specific fields for right side -->
-                <div class="col-md-2" id="rightMacdShortGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="rightMacdShortGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Short Window</label>
                     <input type="number" class="form-control form-control-sm" id="rightMacdShort${conditionId}" value="12" min="1">
                 </div>
-                <div class="col-md-2" id="rightMacdLongGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="rightMacdLongGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Long Window</label>
                     <input type="number" class="form-control form-control-sm" id="rightMacdLong${conditionId}" value="26" min="1">
                 </div>
-                <div class="col-md-2" id="rightMacdSignalGroup${conditionId}" style="display: none;">
+                <div class="col-md-3 col-sm-6" id="rightMacdSignalGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Signal Window</label>
                     <input type="number" class="form-control form-control-sm" id="rightMacdSignal${conditionId}" value="9" min="1">
                 </div>
