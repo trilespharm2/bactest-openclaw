@@ -1371,6 +1371,9 @@
                       <div class="mb-3">
                         <label class="form-label">Enter DTE (0 for same day):</label>
                         <input type="number" class="form-control" id="dte" min="0" value="0" required>
+                        <div id="dteCalendarNotice" style="display:none; margin-top:8px; padding:8px 12px; background:#fff3cd; border:1px solid #ffc107; border-radius:6px; font-size:12px; color:#856404;">
+                          <i class="fas fa-info-circle"></i> DTE is configured per-leg for calendar/diagonal strategies. Set each leg's DTE in the leg configuration below.
+                        </div>
                       </div>
                     </div>
 
@@ -1381,22 +1384,38 @@
                         <label class="form-label">Select strategy:</label>
                         <select class="form-select" id="strategy" required>
                           <option value="">-- Select Strategy --</option>
-                          <option value="Long Call">1. Long Call</option>
-                          <option value="Long Put">2. Long Put</option>
-                          <option value="Naked Short Call">3. Naked Short Call</option>
-                          <option value="Naked Short Put">4. Naked Short Put</option>
-                          <option value="Short Put Spread">5. Short Put Spread</option>
-                          <option value="Short Call Spread">6. Short Call Spread</option>
-                          <option value="Short Iron Condor">7. Short Iron Condor</option>
-                          <option value="Short Iron Butterfly">8. Short Iron Butterfly</option>
-                          <option value="Long Call Spread">9. Long Call Spread</option>
-                          <option value="Long Put Spread">10. Long Put Spread</option>
-                          <option value="Long Straddle">11. Long Straddle</option>
-                          <option value="Long Strangle">12. Long Strangle</option>
-                          <option value="Long Iron Butterfly">13. Long Iron Butterfly</option>
-                          <option value="Long Iron Condor">14. Long Iron Condor</option>
-                          <option value="Short Straddle">15. Short Straddle</option>
-                          <option value="Short Strangle">16. Short Strangle</option>
+                          <optgroup label="Single Leg">
+                            <option value="Long Call">1. Long Call</option>
+                            <option value="Long Put">2. Long Put</option>
+                            <option value="Naked Short Call">3. Naked Short Call</option>
+                            <option value="Naked Short Put">4. Naked Short Put</option>
+                          </optgroup>
+                          <optgroup label="Vertical Spreads">
+                            <option value="Short Put Spread">5. Short Put Spread</option>
+                            <option value="Short Call Spread">6. Short Call Spread</option>
+                            <option value="Long Call Spread">7. Long Call Spread</option>
+                            <option value="Long Put Spread">8. Long Put Spread</option>
+                          </optgroup>
+                          <optgroup label="Iron Strategies">
+                            <option value="Short Iron Condor">9. Short Iron Condor</option>
+                            <option value="Short Iron Butterfly">10. Short Iron Butterfly</option>
+                            <option value="Long Iron Butterfly">11. Long Iron Butterfly</option>
+                            <option value="Long Iron Condor">12. Long Iron Condor</option>
+                          </optgroup>
+                          <optgroup label="Straddles &amp; Strangles">
+                            <option value="Long Straddle">13. Long Straddle</option>
+                            <option value="Long Strangle">14. Long Strangle</option>
+                            <option value="Short Straddle">15. Short Straddle</option>
+                            <option value="Short Strangle">16. Short Strangle</option>
+                          </optgroup>
+                          <optgroup label="Calendar &amp; Diagonal Spreads">
+                            <option value="Calendar Call Spread">17. Calendar Call Spread</option>
+                            <option value="Calendar Put Spread">18. Calendar Put Spread</option>
+                            <option value="Diagonal Call Spread">19. Diagonal Call Spread</option>
+                            <option value="Diagonal Put Spread">20. Diagonal Put Spread</option>
+                            <option value="Double Calendar">21. Double Calendar</option>
+                            <option value="Double Diagonal">22. Double Diagonal</option>
+                          </optgroup>
                         </select>
                       </div>
                     </div>
@@ -1428,7 +1447,36 @@
                       </div>
                     </div>
 
-                    <!-- [6.5/13] NET PREMIUM FILTER -->
+                    <!-- [6.4/14] IV% ENTRY CONDITION (Optional) -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[6.4/14]</span> IMPLIED VOLATILITY FILTER (Optional)</div>
+                      <small class="text-muted d-block mb-2">Only enter trades when ATM implied volatility meets a condition. IV is calculated from the nearest ATM option at entry time.</small>
+                      <div class="mb-2">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="ivConditionEnabled">
+                          <label class="form-check-label" for="ivConditionEnabled">Enable IV% filter</label>
+                        </div>
+                      </div>
+                      <div id="ivConditionParams" style="display:none;">
+                        <div class="row">
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label" for="ivConditionOperator">Condition:</label>
+                            <select class="form-select" id="ivConditionOperator">
+                              <option value=">">&gt; (greater than)</option>
+                              <option value=">=">&gt;= (greater or equal)</option>
+                              <option value="<">&lt; (less than)</option>
+                              <option value="<=">&lt;= (less or equal)</option>
+                            </select>
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label" for="ivConditionThreshold">IV% threshold:</label>
+                            <input type="number" class="form-control" id="ivConditionThreshold" step="0.1" min="0" max="500" placeholder="e.g. 25 for 25%">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- [7.5/14] NET PREMIUM FILTER -->
                     <div class="backtester-section">
                       <div class="section-label"><span class="section-number">[7.5/14]</span> NET PREMIUM FILTER (Optional)</div>
                       <small class="text-muted d-block mb-2">Filter trades based on net premium at entry. Leave blank to skip.</small>
