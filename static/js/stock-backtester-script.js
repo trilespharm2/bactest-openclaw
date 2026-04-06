@@ -187,8 +187,8 @@ function toggleCustomDay(side, id) {
 function enforceStockDayCandleRestriction(side, id) {
     var candleEl = document.getElementById(side + '-candle-' + id);
     var dayEl = document.getElementById(side + '-day-' + id);
-    var typeEl = document.getElementById(side + '-type-' + id);
-    if (!candleEl || !typeEl) return;
+    var seriesEl = document.getElementById(side + '-series-' + id);
+    if (!candleEl || !seriesEl) return;
 
     var candleType = candleEl.value;
     var dayVal = dayEl ? dayEl.value : '-1';
@@ -198,13 +198,12 @@ function enforceStockDayCandleRestriction(side, id) {
 
     var allTypes = ['open', 'high', 'low', 'close', 'vwap'];
     if (candleType === 'day' && dayOffset === 0) {
-        var prev = typeEl.value;
-        typeEl.innerHTML = '<option value="open">Open</option>';
-        typeEl.value = 'open';
+        seriesEl.innerHTML = '<option value="open">Open</option>';
+        seriesEl.value = 'open';
     } else {
-        var prev = typeEl.value;
-        if (typeEl.options.length <= 1) {
-            typeEl.innerHTML = allTypes.map(function(t) {
+        var prev = seriesEl.value;
+        if (seriesEl.options.length <= 1) {
+            seriesEl.innerHTML = allTypes.map(function(t) {
                 return '<option value="' + t + '"' + (t === prev ? ' selected' : '') + '>' + t.charAt(0).toUpperCase() + t.slice(1) + '</option>';
             }).join('');
         }
@@ -245,132 +244,260 @@ function resetStockBacktestForm() {
     }
 }
 
-// Add a new condition to the builder
+const STOCK_METRICS = [
+    { value: 'current_price', label: 'Current Price' },
+    { value: 'price', label: 'Price' },
+    { value: 'sma', label: 'SMA' },
+    { value: 'ema', label: 'EMA' },
+    { value: 'rsi', label: 'RSI' },
+    { value: 'macd', label: 'MACD' }
+];
+
+const STOCK_SERIES_TYPES = [
+    { value: 'open', label: 'Open' },
+    { value: 'high', label: 'High' },
+    { value: 'low', label: 'Low' },
+    { value: 'close', label: 'Close' },
+    { value: 'vwap', label: 'VWAP' }
+];
+
 function addCondition() {
     conditionCount++;
     const container = document.getElementById('conditionsContainer');
-    
+    const n = conditionCount;
+
     const conditionDiv = document.createElement('div');
-    conditionDiv.className = 'condition-item';
-    conditionDiv.id = `condition-${conditionCount}`;
-    
+    conditionDiv.className = 'condition-item card p-3 mb-3';
+    conditionDiv.id = `condition-${n}`;
+    conditionDiv.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6;';
+
     conditionDiv.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <strong class="text-muted">Condition #${conditionCount} ${conditionCount === 1 ? '(Entry Trigger)' : '(Prerequisite)'}</strong>
-            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCondition(${conditionCount})">
+            <strong class="text-muted">Condition ${n} ${n === 1 ? '(Entry Trigger)' : '(Prerequisite)'}</strong>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCondition(${n})">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        
-        <div class="mb-3">
+
+        <div class="condition-left-side mb-3">
             <label class="form-label fw-bold">Left Side (Compare this)</label>
             <div class="row g-2">
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-4 col-sm-6">
+                    <label class="form-label small">Metric</label>
+                    <select class="form-select form-select-sm" id="metric-${n}" onchange="updateStockConditionFields(${n})">
+                        ${STOCK_METRICS.map(m => '<option value="' + m.value + '">' + m.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="left-day-group-${n}" style="display:none;">
                     <label class="form-label small">Day</label>
-                    <select class="form-select form-select-sm" id="left-day-${conditionCount}" onchange="toggleCustomDay('left', ${conditionCount})">
+                    <select class="form-select form-select-sm" id="left-day-${n}" onchange="toggleCustomDay('left', ${n})">
                         <option value="0">Today (0)</option>
                         <option value="-1">Yesterday (-1)</option>
                         <option value="-2">2 Days Ago (-2)</option>
                         <option value="-3">3 Days Ago (-3)</option>
                         <option value="custom">Custom...</option>
                     </select>
-                    <input type="number" class="form-control form-control-sm mt-1" id="left-day-custom-${conditionCount}" style="display: none;" placeholder="e.g., -5" max="0">
+                    <input type="number" class="form-control form-control-sm mt-1" id="left-day-custom-${n}" style="display:none;" placeholder="e.g., -5" max="0">
                 </div>
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="left-candle-group-${n}" style="display:none;">
                     <label class="form-label small">Candle Type</label>
-                    <select class="form-select form-select-sm" id="left-candle-${conditionCount}" onchange="onStockCandleChange('left', ${conditionCount})">
+                    <select class="form-select form-select-sm" id="left-candle-${n}" onchange="onStockCandleChange('left', ${n})">
                         <option value="min">Minute</option>
                         <option value="hr">Hour</option>
                         <option value="day">Day</option>
                     </select>
                 </div>
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-3 col-sm-6" id="left-mult-group-${n}" style="display:none;">
                     <label class="form-label small">Multiplier</label>
-                    <input type="number" class="form-control form-control-sm" id="left-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 5">
+                    <input type="number" class="form-control form-control-sm" id="left-mult-${n}" min="1" value="1" placeholder="e.g., 5">
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <label class="form-label small">Price Type</label>
-                    <select class="form-select form-select-sm" id="left-type-${conditionCount}">
-                        <option value="open">Open</option>
-                        <option value="high">High</option>
-                        <option value="low">Low</option>
-                        <option value="close">Close</option>
-                        <option value="vwap">VWAP</option>
+                <div class="col-md-3 col-sm-6" id="left-window-group-${n}" style="display:none;">
+                    <label class="form-label small" id="left-window-label-${n}">Window</label>
+                    <input type="number" class="form-control form-control-sm" id="left-window-${n}" value="14" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="left-series-group-${n}" style="display:none;">
+                    <label class="form-label small" id="left-series-label-${n}">Series Type</label>
+                    <select class="form-select form-select-sm" id="left-series-${n}">
+                        ${STOCK_SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
                     </select>
                 </div>
             </div>
         </div>
-        
-        <div class="mb-3">
-            <div class="row g-2">
-                <div class="col-md-4">
+
+        <div class="condition-operator mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
                     <label class="form-label fw-bold">Operator</label>
-                    <select class="form-select" id="operator-${conditionCount}">
-                        <option value=">">></option>
-                        <option value="<"><</option>
-                        <option value=">=">>=</option>
-                        <option value="<="><=</option>
+                    <select class="form-select" id="operator-${n}">
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">&gt;=</option>
+                        <option value="<=">&lt;=</option>
                         <option value="=">=</option>
                     </select>
                 </div>
+                <div class="col-md-3">
+                    <label class="form-label">Comparator</label>
+                    <select class="form-select" id="comparator-${n}" onchange="updateStockRightSide(${n})">
+                        <option value="value">Value</option>
+                        <option value="compare_price">Compare Price</option>
+                        <option value="compare_sma">Compare SMA</option>
+                        <option value="compare_ema">Compare EMA</option>
+                    </select>
+                </div>
+                <div class="col-md-3" id="value-input-group-${n}">
+                    <label class="form-label">Value</label>
+                    <input type="number" class="form-control" id="compare-value-${n}" step="0.01" placeholder="e.g., 50">
+                </div>
             </div>
         </div>
-        
-        <div class="mb-3">
+
+        <div class="condition-right-side mb-3" id="right-side-${n}" style="display:none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
             <div class="row g-2">
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="right-day-group-${n}">
                     <label class="form-label small">Day</label>
-                    <select class="form-select form-select-sm" id="right-day-${conditionCount}" onchange="toggleCustomDay('right', ${conditionCount})">
+                    <select class="form-select form-select-sm" id="right-day-${n}" onchange="toggleCustomDay('right', ${n})">
                         <option value="0">Today (0)</option>
                         <option value="-1">Yesterday (-1)</option>
                         <option value="-2">2 Days Ago (-2)</option>
                         <option value="-3">3 Days Ago (-3)</option>
                         <option value="custom">Custom...</option>
                     </select>
-                    <input type="number" class="form-control form-control-sm mt-1" id="right-day-custom-${conditionCount}" style="display: none;" placeholder="e.g., -5" max="0">
+                    <input type="number" class="form-control form-control-sm mt-1" id="right-day-custom-${n}" style="display:none;" placeholder="e.g., -5" max="0">
                 </div>
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="right-candle-group-${n}">
                     <label class="form-label small">Candle Type</label>
-                    <select class="form-select form-select-sm" id="right-candle-${conditionCount}" onchange="onStockCandleChange('right', ${conditionCount})">
+                    <select class="form-select form-select-sm" id="right-candle-${n}" onchange="onStockCandleChange('right', ${n})">
                         <option value="min">Minute</option>
                         <option value="hr">Hour</option>
                         <option value="day">Day</option>
                     </select>
                 </div>
-                <div class="col-md-3 col-sm-6">
+                <div class="col-md-3 col-sm-6" id="right-mult-group-${n}">
                     <label class="form-label small">Multiplier</label>
-                    <input type="number" class="form-control form-control-sm" id="right-mult-${conditionCount}" min="1" value="1" placeholder="e.g., 1">
+                    <input type="number" class="form-control form-control-sm" id="right-mult-${n}" min="1" value="1" placeholder="e.g., 1">
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <label class="form-label small">Price Type</label>
-                    <select class="form-select form-select-sm" id="right-type-${conditionCount}">
-                        <option value="open">Open</option>
-                        <option value="high">High</option>
-                        <option value="low">Low</option>
-                        <option value="close">Close</option>
-                        <option value="vwap">VWAP</option>
+                <div class="col-md-3 col-sm-6" id="right-window-group-${n}" style="display:none;">
+                    <label class="form-label small">Window</label>
+                    <input type="number" class="form-control form-control-sm" id="right-window-${n}" value="14" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="right-series-group-${n}">
+                    <label class="form-label small">Series Type</label>
+                    <select class="form-select form-select-sm" id="right-series-${n}">
+                        ${STOCK_SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
                     </select>
                 </div>
             </div>
-        </div>
-        
-        <div class="row g-2">
-            <div class="col-md-4 col-sm-6">
-                <label class="form-label small">Threshold Unit</label>
-                <select class="form-select form-select-sm" id="threshold-unit-${conditionCount}">
-                    <option value="%">Percent (%)</option>
-                    <option value="$">Dollar ($)</option>
-                </select>
-            </div>
-            <div class="col-md-4 col-sm-6">
-                <label class="form-label small">Threshold Value</label>
-                <input type="number" class="form-control form-control-sm" id="threshold-value-${conditionCount}" step="0.01" placeholder="e.g., 2.5">
+
+            <div class="row g-2 mt-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Threshold Unit</label>
+                    <select class="form-select form-select-sm" id="threshold-unit-${n}">
+                        <option value="%">Percent (%)</option>
+                        <option value="$">Dollar ($)</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="threshold-value-${n}" step="0.01" placeholder="e.g., 2.5">
+                </div>
             </div>
         </div>
     `;
-    
+
     container.appendChild(conditionDiv);
+    updateStockConditionFields(n);
+}
+
+function updateStockConditionFields(n) {
+    var metric = document.getElementById('metric-' + n);
+    if (!metric) return;
+    var val = metric.value;
+
+    var leftDayGroup = document.getElementById('left-day-group-' + n);
+    var leftCandleGroup = document.getElementById('left-candle-group-' + n);
+    var leftMultGroup = document.getElementById('left-mult-group-' + n);
+    var leftWindowGroup = document.getElementById('left-window-group-' + n);
+    var leftSeriesGroup = document.getElementById('left-series-group-' + n);
+    var leftWindowLabel = document.getElementById('left-window-label-' + n);
+    var leftSeriesLabel = document.getElementById('left-series-label-' + n);
+    var comparator = document.getElementById('comparator-' + n);
+
+    if (val === 'current_price') {
+        if (leftDayGroup) leftDayGroup.style.display = 'none';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'none';
+        if (leftMultGroup) leftMultGroup.style.display = 'none';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+    } else if (val === 'price') {
+        if (leftDayGroup) leftDayGroup.style.display = 'block';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'block';
+        if (leftMultGroup) leftMultGroup.style.display = 'block';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
+        if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+    } else if (val === 'sma' || val === 'ema') {
+        if (leftDayGroup) leftDayGroup.style.display = 'block';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'block';
+        if (leftMultGroup) leftMultGroup.style.display = 'block';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'block';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
+        if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
+        if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+    } else if (val === 'rsi') {
+        if (leftDayGroup) leftDayGroup.style.display = 'block';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'block';
+        if (leftMultGroup) leftMultGroup.style.display = 'block';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'block';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
+        if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
+        if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+        updateStockComparatorOptions(n, ['value']);
+    } else if (val === 'macd') {
+        if (leftDayGroup) leftDayGroup.style.display = 'block';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'block';
+        if (leftMultGroup) leftMultGroup.style.display = 'block';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
+        if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+        updateStockComparatorOptions(n, ['value']);
+    }
+    updateStockRightSide(n);
+}
+
+function updateStockComparatorOptions(n, options) {
+    var sel = document.getElementById('comparator-' + n);
+    if (!sel) return;
+    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA' };
+    sel.innerHTML = options.map(function(o) { return '<option value="' + o + '">' + (labels[o] || o) + '</option>'; }).join('');
+}
+
+function updateStockRightSide(n) {
+    var comparator = document.getElementById('comparator-' + n);
+    var rightSide = document.getElementById('right-side-' + n);
+    var valueGroup = document.getElementById('value-input-group-' + n);
+    if (!comparator || !rightSide || !valueGroup) return;
+
+    var comp = comparator.value;
+    if (comp === 'value') {
+        rightSide.style.display = 'none';
+        valueGroup.style.display = 'block';
+    } else {
+        rightSide.style.display = 'block';
+        valueGroup.style.display = 'none';
+
+        var rightWindowGroup = document.getElementById('right-window-group-' + n);
+        var rightType = comp.replace('compare_', '');
+        if (rightType === 'sma' || rightType === 'ema') {
+            if (rightWindowGroup) rightWindowGroup.style.display = 'block';
+        } else {
+            if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+        }
+    }
 }
 
 // Remove a condition
@@ -396,9 +523,9 @@ function renumberConditions() {
     conditionCount = conditions.length;
     
     conditions.forEach((cond, index) => {
-        const h4 = cond.querySelector('h4');
-        if (h4) {
-            h4.textContent = `Condition #${index + 1} ${index === 0 ? '(Entry Trigger)' : '(Prerequisite)'}`;
+        const label = cond.querySelector('strong.text-muted');
+        if (label) {
+            label.textContent = `Condition ${index + 1} ${index === 0 ? '(Entry Trigger)' : '(Prerequisite)'}`;
         }
     });
 }
@@ -441,19 +568,30 @@ function buildStockConfigSummaryHtml(config) {
         }
     } else if (config.custom_conditions && config.custom_conditions.length > 0) {
         entryHtml = config.custom_conditions.map((c, i) => {
-            const dayLabel = (d) => d === 0 ? 'Day (0)' : `Day (${d})`;
-            const candleLabel = (candle, mult) => {
+            const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
+            const dayLabel = (d) => d === 0 ? 'Today' : `Day(${d})`;
+            const candleFmt = (candle, mult) => {
                 const m = parseInt(mult) || 1;
                 if (candle === 'min') return m + 'min';
                 if (candle === 'hr') return m + 'hr';
                 if (candle === 'day') return m > 1 ? m + 'day' : 'day';
                 return candle || 'day';
             };
-            const left = `${dayLabel(c.left_day)} ${candleLabel(c.left_candle, c.left_multiplier)} ${c.left_type}`;
-            const right = `${dayLabel(c.right_day)} ${candleLabel(c.right_candle, c.right_multiplier)} ${c.right_type}`;
-            const threshold = c.threshold_value ? ` by ${c.threshold_value}${c.threshold_unit}` : '';
+            var met = c.metric || 'price';
+            var leftDesc = metricLabels[met] || met;
+            if (met !== 'current_price') {
+                leftDesc += ' [' + dayLabel(c.left_day) + ' ' + candleFmt(c.left_candle, c.left_multiplier) + ']';
+            }
+            var rightDesc = '';
+            if (c.comparator === 'value' || c.right_type === 'value') {
+                rightDesc = String(c.right_fixed_value || 0);
+            } else {
+                var compLabel = (c.comparator || '').replace('compare_', '').toUpperCase();
+                rightDesc = compLabel + ' [' + dayLabel(c.right_day) + ' ' + candleFmt(c.right_candle, c.right_multiplier) + ']';
+                if (c.threshold_value) rightDesc += ' ±' + c.threshold_value + (c.threshold_unit || '%');
+            }
             const prefix = i === 0 ? '<span style="color:#3b7cff; font-weight:600;">Entry:</span>' : '<span style="color:#64748b; font-weight:600;">Prior:</span>';
-            return `<div style="margin-bottom:4px;">${prefix} ${left} ${c.operation} ${right}${threshold}</div>`;
+            return `<div style="margin-bottom:4px;">${prefix} ${leftDesc} ${c.operation} ${rightDesc}</div>`;
         }).join('');
     }
 
@@ -663,31 +801,62 @@ async function collectFormData() {
         
         conditions.forEach((condItem, index) => {
             const id = condItem.id.split('-')[1];
-            
+            const metric = (document.getElementById(`metric-${id}`) || {}).value || 'current_price';
+            const comparator = (document.getElementById(`comparator-${id}`) || {}).value || 'value';
+
             const leftDaySelect = document.getElementById(`left-day-${id}`);
-            const leftDayVal = leftDaySelect.value === 'custom'
-                ? parseInt(document.getElementById(`left-day-custom-${id}`).value) || 0
-                : parseInt(leftDaySelect.value);
-            const rightDaySelect = document.getElementById(`right-day-${id}`);
-            const rightDayVal = rightDaySelect.value === 'custom'
-                ? parseInt(document.getElementById(`right-day-custom-${id}`).value) || 0
-                : parseInt(rightDaySelect.value);
+            const leftDayVal = metric === 'current_price' ? 0 :
+                (leftDaySelect && leftDaySelect.value === 'custom'
+                    ? parseInt(document.getElementById(`left-day-custom-${id}`).value) || 0
+                    : parseInt((leftDaySelect || {}).value) || 0);
+
+            var leftType = metric;
+            if (metric === 'current_price' || metric === 'price') {
+                leftType = (document.getElementById(`left-series-${id}`) || {}).value || 'close';
+            }
 
             const condition = {
                 type: index === 0 ? 'entry' : 'prior',
+                metric: metric,
                 left_day: leftDayVal,
-                left_candle: document.getElementById(`left-candle-${id}`).value,
-                left_multiplier: parseInt(document.getElementById(`left-mult-${id}`).value),
-                left_type: document.getElementById(`left-type-${id}`).value,
-                operation: document.getElementById(`operator-${id}`).value,
-                right_day: rightDayVal,
-                right_candle: document.getElementById(`right-candle-${id}`).value,
-                right_multiplier: parseInt(document.getElementById(`right-mult-${id}`).value),
-                right_type: document.getElementById(`right-type-${id}`).value,
-                threshold_unit: document.getElementById(`threshold-unit-${id}`).value,
-                threshold_value: parseFloat(document.getElementById(`threshold-value-${id}`).value)
+                left_candle: metric === 'current_price' ? 'min' : ((document.getElementById(`left-candle-${id}`) || {}).value || 'min'),
+                left_multiplier: parseInt((document.getElementById(`left-mult-${id}`) || {}).value) || 1,
+                left_type: leftType,
+                left_series: (document.getElementById(`left-series-${id}`) || {}).value || 'close',
+                left_window: parseInt((document.getElementById(`left-window-${id}`) || {}).value) || 14,
+                operation: (document.getElementById(`operator-${id}`) || {}).value || '>',
+                comparator: comparator
             };
-            
+
+            if (comparator === 'value') {
+                condition.right_type = 'value';
+                condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '$';
+                condition.threshold_value = 0;
+            } else {
+                var rightDaySelect = document.getElementById(`right-day-${id}`);
+                condition.right_day = rightDaySelect && rightDaySelect.value === 'custom'
+                    ? parseInt(document.getElementById(`right-day-custom-${id}`).value) || 0
+                    : parseInt((rightDaySelect || {}).value) || 0;
+                condition.right_candle = (document.getElementById(`right-candle-${id}`) || {}).value || 'min';
+                condition.right_multiplier = parseInt((document.getElementById(`right-mult-${id}`) || {}).value) || 1;
+                condition.right_series = (document.getElementById(`right-series-${id}`) || {}).value || 'close';
+                condition.right_window = parseInt((document.getElementById(`right-window-${id}`) || {}).value) || 14;
+
+                var rightBaseType = comparator.replace('compare_', '');
+                if (rightBaseType === 'price') {
+                    condition.right_type = condition.right_series || 'close';
+                } else {
+                    condition.right_type = rightBaseType;
+                }
+
+                condition.threshold_unit = (document.getElementById(`threshold-unit-${id}`) || {}).value || '%';
+                condition.threshold_value = parseFloat((document.getElementById(`threshold-value-${id}`) || {}).value) || 0;
+            }
+
             config.custom_conditions.push(condition);
         });
     }
@@ -1190,8 +1359,39 @@ function applyStockConfig(config) {
         conditionCount = 0;
 
         config.custom_conditions.forEach(function(cond, idx) {
+            if (!cond.metric) {
+                var lt = cond.left_type || 'close';
+                var indicatorTypes = ['sma', 'ema', 'rsi', 'macd'];
+                if (indicatorTypes.indexOf(lt) >= 0) {
+                    cond.metric = lt;
+                } else {
+                    cond.metric = (cond.left_day === 0 && cond.left_candle === 'min') ? 'current_price' : 'price';
+                }
+                cond.left_series = cond.left_series || lt;
+            }
+            if (!cond.comparator) {
+                var rt = cond.right_type || 'close';
+                if (rt === 'value') {
+                    cond.comparator = 'value';
+                } else {
+                    var rIndicators = ['sma', 'ema', 'rsi', 'macd'];
+                    if (rIndicators.indexOf(rt) >= 0) {
+                        cond.comparator = 'compare_' + rt;
+                    } else {
+                        cond.comparator = 'compare_price';
+                    }
+                    cond.right_series = cond.right_series || rt;
+                }
+            }
+
             if (typeof addCondition === 'function') addCondition();
             var id = conditionCount;
+
+            var metricEl = document.getElementById('metric-' + id);
+            if (metricEl && cond.metric) {
+                metricEl.value = cond.metric;
+                updateStockConditionFields(id);
+            }
 
             var leftDayEl = document.getElementById('left-day-' + id);
             if (leftDayEl) {
@@ -1212,11 +1412,23 @@ function applyStockConfig(config) {
             var leftMultEl = document.getElementById('left-mult-' + id);
             if (leftMultEl && cond.left_multiplier) leftMultEl.value = cond.left_multiplier;
 
-            var leftTypeEl = document.getElementById('left-type-' + id);
-            if (leftTypeEl && cond.left_type) leftTypeEl.value = cond.left_type;
+            var leftSeriesEl = document.getElementById('left-series-' + id);
+            if (leftSeriesEl && cond.left_series) leftSeriesEl.value = cond.left_series;
+
+            var leftWindowEl = document.getElementById('left-window-' + id);
+            if (leftWindowEl && cond.left_window) leftWindowEl.value = cond.left_window;
 
             var operatorEl = document.getElementById('operator-' + id);
             if (operatorEl && cond.operation) operatorEl.value = cond.operation;
+
+            var comparatorEl = document.getElementById('comparator-' + id);
+            if (comparatorEl && cond.comparator) {
+                comparatorEl.value = cond.comparator;
+                updateStockRightSide(id);
+            }
+
+            var compareValueEl = document.getElementById('compare-value-' + id);
+            if (compareValueEl && cond.right_fixed_value != null) compareValueEl.value = cond.right_fixed_value;
 
             var rightDayEl = document.getElementById('right-day-' + id);
             if (rightDayEl) {
@@ -1237,8 +1449,11 @@ function applyStockConfig(config) {
             var rightMultEl = document.getElementById('right-mult-' + id);
             if (rightMultEl && cond.right_multiplier) rightMultEl.value = cond.right_multiplier;
 
-            var rightTypeEl = document.getElementById('right-type-' + id);
-            if (rightTypeEl && cond.right_type) rightTypeEl.value = cond.right_type;
+            var rightSeriesEl = document.getElementById('right-series-' + id);
+            if (rightSeriesEl && cond.right_series) rightSeriesEl.value = cond.right_series;
+
+            var rightWindowEl = document.getElementById('right-window-' + id);
+            if (rightWindowEl && cond.right_window) rightWindowEl.value = cond.right_window;
 
             var thresholdUnitEl = document.getElementById('threshold-unit-' + id);
             if (thresholdUnitEl && cond.threshold_unit) thresholdUnitEl.value = cond.threshold_unit;

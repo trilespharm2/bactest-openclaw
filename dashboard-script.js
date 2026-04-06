@@ -402,8 +402,8 @@ function setupQuickActions() {
 // ─── OPTIONS MARKET WIDGET ──────────────────────────────────
 var _dashOptMktCat = 'highest-open-interest';
 var _dashOptMktRecords = [];
-var _dashOptMktPage = 0;
-var _dashOptMktPerPage = 10;
+var _dashOptMktSortCol = null;
+var _dashOptMktSortAsc = true;
 
 async function loadOptionsMarket() {
     var container = document.getElementById('dashOptMktContent');
@@ -413,8 +413,9 @@ async function loadOptionsMarket() {
         var resp = await fetch('/api/options-market?category=' + encodeURIComponent(_dashOptMktCat));
         var data = await resp.json();
         if (data.error) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">' + data.error + '</div>'; return; }
-        _dashOptMktRecords = data.records || [];
-        _dashOptMktPage = 0;
+        _dashOptMktRecords = (data.records || []).slice(0, 6);
+        _dashOptMktSortCol = null;
+        _dashOptMktSortAsc = true;
         renderOptionsMarketPage();
     } catch (e) {
         console.error('Options market error:', e);
@@ -422,19 +423,56 @@ async function loadOptionsMarket() {
     }
 }
 
+function sortOptMkt(col) {
+    if (_dashOptMktSortCol === col) {
+        _dashOptMktSortAsc = !_dashOptMktSortAsc;
+    } else {
+        _dashOptMktSortCol = col;
+        _dashOptMktSortAsc = true;
+    }
+    var numCols = ['strike', 'price', 'changePercent', 'volume', 'openInterest'];
+    _dashOptMktRecords.sort(function(a, b) {
+        var av = a[col], bv = b[col];
+        if (numCols.indexOf(col) >= 0) {
+            av = av != null ? Number(av) : -Infinity;
+            bv = bv != null ? Number(bv) : -Infinity;
+        } else {
+            av = String(av || '').toLowerCase();
+            bv = String(bv || '').toLowerCase();
+        }
+        if (av < bv) return _dashOptMktSortAsc ? -1 : 1;
+        if (av > bv) return _dashOptMktSortAsc ? 1 : -1;
+        return 0;
+    });
+    renderOptionsMarketPage();
+}
+
 function renderOptionsMarketPage() {
     var container = document.getElementById('dashOptMktContent');
     if (!container) return;
     var records = _dashOptMktRecords;
     if (!records.length) { container.innerHTML = '<div class="text-muted text-center py-2" style="font-size:12px;">No data available</div>'; return; }
-    var start = _dashOptMktPage * _dashOptMktPerPage;
-    var page = records.slice(start, start + _dashOptMktPerPage);
-    var totalPages = Math.ceil(records.length / _dashOptMktPerPage);
-    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:11px;"><thead class="table-light"><tr>' +
-        '<th>Symbol</th><th class="text-end">Strike</th><th>Exp</th>' +
-        '<th class="text-end">Price</th><th class="text-end">Chg%</th>' +
-        '<th class="text-end">Vol</th><th class="text-end">OI</th></tr></thead><tbody>';
-    page.forEach(function(r) {
+
+    var cols = [
+        { key: 'underlying', label: 'Symbol', cls: '' },
+        { key: 'strike', label: 'Strike', cls: 'text-end' },
+        { key: 'expiration', label: 'Exp', cls: '' },
+        { key: 'price', label: 'Price', cls: 'text-end' },
+        { key: 'changePercent', label: 'Chg%', cls: 'text-end' },
+        { key: 'volume', label: 'Vol', cls: 'text-end' },
+        { key: 'openInterest', label: 'OI', cls: 'text-end' }
+    ];
+
+    var thStyle = 'cursor:pointer;user-select:none;white-space:nowrap;';
+    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:11px;"><thead class="table-light"><tr>';
+    cols.forEach(function(c) {
+        var arrow = '';
+        if (_dashOptMktSortCol === c.key) arrow = _dashOptMktSortAsc ? ' <i class="fas fa-sort-up" style="font-size:9px;"></i>' : ' <i class="fas fa-sort-down" style="font-size:9px;"></i>';
+        html += '<th class="' + c.cls + '" style="' + thStyle + '" onclick="sortOptMkt(\'' + c.key + '\')">' + c.label + arrow + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    records.forEach(function(r) {
         var chgPct = r.changePercent || 0;
         var cls = chgPct > 0 ? 'text-success' : chgPct < 0 ? 'text-danger' : '';
         var name = (r.name || '').toLowerCase();
@@ -456,19 +494,7 @@ function renderOptionsMarketPage() {
             '</tr>';
     });
     html += '</tbody></table></div>';
-    if (totalPages > 1) {
-        html += '<div class="d-flex justify-content-between align-items-center mt-2" style="font-size:11px;">' +
-            '<span class="text-muted">Page ' + (_dashOptMktPage + 1) + ' of ' + totalPages + '</span>' +
-            '<div>' +
-            '<button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style="font-size:11px;" id="dashOptMktPrev"' + (_dashOptMktPage === 0 ? ' disabled' : '') + '><i class="fas fa-chevron-left" style="font-size:9px;"></i> Prev</button>' +
-            '<button class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:11px;" id="dashOptMktNext"' + (_dashOptMktPage >= totalPages - 1 ? ' disabled' : '') + '>Next <i class="fas fa-chevron-right" style="font-size:9px;"></i></button>' +
-            '</div></div>';
-    }
     container.innerHTML = html;
-    var prevBtn = document.getElementById('dashOptMktPrev');
-    var nextBtn = document.getElementById('dashOptMktNext');
-    if (prevBtn) prevBtn.addEventListener('click', function() { if (_dashOptMktPage > 0) { _dashOptMktPage--; renderOptionsMarketPage(); } });
-    if (nextBtn) nextBtn.addEventListener('click', function() { if (_dashOptMktPage < totalPages - 1) { _dashOptMktPage++; renderOptionsMarketPage(); } });
 }
 
 function setupOptionsMarketWidget() {
