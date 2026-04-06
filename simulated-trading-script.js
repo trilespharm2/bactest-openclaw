@@ -1,3 +1,7 @@
+function isSimGuest() {
+    return typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : false;
+}
+
 let simAllBars = [];
 let simVisibleBars = [];
 let simCurrentBarIndex = 0;
@@ -127,13 +131,46 @@ function initSimulatedTrading() {
     });
 
     renderActiveSessionCards();
+    injectGuestSimBanner();
     console.log('Simulated Trading Config Page initialized');
+}
+
+function injectGuestSimBanner() {
+    const existing = document.getElementById('simGuestBanner');
+    if (isSimGuest()) {
+        if (existing) { existing.style.display = ''; return; }
+        const loadBtn = document.getElementById('simLoadChartBtn');
+        if (!loadBtn) return;
+        const banner = document.createElement('div');
+        banner.id = 'simGuestBanner';
+        banner.style.cssText = 'display:flex;align-items:flex-start;gap:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:14px 16px;margin-bottom:18px;';
+        banner.innerHTML =
+            '<svg style="flex-shrink:0;margin-top:1px;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+            '<div style="font-size:13px;color:#92400e;line-height:1.6;">' +
+              '<strong>Not signed in</strong> — your session results will be viewable at the end but will <strong>not be saved</strong>. ' +
+              '<a href="#" id="simGuestBannerSignIn" style="color:#1d4ed8;font-weight:600;text-decoration:underline;">Sign in</a> to keep your history.' +
+            '</div>';
+        loadBtn.closest('form, .card-body, .sim-config-card, section') ?
+            loadBtn.closest('form, .card-body, .sim-config-card, section').prepend(banner) :
+            loadBtn.parentElement.prepend(banner);
+        document.getElementById('simGuestBannerSignIn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (typeof navigateToPage === 'function') navigateToPage('login');
+        });
+    } else {
+        if (existing) existing.style.display = 'none';
+    }
 }
 
 function renderActiveSessionCards() {
     const section = document.getElementById('simActiveSessionsSection');
     const container = document.getElementById('simActiveSessionCards');
     if (!section || !container) return;
+
+    if (isSimGuest()) {
+        section.style.display = 'none';
+        return;
+    }
 
     let activeSessions = [];
     try {
@@ -232,13 +269,23 @@ function startNewSession() {
         return;
     }
 
-    window._simPendingSession = {
-        symbol, chartStartDate, chartEndDate, tradingStartDate, mode, balance,
-        isNew: true
-    };
+    async function proceedToSession() {
+        window._simPendingSession = {
+            symbol, chartStartDate, chartEndDate, tradingStartDate, mode, balance,
+            isNew: true
+        };
+        if (typeof navigateToPage === 'function') {
+            navigateToPage('simTradingActive');
+        }
+    }
 
-    if (typeof navigateToPage === 'function') {
-        navigateToPage('simTradingActive');
+    if (isSimGuest()) {
+        const choice = await appGuestSimWarning();
+        if (choice === 'guest') {
+            await proceedToSession();
+        }
+    } else {
+        await proceedToSession();
     }
 }
 
@@ -552,6 +599,10 @@ function buildAnalyticsFromTrades(enrichedTrades, session) {
 }
 
 function saveCompletedSession(sessionData) {
+    if (isSimGuest()) {
+        window._guestSimResult = sessionData;
+        return;
+    }
     let savedSessions = [];
     try { savedSessions = JSON.parse(localStorage.getItem('simTradingSessions') || '[]'); } catch(e) {}
     savedSessions.unshift(sessionData);
@@ -591,9 +642,14 @@ function setupTradingPageListeners() {
     if (_tradingPageListenersSet) return;
     _tradingPageListenersSet = true;
 
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function(e) {
         if (typeof simCurrentSymbol !== 'undefined' && simCurrentSymbol) {
-            try { saveCurrentSessionState(); } catch(e) {}
+            if (isSimGuest()) {
+                e.preventDefault();
+                e.returnValue = 'Your active trading session is not saved and will be permanently lost if you leave. Are you sure?';
+                return e.returnValue;
+            }
+            try { saveCurrentSessionState(); } catch(e2) {}
         }
     });
 
@@ -619,9 +675,16 @@ function setupTradingPageListeners() {
     });
 }
 
-function handleBackToConfig() {
+async function handleBackToConfig() {
     stopAutoplay();
-    saveCurrentSessionState();
+    if (isSimGuest() && simCurrentSymbol && simDataLoaded) {
+        const leave = await appGuestLeaveWarning();
+        if (!leave) { return; }
+        simCurrentSymbol = '';
+        window._simPendingSession = null;
+    } else {
+        saveCurrentSessionState();
+    }
     if (typeof navigateToPage === 'function') navigateToPage('simulatedTrading');
 }
 
@@ -636,9 +699,12 @@ async function handleEndSession() {
         await appAlert('Please close all open positions before ending the session.');
         return;
     }
-    if (!(await appConfirm('End this session and save results?'))) return;
+    const confirmMsg = isSimGuest()
+        ? 'End this session? You can view results now, but they will not be saved after you leave.'
+        : 'End this session and save results?';
+    if (!(await appConfirm(confirmMsg))) return;
 
-    removeActiveSession();
+    if (!isSimGuest()) removeActiveSession();
     simCurrentSymbol = '';
     window._simPendingSession = null;
 
@@ -711,6 +777,7 @@ function buildCurrentSessionData() {
 
 function saveCurrentSessionState() {
     if (!simCurrentSymbol || !simDataLoaded) return;
+    if (isSimGuest()) return;
     const mode = window._simTradingMode || 'stock';
 
     let unrealizedPnl = 0;
