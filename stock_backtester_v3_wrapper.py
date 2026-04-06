@@ -284,12 +284,31 @@ class StockBacktesterV3Wrapper:
         if sizing_type == 'percent':
             engine_config['starting_capital'] = float(web_config.get('starting_capital', 50000))
         
-        # Exit criteria
+        # Exit conditions (signal-based)
+        exit_cond_type = web_config.get('exit_cond_type', 'preset')
+        engine_config['exit_cond_type'] = exit_cond_type
+        
+        if exit_cond_type == 'preset' and web_config.get('exit_preset_condition'):
+            engine_config['exit_preset_condition'] = web_config['exit_preset_condition']
+            engine_config['exit_preset_operator'] = web_config.get('exit_preset_operator', '>')
+            try:
+                engine_config['exit_preset_threshold'] = float(web_config.get('exit_preset_threshold') or 0)
+            except (ValueError, TypeError):
+                engine_config['exit_preset_threshold'] = 0
+            if web_config.get('exit_preset_condition') == '5':
+                try:
+                    engine_config['exit_velocity_lookback'] = int(web_config.get('exit_velocity_lookback') or 5)
+                except (ValueError, TypeError):
+                    engine_config['exit_velocity_lookback'] = 5
+        elif exit_cond_type == 'custom':
+            engine_config['exit_custom_conditions'] = web_config.get('exit_custom_conditions', [])
+
+        # Exit criteria (TP/SL)
         engine_config['take_profit_type'] = web_config.get('take_profit_type', 'percent')
-        engine_config['take_profit_value'] = float(web_config.get('take_profit_value') or 0.5)
+        engine_config['take_profit_value'] = float(web_config.get('take_profit_value') or 0)
         engine_config['stop_loss_type'] = web_config.get('stop_loss_type', 'percent')
-        engine_config['stop_loss_value'] = float(web_config.get('stop_loss_value') or 0.5)
-        engine_config['max_days'] = int(web_config.get('max_days', 5))
+        engine_config['stop_loss_value'] = float(web_config.get('stop_loss_value') or 0)
+        engine_config['max_days'] = int(web_config.get('max_days') or 0)
         
         # Consecutive trades
         engine_config['allow_consecutive_trades'] = web_config.get('allow_consecutive_trades', False)

@@ -1039,44 +1039,106 @@ class BacktesterEngine:
     def check_exit_conditions_intraday(self, entry_price: float, candle_high: float,
                                       candle_low: float, direction: str) -> Tuple[bool, str, float]:
         """Check if TP or SL hit within candle"""
-        tp_type = self.config['take_profit_type']
-        tp_value = self.config['take_profit_value']
-        sl_type = self.config['stop_loss_type']
-        sl_value = self.config['stop_loss_value']
+        tp_type = self.config.get('take_profit_type', 'percent')
+        tp_value = self.config.get('take_profit_value', 0)
+        sl_type = self.config.get('stop_loss_type', 'percent')
+        sl_value = self.config.get('stop_loss_value', 0)
         
         if direction == 'long':
-            if tp_type == 'percent':
-                tp_price = entry_price * (1 + tp_value / 100)
-            else:
-                tp_price = entry_price + tp_value
+            if tp_value and tp_value > 0:
+                if tp_type == 'percent':
+                    tp_price = entry_price * (1 + tp_value / 100)
+                else:
+                    tp_price = entry_price + tp_value
+                if candle_high >= tp_price:
+                    return True, 'take_profit', tp_price
             
-            if sl_type == 'percent':
-                sl_price = entry_price * (1 - sl_value / 100)
-            else:
-                sl_price = entry_price - sl_value
-            
-            if candle_high >= tp_price:
-                return True, 'take_profit', tp_price
-            elif candle_low <= sl_price:
-                return True, 'stop_loss', sl_price
+            if sl_value and sl_value > 0:
+                if sl_type == 'percent':
+                    sl_price = entry_price * (1 - sl_value / 100)
+                else:
+                    sl_price = entry_price - sl_value
+                if candle_low <= sl_price:
+                    return True, 'stop_loss', sl_price
                 
         else:  # short
-            if tp_type == 'percent':
-                tp_price = entry_price * (1 - tp_value / 100)
-            else:
-                tp_price = entry_price - tp_value
+            if tp_value and tp_value > 0:
+                if tp_type == 'percent':
+                    tp_price = entry_price * (1 - tp_value / 100)
+                else:
+                    tp_price = entry_price - tp_value
+                if candle_low <= tp_price:
+                    return True, 'take_profit', tp_price
             
-            if sl_type == 'percent':
-                sl_price = entry_price * (1 + sl_value / 100)
-            else:
-                sl_price = entry_price + sl_value
-            
-            if candle_low <= tp_price:
-                return True, 'take_profit', tp_price
-            elif candle_high >= sl_price:
-                return True, 'stop_loss', sl_price
+            if sl_value and sl_value > 0:
+                if sl_type == 'percent':
+                    sl_price = entry_price * (1 + sl_value / 100)
+                else:
+                    sl_price = entry_price + sl_value
+                if candle_high >= sl_price:
+                    return True, 'stop_loss', sl_price
         
         return False, None, None
+
+    def check_exit_signal_conditions(self, candle, grouped_data, dates, day_idx,
+                                     prev_close, open_930_price) -> Tuple[bool, str]:
+        """Check custom/preset exit signal conditions against current candle"""
+        exit_cond_type = self.config.get('exit_cond_type', '')
+
+        if exit_cond_type == 'preset' and self.config.get('exit_preset_condition'):
+            cond_id = self.config['exit_preset_condition']
+            operator = self.config.get('exit_preset_operator', '>')
+            threshold = self.config.get('exit_preset_threshold', 0)
+
+            if cond_id == '5':
+                lookback = self.config.get('exit_velocity_lookback', 5)
+                vel_cond = {
+                    'type': 'velocity',
+                    'lookback': lookback,
+                    'operation': operator,
+                    'threshold_value': threshold
+                }
+                if self.check_velocity_condition(vel_cond, grouped_data, dates, day_idx, candle):
+                    return True, 'exit_preset_velocity'
+            else:
+                price = candle.get('vwap') if pd.notna(candle.get('vwap')) else candle['close']
+                computed_val = None
+                if cond_id in ('1', '2'):
+                    if prev_close and prev_close > 0:
+                        computed_val = round(((price / prev_close) - 1) * 100, 4)
+                elif cond_id == '3':
+                    if prev_close and prev_close > 0:
+                        computed_val = round(((candle['open'] / prev_close) - 1) * 100, 4)
+                elif cond_id == '4':
+                    if open_930_price and open_930_price > 0:
+                        computed_val = round(((price / open_930_price) - 1) * 100, 4)
+
+                if computed_val is not None and self._compare(computed_val, operator, threshold):
+                    return True, 'exit_preset'
+            return False, None
+
+        elif exit_cond_type == 'custom' and self.config.get('exit_custom_conditions'):
+            for exit_cond in self.config['exit_custom_conditions']:
+                met = self.check_custom_condition(exit_cond, grouped_data, dates, day_idx, candle)
+                if not met:
+                    return False, None
+            return True, 'exit_condition'
+
+        return False, None
+
+    def _compare(self, left, op, right):
+        """Compare two values with the given operator"""
+        try:
+            left = float(left)
+            right = float(right)
+        except (TypeError, ValueError):
+            return False
+        if op == '>': return left > right
+        elif op == '<': return left < right
+        elif op == '>=': return left >= right
+        elif op == '<=': return left <= right
+        elif op == '=': return abs(left - right) < 1e-9
+        return False
     
     def calculate_pnl(self, entry_price: float, exit_price: float, 
                      shares: int, direction: str) -> Tuple[float, float]:
@@ -1403,7 +1465,8 @@ class BacktesterEngine:
             
             elif position is not None:
                 position['days_in_trade'] += 1
-                max_exit_time = position['entry_time'] + timedelta(days=self.config['max_days'])
+                max_days_cfg = self.config.get('max_days', 0) or 0
+                max_exit_time = position['entry_time'] + timedelta(days=max_days_cfg) if max_days_cfg > 0 else None
                 
                 day_entry['events'].append({
                     'type': 'holding',
@@ -1428,7 +1491,17 @@ class BacktesterEngine:
                         position['direction']
                     )
                     
-                    if current_time >= max_exit_time and not exit_signal:
+                    if not exit_signal:
+                        cond_exit, cond_reason = self.check_exit_signal_conditions(
+                            candle, grouped, dates, i,
+                            prev_close, open_930_price
+                        )
+                        if cond_exit:
+                            exit_signal = True
+                            exit_reason = cond_reason
+                            exit_price = candle_close
+                    
+                    if max_exit_time is not None and current_time >= max_exit_time and not exit_signal:
                         exit_signal = True
                         exit_reason = 'max_days'
                         exit_price = candle_close

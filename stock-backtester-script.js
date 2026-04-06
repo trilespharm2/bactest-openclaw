@@ -2,6 +2,8 @@
 // Handles dynamic fields, validation, and submission
 
 let conditionCount = 0;
+let exitConditionCount = 0;
+let exitConditionNextId = 0;
 
 // Initialize form function (can be called from dashboard)
 function initializeStockBacktesterPage() {
@@ -566,6 +568,270 @@ async function readCSV(file) {
     });
 }
 
+// ============================================================================
+// EXIT CONDITION FUNCTIONS
+// ============================================================================
+
+function updateExitCondType() {
+    const type = document.querySelector('input[name="exit_cond_type"]:checked').value;
+    document.getElementById('exitPresetSection').style.display = 'none';
+    document.getElementById('exitCustomSection').style.display = 'none';
+
+    if (type === 'preset') {
+        document.getElementById('exitPresetSection').style.display = 'block';
+    } else {
+        document.getElementById('exitCustomSection').style.display = 'block';
+        if (document.getElementById('exitConditionsContainer').children.length === 0) {
+            addExitCondition();
+        }
+    }
+}
+
+function updateExitPresetFields() {
+    var sel = document.getElementById('exitPresetCondition');
+    var val = sel ? sel.value : '';
+    var isVelocity = val === '5';
+    var hasVal = val !== '';
+    document.getElementById('exitStandardPresetFields').style.display = (hasVal && !isVelocity) ? 'flex' : 'none';
+    document.getElementById('exitVelocityFields').style.display = (hasVal && isVelocity) ? 'flex' : 'none';
+}
+
+function addExitCondition() {
+    exitConditionNextId++;
+    exitConditionCount++;
+    const container = document.getElementById('exitConditionsContainer');
+    const n = exitConditionNextId;
+
+    const conditionDiv = document.createElement('div');
+    conditionDiv.className = 'exit-condition-item card p-3 mb-3';
+    conditionDiv.id = `exit-condition-${n}`;
+    conditionDiv.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6;';
+
+    conditionDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong class="text-muted">Exit Condition ${n}</strong>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeExitCondition(${n})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="condition-left-side mb-3">
+            <label class="form-label fw-bold">Left Side (Compare this)</label>
+            <div class="row g-2">
+                <div class="col-md-4 col-sm-6">
+                    <label class="form-label small">Metric</label>
+                    <select class="form-select form-select-sm" id="exit-metric-${n}" onchange="updateExitConditionFields(${n})">
+                        ${STOCK_METRICS.map(m => '<option value="' + m.value + '">' + m.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="exit-left-day-group-${n}" style="display:none;">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="exit-left-day-${n}" onchange="toggleCustomDay('exit-left', ${n})">
+                        <option value="0">Today (0)</option>
+                        <option value="-1">Yesterday (-1)</option>
+                        <option value="-2">2 Days Ago (-2)</option>
+                        <option value="-3">3 Days Ago (-3)</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                    <input type="number" class="form-control form-control-sm mt-1" id="exit-left-day-custom-${n}" style="display:none;" placeholder="e.g., -5" max="0">
+                </div>
+                <div class="col-md-4 col-sm-6" id="exit-left-candle-group-${n}" style="display:none;">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="exit-left-candle-${n}" onchange="onStockCandleChange('exit-left', ${n})">
+                        <option value="min">Minute</option>
+                        <option value="hr">Hour</option>
+                        <option value="day">Day</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-left-mult-group-${n}" style="display:none;">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-left-mult-${n}" min="1" value="1" placeholder="e.g., 5">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-left-window-group-${n}" style="display:none;">
+                    <label class="form-label small" id="exit-left-window-label-${n}">Window</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-left-window-${n}" value="14" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-left-series-group-${n}" style="display:none;">
+                    <label class="form-label small" id="exit-left-series-label-${n}">Series Type</label>
+                    <select class="form-select form-select-sm" id="exit-left-series-${n}">
+                        ${STOCK_SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="condition-operator mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Operator</label>
+                    <select class="form-select" id="exit-operator-${n}">
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">&gt;=</option>
+                        <option value="<=">&lt;=</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Comparator</label>
+                    <select class="form-select" id="exit-comparator-${n}" onchange="updateExitRightSide(${n})">
+                        <option value="value">Value</option>
+                        <option value="compare_price">Compare Price</option>
+                        <option value="compare_sma">Compare SMA</option>
+                        <option value="compare_ema">Compare EMA</option>
+                    </select>
+                </div>
+                <div class="col-md-3" id="exit-value-input-group-${n}">
+                    <label class="form-label">Value</label>
+                    <input type="number" class="form-control" id="exit-compare-value-${n}" step="0.01" placeholder="e.g., 50">
+                </div>
+            </div>
+        </div>
+
+        <div class="condition-right-side mb-3" id="exit-right-side-${n}" style="display:none;">
+            <label class="form-label fw-bold">Right Side (To this)</label>
+            <div class="row g-2">
+                <div class="col-md-4 col-sm-6" id="exit-right-day-group-${n}">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="exit-right-day-${n}" onchange="toggleCustomDay('exit-right', ${n})">
+                        <option value="0">Today (0)</option>
+                        <option value="-1">Yesterday (-1)</option>
+                        <option value="-2">2 Days Ago (-2)</option>
+                        <option value="-3">3 Days Ago (-3)</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                    <input type="number" class="form-control form-control-sm mt-1" id="exit-right-day-custom-${n}" style="display:none;" placeholder="e.g., -5" max="0">
+                </div>
+                <div class="col-md-4 col-sm-6" id="exit-right-candle-group-${n}">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="exit-right-candle-${n}" onchange="onStockCandleChange('exit-right', ${n})">
+                        <option value="min">Minute</option>
+                        <option value="hr">Hour</option>
+                        <option value="day">Day</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-right-mult-group-${n}">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-right-mult-${n}" min="1" value="1" placeholder="e.g., 1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-right-window-group-${n}" style="display:none;">
+                    <label class="form-label small">Window</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-right-window-${n}" value="14" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-right-series-group-${n}">
+                    <label class="form-label small">Series Type</label>
+                    <select class="form-select form-select-sm" id="exit-right-series-${n}">
+                        ${STOCK_SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-2 mt-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Threshold Unit</label>
+                    <select class="form-select form-select-sm" id="exit-threshold-unit-${n}">
+                        <option value="%">Percent (%)</option>
+                        <option value="$">Dollar ($)</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-threshold-value-${n}" step="0.01" placeholder="e.g., 2.5">
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.appendChild(conditionDiv);
+    updateExitConditionFields(n);
+}
+
+function updateExitConditionFields(n) {
+    var metric = (document.getElementById('exit-metric-' + n) || {}).value || 'current_price';
+    var isCurrentPrice = metric === 'current_price';
+    var isPrice = metric === 'price';
+    var isIndicator = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
+    var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
+
+    var showDay = !isCurrentPrice;
+    var showCandle = !isCurrentPrice;
+    var showMult = !isCurrentPrice;
+    var showWindow = needsWindow;
+    var showSeries = isPrice || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1;
+
+    var el;
+    el = document.getElementById('exit-left-day-group-' + n); if (el) el.style.display = showDay ? '' : 'none';
+    el = document.getElementById('exit-left-candle-group-' + n); if (el) el.style.display = showCandle ? '' : 'none';
+    el = document.getElementById('exit-left-mult-group-' + n); if (el) el.style.display = showMult ? '' : 'none';
+    el = document.getElementById('exit-left-window-group-' + n); if (el) el.style.display = showWindow ? '' : 'none';
+    el = document.getElementById('exit-left-series-group-' + n); if (el) el.style.display = showSeries ? '' : 'none';
+
+    var windowLabel = document.getElementById('exit-left-window-label-' + n);
+    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
+    var seriesLabel = document.getElementById('exit-left-series-label-' + n);
+    if (seriesLabel) seriesLabel.textContent = (isPrice || isCurrentPrice) ? 'Price Type' : 'Series Type';
+
+    updateExitComparatorOptions(n);
+
+    if (isCurrentPrice) {
+        el = document.getElementById('exit-left-day-' + n); if (el) el.value = '0';
+        el = document.getElementById('exit-left-candle-' + n); if (el) el.value = 'min';
+        el = document.getElementById('exit-left-mult-' + n); if (el) el.value = '1';
+    }
+
+    enforceStockDayCandleRestriction('exit-left', n);
+}
+
+function updateExitComparatorOptions(n) {
+    var metric = (document.getElementById('exit-metric-' + n) || {}).value || 'current_price';
+    var comp = document.getElementById('exit-comparator-' + n);
+    if (!comp) return;
+    var opts = '<option value="value">Value</option>';
+    if (metric !== 'rsi' && metric !== 'macd') {
+        opts += '<option value="compare_price">Compare Price</option>';
+        opts += '<option value="compare_sma">Compare SMA</option>';
+        opts += '<option value="compare_ema">Compare EMA</option>';
+    }
+    comp.innerHTML = opts;
+    updateExitRightSide(n);
+}
+
+function updateExitRightSide(n) {
+    var comp = (document.getElementById('exit-comparator-' + n) || {}).value || 'value';
+    var rightSide = document.getElementById('exit-right-side-' + n);
+    var valueGroup = document.getElementById('exit-value-input-group-' + n);
+
+    if (comp === 'value') {
+        if (rightSide) rightSide.style.display = 'none';
+        if (valueGroup) valueGroup.style.display = '';
+    } else {
+        if (rightSide) rightSide.style.display = 'block';
+        if (valueGroup) valueGroup.style.display = 'none';
+
+        var isComparePrice = comp === 'compare_price';
+        var el;
+        el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
+        el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
+    }
+}
+
+function removeExitCondition(id) {
+    var element = document.getElementById('exit-condition-' + id);
+    if (element) {
+        element.remove();
+        renumberExitConditions();
+    }
+}
+
+function renumberExitConditions() {
+    var conditions = document.querySelectorAll('.exit-condition-item');
+    exitConditionCount = conditions.length;
+    conditions.forEach(function(cond, index) {
+        var label = cond.querySelector('strong.text-muted');
+        if (label) label.textContent = 'Exit Condition ' + (index + 1);
+    });
+}
+
 // Handle form submission
 let _pendingStockConfig = null;
 
@@ -617,8 +883,28 @@ function buildStockConfigSummaryHtml(config) {
     const sizingMap = {'shares':'Shares','dollars':'Dollars','percent':'% of Capital'};
     const sizingLabel = sizingMap[config.sizing_type] || config.sizing_type;
 
-    const tpLabel = config.take_profit_type === 'percent' ? `${config.take_profit_value}%` : `$${config.take_profit_value}`;
-    const slLabel = config.stop_loss_type === 'percent' ? `${config.stop_loss_value}%` : `$${config.stop_loss_value}`;
+    const tpLabel = config.take_profit_value ? (config.take_profit_type === 'percent' ? `${config.take_profit_value}%` : `$${config.take_profit_value}`) : 'None';
+    const slLabel = config.stop_loss_value ? (config.stop_loss_type === 'percent' ? `${config.stop_loss_value}%` : `$${config.stop_loss_value}`) : 'None';
+
+    let exitCondHtml = '';
+    if (config.exit_cond_type === 'preset' && config.exit_preset_condition) {
+        const exitPresetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
+        exitCondHtml = exitPresetNames[config.exit_preset_condition] || 'Preset #' + config.exit_preset_condition;
+        exitCondHtml += ' ' + (config.exit_preset_operator || '') + ' ' + (config.exit_preset_threshold || '');
+    } else if (config.exit_custom_conditions && config.exit_custom_conditions.length > 0) {
+        const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
+        exitCondHtml = config.exit_custom_conditions.map(function(c, i) {
+            var met = c.metric || 'price';
+            var leftDesc = metricLabels[met] || met;
+            var rightDesc = '';
+            if (c.comparator === 'value' || c.right_type === 'value') {
+                rightDesc = String(c.right_fixed_value || 0);
+            } else {
+                rightDesc = (c.comparator || '').replace('compare_', '').toUpperCase();
+            }
+            return '<div style="margin-bottom:4px;"><span style="color:#e65100; font-weight:600;">Exit:</span> ' + leftDesc + ' ' + c.operation + ' ' + rightDesc + '</div>';
+        }).join('');
+    }
 
     return `
         <div style="${sectionStyle}">
@@ -637,8 +923,9 @@ function buildStockConfigSummaryHtml(config) {
             <div style="${labelStyle}"><i class="fas fa-filter" style="margin-right:6px;"></i>Instance Conditions</div>
             <div style="${valueStyle}">${entryHtml || '<span style="color:#94a3b8;">None configured</span>'}</div>
         </div>
+        ${exitCondHtml ? '<div style="' + sectionStyle + '"><div style="' + labelStyle + '"><i class="fas fa-door-open" style="margin-right:6px;"></i>Exit Conditions</div><div style="' + valueStyle + '">' + exitCondHtml + '</div></div>' : ''}
         <div style="${sectionStyle}">
-            <div style="${labelStyle}"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Exit Criteria</div>
+            <div style="${labelStyle}"><i class="fas fa-sign-out-alt" style="margin-right:6px;"></i>Exit Criteria (TP/SL)</div>
             <div style="${valueStyle}">Take Profit: ${tpLabel} &nbsp;|&nbsp; Stop Loss: ${slLabel}</div>
         </div>
         <div style="${sectionStyle}">
@@ -872,7 +1159,88 @@ async function collectFormData() {
         config.sizing_value = document.getElementById('stockSizingPercent')?.value || document.getElementById('sizingPercent')?.value || '';
     }
     
-    // Exit criteria
+    // Exit conditions (signal-based)
+    config.exit_cond_type = document.querySelector('input[name="exit_cond_type"]:checked').value;
+
+    if (config.exit_cond_type === 'preset') {
+        var exitPresetVal = document.getElementById('exitPresetCondition').value;
+        if (exitPresetVal) {
+            config.exit_preset_condition = exitPresetVal;
+            if (exitPresetVal === '5') {
+                config.exit_velocity_lookback = document.getElementById('exitVelocityLookback').value;
+                config.exit_preset_operator = document.getElementById('exitVelocityOperator').value;
+                config.exit_preset_threshold = document.getElementById('exitVelocityThreshold').value;
+            } else {
+                config.exit_preset_operator = document.getElementById('exitPresetOperator').value;
+                config.exit_preset_threshold = document.getElementById('exitPresetThreshold').value;
+            }
+        }
+    } else {
+        config.exit_custom_conditions = [];
+        var exitConds = document.querySelectorAll('.exit-condition-item');
+        exitConds.forEach(function(condItem) {
+            var id = condItem.id.split('-')[2];
+            var metric = (document.getElementById('exit-metric-' + id) || {}).value || 'current_price';
+            var comparator = (document.getElementById('exit-comparator-' + id) || {}).value || 'value';
+
+            var leftDaySelect = document.getElementById('exit-left-day-' + id);
+            var leftDayVal = metric === 'current_price' ? 0 :
+                (leftDaySelect && leftDaySelect.value === 'custom'
+                    ? parseInt(document.getElementById('exit-left-day-custom-' + id).value) || 0
+                    : parseInt((leftDaySelect || {}).value) || 0);
+
+            var leftType = metric;
+            if (metric === 'current_price' || metric === 'price') {
+                leftType = (document.getElementById('exit-left-series-' + id) || {}).value || 'close';
+            }
+
+            var condition = {
+                type: 'exit',
+                metric: metric,
+                left_day: leftDayVal,
+                left_candle: metric === 'current_price' ? 'min' : ((document.getElementById('exit-left-candle-' + id) || {}).value || 'min'),
+                left_multiplier: parseInt((document.getElementById('exit-left-mult-' + id) || {}).value) || 1,
+                left_type: leftType,
+                left_series: (document.getElementById('exit-left-series-' + id) || {}).value || 'close',
+                left_window: parseInt((document.getElementById('exit-left-window-' + id) || {}).value) || 14,
+                operation: (document.getElementById('exit-operator-' + id) || {}).value || '>',
+                comparator: comparator
+            };
+
+            if (comparator === 'value') {
+                condition.right_type = 'value';
+                condition.right_fixed_value = parseFloat((document.getElementById('exit-compare-value-' + id) || {}).value) || 0;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '$';
+                condition.threshold_value = 0;
+            } else {
+                var rightDaySelect = document.getElementById('exit-right-day-' + id);
+                condition.right_day = rightDaySelect && rightDaySelect.value === 'custom'
+                    ? parseInt(document.getElementById('exit-right-day-custom-' + id).value) || 0
+                    : parseInt((rightDaySelect || {}).value) || 0;
+                condition.right_candle = (document.getElementById('exit-right-candle-' + id) || {}).value || 'min';
+                condition.right_multiplier = parseInt((document.getElementById('exit-right-mult-' + id) || {}).value) || 1;
+                condition.right_series = (document.getElementById('exit-right-series-' + id) || {}).value || 'close';
+                condition.right_window = parseInt((document.getElementById('exit-right-window-' + id) || {}).value) || 14;
+
+                var rightBaseType = comparator.replace('compare_', '');
+                if (rightBaseType === 'price') {
+                    condition.right_type = condition.right_series || 'close';
+                } else {
+                    condition.right_type = rightBaseType;
+                }
+
+                condition.threshold_unit = (document.getElementById('exit-threshold-unit-' + id) || {}).value || '%';
+                condition.threshold_value = parseFloat((document.getElementById('exit-threshold-value-' + id) || {}).value) || 0;
+            }
+
+            config.exit_custom_conditions.push(condition);
+        });
+    }
+
+    // Exit criteria (TP/SL/Max Days)
     config.take_profit_type = document.querySelector('input[name="take_profit_type"]:checked').value;
     config.take_profit_value = document.getElementById('takeProfitValue').value;
     config.stop_loss_type = document.querySelector('input[name="stop_loss_type"]:checked').value;
@@ -936,9 +1304,44 @@ function validateConfig(config) {
         return false;
     }
     
-    // Check exit criteria
-    if (!config.take_profit_value || !config.stop_loss_value || !config.max_days) {
+    // Check that at least one exit mechanism exists
+    var hasTP = config.take_profit_value && parseFloat(config.take_profit_value) > 0;
+    var hasSL = config.stop_loss_value && parseFloat(config.stop_loss_value) > 0;
+    var hasMaxDays = config.max_days && parseInt(config.max_days) > 0;
+    var hasExitPreset = config.exit_cond_type === 'preset' && config.exit_preset_condition;
+    var hasExitCustom = config.exit_cond_type === 'custom' && config.exit_custom_conditions && config.exit_custom_conditions.length > 0;
+
+    if (!hasTP && !hasSL && !hasMaxDays && !hasExitPreset && !hasExitCustom) {
+        appAlert('At least one exit condition is required (Take Profit, Stop Loss, Max Days, or a custom/preset exit condition).');
         return false;
+    }
+
+    if (hasExitPreset) {
+        var threshVal = parseFloat(config.exit_preset_threshold);
+        if (isNaN(threshVal)) {
+            appAlert('Exit preset threshold must be a valid number.');
+            return false;
+        }
+        if (config.exit_preset_condition === '5') {
+            var lookbackVal = parseInt(config.exit_velocity_lookback);
+            if (isNaN(lookbackVal) || lookbackVal < 1) {
+                appAlert('Exit velocity lookback must be a positive integer.');
+                return false;
+            }
+        }
+    }
+
+    if (hasExitCustom) {
+        for (var ec of config.exit_custom_conditions) {
+            if (ec.left_candle === 'day' && ec.left_day === 0 && ['close', 'high', 'low', 'vwap'].includes(ec.left_type)) {
+                appAlert('Invalid exit condition: cannot use day candle "' + ec.left_type + '" on day 0.');
+                return false;
+            }
+            if (ec.right_candle === 'day' && ec.right_day === 0 && ['close', 'high', 'low', 'vwap'].includes(ec.right_type)) {
+                appAlert('Invalid exit condition: cannot use day candle "' + ec.right_type + '" on day 0.');
+                return false;
+            }
+        }
     }
     
     return true;

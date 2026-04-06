@@ -1711,7 +1711,7 @@
                   <form id="stockBacktestForm">
                     <!-- [1/7] BACKTEST NAME -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[1/7]</span> BACKTEST NAME</div>
+                      <div class="section-label"><span class="section-number">[1/8]</span> BACKTEST NAME</div>
                       <div class="mb-3">
                         <label class="form-label">Enter a name for this backtest:</label>
                         <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
@@ -1721,7 +1721,7 @@
 
                     <!-- [2/7] DATE RANGE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[2/7]</span> DATE RANGE</div>
+                      <div class="section-label"><span class="section-number">[2/8]</span> DATE RANGE</div>
                       <div class="row">
                         <div class="col-md-6 mb-3">
                           <label class="form-label">Start Date:</label>
@@ -1736,7 +1736,7 @@
 
                     <!-- [3/7] SYMBOL SELECTION -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[3/7]</span> SYMBOL SELECTION</div>
+                      <div class="section-label"><span class="section-number">[3/8]</span> SYMBOL SELECTION</div>
                       <div class="mb-3">
                         <label class="form-label">Select symbol mode:</label>
                         <div class="form-check">
@@ -1772,7 +1772,7 @@
 
                     <!-- [4/7] ENTRY CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[4/7]</span> ENTRY CONDITIONS</div>
+                      <div class="section-label"><span class="section-number">[4/8]</span> ENTRY CONDITIONS</div>
                       <div class="mb-3">
                         <label class="form-label">Condition type:</label>
                         <div class="form-check">
@@ -1850,9 +1850,86 @@
                       </div>
                     </div>
 
-                    <!-- [5/7] ENTRY CRITERIA -->
+                    <!-- [5/8] EXIT CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[5/7]</span> ENTRY CRITERIA</div>
+                      <div class="section-label"><span class="section-number">[5/8]</span> EXIT CONDITIONS <span class="text-muted" style="font-size:0.75em; font-weight:normal;">(optional — at least one required)</span></div>
+                      <div class="mb-3">
+                        <label class="form-label">Exit condition type:</label>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="exit_cond_type" id="exitCondPreset" value="preset" checked>
+                          <label class="form-check-label" for="exitCondPreset">Preset Conditions</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="exit_cond_type" id="exitCondCustom" value="custom">
+                          <label class="form-check-label" for="exitCondCustom">Custom Builder</label>
+                        </div>
+                      </div>
+
+                      <div id="exitPresetSection">
+                        <div class="mb-3">
+                          <label class="form-label">Select Preset:</label>
+                          <select class="form-select" id="exitPresetCondition">
+                            <option value="">-- None (skip) --</option>
+                            <option value="1">Premarket Change %</option>
+                            <option value="2">Change %</option>
+                            <option value="3">Gap %</option>
+                            <option value="4">Change-Open %</option>
+                            <option value="5">Velocity (Rate of Change)</option>
+                          </select>
+                        </div>
+
+                        <div id="exitStandardPresetFields" class="row" style="display: none;">
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Operator:</label>
+                            <select class="form-select" id="exitPresetOperator">
+                              <option value=">">></option>
+                              <option value="<"><</option>
+                              <option value=">=">>=</option>
+                              <option value="<="><=</option>
+                              <option value="=">=</option>
+                            </select>
+                          </div>
+                          <div class="col-md-6 mb-3">
+                            <label class="form-label">Threshold (%):</label>
+                            <input type="number" class="form-control" id="exitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
+                          </div>
+                        </div>
+
+                        <div id="exitVelocityFields" class="row" style="display: none;">
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Time Interval (minutes):</label>
+                            <input type="number" class="form-control" id="exitVelocityLookback" placeholder="e.g., 5" value="5">
+                          </div>
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Operator:</label>
+                            <select class="form-select" id="exitVelocityOperator">
+                              <option value=">">></option>
+                              <option value="<"><</option>
+                              <option value=">=">>=</option>
+                              <option value="<="><=</option>
+                            </select>
+                          </div>
+                          <div class="col-md-4 mb-3">
+                            <label class="form-label">Threshold (%):</label>
+                            <input type="number" class="form-control" id="exitVelocityThreshold" step="0.01" placeholder="e.g., 1.5">
+                          </div>
+                        </div>
+                      </div>
+
+                      <div id="exitCustomSection" class="stock-backtester-builder" style="display: none;">
+                        <div class="alert alert-info">
+                          <i class="fas fa-tools me-2"></i>Custom Condition Builder - Compare candles to define exit triggers
+                        </div>
+                        <div id="exitConditionsContainer" class="conditions-container"></div>
+                        <button type="button" class="btn btn-secondary btn-sm mt-2" id="addExitConditionBtn" onclick="addExitCondition()">
+                          <i class="fas fa-plus me-1"></i>Add Exit Condition
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- [6/8] ENTRY CRITERIA -->
+                    <div class="backtester-section">
+                      <div class="section-label"><span class="section-number">[6/8]</span> ENTRY CRITERIA</div>
                       
                       <!-- Direction Selection -->
                       <div class="mb-3">
@@ -1909,9 +1986,9 @@
                       </div>
                     </div>
 
-                    <!-- [6/7] EXIT CRITERIA -->
+                    <!-- [7/8] EXIT CRITERIA -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/7]</span> EXIT CRITERIA</div>
+                      <div class="section-label"><span class="section-number">[7/8]</span> EXIT CRITERIA</div>
                       
                       <!-- Take Profit -->
                       <div class="mb-3">
@@ -1927,7 +2004,7 @@
                       </div>
                       <div class="mb-3">
                         <label class="form-label">Take Profit Value:</label>
-                        <input type="number" class="form-control" id="takeProfitValue" step="0.01" min="0.01" placeholder="e.g., 5 (for 5% or $5)" required>
+                        <input type="number" class="form-control" id="takeProfitValue" step="0.01" min="0.01" placeholder="e.g., 5 (for 5% or $5)">
                       </div>
                       
                       <!-- Stop Loss -->
@@ -1944,19 +2021,19 @@
                       </div>
                       <div class="mb-3">
                         <label class="form-label">Stop Loss Value:</label>
-                        <input type="number" class="form-control" id="stopLossValue" step="0.01" min="0.01" placeholder="e.g., 3 (for 3% or $3)" required>
+                        <input type="number" class="form-control" id="stopLossValue" step="0.01" min="0.01" placeholder="e.g., 3 (for 3% or $3)">
                       </div>
                       
                       <!-- Max Days -->
                       <div class="mb-3">
                         <label class="form-label">Max Days in Trade:</label>
-                        <input type="number" class="form-control" id="maxDays" min="1" placeholder="e.g., 5" required>
+                        <input type="number" class="form-control" id="maxDays" min="1" placeholder="e.g., 5">
                       </div>
                     </div>
 
-                    <!-- [7/7] ADVANCED OPTIONS -->
+                    <!-- [8/8] ADVANCED OPTIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[7/7]</span> ADVANCED OPTIONS</div>
+                      <div class="section-label"><span class="section-number">[8/8]</span> ADVANCED OPTIONS</div>
                       <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="allowConsecutive">
                         <label class="form-check-label" for="allowConsecutive">Allow consecutive trades (new entry if already in position for same symbol)</label>
@@ -4625,6 +4702,8 @@
         setupStockEntryType();
         setupStockSizingType();
         setupStockPresetCondition();
+        setupExitCondType();
+        setupExitPresetCondition();
         setupStockFormSubmit();
         setupStockResetBtn();
         setStockDefaultDates();
@@ -4686,6 +4765,37 @@
           });
         }
       }
+
+      function setupExitCondType() {
+        document.querySelectorAll('input[name="exit_cond_type"]').forEach(radio => {
+          radio.addEventListener('change', () => {
+            if (typeof updateExitCondType === 'function') {
+              updateExitCondType();
+            } else {
+              const type = document.querySelector('input[name="exit_cond_type"]:checked').value;
+              document.getElementById('exitPresetSection').style.display = type === 'preset' ? 'block' : 'none';
+              document.getElementById('exitCustomSection').style.display = type === 'custom' ? 'block' : 'none';
+            }
+          });
+        });
+      }
+
+      function setupExitPresetCondition() {
+        const sel = document.getElementById('exitPresetCondition');
+        if (sel) {
+          sel.addEventListener('change', () => {
+            if (typeof updateExitPresetFields === 'function') {
+              updateExitPresetFields();
+            } else {
+              const val = sel.value;
+              const isVelocity = val === '5';
+              const hasVal = val !== '';
+              document.getElementById('exitStandardPresetFields').style.display = (hasVal && !isVelocity) ? 'flex' : 'none';
+              document.getElementById('exitVelocityFields').style.display = (hasVal && isVelocity) ? 'flex' : 'none';
+            }
+          });
+        }
+      }
       
       function setupStockResetBtn() {
         const resetBtn = document.getElementById('resetStockBacktestBtn');
@@ -4696,9 +4806,14 @@
             setStockDefaultDates();
             document.getElementById('singleSymbolSection').style.display = 'block';
             document.getElementById('multipleSymbolsSection').style.display = 'none';
-            document.getElementById('csvSymbolsSection').style.display = 'none';
             document.getElementById('presetSection').style.display = 'block';
             document.getElementById('customSection').style.display = 'none';
+            document.getElementById('exitPresetSection').style.display = 'block';
+            document.getElementById('exitCustomSection').style.display = 'none';
+            document.getElementById('exitStandardPresetFields').style.display = 'none';
+            document.getElementById('exitVelocityFields').style.display = 'none';
+            var exitContainer = document.getElementById('exitConditionsContainer');
+            if (exitContainer) exitContainer.innerHTML = '';
             document.getElementById('sharesSection').style.display = 'block';
             document.getElementById('dollarsSection').style.display = 'none';
             document.getElementById('percentSection').style.display = 'none';
