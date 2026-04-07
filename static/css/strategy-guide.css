@@ -556,8 +556,10 @@
 
 .sg-bt-example-diagram {
   margin: 14px 0;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
+  border: 1px solid #e0e3eb;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
 .sg-bt-example-config {
