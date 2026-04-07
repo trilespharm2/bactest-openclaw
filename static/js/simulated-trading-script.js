@@ -2455,20 +2455,6 @@ async function executeOptionTrade() {
         const resolvedStrikes = [];
         const positionLegs = [];
 
-        if (isCalDiag) {
-            const nearLegs = legConfigs.filter(l => l.position === 'short');
-            const farLegs = legConfigs.filter(l => l.position === 'long');
-            const nearDtes = nearLegs.map(l => (l.dte !== undefined) ? l.dte : globalDte);
-            const farDtes = farLegs.map(l => (l.dte !== undefined) ? l.dte : globalDte);
-            const maxNear = Math.max(...nearDtes);
-            const minFar = Math.min(...farDtes);
-            if (minFar <= maxNear) {
-                appAlert(`Calendar/Diagonal: Far-leg DTE (${minFar}) must be greater than near-leg DTE (${maxNear}). Increase the long leg DTE.`);
-                if (tradeBtn) { tradeBtn.disabled = false; tradeBtn.innerHTML = '<i class="fas fa-shopping-cart me-1"></i>Execute Trade'; }
-                return;
-            }
-        }
-
         const legExpirations = [];
         for (let i = 0; i < legConfigs.length; i++) {
             const legConfig = legConfigs[i];
@@ -2773,13 +2759,11 @@ function updateOptionsPositionsCard() {
         const entryPremium = Math.abs(pos.totalEntryPremium);
         const pnlPct = entryPremium > 0 ? (unrealizedPnl / entryPremium * 100).toFixed(1) : '0.0';
 
-        const isCalDiagPos = isSimCalendarDiagonalStrategy(pos.strategy);
         const legsHtml = pos.legs.map(leg => {
             const optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
             const currentPrice = optionBar ? (optionBar.vwap || optionBar.close) : leg.entryPrice;
-            const expLabel = isCalDiagPos && leg.expiration ? ` exp:${leg.expiration}` : '';
             return `<span style="background: ${leg.position === 'long' ? '#2962ff' : '#ff9800'}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-right: 3px;">
-                ${leg.position.charAt(0).toUpperCase()} ${leg.type} $${leg.strike} @ $${currentPrice.toFixed(2)}${expLabel}</span>`;
+                ${leg.position.charAt(0).toUpperCase()} ${leg.type} $${leg.strike} @ $${currentPrice.toFixed(2)}</span>`;
         }).join('');
 
         html += `
