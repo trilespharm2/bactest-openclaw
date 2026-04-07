@@ -1,0 +1,28 @@
+<div class="strategy-guide-container">
+  <div class="sg-header">
+    <h2><i class="fas fa-book-open me-2"></i>Options Strategy Guide</h2>
+    <p class="sg-subtitle">Complete reference for all 22 options strategies with payoff diagrams, leg placement, and ideal entry/exit conditions</p>
+    <div class="sg-search-wrapper">
+      <i class="fas fa-search sg-search-icon"></i>
+      <input type="text" id="sgSearchInput" class="sg-search-input" placeholder="Search strategies, conditions, or keywords...">
+      <button id="sgSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="sg-filter-bar">
+      <button class="sg-filter-btn active" data-filter="all">All Strategies</button>
+      <button class="sg-filter-btn" data-filter="single">Single Leg</button>
+      <button class="sg-filter-btn" data-filter="vertical">Vertical Spreads</button>
+      <button class="sg-filter-btn" data-filter="iron">Iron Strategies</button>
+      <button class="sg-filter-btn" data-filter="volatility">Straddles & Strangles</button>
+      <button class="sg-filter-btn" data-filter="calendar">Calendar & Diagonal</button>
+    </div>
+    <div id="sgSearchCount" class="sg-search-count"></div>
+  </div>
+
+  <div id="sgStrategiesGrid" class="sg-strategies-grid"></div>
+
+  <div id="sgNoResults" class="sg-no-results" style="display:none;">
+    <i class="fas fa-search"></i>
+    <h4>No strategies found</h4>
+    <p>Try a different search term or clear the filter</p>
+  </div>
+</div>

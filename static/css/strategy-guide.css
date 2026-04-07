@@ -1,0 +1,369 @@
+.strategy-guide-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.sg-header {
+  margin-bottom: 30px;
+}
+
+.sg-header h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.sg-subtitle {
+  color: #787b86;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+}
+
+.sg-search-wrapper {
+  position: relative;
+  max-width: 600px;
+  margin-bottom: 16px;
+}
+
+.sg-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #545b6a;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.sg-search-input {
+  width: 100%;
+  padding: 12px 40px 12px 42px;
+  background: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 10px;
+  color: #d1d4dc;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.sg-search-input:focus {
+  border-color: #3b6df0;
+  box-shadow: 0 0 0 3px rgba(59, 109, 240, 0.15);
+}
+
+.sg-search-input::placeholder {
+  color: #545b6a;
+}
+
+.sg-search-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #787b86;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.sg-search-clear:hover {
+  background: rgba(255,255,255,0.08);
+  color: #d1d4dc;
+}
+
+.sg-filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.sg-filter-btn {
+  padding: 7px 16px;
+  border: 1px solid #2a2e39;
+  border-radius: 20px;
+  background: #1e222d;
+  color: #787b86;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sg-filter-btn:hover {
+  background: #262a35;
+  color: #d1d4dc;
+}
+
+.sg-filter-btn.active {
+  background: #3b6df0;
+  color: #fff;
+  border-color: #3b6df0;
+}
+
+.sg-search-count {
+  color: #545b6a;
+  font-size: 13px;
+  min-height: 20px;
+}
+
+.sg-strategies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 500px) {
+  .sg-strategies-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sg-card {
+  background: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.sg-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  border-color: #363a45;
+}
+
+.sg-card-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #2a2e39;
+  background: linear-gradient(135deg, rgba(59,109,240,0.05), rgba(108,92,231,0.03));
+}
+
+.sg-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sg-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.sg-outlook {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sg-risk-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: rgba(120, 123, 134, 0.15);
+  border-radius: 12px;
+  color: #787b86;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.sg-card-body {
+  padding: 16px 20px 20px;
+}
+
+.sg-payoff-diagram {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sg-description {
+  color: #b2b5be;
+  font-size: 13.5px;
+  line-height: 1.65;
+  margin-bottom: 18px;
+}
+
+.sg-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #d1d4dc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px;
+}
+
+.sg-legs-section {
+  margin-bottom: 18px;
+}
+
+.sg-legs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sg-leg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #2a2e39;
+}
+
+.sg-leg-long {
+  background: rgba(8, 153, 129, 0.06);
+  border-color: rgba(8, 153, 129, 0.2);
+}
+
+.sg-leg-short {
+  background: rgba(242, 54, 69, 0.06);
+  border-color: rgba(242, 54, 69, 0.2);
+}
+
+.sg-leg-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.sg-leg-header i {
+  font-size: 13px;
+}
+
+.sg-leg-long .sg-leg-header i {
+  color: #089981;
+}
+
+.sg-leg-short .sg-leg-header i {
+  color: #f23645;
+}
+
+.sg-leg-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d1d4dc;
+}
+
+.sg-leg-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 21px;
+}
+
+.sg-leg-type-badge {
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.sg-leg-type-badge.sg-call {
+  background: rgba(8, 153, 129, 0.15);
+  color: #089981;
+}
+
+.sg-leg-type-badge.sg-put {
+  background: rgba(242, 54, 69, 0.15);
+  color: #f23645;
+}
+
+.sg-leg-strike {
+  font-size: 12px;
+  color: #787b86;
+}
+
+.sg-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 14px;
+  background: #131722;
+  border-radius: 10px;
+}
+
+.sg-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sg-metric:last-child {
+  grid-column: 1 / -1;
+}
+
+.sg-metric-label {
+  font-size: 11px;
+  color: #545b6a;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sg-metric-value {
+  font-size: 13px;
+  color: #d1d4dc;
+  font-weight: 500;
+}
+
+.sg-metric-value.sg-profit {
+  color: #089981;
+}
+
+.sg-metric-value.sg-loss {
+  color: #f23645;
+}
+
+.sg-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sg-condition p {
+  margin: 0;
+  color: #b2b5be;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sg-no-results {
+  text-align: center;
+  padding: 60px 20px;
+  color: #545b6a;
+}
+
+.sg-no-results i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.sg-no-results h4 {
+  color: #787b86;
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
+.sg-no-results p {
+  font-size: 14px;
+}

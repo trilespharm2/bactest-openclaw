@@ -497,7 +497,8 @@ async function navigateToPage(pageName, skipPushState = false) {
         'faq': 'FAQ',
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
-        'simResultDetail': 'Simulated Trading Analysis'
+        'simResultDetail': 'Simulated Trading Analysis',
+        'strategyGuide': 'Options Strategy Guide'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -585,6 +586,10 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
                 }
+                if (pageName === 'strategyGuide') {
+                    fileName = 'strategy-guide';
+                    scriptName = 'static/js/strategy-guide-script.js';
+                }
                 
                 const response = await fetch(`${fileName}.html`);
                 
@@ -645,6 +650,9 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
+                }
+                if (pageName === 'strategyGuide') {
+                    scriptName = 'static/js/strategy-guide-script.js';
                 }
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
                     scriptName = 'simulated-results-script.js';
@@ -737,6 +745,8 @@ function initializePage(pageName) {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
             initSimResultDetailPage();
+        } else if (pageName === 'strategyGuide' && typeof initStrategyGuide === 'function') {
+            initStrategyGuide();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);
