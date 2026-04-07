@@ -133,78 +133,17 @@
 
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-cogs"></i> Custom Builder</div>
-            <div class="sg-bt-field-desc">Build complex conditions using technical indicators. Each row defines a rule with a left side, an operator, and a right side. Multiple rows are AND-combined — all must be true for a trade to trigger.</div>
-
-            <div class="sg-bt-field-name" style="margin-top:16px;font-size:13px;"><i class="fas fa-puzzle-piece"></i> How Each Row Works</div>
+            <div class="sg-bt-field-desc">Build complex conditions using technical indicators. Each row defines a rule:</div>
             <ul class="sg-bt-list">
               <li><strong>Left Side (Metric)</strong> — The value to test: Current Price, SMA, EMA, RSI, or MACD.</li>
               <li><strong>Day</strong> — Which day's data to use: Today, Yesterday, 2 Days Ago, etc.</li>
               <li><strong>Candle Type</strong> — Bar timeframe: 1-minute, 5-minute, 15-minute, hourly, or daily candles.</li>
-              <li><strong>Period/Window</strong> — Lookback period for the indicator (e.g., 20 for SMA20, 9 for EMA9).</li>
+              <li><strong>Period/Window</strong> — Lookback period for the indicator (e.g., 20 for SMA20, 14 for RSI14).</li>
               <li><strong>Operator</strong> — Comparison: >, <, >=, <=, ==.</li>
-              <li><strong>Right Side (Comparator)</strong> — Compare against a fixed value, or another indicator (Compare Price, Compare SMA, Compare EMA).</li>
-              <li><strong>Threshold</strong> — Optional offset in percent (%) or dollars ($) added to the right side comparison.</li>
+              <li><strong>Right Side (Comparator)</strong> — Compare against a fixed value or another indicator (e.g., "SMA 20 > SMA 50").</li>
+              <li><strong>Threshold</strong> — Optional offset in dollars or percent (e.g., "Price > SMA 20 + 1%").</li>
             </ul>
-
-            <div class="sg-bt-field-name" style="margin-top:18px;font-size:13px;"><i class="fas fa-flask"></i> Example 1: "Enter when price is 1% above the 9 EMA on 5-min bars"</div>
-            <div class="sg-bt-field-desc">This condition enters a trade only when the current price has pulled 1% above the short-term 9-period EMA, signaling momentum. Here's how to set it up:</div>
-            <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
-              <thead>
-                <tr style="border-bottom:2px solid #e0e3eb;">
-                  <th style="text-align:left;padding:6px 8px;color:#787b86;font-weight:600;">Field</th>
-                  <th style="text-align:left;padding:6px 8px;color:#787b86;font-weight:600;">Setting</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Left Metric</td><td style="padding:6px 8px;color:#363a45;">Current Price</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Day</td><td style="padding:6px 8px;color:#363a45;">Today</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Operator</td><td style="padding:6px 8px;color:#363a45;">> (greater than)</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Right Comparator</td><td style="padding:6px 8px;color:#363a45;">Compare EMA</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Right Candle Type</td><td style="padding:6px 8px;color:#363a45;">5-Minute</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Right Period</td><td style="padding:6px 8px;color:#363a45;">9</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Threshold</td><td style="padding:6px 8px;color:#363a45;">1% (Percent)</td></tr>
-              </tbody>
-            </table>
-            <div class="sg-bt-field-desc" style="margin-top:8px;font-style:italic;color:#545b6a;">Reads as: "Current Price > EMA(9, 5-min) + 1%"</div>
-
-            <div class="sg-bt-field-name" style="margin-top:18px;font-size:13px;"><i class="fas fa-flask"></i> Example 2: "Enter when current price is 0.5% above the last 1-hour close"</div>
-            <div class="sg-bt-field-desc">This condition checks if the stock has moved at least 0.5% above where the most recent hourly candle closed, confirming short-term upward momentum:</div>
-            <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
-              <thead>
-                <tr style="border-bottom:2px solid #e0e3eb;">
-                  <th style="text-align:left;padding:6px 8px;color:#787b86;font-weight:600;">Field</th>
-                  <th style="text-align:left;padding:6px 8px;color:#787b86;font-weight:600;">Setting</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Left Metric</td><td style="padding:6px 8px;color:#363a45;">Current Price</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Day</td><td style="padding:6px 8px;color:#363a45;">Today</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Operator</td><td style="padding:6px 8px;color:#363a45;">> (greater than)</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Right Comparator</td><td style="padding:6px 8px;color:#363a45;">Compare Price</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Right Candle Type</td><td style="padding:6px 8px;color:#363a45;">1-Hour</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Right Series</td><td style="padding:6px 8px;color:#363a45;">Close</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#1e222d;font-weight:600;">Threshold</td><td style="padding:6px 8px;color:#363a45;">0.5% (Percent)</td></tr>
-              </tbody>
-            </table>
-            <div class="sg-bt-field-desc" style="margin-top:8px;font-style:italic;color:#545b6a;">Reads as: "Current Price > 1-Hour Close + 0.5%"</div>
-
-            <div class="sg-bt-field-name" style="margin-top:18px;font-size:13px;"><i class="fas fa-flask"></i> Example 3: Combining conditions (AND logic)</div>
-            <div class="sg-bt-field-desc">You can add multiple rows to create powerful multi-condition entries. For example, to only enter when there's both momentum AND an oversold RSI bounce:</div>
-            <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
-              <thead>
-                <tr style="border-bottom:2px solid #e0e3eb;">
-                  <th style="text-align:left;padding:6px 8px;color:#787b86;font-weight:600;">Row</th>
-                  <th style="text-align:left;padding:6px 8px;color:#787b86;font-weight:600;">Condition</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#3b6df0;font-weight:700;">Row 1</td><td style="padding:6px 8px;color:#363a45;">Current Price > EMA(9, 5-min) + 1%</td></tr>
-                <tr style="border-bottom:1px solid #e0e3eb;"><td style="padding:6px 8px;color:#3b6df0;font-weight:700;">Row 2</td><td style="padding:6px 8px;color:#363a45;">RSI(14, 5-min) < Value 35</td></tr>
-              </tbody>
-            </table>
-            <div class="sg-bt-field-desc" style="margin-top:8px;font-style:italic;color:#545b6a;">Both conditions must be true simultaneously — price has pulled 1% above the 9 EMA AND RSI is below 35 (oversold). This filters for momentum breakouts from oversold territory.</div>
-
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Start simple with one condition, run the backtest, and then layer on additional conditions to refine. Adding too many conditions at once can result in very few trades triggering.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Multiple conditions are AND-combined. All must be true for a trade to trigger. Example: "RSI < 30 AND Price > SMA 200" for oversold bounces in an uptrend.</div>
           </div>
         </div>
       </div>
