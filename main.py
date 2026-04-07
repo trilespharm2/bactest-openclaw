@@ -3433,7 +3433,12 @@ def get_backtest_status(backtest_id):
     """Get status of a running backtest"""
     # First check in-memory status
     if backtest_id in running_backtests:
-        return jsonify(running_backtests[backtest_id])
+        bt_info = running_backtests[backtest_id]
+        return jsonify({
+            'status': bt_info.get('status'),
+            'error': bt_info.get('error'),
+            'user_id': bt_info.get('user_id')
+        })
     
     # Check metadata file
     metadata_path = os.path.join('backtest_results', f'metadata_{backtest_id}.json')
