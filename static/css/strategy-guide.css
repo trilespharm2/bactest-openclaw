@@ -549,6 +549,77 @@
   margin-right: 4px;
 }
 
+.sg-bt-example-field {
+  background: #ffffff !important;
+  border: 1px solid #d1d4dc !important;
+}
+
+.sg-bt-example-diagram {
+  margin: 14px 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sg-bt-example-config {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #f5f6f8;
+  border-radius: 8px;
+  border: 1px solid #e0e3eb;
+}
+
+.sg-bt-example-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e222d;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 10px;
+}
+
+.sg-bt-example-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sg-bt-example-pill {
+  padding: 4px 10px;
+  background: #ffffff;
+  border: 1px solid #d1d4dc;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e222d;
+}
+
+.sg-bt-pill-op {
+  background: #eef2ff;
+  border-color: #3b6df0;
+  color: #3b6df0;
+  font-weight: 700;
+}
+
+.sg-bt-pill-thresh {
+  background: #fef9ee;
+  border-color: #f0b03b;
+  color: #b8860b;
+  font-weight: 600;
+}
+
+.sg-bt-example-meaning {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(8,153,129,0.06);
+  border-left: 3px solid #089981;
+  border-radius: 0 6px 6px 0;
+  color: #363a45;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-style: italic;
+}
+
 @media (max-width: 600px) {
   .sg-tabs {
     gap: 0;

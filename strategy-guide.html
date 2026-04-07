@@ -145,6 +145,153 @@
             </ul>
             <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Multiple conditions are AND-combined. All must be true for a trade to trigger. Example: "RSI < 30 AND Price > SMA 200" for oversold bounces in an uptrend.</div>
           </div>
+
+          <div class="sg-bt-field sg-bt-example-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-line"></i> Example 1: Price > 1% Above 9 EMA (5-min bars)</div>
+            <div class="sg-bt-field-desc">Enter a trade only when the current price is at least 1% above the 9-period EMA on 5-minute candles — a momentum breakout filter.</div>
+            <div class="sg-bt-example-diagram">
+              <svg viewBox="0 0 520 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+                <rect width="520" height="240" fill="#131722" rx="8"/>
+                <line x1="50" y1="210" x2="500" y2="210" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="170" x2="500" y2="170" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="130" x2="500" y2="130" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="90" x2="500" y2="90" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="50" x2="500" y2="50" stroke="#2a2e39" stroke-width="0.5"/>
+                <text x="45" y="214" text-anchor="end" fill="#787b86" font-size="9">$95</text>
+                <text x="45" y="174" text-anchor="end" fill="#787b86" font-size="9">$97</text>
+                <text x="45" y="134" text-anchor="end" fill="#787b86" font-size="9">$99</text>
+                <text x="45" y="94" text-anchor="end" fill="#787b86" font-size="9">$101</text>
+                <text x="45" y="54" text-anchor="end" fill="#787b86" font-size="9">$103</text>
+                <!-- Candles (5-min bars) -->
+                <line x1="80" y1="195" x2="80" y2="175" stroke="#f23645" stroke-width="1"/>
+                <rect x="76" y="180" width="8" height="12" fill="#f23645" rx="1"/>
+                <line x1="110" y1="190" x2="110" y2="165" stroke="#f23645" stroke-width="1"/>
+                <rect x="106" y="170" width="8" height="15" fill="#f23645" rx="1"/>
+                <line x1="140" y1="180" x2="140" y2="155" stroke="#089981" stroke-width="1"/>
+                <rect x="136" y="158" width="8" height="14" fill="#089981" rx="1"/>
+                <line x1="170" y1="170" x2="170" y2="148" stroke="#089981" stroke-width="1"/>
+                <rect x="166" y="150" width="8" height="13" fill="#089981" rx="1"/>
+                <line x1="200" y1="155" x2="200" y2="138" stroke="#f23645" stroke-width="1"/>
+                <rect x="196" y="140" width="8" height="10" fill="#f23645" rx="1"/>
+                <line x1="230" y1="152" x2="230" y2="130" stroke="#089981" stroke-width="1"/>
+                <rect x="226" y="132" width="8" height="14" fill="#089981" rx="1"/>
+                <line x1="260" y1="140" x2="260" y2="118" stroke="#089981" stroke-width="1"/>
+                <rect x="256" y="120" width="8" height="14" fill="#089981" rx="1"/>
+                <line x1="290" y1="128" x2="290" y2="105" stroke="#089981" stroke-width="1"/>
+                <rect x="286" y="107" width="8" height="15" fill="#089981" rx="1"/>
+                <line x1="320" y1="115" x2="320" y2="88" stroke="#089981" stroke-width="1"/>
+                <rect x="316" y="90" width="8" height="18" fill="#089981" rx="1"/>
+                <line x1="350" y1="95" x2="350" y2="70" stroke="#089981" stroke-width="1"/>
+                <rect x="346" y="72" width="8" height="16" fill="#089981" rx="1"/>
+                <line x1="380" y1="80" x2="380" y2="55" stroke="#089981" stroke-width="1"/>
+                <rect x="376" y="57" width="8" height="16" fill="#089981" rx="1"/>
+                <line x1="410" y1="72" x2="410" y2="48" stroke="#089981" stroke-width="1"/>
+                <rect x="406" y="50" width="8" height="15" fill="#089981" rx="1"/>
+                <!-- 9 EMA line (lagging below price in uptrend) -->
+                <path d="M80,188 Q110,180 140,168 Q170,158 200,150 Q230,142 260,134 Q290,124 320,112 Q350,100 380,88 Q410,78 440,70" fill="none" stroke="#3b6df0" stroke-width="2" stroke-linecap="round"/>
+                <text x="445" y="68" fill="#3b6df0" font-size="10" font-weight="600">9 EMA</text>
+                <!-- 1% above EMA line (dashed) -->
+                <path d="M80,186 Q110,178 140,166 Q170,156 200,148 Q230,140 260,132 Q290,122 320,108 Q350,96 380,83 Q410,73 440,65" fill="none" stroke="#f0b03b" stroke-width="1.5" stroke-dasharray="5,3" stroke-linecap="round"/>
+                <text x="445" y="63" fill="#f0b03b" font-size="9">+1%</text>
+                <!-- Entry signal arrow -->
+                <rect x="280" y="60" width="130" height="28" rx="5" fill="rgba(8,153,129,0.2)" stroke="#089981" stroke-width="1"/>
+                <text x="345" y="72" text-anchor="middle" fill="#089981" font-size="10" font-weight="700">ENTRY SIGNAL</text>
+                <line x1="320" y1="88" x2="320" y2="82" stroke="#089981" stroke-width="2" marker-end="url(#arrowGreen1)"/>
+                <defs><marker id="arrowGreen1" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#089981"/></marker></defs>
+                <!-- Label -->
+                <text x="260" y="230" text-anchor="middle" fill="#545b6a" font-size="9">5-Minute Bars</text>
+                <text x="12" y="130" text-anchor="middle" fill="#545b6a" font-size="9" transform="rotate(-90 12 130)">Price</text>
+              </svg>
+            </div>
+            <div class="sg-bt-example-config">
+              <div class="sg-bt-example-label">Builder Configuration:</div>
+              <div class="sg-bt-example-row">
+                <span class="sg-bt-example-pill">Metric: EMA</span>
+                <span class="sg-bt-example-pill">Period: 9</span>
+                <span class="sg-bt-example-pill">Candle: 5-min</span>
+                <span class="sg-bt-example-pill">Day: Today</span>
+              </div>
+              <div class="sg-bt-example-row">
+                <span class="sg-bt-example-pill sg-bt-pill-op">&lt; (less than)</span>
+                <span class="sg-bt-example-pill">Compare: Current Price</span>
+                <span class="sg-bt-example-pill sg-bt-pill-thresh">Threshold: -1%</span>
+              </div>
+              <div class="sg-bt-example-meaning">Reads as: "Enter when 9 EMA (5-min) is at least 1% below the current price" — i.e., price has pulled away above the EMA by 1%+, confirming upward momentum.</div>
+            </div>
+          </div>
+
+          <div class="sg-bt-field sg-bt-example-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Example 2: Current Price > 1hr Close by 0.5%</div>
+            <div class="sg-bt-field-desc">Enter only when the current price is at least 0.5% above the most recent 1-hour candle's close — confirming short-term bullish continuation.</div>
+            <div class="sg-bt-example-diagram">
+              <svg viewBox="0 0 520 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+                <rect width="520" height="240" fill="#131722" rx="8"/>
+                <line x1="50" y1="210" x2="500" y2="210" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="170" x2="500" y2="170" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="130" x2="500" y2="130" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="90" x2="500" y2="90" stroke="#2a2e39" stroke-width="0.5"/>
+                <line x1="50" y1="50" x2="500" y2="50" stroke="#2a2e39" stroke-width="0.5"/>
+                <text x="45" y="214" text-anchor="end" fill="#787b86" font-size="9">$98</text>
+                <text x="45" y="174" text-anchor="end" fill="#787b86" font-size="9">$99</text>
+                <text x="45" y="134" text-anchor="end" fill="#787b86" font-size="9">$100</text>
+                <text x="45" y="94" text-anchor="end" fill="#787b86" font-size="9">$101</text>
+                <text x="45" y="54" text-anchor="end" fill="#787b86" font-size="9">$102</text>
+                <!-- 1-hour candles (wider bars) -->
+                <rect x="70" y="160" width="22" height="30" fill="#f23645" rx="2"/>
+                <line x1="81" y1="155" x2="81" y2="195" stroke="#f23645" stroke-width="1.5"/>
+                <rect x="110" y="145" width="22" height="35" fill="#f23645" rx="2"/>
+                <line x1="121" y1="140" x2="121" y2="185" stroke="#f23645" stroke-width="1.5"/>
+                <rect x="150" y="155" width="22" height="25" fill="#089981" rx="2"/>
+                <line x1="161" y1="150" x2="161" y2="190" stroke="#089981" stroke-width="1.5"/>
+                <rect x="190" y="140" width="22" height="30" fill="#089981" rx="2"/>
+                <line x1="201" y1="132" x2="201" y2="175" stroke="#089981" stroke-width="1.5"/>
+                <rect x="230" y="128" width="22" height="22" fill="#089981" rx="2"/>
+                <line x1="241" y1="122" x2="241" y2="158" stroke="#089981" stroke-width="1.5"/>
+                <rect x="270" y="118" width="22" height="20" fill="#089981" rx="2"/>
+                <line x1="281" y1="112" x2="281" y2="145" stroke="#089981" stroke-width="1.5"/>
+                <!-- Last 1hr close line -->
+                <line x1="292" y1="118" x2="430" y2="118" stroke="#f0b03b" stroke-width="1.5" stroke-dasharray="6,3"/>
+                <text x="435" y="122" fill="#f0b03b" font-size="9" font-weight="600">1hr Close</text>
+                <!-- +0.5% above line -->
+                <line x1="292" y1="112" x2="430" y2="112" stroke="#787b86" stroke-width="1" stroke-dasharray="3,3"/>
+                <text x="435" y="116" fill="#787b86" font-size="8">+0.5%</text>
+                <!-- Current price candle (breaking above) -->
+                <rect x="330" y="85" width="22" height="30" fill="#089981" rx="2"/>
+                <line x1="341" y1="78" x2="341" y2="120" stroke="#089981" stroke-width="1.5"/>
+                <!-- Entry arrow -->
+                <rect x="310" y="52" width="130" height="28" rx="5" fill="rgba(8,153,129,0.2)" stroke="#089981" stroke-width="1"/>
+                <text x="375" y="64" text-anchor="middle" fill="#089981" font-size="10" font-weight="700">ENTRY SIGNAL</text>
+                <line x1="341" y1="82" x2="341" y2="75" stroke="#089981" stroke-width="2" marker-end="url(#arrowGreen2)"/>
+                <defs><marker id="arrowGreen2" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#089981"/></marker></defs>
+                <!-- Annotation -->
+                <rect x="340" y="95" width="90" height="18" rx="4" fill="rgba(240,176,59,0.15)" stroke="#f0b03b" stroke-width="0.8"/>
+                <text x="385" y="107" text-anchor="middle" fill="#f0b03b" font-size="8" font-weight="600">+0.5% GAP</text>
+                <!-- Labels -->
+                <text x="81" y="225" fill="#545b6a" font-size="8">10:00</text>
+                <text x="161" y="225" fill="#545b6a" font-size="8">11:00</text>
+                <text x="241" y="225" fill="#545b6a" font-size="8">12:00</text>
+                <text x="341" y="225" fill="#545b6a" font-size="8">Current</text>
+                <text x="260" y="236" text-anchor="middle" fill="#545b6a" font-size="9">1-Hour Bars</text>
+                <text x="12" y="130" text-anchor="middle" fill="#545b6a" font-size="9" transform="rotate(-90 12 130)">Price</text>
+              </svg>
+            </div>
+            <div class="sg-bt-example-config">
+              <div class="sg-bt-example-label">Builder Configuration:</div>
+              <div class="sg-bt-example-row">
+                <span class="sg-bt-example-pill">Metric: Price</span>
+                <span class="sg-bt-example-pill">Candle: 1-hour</span>
+                <span class="sg-bt-example-pill">Series: Close</span>
+                <span class="sg-bt-example-pill">Day: Today</span>
+              </div>
+              <div class="sg-bt-example-row">
+                <span class="sg-bt-example-pill sg-bt-pill-op">&lt; (less than)</span>
+                <span class="sg-bt-example-pill">Compare: Current Price</span>
+                <span class="sg-bt-example-pill sg-bt-pill-thresh">Threshold: -0.5%</span>
+              </div>
+              <div class="sg-bt-example-meaning">Reads as: "Enter when 1-hour close is at least 0.5% below the current price" — confirming that price is accelerating above the last hourly bar's close.</div>
+            </div>
+          </div>
+
         </div>
       </div>
 
