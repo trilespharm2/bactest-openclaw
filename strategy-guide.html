@@ -35,7 +35,7 @@
   <div id="sgTabBacktester" class="sg-tab-content">
     <div class="sg-header">
       <h2><i class="fas fa-flask me-2"></i>Backtester Parameter Reference</h2>
-      <p class="sg-subtitle">Detailed breakdown of every field, parameter, and configuration option in the Options Backtester</p>
+      <p class="sg-subtitle">Detailed breakdown of every field, parameter, and configuration option in the Options Backtester — labeled to match the backtester form sections</p>
       <div class="sg-search-wrapper">
         <i class="fas fa-search sg-search-icon"></i>
         <input type="text" id="sgBtSearchInput" class="sg-search-input" placeholder="Search parameters, fields, or keywords...">
@@ -47,10 +47,23 @@
 
       <div class="sg-bt-section" data-section="setup">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">1</span>
+          <span class="sg-bt-step">1/14</span>
           <h3>Backtest Name</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="130" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">1/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">BACKTEST NAME</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Enter a name for this backtest:</text>
+              <rect x="16" y="66" width="488" height="34" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="88" fill="#9ca3af" font-size="12" font-family="system-ui" font-style="italic">e.g., Roblox Strategy, SPX Scalp</text>
+              <text x="16" y="118" fill="#9ca3af" font-size="10" font-family="system-ui">This name will be used to identify your backtest in the results page</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-tag"></i> Backtest Name</div>
             <div class="sg-bt-field-desc">A descriptive label to identify this backtest in your results list. Use meaningful names like "SPY 0DTE Put Spread March 2025" so you can quickly find and compare results later.</div>
@@ -61,10 +74,22 @@
 
       <div class="sg-bt-section" data-section="symbol">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">2</span>
+          <span class="sg-bt-step">2/14</span>
           <h3>Symbol</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 105" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="105" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">2/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">SYMBOL</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Enter symbol (e.g., SPX, AAPL):</text>
+              <rect x="16" y="66" width="488" height="34" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="88" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">SPX</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Symbol</div>
             <div class="sg-bt-field-desc">The ticker of the underlying asset to backtest (e.g., SPY, QQQ, AAPL, SPX). The backtester fetches historical price data and options chain data for this symbol. Index options (SPX, NDX) and ETF options (SPY, QQQ) are both supported.</div>
@@ -75,10 +100,26 @@
 
       <div class="sg-bt-section" data-section="dates">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">3</span>
+          <span class="sg-bt-step">3/14</span>
           <h3>Date Range</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 165" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="165" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">3/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">DATE RANGE</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Start Date:</text>
+              <rect x="16" y="64" width="230" height="32" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="85" fill="#1e222d" font-size="12" font-family="system-ui">03/01/2026</text>
+              <text x="16" y="110" fill="#6a6d78" font-size="11" font-family="system-ui">End Date:</text>
+              <rect x="16" y="116" width="230" height="32" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="137" fill="#1e222d" font-size="12" font-family="system-ui">03/31/2026</text>
+              <text x="16" y="158" fill="#9ca3af" font-size="9.5" font-family="system-ui">Free plan: Mar 1, 2025 – Mar 31, 2026</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-calendar-alt"></i> Start Date & End Date</div>
             <div class="sg-bt-field-desc">The time window for the backtest. The engine scans each trading day in this range looking for entry opportunities at the specified entry time. Longer ranges produce more trades and more statistically significant results.</div>
@@ -89,10 +130,30 @@
 
       <div class="sg-bt-section" data-section="entry-time">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">4</span>
+          <span class="sg-bt-step">4/14</span>
           <h3>Entry Time</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="130" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">4/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">ENTRY TIME</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Entry Time (ET):</text>
+              <rect x="16" y="64" width="150" height="32" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="85" fill="#1e222d" font-size="12" font-family="system-ui">10:00</text>
+              <text x="180" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Entry Time End (optional):</text>
+              <rect x="180" y="64" width="150" height="32" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="192" y="85" fill="#9ca3af" font-size="12" font-family="system-ui" font-style="italic">--:--</text>
+              <text x="16" y="114" fill="#6a6d78" font-size="11" font-family="system-ui">Trade Frequency:</text>
+              <rect x="130" y="100" width="70" height="24" rx="12" fill="#3f51b5"/>
+              <text x="165" y="116" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">Daily</text>
+              <rect x="208" y="100" width="100" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="258" y="116" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Custom Days</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-clock"></i> Entry Time (Start)</div>
             <div class="sg-bt-field-desc">The time of day (ET) when the backtester attempts to enter trades. On each trading day, the engine checks conditions at this exact time. Common values: 9:31 (market open), 10:00 (after initial volatility settles), 15:45 (late day 0DTE).</div>
@@ -107,10 +168,38 @@
 
       <div class="sg-bt-section" data-section="price-conditions">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">5</span>
+          <span class="sg-bt-step">5/14</span>
           <h3>Underlying Price Conditions</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 145" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="145" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">5/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">UNDERLYING PRICE CONDITIONS</text>
+              <text x="394" y="30" fill="#9ca3af" font-size="10" font-family="system-ui">(Optional)</text>
+              <rect x="16" y="50" width="80" height="28" rx="14" fill="#3f51b5"/>
+              <text x="56" y="68" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="600" font-family="system-ui">None</text>
+              <rect x="104" y="50" width="80" height="28" rx="14" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="144" y="68" text-anchor="middle" fill="#6a6d78" font-size="10.5" font-family="system-ui">Preset</text>
+              <rect x="192" y="50" width="110" height="28" rx="14" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="247" y="68" text-anchor="middle" fill="#6a6d78" font-size="10.5" font-family="system-ui">Custom Builder</text>
+              <line x1="16" y1="90" x2="504" y2="90" stroke="#eef0f4" stroke-width="1"/>
+              <rect x="16" y="100" width="100" height="20" rx="4" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="66" y="114" text-anchor="middle" fill="#1e222d" font-size="9.5" font-family="system-ui">Premarket Chg %</text>
+              <rect x="124" y="100" width="75" height="20" rx="4" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="161" y="114" text-anchor="middle" fill="#1e222d" font-size="9.5" font-family="system-ui">Change %</text>
+              <rect x="207" y="100" width="60" height="20" rx="4" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="237" y="114" text-anchor="middle" fill="#1e222d" font-size="9.5" font-family="system-ui">Gap %</text>
+              <rect x="275" y="100" width="90" height="20" rx="4" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="320" y="114" text-anchor="middle" fill="#1e222d" font-size="9.5" font-family="system-ui">Change-Open %</text>
+              <rect x="373" y="100" width="70" height="20" rx="4" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="408" y="114" text-anchor="middle" fill="#1e222d" font-size="9.5" font-family="system-ui">Velocity</text>
+              <text x="16" y="138" fill="#9ca3af" font-size="9.5" font-family="system-ui">Custom Builder: SMA, EMA, RSI, MACD, Price comparisons across timeframes</text>
+            </svg>
+          </div>
           <p class="sg-bt-intro">Optional filters that must be true for a trade to be entered. The engine checks these conditions against the underlying's price data at entry time.</p>
 
           <div class="sg-bt-field">
@@ -341,24 +430,37 @@
 
       <div class="sg-bt-section" data-section="dte">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">6</span>
-          <h3>Days to Expiration (DTE)</h3>
+          <span class="sg-bt-step">6/14</span>
+          <h3>DTE &amp; Strategy Type</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="220" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">6/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">DAYS TO EXPIRATION (DTE)</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">DTE:</text>
+              <rect x="16" y="64" width="120" height="32" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="85" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">0</text>
+              <text x="150" y="85" fill="#9ca3af" font-size="10" font-family="system-ui">0 = same-day expiration (0DTE)</text>
+              <line x1="16" y1="108" x2="504" y2="108" stroke="#eef0f4" stroke-width="1"/>
+              <rect x="16" y="118" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="124" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="137" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">6/14</text>
+              <text x="76" y="138" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">STRATEGY TYPE</text>
+              <rect x="16" y="156" width="488" height="32" rx="6" fill="#f5f6fa" stroke="#3f51b5" stroke-width="1.5"/>
+              <text x="28" y="177" fill="#1e222d" font-size="12" font-family="system-ui">Short Put Spread</text>
+              <text x="488" y="177" text-anchor="end" fill="#9ca3af" font-size="12" font-family="system-ui">&#x25BE;</text>
+              <text x="16" y="208" fill="#9ca3af" font-size="10" font-family="system-ui">22 strategies: Single Leg, Verticals, Iron Condors, Butterflies, Straddles, Strangles, Calendars, Diagonals</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-hourglass-half"></i> DTE</div>
             <div class="sg-bt-field-desc">How many days until the option expires. The backtester selects the expiration date that is exactly this many calendar days from the entry date. Enter 0 for same-day (0DTE) expiration — the most popular for scalping strategies.</div>
             <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> For calendar/diagonal spreads, this field is replaced by per-leg DTE settings in the leg configuration. Each leg gets its own DTE.</div>
           </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="strategy">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">6</span>
-          <h3>Strategy Type</h3>
-        </div>
-        <div class="sg-bt-section-body">
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-chess-knight"></i> Strategy Selection</div>
             <div class="sg-bt-field-desc">Choose from 22 predefined options strategies. The strategy determines which legs are created, their directions (long/short), and types (call/put). See the Strategy Guide tab for detailed explanations of each.</div>
@@ -379,6 +481,22 @@
           <h3>Implied Volatility Filter</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="100" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="52" height="18" rx="9" fill="#3f51b5"/>
+              <text x="50" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">6.4/14</text>
+              <text x="86" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">IMPLIED VOLATILITY FILTER</text>
+              <text x="340" y="30" fill="#9ca3af" font-size="10" font-family="system-ui">(Optional)</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">IV Condition:</text>
+              <rect x="16" y="64" width="80" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="56" y="84" text-anchor="middle" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">&gt;</text>
+              <rect x="104" y="64" width="100" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="116" y="84" fill="#1e222d" font-size="12" font-family="system-ui">25</text>
+              <text x="210" y="84" fill="#9ca3af" font-size="11" font-family="system-ui">% annualized IV</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-chart-area"></i> IV% Entry Condition</div>
             <div class="sg-bt-field-desc">When enabled, the backtester checks the at-the-money implied volatility before entering a trade. Trades are only taken when IV meets your threshold. This lets you filter for high-volatility or low-volatility environments.</div>
@@ -397,6 +515,21 @@
           <h3>Wing Configuration</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 80" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="80" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="52" height="18" rx="9" fill="#3f51b5"/>
+              <text x="50" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">6.5/14</text>
+              <text x="86" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">WING CONFIGURATION</text>
+              <text x="16" y="60" fill="#6a6d78" font-size="11" font-family="system-ui">Allow skewed (unequal) wings?</text>
+              <rect x="220" y="48" width="55" height="22" rx="11" fill="#3f51b5"/>
+              <text x="247" y="63" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">No</text>
+              <rect x="283" y="48" width="55" height="22" rx="11" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="310" y="63" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Yes</text>
+              <text x="350" y="63" fill="#9ca3af" font-size="9.5" font-family="system-ui">Iron Condor / Butterfly only</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-balance-scale"></i> Allow Skewed Wings</div>
             <div class="sg-bt-field-desc">Only appears for Iron Condor and Iron Butterfly strategies. When set to "No" (default), both the put spread and call spread must have equal width. When set to "Yes", each wing can be configured independently for asymmetric positioning.</div>
@@ -407,10 +540,36 @@
 
       <div class="sg-bt-section" data-section="legs">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">7</span>
+          <span class="sg-bt-step">7/14</span>
           <h3>Leg Configuration</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 195" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="195" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">7/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">LEG CONFIGURATION</text>
+              <text x="250" y="30" fill="#9ca3af" font-size="10" font-family="system-ui">(Short Put Spread — 2 Legs)</text>
+              <rect x="16" y="50" width="488" height="58" rx="8" fill="#f8f9fd" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="26" y="68" fill="#3f51b5" font-size="11" font-weight="700" font-family="system-ui">Leg 1: Short Put</text>
+              <text x="26" y="85" fill="#6a6d78" font-size="10" font-family="system-ui">Strike Method:</text>
+              <rect x="120" y="72" width="140" height="20" rx="4" fill="#fff" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="130" y="86" fill="#1e222d" font-size="9.5" font-family="system-ui">% Dist from Underlying</text>
+              <text x="272" y="85" fill="#6a6d78" font-size="10" font-family="system-ui">Value:</text>
+              <rect x="302" y="72" width="60" height="20" rx="4" fill="#fff" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="312" y="86" fill="#1e222d" font-size="10" font-family="system-ui">2%</text>
+              <rect x="16" y="118" width="488" height="58" rx="8" fill="#f8f9fd" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="26" y="136" fill="#ef4444" font-size="11" font-weight="700" font-family="system-ui">Leg 2: Long Put</text>
+              <text x="26" y="153" fill="#6a6d78" font-size="10" font-family="system-ui">Strike Method:</text>
+              <rect x="120" y="140" width="140" height="20" rx="4" fill="#fff" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="130" y="154" fill="#1e222d" font-size="9.5" font-family="system-ui">$ Dist from Leg 1</text>
+              <text x="272" y="153" fill="#6a6d78" font-size="10" font-family="system-ui">Value:</text>
+              <rect x="302" y="140" width="60" height="20" rx="4" fill="#fff" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="312" y="154" fill="#1e222d" font-size="10" font-family="system-ui">$5</text>
+            </svg>
+          </div>
           <p class="sg-bt-intro">Each leg defines one option contract in your strategy. The leg configuration dynamically adjusts based on the selected strategy. Each leg has a strike selection method that determines how the strike price is chosen.</p>
 
           <div class="sg-bt-field">
@@ -445,6 +604,23 @@
           <h3>Net Premium Filter</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="100" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="52" height="18" rx="9" fill="#3f51b5"/>
+              <text x="50" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">7.5/14</text>
+              <text x="86" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">NET PREMIUM FILTER</text>
+              <text x="286" y="30" fill="#9ca3af" font-size="10" font-family="system-ui">(Optional)</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Min ($):</text>
+              <rect x="70" y="46" width="90" height="26" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="82" y="64" fill="#9ca3af" font-size="11" font-family="system-ui">0.50</text>
+              <text x="180" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Max ($):</text>
+              <rect x="235" y="46" width="90" height="26" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="247" y="64" fill="#9ca3af" font-size="11" font-family="system-ui">2.00</text>
+              <text x="16" y="88" fill="#9ca3af" font-size="9.5" font-family="system-ui">Filters trades by net credit received or debit paid at entry</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-dollar-sign"></i> Min / Max Net Premium</div>
             <div class="sg-bt-field-desc">Filters trades by the net premium of the entire position at entry. For credit strategies, this is the total credit received. For debit strategies, this is the total debit paid. Trades outside this range are skipped.</div>
@@ -455,10 +631,26 @@
 
       <div class="sg-bt-section" data-section="tp">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">8</span>
+          <span class="sg-bt-step">8/14</span>
           <h3>Take Profit</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="100" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">8/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">TAKE PROFIT</text>
+              <rect x="16" y="50" width="75" height="24" rx="12" fill="#089981"/>
+              <text x="53" y="66" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">% Mode</text>
+              <rect x="99" y="50" width="75" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="136" y="66" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">$ Mode</text>
+              <text x="195" y="66" fill="#6a6d78" font-size="11" font-family="system-ui">TP %:</text>
+              <rect x="230" y="50" width="80" height="26" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="242" y="68" fill="#089981" font-size="13" font-weight="600" font-family="system-ui">50%</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-arrow-up" style="color:#089981"></i> Take Profit (TP)</div>
             <div class="sg-bt-field-desc">The profit target for each trade. When the position's unrealized P&L reaches this level, the trade is automatically closed for a profit. Can be specified as a percentage of premium or a fixed dollar amount per contract.</div>
@@ -473,10 +665,26 @@
 
       <div class="sg-bt-section" data-section="sl">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">9</span>
+          <span class="sg-bt-step">9/14</span>
           <h3>Stop Loss</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="100" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="42" height="18" rx="9" fill="#3f51b5"/>
+              <text x="45" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">9/14</text>
+              <text x="76" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">STOP LOSS</text>
+              <rect x="16" y="50" width="75" height="24" rx="12" fill="#f23645"/>
+              <text x="53" y="66" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">% Mode</text>
+              <rect x="99" y="50" width="75" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="136" y="66" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">$ Mode</text>
+              <text x="195" y="66" fill="#6a6d78" font-size="11" font-family="system-ui">SL %:</text>
+              <rect x="230" y="50" width="80" height="26" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="242" y="68" fill="#f23645" font-size="13" font-weight="600" font-family="system-ui">100%</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-arrow-down" style="color:#f23645"></i> Stop Loss (SL)</div>
             <div class="sg-bt-field-desc">The maximum loss you're willing to accept on each trade. When the position's unrealized P&L drops to this level, the trade is automatically closed to limit losses. Can be percentage or dollar-based.</div>
@@ -491,10 +699,30 @@
 
       <div class="sg-bt-section" data-section="exit-conditions">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">10</span>
+          <span class="sg-bt-step">10/14</span>
           <h3>Exit Conditions</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 100" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="100" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="50" height="18" rx="9" fill="#3f51b5"/>
+              <text x="49" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">10/14</text>
+              <text x="84" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">EXIT CONDITIONS</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">EOD Action:</text>
+              <rect x="100" y="46" width="90" height="24" rx="12" fill="#3f51b5"/>
+              <text x="145" y="62" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">Close at EOD</text>
+              <rect x="198" y="46" width="65" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="230" y="62" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Hold</text>
+              <text x="290" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Signal-based:</text>
+              <rect x="380" y="46" width="60" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="410" y="62" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Preset</text>
+              <rect x="448" y="46" width="56" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="476" y="62" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Custom</text>
+              <text x="16" y="88" fill="#9ca3af" font-size="9.5" font-family="system-ui">At least one exit mechanism required: TP, SL, EOD close, or exit condition</text>
+            </svg>
+          </div>
           <p class="sg-bt-intro">Optional signal-based exit rules that work alongside TP/SL. If an exit condition triggers, the trade closes regardless of current P&L. The earliest trigger wins — TP, SL, or exit condition.</p>
 
           <div class="sg-bt-field">
@@ -511,10 +739,24 @@
 
       <div class="sg-bt-section" data-section="concurrent">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">11</span>
+          <span class="sg-bt-step">11/14</span>
           <h3>Concurrent Trades</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 70" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="70" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="50" height="18" rx="9" fill="#3f51b5"/>
+              <text x="49" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">11/14</text>
+              <text x="84" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">CONCURRENT TRADES</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Allow concurrent trades?</text>
+              <rect x="200" y="44" width="55" height="22" rx="11" fill="#3f51b5"/>
+              <text x="227" y="59" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">No</text>
+              <rect x="263" y="44" width="55" height="22" rx="11" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="290" y="59" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Yes</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-layer-group"></i> Allow Concurrent Trades</div>
             <div class="sg-bt-field-desc">Controls whether the backtester can open a new trade while a previous trade is still open. When set to "No" (default), only one position can be active at a time — a new trade won't open until the current one closes. When set to "Yes", multiple positions can overlap.</div>
@@ -525,10 +767,24 @@
 
       <div class="sg-bt-section" data-section="pdt">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">12</span>
+          <span class="sg-bt-step">12/14</span>
           <h3>PDT Avoidance</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 70" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="70" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="50" height="18" rx="9" fill="#3f51b5"/>
+              <text x="49" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">12/14</text>
+              <text x="84" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">PDT AVOIDANCE</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Avoid PDT rule (3 day-trades / 5 days)?</text>
+              <rect x="290" y="44" width="55" height="22" rx="11" fill="#3f51b5"/>
+              <text x="317" y="59" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">No</text>
+              <rect x="353" y="44" width="55" height="22" rx="11" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="380" y="59" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Yes</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-shield-alt"></i> Avoid Pattern Day Trader (PDT)</div>
             <div class="sg-bt-field-desc">When enabled, limits the number of same-day round-trip trades to comply with FINRA's Pattern Day Trader rule (no more than 3 day trades in a rolling 5-business-day period for accounts under $25,000). Set to "No" if your account is above $25K or if testing with a cash account.</div>
@@ -538,10 +794,22 @@
 
       <div class="sg-bt-section" data-section="capital">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">13</span>
+          <span class="sg-bt-step">13/14</span>
           <h3>Starting Capital</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 85" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="85" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="50" height="18" rx="9" fill="#3f51b5"/>
+              <text x="49" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">13/14</text>
+              <text x="84" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">STARTING CAPITAL</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Starting Capital ($):</text>
+              <rect x="150" y="46" width="150" height="28" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="162" y="65" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">$50,000</text>
+            </svg>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Starting Capital</div>
             <div class="sg-bt-field-desc">The initial account balance for the backtest. This determines how many contracts you can trade and affects position sizing calculations. Default is $50,000. Results metrics like Return % and Max Drawdown % are calculated relative to this starting balance.</div>
@@ -552,10 +820,28 @@
 
       <div class="sg-bt-section" data-section="allocation">
         <div class="sg-bt-section-header">
-          <span class="sg-bt-step">14</span>
+          <span class="sg-bt-step">14/14</span>
           <h3>Allocation Per Trade</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 105" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="105" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#e8eaf6"/>
+              <rect x="24" y="16" width="50" height="18" rx="9" fill="#3f51b5"/>
+              <text x="49" y="29" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700" font-family="system-ui">14/14</text>
+              <text x="84" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">ALLOCATION PER TRADE</text>
+              <rect x="16" y="50" width="100" height="24" rx="12" fill="#3f51b5"/>
+              <text x="66" y="66" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">% of Account</text>
+              <rect x="124" y="50" width="100" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="174" y="66" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui"># Contracts</text>
+              <rect x="232" y="50" width="80" height="24" rx="12" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="272" y="66" text-anchor="middle" fill="#6a6d78" font-size="10" font-family="system-ui">Fixed $</text>
+              <text x="16" y="92" fill="#6a6d78" font-size="11" font-family="system-ui">Allocation %:</text>
+              <rect x="110" y="78" width="80" height="26" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="122" y="96" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">10%</text>
+            </svg>
+          </div>
           <p class="sg-bt-intro">How much of your account to risk on each trade. Three methods are available:</p>
 
           <div class="sg-bt-field">
