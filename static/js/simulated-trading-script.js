@@ -952,6 +952,7 @@ async function restoreOptionBarsForOpenPositions() {
         }
     }
     updateOptionsPnlDisplay();
+    updateSimIVDisplay();
 }
 
 function applyTradingMode() {
@@ -1785,6 +1786,7 @@ function gotoDateTime() {
     updateNavigationButtons();
     updatePositionLines();
     updatePnlShading();
+    updateSimIVDisplay();
     simUserHasDragged = false;
     lwChart?.timeScale().scrollToPosition(5, false);
 }
@@ -1885,36 +1887,49 @@ function updateSimIVDisplay() {
     let bestIV = null;
     let closestATMDist = Infinity;
 
+    let fallbackIV = null;
     for (const pos of simOpenOptionPositions) {
+        if (pos.status !== 'open') continue;
         for (const leg of pos.legs) {
             const strikeDist = Math.abs(leg.strike - underlyingPrice);
+
+            if (!leg.optionBars || leg.optionBars.length === 0) {
+                if (strikeDist < closestATMDist && leg.entryGreeks && leg.entryGreeks.iv > 0) {
+                    fallbackIV = leg.entryGreeks.iv;
+                }
+                continue;
+            }
             if (strikeDist < closestATMDist) {
                 const optBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
-                if (optBar) {
-                    const optPrice = optBar.vwap || optBar.close;
-                    const legExp = leg.expiration || pos.expiration;
-                    const expParts = legExp.split('-');
-                    const expYear = parseInt(expParts[0]), expMonth = parseInt(expParts[1]), expDay = parseInt(expParts[2]);
-                    const entryMs = typeof currentTimestamp === 'number' ? currentTimestamp : new Date(currentTimestamp).getTime();
-                    const testDate = new Date(expYear, expMonth - 1, expDay);
-                    const marSecondSun = new Date(expYear, 2, 8 + (7 - new Date(expYear, 2, 8).getDay()) % 7);
-                    const novFirstSun = new Date(expYear, 10, 1 + (7 - new Date(expYear, 10, 1).getDay()) % 7);
-                    const isDST = testDate >= marSecondSun && testDate < novFirstSun;
-                    const etOffsetHours = isDST ? -4 : -5;
-                    const expMsCalc = Date.UTC(expYear, expMonth - 1, expDay, 16 - etOffsetHours, 0, 0);
-                    const diffMs = expMsCalc - entryMs;
-                    const T = Math.max(diffMs / (365.25 * 24 * 3600 * 1000), 1e-10);
-                    const r = 0.045, q = 0.013;
-                    const optType = leg.type === 'P' ? 'put' : 'call';
-                    const iv = BSCalc.impliedVolatility(underlyingPrice, leg.strike, T, r, q, optPrice, optType);
-                    if (iv !== null && iv > 0 && iv < 5) {
-                        closestATMDist = strikeDist;
-                        bestIV = iv;
-                    }
+                if (!optBar) continue;
+                const optPrice = optBar.vwap || optBar.close;
+                if (!optPrice || optPrice <= 0) continue;
+                const legExp = leg.expiration || pos.expiration;
+                const expParts = legExp.split('-');
+                const expYear = parseInt(expParts[0]), expMonth = parseInt(expParts[1]), expDay = parseInt(expParts[2]);
+                const nowMs = typeof currentTimestamp === 'number' ? currentTimestamp : new Date(currentTimestamp).getTime();
+                const testDate = new Date(expYear, expMonth - 1, expDay);
+                const marSecondSun = new Date(expYear, 2, 8 + (7 - new Date(expYear, 2, 8).getDay()) % 7);
+                const novFirstSun = new Date(expYear, 10, 1 + (7 - new Date(expYear, 10, 1).getDay()) % 7);
+                const isDST = testDate >= marSecondSun && testDate < novFirstSun;
+                const etOffsetHours = isDST ? -4 : -5;
+                const expMsCalc = Date.UTC(expYear, expMonth - 1, expDay, 16 - etOffsetHours, 0, 0);
+                const diffMs = expMsCalc - nowMs;
+                const T = Math.max(diffMs / (365.25 * 24 * 3600 * 1000), 1 / (365.25 * 24 * 60));
+                const r = 0.045, q = 0.013;
+                const optType = leg.type === 'P' ? 'put' : 'call';
+                const iv = BSCalc.impliedVolatility(underlyingPrice, leg.strike, T, r, q, optPrice, optType);
+                if (iv !== null && iv > 0 && iv < 5) {
+                    closestATMDist = strikeDist;
+                    bestIV = iv;
+                } else if (leg.entryGreeks && leg.entryGreeks.iv > 0) {
+                    closestATMDist = strikeDist;
+                    fallbackIV = leg.entryGreeks.iv;
                 }
             }
         }
     }
+    if (bestIV === null && fallbackIV !== null) bestIV = fallbackIV;
 
     if (bestIV !== null) {
         const ivPct = (bestIV * 100).toFixed(1);
