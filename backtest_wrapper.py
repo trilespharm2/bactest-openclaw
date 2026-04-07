@@ -18,65 +18,72 @@ def load_config_from_json(json_path):
     
     # Convert web config format to script config format
     config = {
-        'backtest_name': web_config.get('backtest_name', ''),
-        'symbol': web_config['symbol'],
-        'start_date': web_config['start_date'],
-        'end_date': web_config['end_date'],
-        'entry_time': web_config['entry_time'],
-        'dte': web_config['dte'],
-        'strategy': web_config['strategy'],
-        'legs': web_config['legs'],
-        'detection_bar_size': web_config['detection_bar_size'],
-        'concurrent_trades': web_config['concurrent_trades'],
-        'avoid_pdt': web_config['avoid_pdt'],
-        'starting_capital': web_config['starting_capital'],
-        'allocation_type': web_config['allocation_type'],
-        'allocation_value': web_config['allocation_value'],
+        'backtest_name': web_config.get('backtest_name') or web_config.get('backtestName', ''),
+        'symbol': web_config.get('symbol', 'SPX'),
+        'start_date': web_config.get('start_date') or web_config.get('startDate', ''),
+        'end_date': web_config.get('end_date') or web_config.get('endDate', ''),
+        'entry_time': web_config.get('entry_time') or web_config.get('entryTime', '10:00'),
+        'dte': web_config.get('dte', 0),
+        'strategy': web_config.get('strategy', ''),
+        'legs': web_config.get('legs', []),
+        'detection_bar_size': web_config.get('detection_bar_size') or web_config.get('detectionBarSize', 5),
+        'concurrent_trades': web_config.get('concurrent_trades') or web_config.get('concurrentTrades', False),
+        'avoid_pdt': web_config.get('avoid_pdt') or web_config.get('avoidPdt', False),
+        'starting_capital': web_config.get('starting_capital') or web_config.get('startingCapital', 100000),
+        'allocation_type': web_config.get('allocation_type') or web_config.get('allocationType', 'pct'),
+        'allocation_value': web_config.get('allocation_value') or web_config.get('allocationValue', 10),
         # Net premium filter (optional)
-        'net_premium_min': web_config.get('net_premium_min'),
-        'net_premium_max': web_config.get('net_premium_max')
+        'net_premium_min': web_config.get('net_premium_min') or web_config.get('netPremiumMin'),
+        'net_premium_max': web_config.get('net_premium_max') or web_config.get('netPremiumMax')
     }
     
     # Handle take profit
-    if web_config.get('take_profit_pct') is not None:
-        config['take_profit_pct'] = web_config['take_profit_pct']
+    tp_pct = web_config.get('take_profit_pct') if web_config.get('take_profit_pct') is not None else web_config.get('takeProfitPct')
+    tp_dollar = web_config.get('take_profit_dollar') if web_config.get('take_profit_dollar') is not None else web_config.get('takeProfitDollar')
+    if tp_pct is not None and str(tp_pct).strip() != '':
+        config['take_profit_pct'] = tp_pct
         config['take_profit_dollar'] = None
     else:
         config['take_profit_pct'] = None
-        config['take_profit_dollar'] = web_config.get('take_profit_dollar')
+        config['take_profit_dollar'] = tp_dollar
     
     # Handle stop loss
-    if web_config.get('stop_loss_pct') is not None:
-        config['stop_loss_pct'] = web_config['stop_loss_pct']
+    sl_pct = web_config.get('stop_loss_pct') if web_config.get('stop_loss_pct') is not None else web_config.get('stopLossPct')
+    sl_dollar = web_config.get('stop_loss_dollar') if web_config.get('stop_loss_dollar') is not None else web_config.get('stopLossDollar')
+    if sl_pct is not None and str(sl_pct).strip() != '':
+        config['stop_loss_pct'] = sl_pct
         config['stop_loss_dollar'] = None
     else:
         config['stop_loss_pct'] = None
-        config['stop_loss_dollar'] = web_config.get('stop_loss_dollar')
+        config['stop_loss_dollar'] = sl_dollar
     
     # Handle wing configuration if present
     if 'wing_config' in web_config:
         config['wing_config'] = web_config['wing_config']
     
     # Handle entry time range (optional end time)
-    if 'entry_time_max' in web_config and web_config['entry_time_max']:
-        config['entry_time_max'] = web_config['entry_time_max']
+    entry_time_max = web_config.get('entry_time_max') or web_config.get('entryTimeMax', '')
+    if entry_time_max:
+        config['entry_time_max'] = entry_time_max
     
     # Handle entry conditions (preset or custom)
-    options_entry_type = web_config.get('options_entry_type', 'none')
+    options_entry_type = web_config.get('options_entry_type') or web_config.get('optionsEntryType', 'none')
     config['options_entry_type'] = options_entry_type
     
     if options_entry_type == 'preset':
-        config['preset_condition'] = web_config.get('preset_condition', '1')
-        config['preset_operator'] = web_config.get('preset_operator', '>')
-        config['preset_threshold'] = float(web_config.get('preset_threshold', 0))
+        config['preset_condition'] = web_config.get('preset_condition') or web_config.get('presetCondition', '1')
+        config['preset_operator'] = web_config.get('preset_operator') or web_config.get('presetOperator', '>')
+        config['preset_threshold'] = float(web_config.get('preset_threshold') or web_config.get('presetThreshold', 0))
         if config['preset_condition'] == '5':
-            config['velocity_lookback'] = int(web_config.get('velocity_lookback', 5))
+            config['velocity_lookback'] = int(web_config.get('velocity_lookback') or web_config.get('velocityLookback', 5))
     elif options_entry_type == 'custom':
-        if 'price_conditions' in web_config and web_config['price_conditions']:
-            config['price_conditions'] = web_config['price_conditions']
+        price_conds = web_config.get('price_conditions') or web_config.get('priceConditions', [])
+        if price_conds:
+            config['price_conditions'] = price_conds
     else:
-        if 'price_conditions' in web_config and web_config['price_conditions']:
-            config['price_conditions'] = web_config['price_conditions']
+        price_conds = web_config.get('price_conditions') or web_config.get('priceConditions', [])
+        if price_conds:
+            config['price_conditions'] = price_conds
     
     # Handle exit conditions (signal-based, optional)
     options_exit_type = web_config.get('options_exit_cond_type', 'preset')
@@ -99,6 +106,22 @@ def load_config_from_json(json_path):
     
     if 'iv_entry_condition' in web_config and web_config['iv_entry_condition']:
         config['iv_entry_condition'] = web_config['iv_entry_condition']
+    
+    eod_action = web_config.get('eod_action') or web_config.get('eodAction', 'close')
+    if eod_action:
+        config['eod_action'] = eod_action
+    
+    trade_frequency = web_config.get('trade_frequency') or web_config.get('tradeFrequency', 'daily')
+    if trade_frequency:
+        config['trade_frequency'] = trade_frequency
+    
+    entry_days = web_config.get('entry_days') or web_config.get('entryDays', [])
+    if entry_days:
+        config['entry_days'] = entry_days
+    
+    allow_skewed = web_config.get('allow_skewed_wings') or web_config.get('allowSkewedWings', False)
+    if allow_skewed:
+        config['allow_skewed_wings'] = allow_skewed
     
     return config
 
