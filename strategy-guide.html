@@ -1,28 +1,594 @@
 <div class="strategy-guide-container">
-  <div class="sg-header">
-    <h2><i class="fas fa-book-open me-2"></i>Options Strategy Guide</h2>
-    <p class="sg-subtitle">Complete reference for all 22 options strategies with payoff diagrams, leg placement, and ideal entry/exit conditions</p>
-    <div class="sg-search-wrapper">
-      <i class="fas fa-search sg-search-icon"></i>
-      <input type="text" id="sgSearchInput" class="sg-search-input" placeholder="Search strategies, conditions, or keywords...">
-      <button id="sgSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="sg-filter-bar">
-      <button class="sg-filter-btn active" data-filter="all">All Strategies</button>
-      <button class="sg-filter-btn" data-filter="single">Single Leg</button>
-      <button class="sg-filter-btn" data-filter="vertical">Vertical Spreads</button>
-      <button class="sg-filter-btn" data-filter="iron">Iron Strategies</button>
-      <button class="sg-filter-btn" data-filter="volatility">Straddles & Strangles</button>
-      <button class="sg-filter-btn" data-filter="calendar">Calendar & Diagonal</button>
-    </div>
-    <div id="sgSearchCount" class="sg-search-count"></div>
+  <div class="sg-tabs">
+    <button class="sg-tab active" data-tab="strategies"><i class="fas fa-chess me-1"></i>Strategy Guide</button>
+    <button class="sg-tab" data-tab="backtester"><i class="fas fa-flask me-1"></i>Backtester Reference</button>
+    <button class="sg-tab" data-tab="results"><i class="fas fa-chart-line me-1"></i>Results Reference</button>
   </div>
 
-  <div id="sgStrategiesGrid" class="sg-strategies-grid"></div>
+  <div id="sgTabStrategies" class="sg-tab-content active">
+    <div class="sg-header">
+      <h2><i class="fas fa-book-open me-2"></i>Options Strategy Guide</h2>
+      <p class="sg-subtitle">Complete reference for all 22 options strategies with payoff diagrams, leg placement, and ideal entry/exit conditions</p>
+      <div class="sg-search-wrapper">
+        <i class="fas fa-search sg-search-icon"></i>
+        <input type="text" id="sgSearchInput" class="sg-search-input" placeholder="Search strategies, conditions, or keywords...">
+        <button id="sgSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="sg-filter-bar">
+        <button class="sg-filter-btn active" data-filter="all">All Strategies</button>
+        <button class="sg-filter-btn" data-filter="single">Single Leg</button>
+        <button class="sg-filter-btn" data-filter="vertical">Vertical Spreads</button>
+        <button class="sg-filter-btn" data-filter="iron">Iron Strategies</button>
+        <button class="sg-filter-btn" data-filter="volatility">Straddles & Strangles</button>
+        <button class="sg-filter-btn" data-filter="calendar">Calendar & Diagonal</button>
+      </div>
+      <div id="sgSearchCount" class="sg-search-count"></div>
+    </div>
+    <div id="sgStrategiesGrid" class="sg-strategies-grid"></div>
+    <div id="sgNoResults" class="sg-no-results" style="display:none;">
+      <i class="fas fa-search"></i>
+      <h4>No strategies found</h4>
+      <p>Try a different search term or clear the filter</p>
+    </div>
+  </div>
 
-  <div id="sgNoResults" class="sg-no-results" style="display:none;">
-    <i class="fas fa-search"></i>
-    <h4>No strategies found</h4>
-    <p>Try a different search term or clear the filter</p>
+  <div id="sgTabBacktester" class="sg-tab-content">
+    <div class="sg-header">
+      <h2><i class="fas fa-flask me-2"></i>Backtester Parameter Reference</h2>
+      <p class="sg-subtitle">Detailed breakdown of every field, parameter, and configuration option in the Options Backtester</p>
+      <div class="sg-search-wrapper">
+        <i class="fas fa-search sg-search-icon"></i>
+        <input type="text" id="sgBtSearchInput" class="sg-search-input" placeholder="Search parameters, fields, or keywords...">
+        <button id="sgBtSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+
+    <div id="sgBtSections" class="sg-bt-sections">
+
+      <div class="sg-bt-section" data-section="setup">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">1</span>
+          <h3>Backtest Name</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-tag"></i> Backtest Name</div>
+            <div class="sg-bt-field-desc">A descriptive label to identify this backtest in your results list. Use meaningful names like "SPY 0DTE Put Spread March 2025" so you can quickly find and compare results later.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Tip: Include strategy type, symbol, and date range in the name for easy identification.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="symbol">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">2</span>
+          <h3>Symbol</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Symbol</div>
+            <div class="sg-bt-field-desc">The ticker of the underlying asset to backtest (e.g., SPY, QQQ, AAPL, SPX). The backtester fetches historical price data and options chain data for this symbol. Index options (SPX, NDX) and ETF options (SPY, QQQ) are both supported.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Free tier is limited to SPY, GLD, and QQQ. Standard tier supports all stocks and ETFs. Premium tier is unrestricted.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="dates">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">3</span>
+          <h3>Date Range</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-alt"></i> Start Date & End Date</div>
+            <div class="sg-bt-field-desc">The time window for the backtest. The engine scans each trading day in this range looking for entry opportunities at the specified entry time. Longer ranges produce more trades and more statistically significant results.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Use at least 3-6 months of data for meaningful results. Free tier is limited to 1 year; Standard to 3 years.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="entry-time">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">4</span>
+          <h3>Entry Time</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-clock"></i> Entry Time (Start)</div>
+            <div class="sg-bt-field-desc">The time of day (ET) when the backtester attempts to enter trades. On each trading day, the engine checks conditions at this exact time. Common values: 9:31 (market open), 10:00 (after initial volatility settles), 15:45 (late day 0DTE).</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-clock"></i> Entry Time End (Optional)</div>
+            <div class="sg-bt-field-desc">If set, creates a window between Start and End times. The engine looks for the first minute within this window where all entry conditions are met. If conditions aren't met by the End time, that day is skipped. Useful for condition-based entries that might trigger at different times.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Leave the end time blank to enter at a fixed time each day. Use a window when combining with underlying price conditions.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="price-conditions">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">5</span>
+          <h3>Underlying Price Conditions</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">Optional filters that must be true for a trade to be entered. The engine checks these conditions against the underlying's price data at entry time.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-ban"></i> None</div>
+            <div class="sg-bt-field-desc">No entry conditions. The backtester enters a trade every day at the specified entry time (default behavior).</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-list"></i> Preset Conditions</div>
+            <div class="sg-bt-field-desc">Quick-select common conditions without building custom logic:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Premarket Change %</strong> — Percentage change from previous close to premarket price. Use to filter days with big overnight moves.</li>
+              <li><strong>Change %</strong> — Intraday percentage change from the open to the current price at entry time.</li>
+              <li><strong>Gap %</strong> — Percentage gap between the previous close and today's open. Positive = gap up, negative = gap down.</li>
+              <li><strong>Change-Open %</strong> — Percentage change from the open price. Similar to Change % but anchored to the opening price.</li>
+              <li><strong>Velocity</strong> — Rate of price change over a specified number of minutes. Measures momentum speed, not just direction.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: "Gap % > 1.0" only enters trades on days with a gap up of at least 1%.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-cogs"></i> Custom Builder</div>
+            <div class="sg-bt-field-desc">Build complex conditions using technical indicators. Each row defines a rule:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Left Side (Metric)</strong> — The value to test: Current Price, SMA, EMA, RSI, or MACD.</li>
+              <li><strong>Day</strong> — Which day's data to use: Today, Yesterday, 2 Days Ago, etc.</li>
+              <li><strong>Candle Type</strong> — Bar timeframe: 1-minute, 5-minute, 15-minute, hourly, or daily candles.</li>
+              <li><strong>Period/Window</strong> — Lookback period for the indicator (e.g., 20 for SMA20, 14 for RSI14).</li>
+              <li><strong>Operator</strong> — Comparison: >, <, >=, <=, ==.</li>
+              <li><strong>Right Side (Comparator)</strong> — Compare against a fixed value or another indicator (e.g., "SMA 20 > SMA 50").</li>
+              <li><strong>Threshold</strong> — Optional offset in dollars or percent (e.g., "Price > SMA 20 + 1%").</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Multiple conditions are AND-combined. All must be true for a trade to trigger. Example: "RSI < 30 AND Price > SMA 200" for oversold bounces in an uptrend.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="dte">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">6</span>
+          <h3>Days to Expiration (DTE)</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-hourglass-half"></i> DTE</div>
+            <div class="sg-bt-field-desc">How many days until the option expires. The backtester selects the expiration date that is exactly this many calendar days from the entry date. Enter 0 for same-day (0DTE) expiration — the most popular for scalping strategies.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> For calendar/diagonal spreads, this field is replaced by per-leg DTE settings in the leg configuration. Each leg gets its own DTE.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="strategy">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">6</span>
+          <h3>Strategy Type</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chess-knight"></i> Strategy Selection</div>
+            <div class="sg-bt-field-desc">Choose from 22 predefined options strategies. The strategy determines which legs are created, their directions (long/short), and types (call/put). See the Strategy Guide tab for detailed explanations of each.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Single Leg</strong> — Long Call, Long Put, Naked Short Call, Naked Short Put</li>
+              <li><strong>Vertical Spreads</strong> — Short Put Spread, Short Call Spread, Long Call Spread, Long Put Spread</li>
+              <li><strong>Iron Strategies</strong> — Short/Long Iron Condor, Short/Long Iron Butterfly</li>
+              <li><strong>Straddles & Strangles</strong> — Long/Short Straddle, Long/Short Strangle</li>
+              <li><strong>Calendar & Diagonal</strong> — Calendar Call/Put, Diagonal Call/Put, Double Calendar, Double Diagonal</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="iv-filter">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">6.4</span>
+          <h3>Implied Volatility Filter</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-area"></i> IV% Entry Condition</div>
+            <div class="sg-bt-field-desc">When enabled, the backtester checks the at-the-money implied volatility before entering a trade. Trades are only taken when IV meets your threshold. This lets you filter for high-volatility or low-volatility environments.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Operator</strong> — Greater than (>), Less than (<), etc.</li>
+              <li><strong>Threshold</strong> — The IV percentage level (e.g., 25 means 25% annualized IV).</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Use "IV > 30" for credit strategies (sell premium when IV is high). Use "IV < 20" for debit strategies (buy when premiums are cheap).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="wings">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">6.5</span>
+          <h3>Wing Configuration</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-balance-scale"></i> Allow Skewed Wings</div>
+            <div class="sg-bt-field-desc">Only appears for Iron Condor and Iron Butterfly strategies. When set to "No" (default), both the put spread and call spread must have equal width. When set to "Yes", each wing can be configured independently for asymmetric positioning.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Skewed wings let you position the iron condor with a directional lean — wider on the side you expect less movement.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="legs">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">7</span>
+          <h3>Leg Configuration</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">Each leg defines one option contract in your strategy. The leg configuration dynamically adjusts based on the selected strategy. Each leg has a strike selection method that determines how the strike price is chosen.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-crosshairs"></i> Strike Selection Methods</div>
+            <div class="sg-bt-field-desc">Six methods are available to choose the strike price for each leg:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Mid-Price Range</strong> — Select strikes within a minimum and maximum option premium range (e.g., $1.00 to $3.00). Finds the strike whose option premium falls within your specified range.</li>
+              <li><strong>% Distance from Underlying</strong> — Select strike as a percentage away from the underlying price (e.g., 2% OTM). Positive = OTM, negative = ITM.</li>
+              <li><strong>$ Distance from Underlying</strong> — Select strike at a fixed dollar distance from the underlying (e.g., $5 OTM).</li>
+              <li><strong>$ Distance from Another Leg</strong> — Select strike relative to another leg's resolved strike. Used for defining spread width (e.g., "Leg 2 = Leg 1 strike + $5").</li>
+              <li><strong>% Distance from Another Leg</strong> — Same concept but using percentage distance from another leg's strike.</li>
+              <li><strong>Delta</strong> — Select the strike closest to a target delta value (e.g., 0.30 delta call). The most precise method for consistent positioning relative to probability.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-day"></i> Per-Leg DTE (Calendar & Diagonal only)</div>
+            <div class="sg-bt-field-desc">For calendar and diagonal strategies, each leg has its own DTE field. The near-term (short) leg uses a shorter DTE, and the far-term (long) leg uses a longer DTE. This creates the time spread that the strategy relies on.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: Calendar Call Spread with near leg DTE=7 and far leg DTE=30 sells a 1-week call and buys a 1-month call at the same strike.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-exchange-alt"></i> Fallback Behavior</div>
+            <div class="sg-bt-field-desc">If the exact strike matching your criteria isn't available, the backtester uses a fallback: it selects the closest available strike. This ensures the backtest doesn't skip days unnecessarily due to strike availability gaps.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="premium-filter">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">7.5</span>
+          <h3>Net Premium Filter</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-dollar-sign"></i> Min / Max Net Premium</div>
+            <div class="sg-bt-field-desc">Filters trades by the net premium of the entire position at entry. For credit strategies, this is the total credit received. For debit strategies, this is the total debit paid. Trades outside this range are skipped.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: Min=$0.50, Max=$2.00 only takes short put spreads that collect between $0.50 and $2.00 in credit per contract.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="tp">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">8</span>
+          <h3>Take Profit</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-arrow-up" style="color:#089981"></i> Take Profit (TP)</div>
+            <div class="sg-bt-field-desc">The profit target for each trade. When the position's unrealized P&L reaches this level, the trade is automatically closed for a profit. Can be specified as a percentage of premium or a fixed dollar amount per contract.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Percentage Mode</strong> — Closes when profit reaches X% of the premium received/paid. Example: 50% TP on a $2.00 credit spread closes at $1.00 profit.</li>
+              <li><strong>Dollar Mode</strong> — Closes when profit reaches $X per contract. Example: $100 TP closes when 1 contract is up $100.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> For credit strategies, 50% of max profit is a common target. For debit strategies, 100% of premium paid is typical.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sl">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">9</span>
+          <h3>Stop Loss</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-arrow-down" style="color:#f23645"></i> Stop Loss (SL)</div>
+            <div class="sg-bt-field-desc">The maximum loss you're willing to accept on each trade. When the position's unrealized P&L drops to this level, the trade is automatically closed to limit losses. Can be percentage or dollar-based.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Percentage Mode</strong> — Closes when loss reaches X% of the premium received/paid. Example: 100% SL on a $2.00 credit spread closes at $2.00 loss.</li>
+              <li><strong>Dollar Mode</strong> — Closes when loss reaches $X per contract. Example: $200 SL closes when 1 contract is down $200.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> A common rule: set SL at 2x the TP for credit strategies (e.g., 50% TP with 100% SL). For 0DTE, tighter stops (50-75%) are common.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="exit-conditions">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">10</span>
+          <h3>Exit Conditions</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">Optional signal-based exit rules that work alongside TP/SL. If an exit condition triggers, the trade closes regardless of current P&L. The earliest trigger wins — TP, SL, or exit condition.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-list"></i> Preset Exit Conditions</div>
+            <div class="sg-bt-field-desc">Same presets as entry conditions (Change %, Gap %, Velocity, etc.) but applied to close positions. Example: exit a straddle if the stock moves more than 3% in either direction.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-cogs"></i> Custom Exit Builder</div>
+            <div class="sg-bt-field-desc">Build technical indicator-based exit rules using the same custom builder interface as entry conditions. Full access to SMA, EMA, RSI, MACD comparisons. Example: close a long call if RSI > 70 (overbought signal).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="concurrent">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">11</span>
+          <h3>Concurrent Trades</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-layer-group"></i> Allow Concurrent Trades</div>
+            <div class="sg-bt-field-desc">Controls whether the backtester can open a new trade while a previous trade is still open. When set to "No" (default), only one position can be active at a time — a new trade won't open until the current one closes. When set to "Yes", multiple positions can overlap.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Keep "No" for simpler analysis and realistic capital usage. Use "Yes" for high-frequency strategies like 0DTE where you might enter multiple trades per day.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="pdt">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">12</span>
+          <h3>PDT Avoidance</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-shield-alt"></i> Avoid Pattern Day Trader (PDT)</div>
+            <div class="sg-bt-field-desc">When enabled, limits the number of same-day round-trip trades to comply with FINRA's Pattern Day Trader rule (no more than 3 day trades in a rolling 5-business-day period for accounts under $25,000). Set to "No" if your account is above $25K or if testing with a cash account.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="capital">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">13</span>
+          <h3>Starting Capital</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Starting Capital</div>
+            <div class="sg-bt-field-desc">The initial account balance for the backtest. This determines how many contracts you can trade and affects position sizing calculations. Default is $50,000. Results metrics like Return % and Max Drawdown % are calculated relative to this starting balance.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Use your actual trading account size for realistic results. A $5,000 account will produce very different results than a $100,000 account due to position sizing constraints.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="allocation">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">14</span>
+          <h3>Allocation Per Trade</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">How much of your account to risk on each trade. Three methods are available:</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-percent"></i> Percentage of Account</div>
+            <div class="sg-bt-field-desc">Allocates a percentage of the current account balance to each trade. As the account grows, position sizes grow proportionally (compounding). Example: 5% of a $50,000 account = $2,500 per trade.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-hashtag"></i> Fixed Number of Contracts</div>
+            <div class="sg-bt-field-desc">Always trades the same number of contracts regardless of account size. Simple and predictable. Example: Always trade 10 contracts.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-dollar-sign"></i> Fixed Dollar Amount</div>
+            <div class="sg-bt-field-desc">Allocates a fixed dollar amount per trade regardless of account balance. The number of contracts is calculated by dividing the fixed amount by the trade cost. Example: Always allocate $5,000 per trade.</div>
+          </div>
+
+          <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Percentage-based sizing is the most realistic — it compounds gains and reduces size after losses, mimicking real trading behavior.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="sgTabResults" class="sg-tab-content">
+    <div class="sg-header">
+      <h2><i class="fas fa-chart-line me-2"></i>Results & Metrics Reference</h2>
+      <p class="sg-subtitle">Understanding every metric, chart, and data point in your backtest results</p>
+      <div class="sg-search-wrapper">
+        <i class="fas fa-search sg-search-icon"></i>
+        <input type="text" id="sgResSearchInput" class="sg-search-input" placeholder="Search metrics, charts, or terms...">
+        <button id="sgResSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+
+    <div id="sgResSections" class="sg-bt-sections">
+
+      <div class="sg-bt-section" data-section="key-stats">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-tachometer-alt"></i></span>
+          <h3>Key Performance Statistics</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">The eight primary metrics displayed at the top of every result page. These give you an instant snapshot of the strategy's performance.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-hashtag"></i> Total Trades</div>
+            <div class="sg-bt-field-desc">The total number of trades executed during the backtest period. More trades generally means more statistically reliable results. Fewer than 30 trades may not be significant enough to draw conclusions.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-percentage"></i> Win Rate</div>
+            <div class="sg-bt-field-desc">The percentage of trades that closed with a positive P&L. Win Rate = (Winning Trades / Total Trades) x 100. A 50%+ win rate doesn't guarantee profitability — it depends on the average win vs. average loss size.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Credit strategies typically have 60-80% win rates with smaller wins and larger losses. Debit strategies often have 30-40% win rates with larger wins.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-dollar-sign"></i> Total P&L</div>
+            <div class="sg-bt-field-desc">The cumulative dollar profit or loss across all trades. This is the bottom line — how much money the strategy made or lost. Green = profit, Red = loss.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-line"></i> Return %</div>
+            <div class="sg-bt-field-desc">Total P&L expressed as a percentage of the starting capital. Return % = (Total P&L / Starting Capital) x 100. This normalizes results so you can compare strategies regardless of account size.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-balance-scale-right"></i> Avg Trade</div>
+            <div class="sg-bt-field-desc">The average P&L per trade, calculated as the average win plus the average loss. A positive value means the strategy is profitable on average. Avg Trade = (Total P&L / Total Trades). Also expressed as: (Average Win × Win Rate) + (Average Loss × Loss Rate).</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Profit Factor</div>
+            <div class="sg-bt-field-desc">The ratio of gross profits to gross losses. Profit Factor = (Sum of Winning Trades) / (Sum of Losing Trades). A value above 1.0 is profitable. Above 1.5 is good. Above 2.0 is excellent. Below 1.0 means the strategy loses money overall.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Profit Factor is one of the most important metrics — it tells you how much you earn for every dollar you lose. Target at least 1.3+ for a viable strategy.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-arrow-down" style="color:#f23645"></i> Max Drawdown</div>
+            <div class="sg-bt-field-desc">The largest peak-to-trough decline in account equity during the backtest. Expressed as a dollar amount and/or percentage. This measures the worst period of losses you would have experienced. A -20% drawdown means at some point the account dropped 20% from its highest value.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Rule of thumb: expect real trading drawdowns to be 1.5-2x the backtested drawdown. If you can't stomach a 30% drawdown, avoid strategies showing 15%+ in backtesting.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Final Capital</div>
+            <div class="sg-bt-field-desc">The ending account balance after all trades are completed. Final Capital = Starting Capital + Total P&L. This is your simulated ending balance if you had traded this strategy during the backtest period.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="equity-curve">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-chart-area"></i></span>
+          <h3>Equity Curve</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-area"></i> Cumulative P&L Chart</div>
+            <div class="sg-bt-field-desc">A line chart plotting the running total of P&L after each trade. The X-axis shows trade sequence (trade #1, #2, etc.), and the Y-axis shows cumulative dollar P&L. A healthy strategy shows an upward-sloping line with controlled drawdowns.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Smooth upward slope</strong> — Consistent, reliable strategy. Low volatility of returns.</li>
+              <li><strong>Choppy/jagged line</strong> — High variance. Bigger wins and losses, less predictable.</li>
+              <li><strong>Sharp drops</strong> — Significant losing streaks. Check if they correlate with market events.</li>
+              <li><strong>Flat periods</strong> — No trades triggered (conditions not met) or very small wins/losses.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Click the expand button to view a larger version. Look at the equity curve shape, not just the final number — a $10K profit with a -$15K drawdown is very different from $10K with a -$2K drawdown.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="config">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-cog"></i></span>
+          <h3>Configuration Summary</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-clipboard-list"></i> Strategy Configuration</div>
+            <div class="sg-bt-field-desc">A read-only summary of all the parameters used for this backtest. Includes: strategy name, symbol, date range, entry time, DTE, capital, position sizing, TP/SL values, premium filters, and per-leg strike selection details. This lets you reproduce or modify the backtest later.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-copy"></i> Use Template Button</div>
+            <div class="sg-bt-field-desc">Copies all configuration settings back into the backtester form so you can run a modified version of this backtest. Saves time when iterating on strategy parameters.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="trade-log">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-table"></i></span>
+          <h3>Trade Log</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">A detailed table showing every individual trade from the backtest. Paginated (10 per page) with full scrolling.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-columns"></i> Trade Log Columns</div>
+            <div class="sg-bt-field-desc">Each row represents one complete trade (entry to exit). Common columns include:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Trade #</strong> — Sequential trade number.</li>
+              <li><strong>Entry Date/Time</strong> — When the position was opened.</li>
+              <li><strong>Exit Date/Time</strong> — When the position was closed.</li>
+              <li><strong>Symbol</strong> — The underlying asset.</li>
+              <li><strong>Strategy</strong> — The options strategy used.</li>
+              <li><strong>DTE</strong> — Days to expiration at entry.</li>
+              <li><strong>Entry Premium</strong> — Net premium paid or received at entry.</li>
+              <li><strong>Exit Premium</strong> — Net premium at exit.</li>
+              <li><strong>P&L ($)</strong> — Dollar profit or loss on this trade.</li>
+              <li><strong>P&L (%)</strong> — Percentage return on this trade.</li>
+              <li><strong>Exit Reason</strong> — Why the trade closed: Take Profit, Stop Loss, Expiration, Exit Signal, or End of Day.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-download"></i> Download CSV</div>
+            <div class="sg-bt-field-desc">Exports the complete trade log as a CSV file for analysis in Excel, Google Sheets, or Python. Includes all columns and all trades (not just the current page).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="decision-tree">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-sitemap"></i></span>
+          <h3>Decision Tree Log Book</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-book"></i> Daily Decision Log</div>
+            <div class="sg-bt-field-desc">A chronological day-by-day journal of trading activity. Groups trades by date and shows what happened each day — entries, exits, and the reasons behind them.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Date Header</strong> — Each day gets its own section with a status badge (Entry, Exit, Both, or Skipped).</li>
+              <li><strong>Entry Details</strong> — Shows trade #, strategy, underlying price, selected strikes, option premiums, and DTE.</li>
+              <li><strong>Exit Details</strong> — Shows exit reason (with color-coded icons), exit premiums, trade P&L, and exit time.</li>
+              <li><strong>Day P&L</strong> — Aggregate profit/loss for all trades that closed on that day.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> The decision tree is invaluable for understanding WHY a strategy performed the way it did. Look for patterns in losing days — do they cluster around specific market conditions?</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="interpreting">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-brain"></i></span>
+          <h3>Interpreting Your Results</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">Guidelines for evaluating whether a backtested strategy is worth trading live.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-check-circle" style="color:#089981"></i> Signs of a Good Strategy</div>
+            <ul class="sg-bt-list">
+              <li><strong>Profit Factor > 1.3</strong> — You earn at least $1.30 for every $1 lost.</li>
+              <li><strong>Max Drawdown < 20%</strong> — The worst period is manageable.</li>
+              <li><strong>30+ Total Trades</strong> — Enough data for statistical significance.</li>
+              <li><strong>Smooth equity curve</strong> — Consistent returns, not a few lucky trades.</li>
+              <li><strong>Multiple exit reasons</strong> — Not all exits are Stop Losses or Expirations.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-exclamation-triangle" style="color:#f23645"></i> Red Flags</div>
+            <ul class="sg-bt-list">
+              <li><strong>Profit Factor < 1.0</strong> — The strategy loses money.</li>
+              <li><strong>Very high win rate (>90%) but low profit factor</strong> — Small wins being erased by rare large losses.</li>
+              <li><strong>Large drawdowns relative to total P&L</strong> — Risk-adjusted returns are poor.</li>
+              <li><strong>Fewer than 15 trades</strong> — Results could be random chance.</li>
+              <li><strong>Equity curve driven by 1-2 big trades</strong> — Not repeatable.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-exclamation-circle" style="color:#e67e22"></i> Backtest Limitations</div>
+            <div class="sg-bt-field-desc">Backtests use historical data and have inherent limitations. Keep these in mind:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Slippage</strong> — Real fills may be worse than backtested prices, especially for illiquid options.</li>
+              <li><strong>Commissions</strong> — Not included in backtest results. Factor in $0.50-$1.00 per contract per leg.</li>
+              <li><strong>Liquidity</strong> — Wide bid-ask spreads on less liquid options can significantly impact real results.</li>
+              <li><strong>Market regime changes</strong> — A strategy that worked in 2023 may not work in 2025 if market conditions change.</li>
+              <li><strong>Survivorship bias</strong> — The stocks that exist today may not represent the full universe during the backtest period.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>

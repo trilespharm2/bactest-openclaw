@@ -602,7 +602,8 @@ function generatePayoffSVG(payoff, width = 360, height = 200) {
   return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
     <rect width="${width}" height="${height}" fill="#131722" rx="8"/>
     ${gridSvg}
-    <line x1="${pad.left}" y1="${zeroY.toFixed(1)}" x2="${width - pad.right}" y2="${zeroY.toFixed(1)}" stroke="#787b86" stroke-width="1" stroke-dasharray="4,3"/>
+    <line x1="${pad.left}" y1="${zeroY.toFixed(1)}" x2="${width - pad.right}" y2="${zeroY.toFixed(1)}" stroke="#d1d4dc" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <text x="${pad.left - 5}" y="${(zeroY + 4).toFixed(1)}" text-anchor="end" fill="#d1d4dc" font-size="10" font-weight="600">0</text>
     <path d="${fillAbove}" fill="rgba(8,153,129,0.15)"/>
     <path d="${fillBelow}" fill="rgba(242,54,69,0.15)"/>
     <path d="${mainPath}" fill="none" stroke="url(#grad-${payoff.type})" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -732,6 +733,55 @@ function initStrategyGuide() {
       applyFilters();
     });
   });
+
+  const tabs = document.querySelectorAll('.sg-tab');
+  const tabContents = document.querySelectorAll('.sg-tab-content');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(tc => tc.classList.remove('active'));
+      tab.classList.add('active');
+      const target = tab.dataset.tab;
+      const targetEl = document.getElementById('sgTab' + target.charAt(0).toUpperCase() + target.slice(1));
+      if (targetEl) targetEl.classList.add('active');
+    });
+  });
+
+  function setupRefSearch(inputId, clearId, containerSelector) {
+    const inp = document.getElementById(inputId);
+    const clr = document.getElementById(clearId);
+    const container = document.querySelector(containerSelector);
+    if (!inp || !container) return;
+    let emptyEl = container.parentElement.querySelector('.sg-ref-no-results');
+    if (!emptyEl) {
+      emptyEl = document.createElement('div');
+      emptyEl.className = 'sg-no-results sg-ref-no-results';
+      emptyEl.style.display = 'none';
+      emptyEl.innerHTML = '<i class="fas fa-search"></i><h4>No matching sections</h4><p>Try a different search term</p>';
+      container.insertAdjacentElement('afterend', emptyEl);
+    }
+    inp.addEventListener('input', () => {
+      const q = inp.value.toLowerCase().trim();
+      if (clr) clr.style.display = q ? 'flex' : 'none';
+      const sections = container.querySelectorAll('.sg-bt-section');
+      let visible = 0;
+      sections.forEach(sec => {
+        const match = !q || sec.textContent.toLowerCase().includes(q);
+        sec.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      emptyEl.style.display = (q && visible === 0) ? '' : 'none';
+    });
+    if (clr) {
+      clr.addEventListener('click', () => {
+        inp.value = '';
+        inp.dispatchEvent(new Event('input'));
+      });
+    }
+  }
+
+  setupRefSearch('sgBtSearchInput', 'sgBtSearchClear', '#sgBtSections');
+  setupRefSearch('sgResSearchInput', 'sgResSearchClear', '#sgResSections');
 
   console.log('Strategy Guide initialized with', STRATEGY_DATA.length, 'strategies');
 }
