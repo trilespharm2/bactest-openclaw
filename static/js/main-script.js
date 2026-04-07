@@ -413,7 +413,7 @@ async function navigateToPage(pageName, skipPushState = false) {
     if (_msb) _msb.classList.remove('mobile-open');
     if (_mov) _mov.classList.remove('active');
 
-    if (pageName === currentPage && !skipPushState) return;
+    if (pageName === currentPage && !skipPushState && pageName !== 'optionsResultDetail' && pageName !== 'stockResultDetail') return;
 
     if (currentPage === 'simTradingActive' && pageName !== 'simTradingActive') {
         if (window._simGuestSession && typeof simCurrentSymbol !== 'undefined' && simCurrentSymbol) {
@@ -498,7 +498,9 @@ async function navigateToPage(pageName, skipPushState = false) {
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
         'simResultDetail': 'Simulated Trading Analysis',
-        'strategyGuide': 'Options Strategy Guide'
+        'strategyGuide': 'Options Strategy Guide',
+        'optionsResultDetail': 'Options Backtest Analysis',
+        'stockResultDetail': 'Stock Backtest Analysis'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -590,6 +592,13 @@ async function loadPageContent(pageName) {
                     fileName = 'strategy-guide';
                     scriptName = 'static/js/strategy-guide-script.js';
                 }
+                if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
+                    scriptName = 'backtest-result-detail-script.js';
+                    if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
+                        loadedScripts.add(pageName);
+                        scriptName = null;
+                    }
+                }
                 
                 const response = await fetch(`${fileName}.html`);
                 
@@ -662,6 +671,14 @@ async function loadPageContent(pageName) {
                         scriptName = null;
                     }
                 }
+                if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
+                    scriptName = 'backtest-result-detail-script.js';
+                    if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
+                        loadedScripts.add(pageName);
+                        initializePage(pageName);
+                        scriptName = null;
+                    }
+                }
                 if (scriptName) await loadScript(scriptName, pageName);
             } else {
                 initializePage(pageName);
@@ -699,6 +716,16 @@ function loadScript(src, pageName) {
         };
         document.body.appendChild(script);
     });
+}
+
+function viewOptionsResultDetail(backtestId) {
+    window._pendingOptDetailId = backtestId;
+    navigateToPage('optionsResultDetail');
+}
+
+function viewStockResultDetail(backtestId) {
+    window._pendingStkDetailId = backtestId;
+    navigateToPage('stockResultDetail');
 }
 
 // Initialize Page
@@ -747,6 +774,10 @@ function initializePage(pageName) {
             initSimResultDetailPage();
         } else if (pageName === 'strategyGuide' && typeof initStrategyGuide === 'function') {
             initStrategyGuide();
+        } else if (pageName === 'optionsResultDetail' && typeof initOptionsResultDetailPage === 'function') {
+            initOptionsResultDetailPage();
+        } else if (pageName === 'stockResultDetail' && typeof initStockResultDetailPage === 'function') {
+            initStockResultDetailPage();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);
