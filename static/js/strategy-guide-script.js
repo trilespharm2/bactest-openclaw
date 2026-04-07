@@ -510,32 +510,32 @@ function generatePayoffSVG(payoff, width = 360, height = 200) {
     switch (p.type) {
       case 'calendar': {
         const dist = Math.abs(price - p.strike);
-        const peak = p.netDebit * 0.8;
-        const sigma = 8;
-        return peak * Math.exp(-0.5 * (dist / sigma) ** 2) - p.netDebit;
+        const sigma = 7;
+        const rawPeak = p.netDebit * 2.5;
+        return rawPeak * Math.exp(-0.5 * (dist / sigma) ** 2) - p.netDebit;
       }
       case 'diagonal': {
-        const midpoint = (p.longStrike + p.shortStrike) / 2;
-        const dist = price - midpoint;
-        const sigma = 8;
-        const skew = p.isCall ? 2 : -2;
-        const peak = p.netDebit * 0.7;
-        return peak * Math.exp(-0.5 * ((dist - skew) / sigma) ** 2) - p.netDebit;
+        const shortS = p.shortStrike;
+        const dist = price - shortS;
+        const sigma = 7;
+        const skew = p.isCall ? 3 : -3;
+        const rawPeak = p.netDebit * 2.2;
+        return rawPeak * Math.exp(-0.5 * ((dist - skew) / sigma) ** 2) - p.netDebit;
       }
       case 'double_calendar': {
-        const sigma = 6;
-        const peak = p.netDebit * 0.6;
-        const pnl1 = peak * Math.exp(-0.5 * ((price - p.putStrike) / sigma) ** 2);
-        const pnl2 = peak * Math.exp(-0.5 * ((price - p.callStrike) / sigma) ** 2);
+        const sigma = 5;
+        const rawPeak = p.netDebit * 2.4;
+        const pnl1 = rawPeak * Math.exp(-0.5 * ((price - p.putStrike) / sigma) ** 2);
+        const pnl2 = rawPeak * Math.exp(-0.5 * ((price - p.callStrike) / sigma) ** 2);
         return Math.max(pnl1, pnl2) - p.netDebit;
       }
       case 'double_diagonal': {
-        const sigma = 7;
-        const peak = p.netDebit * 0.5;
-        const mid1 = (p.putShort + p.putLong) / 2;
-        const mid2 = (p.callShort + p.callLong) / 2;
-        const pnl1 = peak * Math.exp(-0.5 * ((price - mid1) / sigma) ** 2);
-        const pnl2 = peak * Math.exp(-0.5 * ((price - mid2) / sigma) ** 2);
+        const sigma = 5;
+        const rawPeak = p.netDebit * 2.2;
+        const mid1 = p.putShort;
+        const mid2 = p.callShort;
+        const pnl1 = rawPeak * Math.exp(-0.5 * ((price - mid1) / sigma) ** 2);
+        const pnl2 = rawPeak * Math.exp(-0.5 * ((price - mid2) / sigma) ** 2);
         return Math.max(pnl1, pnl2) - p.netDebit;
       }
       default: return 0;
