@@ -79,10 +79,10 @@
 .sg-search-input {
   width: 100%;
   padding: 12px 40px 12px 42px;
-  background: #1e222d;
-  border: 1px solid #2a2e39;
+  background: #ffffff;
+  border: 1px solid #d1d4dc;
   border-radius: 10px;
-  color: #ffffff;
+  color: #1e222d;
   font-size: 15px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -94,7 +94,7 @@
 }
 
 .sg-search-input::placeholder {
-  color: #9a9da6;
+  color: #787b86;
 }
 
 .sg-search-clear {
@@ -460,7 +460,7 @@
 }
 
 .sg-bt-intro {
-  color: #d1d4dc;
+  color: #363a45;
   font-size: 14px;
   line-height: 1.65;
   margin: 0 0 18px;
@@ -468,7 +468,8 @@
 
 .sg-bt-field {
   padding: 16px 18px;
-  background: #262a35;
+  background: #ffffff;
+  border: 1px solid #e0e3eb;
   border-radius: 10px;
   margin-bottom: 14px;
 }
@@ -480,7 +481,7 @@
 .sg-bt-field-name {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: #1e222d;
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -495,7 +496,7 @@
 }
 
 .sg-bt-field-desc {
-  color: #d1d4dc;
+  color: #363a45;
   font-size: 13.5px;
   line-height: 1.65;
   margin-bottom: 0;
@@ -508,7 +509,7 @@
 }
 
 .sg-bt-list li {
-  color: #d1d4dc;
+  color: #363a45;
   font-size: 13.5px;
   line-height: 1.65;
   margin-bottom: 6px;
@@ -528,17 +529,17 @@
 }
 
 .sg-bt-list li strong {
-  color: #ffffff;
+  color: #1e222d;
   font-weight: 600;
 }
 
 .sg-bt-field-tip {
   margin-top: 10px;
   padding: 10px 14px;
-  background: rgba(59, 109, 240, 0.08);
+  background: rgba(59, 109, 240, 0.06);
   border-left: 3px solid #3b6df0;
   border-radius: 0 8px 8px 0;
-  color: #a8b1c7;
+  color: #4a5068;
   font-size: 13px;
   line-height: 1.55;
 }
