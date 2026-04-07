@@ -71,7 +71,7 @@
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  color: #545b6a;
+  color: #9a9da6;
   font-size: 14px;
   pointer-events: none;
 }
@@ -82,7 +82,7 @@
   background: #1e222d;
   border: 1px solid #2a2e39;
   border-radius: 10px;
-  color: #d1d4dc;
+  color: #ffffff;
   font-size: 15px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -94,7 +94,7 @@
 }
 
 .sg-search-input::placeholder {
-  color: #545b6a;
+  color: #9a9da6;
 }
 
 .sg-search-clear {
