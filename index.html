@@ -4755,11 +4755,12 @@
         
         legDefs.forEach((leg, index) => {
           var multiLeg = legDefs.length > 1;
-          var legMethodOptions = '<option value="">-- Select Method --</option><option value="mid_price">1. Mid Price Range</option><option value="pct_underlying">2. % Distance from Underlying</option><option value="dollar_underlying">3. $ Distance from Underlying</option>';
+          var legMethodOptions = '<option value="">-- Select Method --</option><option value="mid_price">1. Mid Price Range (specify min/max option price)</option><option value="pct_underlying">2. % Distance from Underlying</option><option value="dollar_underlying">3. $ Distance from Underlying</option>';
           if (multiLeg && index > 0) {
             legMethodOptions += '<option value="pct_leg">4. % Distance from Another Leg</option><option value="dollar_leg">5. $ Distance from Another Leg</option>';
           }
-          legMethodOptions += '<option value="orb_breakout">' + (multiLeg && index > 0 ? '6' : '4') + '. ORB Breakout Strike Selection</option>';
+          legMethodOptions += '<option value="delta">' + (multiLeg && index > 0 ? '6' : '4') + '. Delta-based Strike Selection</option>';
+          legMethodOptions += '<option value="orb_breakout">' + (multiLeg && index > 0 ? '7' : '5') + '. ORB Breakout Strike Selection</option>';
           html += '<div class="leg-config-card"><div class="leg-header"><span class="leg-title">Leg ' + (index + 1) + ': ' + leg.name + '</span><span class="leg-badge">' + (leg.type === 'C' ? 'Call' : 'Put') + ' - ' + leg.position + '</span></div><div class="mb-3"><label class="form-label">Configuration method:</label><select class="form-select leg-method-select" data-leg-index="' + index + '">' + legMethodOptions + '</select></div><div id="legParams' + index + '"></div></div>';
         });
         
@@ -4796,6 +4797,8 @@
           const label = method === 'pct_leg' ? '% distance:' : '$ distance:';
           const param = method === 'pct_leg' ? 'pct' : 'amount';
           html = '<div class="row"><div class="col-md-4 mb-3"><label class="form-label">Reference leg:</label><select class="form-select leg-param" data-param="reference">' + refOptions + '</select></div><div class="col-md-4 mb-3"><label class="form-label">Direction:</label><select class="form-select leg-param" data-param="direction"><option value="below" ' + (defaultDirection === 'below' ? 'selected' : '') + '>Below</option><option value="above" ' + (defaultDirection === 'above' ? 'selected' : '') + '>Above</option></select></div><div class="col-md-4 mb-3"><label class="form-label">' + label + '</label><input type="number" class="form-control leg-param" data-param="' + param + '" step="0.01" placeholder="2.0"></div></div>';
+        } else if (method === 'delta') {
+          html = '<div class="row"><div class="col-md-4 mb-3"><label class="form-label">Target Delta:</label><input type="number" class="form-control leg-param" data-param="target_delta" step="0.01" min="0" max="1" placeholder="0.30" value="0.30"></div><div class="col-md-4 mb-3"><label class="form-label">Tolerance:</label><input type="number" class="form-control leg-param" data-param="tolerance" step="0.01" min="0" max="0.5" placeholder="0.05" value="0.05"></div><div class="col-md-4 mb-3"><label class="form-label">Method:</label><select class="form-select leg-param" data-param="method"><option value="closest">Closest</option><option value="or_higher">Or Higher</option><option value="or_less">Or Lower</option></select></div></div>';
         } else if (method === 'orb_breakout') {
           html = '<div style="margin-bottom:10px;padding:8px 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;"><small style="color:#795548;font-weight:600;">&#9200; ORB Breakout: Strike set relative to the Opening Range High/Low. Entry must occur <em>after</em> the ORB period ends.</small></div>'
             + '<div class="row">'
