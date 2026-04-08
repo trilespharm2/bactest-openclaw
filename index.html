@@ -431,16 +431,59 @@
       }
       
       /* Backtester Styles */
-      .backtester-section { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
+      .backtester-section { margin-bottom: 0; padding: 20px 0; border-bottom: 1px solid #eef0f6; }
       .backtester-section:last-of-type { border-bottom: none; }
-      .section-label { display: flex; align-items: center; gap: 10px; font-weight: 600; color: #1f2937; margin-bottom: 12px; font-size: 1rem; }
-      .section-number { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
-      .leg-config-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+      .section-label { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #1e293b; margin-bottom: 14px; font-size: 0.85rem; letter-spacing: 0.03em; text-transform: uppercase; background: linear-gradient(90deg, #eff6ff, #f0f4ff); padding: 8px 14px; border-radius: 6px; margin-left: -20px; margin-right: -20px; padding-left: 20px; }
+      .section-step { width: 24px; height: 24px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; font-weight: 800; flex-shrink: 0; }
+      .section-number { background: #3b82f6; color: white; padding: 3px 9px; border-radius: 4px; font-size: 0.75em; font-weight: 700; flex-shrink: 0; }
+      .section-step.opt { background: #94a3b8; }
+      .section-icon { color: #3b82f6; font-size: 0.9rem; flex-shrink: 0; }
+      .section-icon.opt { color: #94a3b8; }
+      .section-opt-badge { font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid #e2e8f0; padding: 1px 7px; border-radius: 10px; margin-left: 2px; }
+      .field-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
+      /* Toggle buttons for binary choices */
+      .bt-toggle-row { display: flex; gap: 8px; }
+      .bt-toggle-btn { flex: 1; padding: 9px 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; border-radius: 8px; font-size: 0.83rem; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; max-width: 160px; }
+      .bt-toggle-btn:hover { border-color: #cbd5e1; background: #f1f5f9; color: #334155; }
+      .bt-toggle-btn.on { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+      .bt-toggle-btn.on.danger { background: #fef2f2; border-color: #ef4444; color: #dc2626; }
+      .bt-toggle-btn.on.success { background: #f0fdf4; border-color: #22c55e; color: #16a34a; }
+      /* Collapsible optional sections */
+      .opt-section-header { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; margin-bottom: 0; padding: 8px 0; }
+      .opt-section-header .section-label { background: none; margin-left: 0; margin-right: 0; padding: 0; border-radius: 0; font-size: 0.82rem; }
+      .opt-section-header.open { margin-bottom: 14px; }
+      .opt-section-chevron { margin-left: auto; color: #94a3b8; font-size: 0.75rem; transition: transform 0.2s; }
+      .opt-section-header.open .opt-section-chevron { transform: rotate(180deg); }
+      .opt-section-body { display: none; padding-top: 2px; }
+      .opt-section-body.open { display: block; }
+      /* TP/SL layout */
+      .tpsl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 640px) { .tpsl-row { grid-template-columns: 1fr; } }
+      .tpsl-card { background: #f8faff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; }
+      .tpsl-card-title { font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+      .tpsl-type-row { display: flex; gap: 6px; margin-bottom: 10px; }
+      .tpsl-type-btn { flex: 1; padding: 6px 10px; border: 1.5px solid #e2e8f0; background: #f1f5f9; color: #64748b; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.15s; }
+      .tpsl-type-btn.on { background: #dbeafe; border-color: #3b82f6; color: #1d4ed8; }
+      .tpsl-input-row { display: flex; align-items: center; gap: 8px; }
+      .tpsl-input-row input { flex: 1; }
+      .tpsl-suffix { font-size: 0.85rem; color: #64748b; font-weight: 600; min-width: 20px; }
+      /* Capital + allocation */
+      .bt-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 600px) { .bt-grid-2 { grid-template-columns: 1fr; } }
+      .alloc-type-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+      .alloc-type-btn { padding: 8px 14px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+      .alloc-type-btn.on { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+      /* Sticky run bar */
+      .bt-run-bar { position: sticky; bottom: 0; background: white; padding: 14px 0 4px; border-top: 2px solid #e2e8f0; margin-top: 8px; z-index: 50; display: flex; gap: 10px; align-items: center; }
+      /* Leg config styles */
+      .leg-config-card { background: #f8faff; border: 1.5px solid #dbeafe; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
       .leg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-      .leg-title { font-weight: 600; color: #1f2937; }
-      .leg-badge { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.8em; }
+      .leg-title { font-weight: 700; color: #1e293b; font-size: 0.9rem; }
+      .leg-badge { background: linear-gradient(135deg,#3b82f6,#6366f1); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.75em; font-weight: 700; }
       .stock-filter-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; margin-right: 6px; }
       .stock-filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+      /* Radio button completely hidden (toggle handles UX) */
+      .bt-hidden-radio { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
     </style>
   </head>
   <body class="initializing">
@@ -1232,84 +1275,396 @@
             <!-- Backtester Page -->
             <section id="backtesterPage" class="page">
               <div class="page-header">
-                <h3 class="fw-bold mb-3">Options Backtester</h3>
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px;">
+                  <div>
+                    <h3 class="fw-bold mb-1" style="font-size:1.25rem; color:#1e293b;">Options Backtester</h3>
+                    <p style="margin:0; font-size:0.82rem; color:#94a3b8;">Test any options strategy against historical market data</p>
+                  </div>
+                </div>
               </div>
               <div class="card">
-                <div class="card-header">
-                  <div class="card-title"><i class="fas fa-chart-line me-2"></i>OPTIONS BACKTESTING SYSTEM</div>
+                <div class="card-header" style="background:linear-gradient(135deg,#1e40af,#4f46e5); border-radius:12px 12px 0 0;">
+                  <div class="card-title" style="color:white; display:flex; align-items:center; gap:8px;"><i class="fas fa-flask"></i> Strategy Configuration</div>
                 </div>
-                <div class="card-body">
+                <div class="card-body" style="padding:0 20px;">
                   <form id="backtestForm">
-                    <!-- [1/14] BACKTEST NAME -->
+
+                    <!-- 1. BACKTEST NAME -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[1/14]</span> BACKTEST NAME</div>
-                      <div class="mb-3">
-                        <label class="form-label">Enter a name for this backtest:</label>
-                        <input type="text" class="form-control" id="backtestName" placeholder="e.g., Roblox Strategy, SPX Scalp">
-                        <small class="text-muted">This name will be used to identify your backtest in the results page</small>
+                      <div class="section-label">
+                        <span class="section-step">1</span>
+                        <i class="fas fa-tag section-icon"></i>
+                        Backtest Name
                       </div>
+                      <input type="text" class="form-control" id="backtestName" placeholder="e.g., SPX 0DTE Scalp, AAPL Earnings Play">
+                      <div class="field-hint">Give this backtest a memorable name so you can find it in your results history.</div>
                     </div>
 
-                    <!-- [2/14] SYMBOL -->
+                    <!-- 2. SYMBOL + DATES -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[2/14]</span> SYMBOL</div>
-                      <div class="mb-3">
-                        <label class="form-label">Enter symbol (e.g., SPX, AAPL):</label>
-                        <input type="text" class="form-control" id="symbol" placeholder="SPX" required>
+                      <div class="section-label">
+                        <span class="section-step">2</span>
+                        <i class="fas fa-search-dollar section-icon"></i>
+                        Symbol &amp; Date Range
                       </div>
-                    </div>
-
-                    <!-- [3/14] DATE RANGE -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[3/14]</span> DATE RANGE</div>
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Start Date:</label>
+                      <div class="bt-grid-2" style="margin-bottom:14px;">
+                        <div>
+                          <label class="form-label fw-600" style="font-size:0.8rem; color:#475569; font-weight:600;">Symbol</label>
+                          <input type="text" class="form-control" id="symbol" placeholder="SPX" required style="text-transform:uppercase;">
+                          <div class="field-hint">SPX, AAPL, QQQ, TSLA, etc.</div>
+                        </div>
+                        <div></div>
+                      </div>
+                      <div class="bt-grid-2">
+                        <div>
+                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Start Date</label>
                           <input type="date" class="form-control" id="startDate" required>
                         </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">End Date:</label>
+                        <div>
+                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">End Date</label>
                           <input type="date" class="form-control" id="endDate" required>
                         </div>
                       </div>
                     </div>
 
-                    <!-- [4/14] ENTRY TIME -->
+                    <!-- 3. ENTRY TIME -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[4/14]</span> ENTRY TIME</div>
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Entry time start (HH:MM, 09:30-16:00):</label>
+                      <div class="section-label">
+                        <span class="section-step">3</span>
+                        <i class="fas fa-clock section-icon"></i>
+                        Entry Time
+                      </div>
+                      <div class="bt-grid-2">
+                        <div>
+                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Entry Time</label>
                           <input type="time" class="form-control" id="entryTime" min="09:30" max="16:00" value="10:00" required>
+                          <div class="field-hint">Market hours: 09:30 – 16:00</div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Entry time end (optional):</label>
-                          <input type="time" class="form-control" id="entryTimeMax" min="09:30" max="16:00" placeholder="Max entry time">
-                          <small class="text-muted">Leave blank for exact time entry</small>
+                        <div>
+                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Entry Window End <span class="section-opt-badge">optional</span></label>
+                          <input type="time" class="form-control" id="entryTimeMax" min="09:30" max="16:00">
+                          <div class="field-hint">Leave blank for exact-time entry. Set a window to enter any time between start and end.</div>
                         </div>
                       </div>
                     </div>
 
-                    <!-- [5/14] UNDERLYING PRICE CONDITIONS -->
+                    <!-- 4. STRATEGY TYPE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[5/14]</span> UNDERLYING PRICE CONDITIONS <small class="text-muted">(Optional)</small></div>
-                      <p class="text-muted small mb-3">Add conditions based on the underlying stock price for trade entry.</p>
-                      
-                      <div class="mb-3">
-                        <label class="form-label">Condition type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="optionsEntryType" id="optionsEntryNone" value="none" checked onchange="updateOptionsEntryType()">
-                          <label class="form-check-label" for="optionsEntryNone">None</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="optionsEntryType" id="optionsEntryPreset" value="preset" onchange="updateOptionsEntryType()">
-                          <label class="form-check-label" for="optionsEntryPreset">Preset Conditions</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="optionsEntryType" id="optionsEntryCustom" value="custom" onchange="updateOptionsEntryType()">
-                          <label class="form-check-label" for="optionsEntryCustom">Custom Builder</label>
+                      <div class="section-label">
+                        <span class="section-step">4</span>
+                        <i class="fas fa-chess section-icon"></i>
+                        Strategy Type
+                      </div>
+                      <select class="form-select" id="strategy" required style="font-weight:500;">
+                        <option value="">— Select a strategy —</option>
+                        <optgroup label="Single Leg">
+                          <option value="Long Call">Long Call</option>
+                          <option value="Long Put">Long Put</option>
+                          <option value="Naked Short Call">Naked Short Call</option>
+                          <option value="Naked Short Put">Naked Short Put</option>
+                        </optgroup>
+                        <optgroup label="Vertical Spreads">
+                          <option value="Short Put Spread">Short Put Spread</option>
+                          <option value="Short Call Spread">Short Call Spread</option>
+                          <option value="Long Call Spread">Long Call Spread</option>
+                          <option value="Long Put Spread">Long Put Spread</option>
+                        </optgroup>
+                        <optgroup label="Iron Strategies">
+                          <option value="Short Iron Condor">Short Iron Condor</option>
+                          <option value="Short Iron Butterfly">Short Iron Butterfly</option>
+                          <option value="Long Iron Butterfly">Long Iron Butterfly</option>
+                          <option value="Long Iron Condor">Long Iron Condor</option>
+                        </optgroup>
+                        <optgroup label="Straddles &amp; Strangles">
+                          <option value="Long Straddle">Long Straddle</option>
+                          <option value="Long Strangle">Long Strangle</option>
+                          <option value="Short Straddle">Short Straddle</option>
+                          <option value="Short Strangle">Short Strangle</option>
+                        </optgroup>
+                        <optgroup label="Calendar &amp; Diagonal">
+                          <option value="Calendar Call Spread">Calendar Call Spread</option>
+                          <option value="Calendar Put Spread">Calendar Put Spread</option>
+                          <option value="Diagonal Call Spread">Diagonal Call Spread</option>
+                          <option value="Diagonal Put Spread">Diagonal Put Spread</option>
+                          <option value="Double Calendar">Double Calendar</option>
+                          <option value="Double Diagonal">Double Diagonal</option>
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    <!-- Wing Configuration (Iron strategies, conditional) -->
+                    <div id="wingConfigSection" class="backtester-section" style="display:none; background:#fffbeb; border-radius:8px; padding:14px 16px; margin-bottom:0; border:1.5px solid #fde68a;">
+                      <div class="section-label" style="margin-bottom:10px;">
+                        <i class="fas fa-arrows-alt-h" style="color:#d97706;"></i>
+                        <span style="color:#92400e;">Wing Configuration</span>
+                      </div>
+                      <label style="font-size:0.8rem; color:#92400e; font-weight:600; display:block; margin-bottom:8px;">Allow skewed wings? <span style="font-weight:400; color:#b45309;">(different put vs call spread width)</span></label>
+                      <div class="bt-toggle-row" id="wingConfigForm">
+                        <button type="button" class="bt-toggle-btn on" data-radio="allowSkewedWings" data-val="n" onclick="btToggle(this)">&#9679; Balanced wings</button>
+                        <button type="button" class="bt-toggle-btn" data-radio="allowSkewedWings" data-val="y" onclick="btToggle(this)">&#8596; Allow skewed</button>
+                      </div>
+                      <input type="radio" name="allowSkewedWings" id="skewedNo" value="n" checked class="bt-hidden-radio">
+                      <input type="radio" name="allowSkewedWings" id="skewedYes" value="y" class="bt-hidden-radio">
+                    </div>
+
+                    <!-- 5. DTE -->
+                    <div class="backtester-section">
+                      <div class="section-label">
+                        <span class="section-step">5</span>
+                        <i class="fas fa-calendar-day section-icon"></i>
+                        Days to Expiration (DTE)
+                      </div>
+                      <div style="max-width:220px;">
+                        <input type="number" class="form-control" id="dte" min="0" value="0" required>
+                        <div class="field-hint">0 = same-day expiration (0DTE). For calendars/diagonals, set DTE per-leg below.</div>
+                      </div>
+                      <div id="dteCalendarNotice" style="display:none; margin-top:10px; padding:8px 12px; background:#fff3cd; border:1px solid #ffc107; border-radius:6px; font-size:0.78rem; color:#856404;">
+                        <i class="fas fa-info-circle me-1"></i> DTE is configured per-leg for calendar/diagonal strategies.
+                      </div>
+                    </div>
+
+                    <!-- 6. LEG CONFIGURATION -->
+                    <div class="backtester-section">
+                      <div class="section-label">
+                        <span class="section-step">6</span>
+                        <i class="fas fa-sliders-h section-icon"></i>
+                        <span id="legConfigTitle">Leg Configuration</span>
+                      </div>
+                      <div id="legConfigSection">
+                        <div style="padding:16px; background:#f0f9ff; border:1.5px dashed #93c5fd; border-radius:8px; text-align:center; color:#3b82f6; font-size:0.85rem;">
+                          <i class="fas fa-arrow-up me-2"></i>Select a strategy above to configure leg strike selection
                         </div>
                       </div>
+                    </div>
+
+                    <!-- 7. TAKE PROFIT & STOP LOSS -->
+                    <div class="backtester-section">
+                      <div class="section-label">
+                        <span class="section-step">7</span>
+                        <i class="fas fa-balance-scale section-icon"></i>
+                        Take Profit &amp; Stop Loss
+                      </div>
+                      <div class="tpsl-row">
+                        <!-- Take Profit -->
+                        <div class="tpsl-card">
+                          <div class="tpsl-card-title"><i class="fas fa-trophy" style="color:#22c55e;"></i> Take Profit</div>
+                          <div class="tpsl-type-row">
+                            <button type="button" class="tpsl-type-btn on" id="tpPctBtn" onclick="setTpType('P')">% of cost</button>
+                            <button type="button" class="tpsl-type-btn" id="tpDollarBtn" onclick="setTpType('D')">$ amount</button>
+                          </div>
+                          <input type="radio" name="takeProfitType" id="tpPct" value="P" checked class="bt-hidden-radio">
+                          <input type="radio" name="takeProfitType" id="tpDollar" value="D" class="bt-hidden-radio">
+                          <div id="takeProfitPctGroup" class="tpsl-input-row">
+                            <input type="number" class="form-control" id="takeProfitPct" min="0" step="0.01" value="50" placeholder="50">
+                            <span class="tpsl-suffix">%</span>
+                          </div>
+                          <div id="takeProfitDollarGroup" class="tpsl-input-row" style="display:none;">
+                            <span class="tpsl-suffix">$</span>
+                            <input type="number" class="form-control" id="takeProfitDollar" min="0" step="1" placeholder="100">
+                            <span class="tpsl-suffix">per contract</span>
+                          </div>
+                          <div class="field-hint" style="margin-top:8px;">Close position when profit reaches this target.</div>
+                        </div>
+                        <!-- Stop Loss -->
+                        <div class="tpsl-card">
+                          <div class="tpsl-card-title"><i class="fas fa-shield-alt" style="color:#ef4444;"></i> Stop Loss</div>
+                          <div class="tpsl-type-row">
+                            <button type="button" class="tpsl-type-btn on" id="slPctBtn" onclick="setSlType('P')">% of cost</button>
+                            <button type="button" class="tpsl-type-btn" id="slDollarBtn" onclick="setSlType('D')">$ amount</button>
+                          </div>
+                          <input type="radio" name="stopLossType" id="slPct" value="P" checked class="bt-hidden-radio">
+                          <input type="radio" name="stopLossType" id="slDollar" value="D" class="bt-hidden-radio">
+                          <div id="stopLossPctGroup" class="tpsl-input-row">
+                            <input type="number" class="form-control" id="stopLossPct" min="0" step="0.01" value="200" placeholder="200">
+                            <span class="tpsl-suffix">%</span>
+                          </div>
+                          <div id="stopLossDollarGroup" class="tpsl-input-row" style="display:none;">
+                            <span class="tpsl-suffix">$</span>
+                            <input type="number" class="form-control" id="stopLossDollar" min="0" step="1" placeholder="500">
+                            <span class="tpsl-suffix">per contract</span>
+                          </div>
+                          <div class="field-hint" style="margin-top:8px;">Close position when loss reaches this threshold.</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 8. CAPITAL & ALLOCATION -->
+                    <div class="backtester-section">
+                      <div class="section-label">
+                        <span class="section-step">8</span>
+                        <i class="fas fa-wallet section-icon"></i>
+                        Capital &amp; Allocation
+                      </div>
+                      <div class="bt-grid-2" style="margin-bottom:14px;">
+                        <div>
+                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Starting Capital</label>
+                          <div class="tpsl-input-row">
+                            <span class="tpsl-suffix">$</span>
+                            <input type="number" class="form-control" id="startingCapital" min="1000" step="1" value="50000" required>
+                          </div>
+                        </div>
+                        <div></div>
+                      </div>
+                      <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Allocation Per Trade</label>
+                      <div class="alloc-type-row">
+                        <button type="button" class="alloc-type-btn on" data-alloc="1" onclick="setAllocType(1)">% of Capital</button>
+                        <button type="button" class="alloc-type-btn" data-alloc="2" onclick="setAllocType(2)">Fixed Contracts</button>
+                        <button type="button" class="alloc-type-btn" data-alloc="3" onclick="setAllocType(3)">Fixed $ Amount</button>
+                      </div>
+                      <input type="radio" name="allocationType" id="allocPct" value="1" checked class="bt-hidden-radio">
+                      <input type="radio" name="allocationType" id="allocContracts" value="2" class="bt-hidden-radio">
+                      <input type="radio" name="allocationType" id="allocFixed" value="3" class="bt-hidden-radio">
+                      <div id="allocationPctGroup" class="tpsl-input-row" style="max-width:200px;">
+                        <input type="number" class="form-control" id="allocationPct" min="0.1" max="100" step="0.01" value="10">
+                        <span class="tpsl-suffix">%</span>
+                      </div>
+                      <div id="allocationContractsGroup" style="display:none; max-width:200px;">
+                        <input type="number" class="form-control" id="allocationContracts" min="1" step="1" placeholder="1">
+                        <div class="field-hint">Number of contracts per trade.</div>
+                      </div>
+                      <div id="allocationFixedGroup" style="display:none; max-width:200px;">
+                        <div class="tpsl-input-row">
+                          <span class="tpsl-suffix">$</span>
+                          <input type="number" class="form-control" id="allocationFixed" min="100" step="1" placeholder="5000">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- OPTIONAL SECTIONS DIVIDER -->
+                    <div style="margin: 4px 0 0; padding:10px 0 0;">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="flex:1; height:1px; background:#e2e8f0;"></div>
+                        <span style="font-size:0.72rem; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;">Optional Settings</span>
+                        <div style="flex:1; height:1px; background:#e2e8f0;"></div>
+                      </div>
+                    </div>
+
+                    <!-- OPT: TRADE RULES (Concurrent + PDT) -->
+                    <div class="backtester-section">
+                      <div class="opt-section-header" onclick="toggleOptSection('tradeRules')">
+                        <span class="section-step opt">&#9776;</span>
+                        <i class="fas fa-cogs section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Trade Rules</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
+                      </div>
+                      <div class="opt-section-body" id="tradeRulesBody">
+                        <div class="bt-grid-2" style="margin-top:4px;">
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Concurrent Trades</label>
+                            <div class="bt-toggle-row">
+                              <button type="button" class="bt-toggle-btn on" data-radio="concurrentTrades" data-val="n" onclick="btToggle(this)">One at a time</button>
+                              <button type="button" class="bt-toggle-btn" data-radio="concurrentTrades" data-val="y" onclick="btToggle(this)">Allow concurrent</button>
+                            </div>
+                            <input type="radio" name="concurrentTrades" id="concNo" value="n" checked class="bt-hidden-radio">
+                            <input type="radio" name="concurrentTrades" id="concYes" value="y" class="bt-hidden-radio">
+                            <div class="field-hint" style="margin-top:6px;">Whether to hold multiple open trades simultaneously.</div>
+                          </div>
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">PDT Rule Avoidance</label>
+                            <div class="bt-toggle-row">
+                              <button type="button" class="bt-toggle-btn on" data-radio="avoidPdt" data-val="n" onclick="btToggle(this)">No restriction</button>
+                              <button type="button" class="bt-toggle-btn" data-radio="avoidPdt" data-val="y" onclick="btToggle(this)">Avoid day trades</button>
+                            </div>
+                            <input type="radio" name="avoidPdt" id="pdtNo" value="n" checked class="bt-hidden-radio">
+                            <input type="radio" name="avoidPdt" id="pdtYes" value="y" class="bt-hidden-radio">
+                            <div class="field-hint" style="margin-top:6px;">Limit to 3 day trades per 5 business days (PDT rule).</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- OPT: EXIT CONDITIONS -->
+                    <div class="backtester-section">
+                      <div class="opt-section-header" onclick="toggleOptSection('exitConds')">
+                        <span class="section-step opt">&#9664;</span>
+                        <i class="fas fa-door-open section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal-Based Exit Conditions</span>
+                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
+                      </div>
+                      <div class="opt-section-body" id="exitCondsBody">
+                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Close the position early when the underlying meets a price signal (checked on each bar, after TP/SL, before expiry).</p>
+                        <div class="mb-3">
+                          <div style="display:flex; gap:8px; margin-bottom:12px;">
+                            <button type="button" class="bt-toggle-btn on" data-radio="optExitCondType" data-val="preset" onclick="btToggle(this); updateOptExitCondType();">Preset condition</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="optExitCondType" data-val="custom" onclick="btToggle(this); updateOptExitCondType();">Custom builder</button>
+                          </div>
+                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitPreset" value="preset" checked onchange="updateOptExitCondType()">
+                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitCustom" value="custom" onchange="updateOptExitCondType()">
+                        </div>
+                        <div id="optExitPresetSection">
+                          <div class="mb-3">
+                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Exit Signal:</label>
+                            <select class="form-select" id="optExitPresetCondition" onchange="updateOptExitPresetFields()">
+                              <option value="">— None (skip) —</option>
+                              <option value="1">Premarket Change %</option>
+                              <option value="2">Change % (from prev close)</option>
+                              <option value="3">Gap % (open vs prev close)</option>
+                              <option value="4">Change-Open % (from today's open)</option>
+                              <option value="5">Velocity (Rate of Change)</option>
+                            </select>
+                          </div>
+                          <div id="optExitStandardPresetFields" class="row" style="display:none;">
+                            <div class="col-md-6 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                              <select class="form-select" id="optExitPresetOperator">
+                                <option value=">">></option><option value="<"><</option>
+                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                                <option value="=">=</option>
+                              </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                              <input type="number" class="form-control" id="optExitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
+                            </div>
+                          </div>
+                          <div id="optExitVelocityFields" class="row" style="display:none;">
+                            <div class="col-md-4 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Interval (min):</label>
+                              <input type="number" class="form-control" id="optExitVelocityLookback" placeholder="5" value="5" min="1">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                              <select class="form-select" id="optExitVelocityOperator">
+                                <option value=">">></option><option value="<"><</option>
+                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                              </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                              <input type="number" class="form-control" id="optExitVelocityThreshold" step="0.01" placeholder="1.5">
+                            </div>
+                          </div>
+                        </div>
+                        <div id="optExitCustomSection" style="display:none;">
+                          <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Exit Condition Builder — compare price indicators to define exit triggers</div>
+                          <div id="optExitConditionsContainer"></div>
+                          <button type="button" class="btn btn-outline-primary btn-sm" onclick="addOptExitCondition()"><i class="fas fa-plus me-1"></i>Add Exit Condition</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- OPT: ENTRY CONDITIONS (underlying price) -->
+                    <div class="backtester-section">
+                      <div class="opt-section-header" onclick="toggleOptSection('entryConds')">
+                        <span class="section-step opt">&#9654;</span>
+                        <i class="fas fa-filter section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Underlying Entry Conditions</span>
+                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
+                      </div>
+                      <div class="opt-section-body" id="entryCondsBody">
+                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Only enter trades when the underlying price meets a condition on entry day.</p>
+                        <div class="mb-3">
+                          <div style="display:flex; gap:8px; margin-bottom:12px;">
+                            <button type="button" class="bt-toggle-btn on" data-radio="optionsEntryType" data-val="none" onclick="btToggle(this); updateOptionsEntryType();">None</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="optionsEntryType" data-val="preset" onclick="btToggle(this); updateOptionsEntryType();">Preset</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="optionsEntryType" data-val="custom" onclick="btToggle(this); updateOptionsEntryType();">Custom</button>
+                          </div>
+                          <input class="bt-hidden-radio" type="radio" name="optionsEntryType" id="optionsEntryNone" value="none" checked onchange="updateOptionsEntryType()">
+                          <input class="bt-hidden-radio" type="radio" name="optionsEntryType" id="optionsEntryPreset" value="preset" onchange="updateOptionsEntryType()">
+                          <input class="bt-hidden-radio" type="radio" name="optionsEntryType" id="optionsEntryCustom" value="custom" onchange="updateOptionsEntryType()">
+                        </div>
                       
                       <div id="optionsPresetSection" style="display: none;">
                         <div class="mb-3">
@@ -1370,345 +1725,81 @@
                           <i class="fas fa-plus me-1"></i>Add Condition
                         </button>
                       </div>
+                      </div>
                     </div>
 
-                    <!-- [6/14] DTE -->
+                    <!-- OPT: IV FILTER -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/14]</span> DAYS TO EXPIRATION (DTE)</div>
-                      <div class="mb-3">
-                        <label class="form-label">Enter DTE (0 for same day):</label>
-                        <input type="number" class="form-control" id="dte" min="0" value="0" required>
-                        <div id="dteCalendarNotice" style="display:none; margin-top:8px; padding:8px 12px; background:#fff3cd; border:1px solid #ffc107; border-radius:6px; font-size:12px; color:#856404;">
-                          <i class="fas fa-info-circle"></i> DTE is configured per-leg for calendar/diagonal strategies. Set each leg's DTE in the leg configuration below.
-                        </div>
+                      <div class="opt-section-header" onclick="toggleOptSection('ivFilter')">
+                        <span class="section-step opt" style="font-size:0.6rem;">IV</span>
+                        <i class="fas fa-percentage section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">IV% Filter</span>
+                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
-                    </div>
-
-                    <!-- [6/14] STRATEGY TYPE -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/14]</span> STRATEGY TYPE</div>
-                      <div class="mb-3">
-                        <label class="form-label">Select strategy:</label>
-                        <select class="form-select" id="strategy" required>
-                          <option value="">-- Select Strategy --</option>
-                          <optgroup label="Single Leg">
-                            <option value="Long Call">1. Long Call</option>
-                            <option value="Long Put">2. Long Put</option>
-                            <option value="Naked Short Call">3. Naked Short Call</option>
-                            <option value="Naked Short Put">4. Naked Short Put</option>
-                          </optgroup>
-                          <optgroup label="Vertical Spreads">
-                            <option value="Short Put Spread">5. Short Put Spread</option>
-                            <option value="Short Call Spread">6. Short Call Spread</option>
-                            <option value="Long Call Spread">7. Long Call Spread</option>
-                            <option value="Long Put Spread">8. Long Put Spread</option>
-                          </optgroup>
-                          <optgroup label="Iron Strategies">
-                            <option value="Short Iron Condor">9. Short Iron Condor</option>
-                            <option value="Short Iron Butterfly">10. Short Iron Butterfly</option>
-                            <option value="Long Iron Butterfly">11. Long Iron Butterfly</option>
-                            <option value="Long Iron Condor">12. Long Iron Condor</option>
-                          </optgroup>
-                          <optgroup label="Straddles &amp; Strangles">
-                            <option value="Long Straddle">13. Long Straddle</option>
-                            <option value="Long Strangle">14. Long Strangle</option>
-                            <option value="Short Straddle">15. Short Straddle</option>
-                            <option value="Short Strangle">16. Short Strangle</option>
-                          </optgroup>
-                          <optgroup label="Calendar &amp; Diagonal Spreads">
-                            <option value="Calendar Call Spread">17. Calendar Call Spread</option>
-                            <option value="Calendar Put Spread">18. Calendar Put Spread</option>
-                            <option value="Diagonal Call Spread">19. Diagonal Call Spread</option>
-                            <option value="Diagonal Put Spread">20. Diagonal Put Spread</option>
-                            <option value="Double Calendar">21. Double Calendar</option>
-                            <option value="Double Diagonal">22. Double Diagonal</option>
-                          </optgroup>
-                        </select>
-                      </div>
-                    </div>
-
-                    <!-- Wing Configuration (Iron strategies) -->
-                    <div id="wingConfigSection" class="backtester-section" style="display: none;">
-                      <div class="section-label"><span class="section-number">[6.5/14]</span> WING CONFIGURATION</div>
-                      <div class="mb-3">
-                        <label class="form-label">Allow skewed wings?</label>
-                        <small class="text-muted d-block mb-2">Spread width can differ between put side and call side</small>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="allowSkewedWings" id="skewedNo" value="n" checked>
-                          <label class="form-check-label" for="skewedNo">No - Require balanced wings</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="allowSkewedWings" id="skewedYes" value="y">
-                          <label class="form-check-label" for="skewedYes">Yes - Allow different widths</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- [7/14] LEG CONFIGURATION -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[7/14]</span> <span id="legConfigTitle">LEG CONFIGURATION</span></div>
-                      <div id="legConfigSection">
-                        <div class="alert alert-info">
-                          <i class="fas fa-info-circle me-2"></i>Select a strategy above to configure legs
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- [6.4/14] IV% ENTRY CONDITION (Optional) -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6.4/14]</span> IMPLIED VOLATILITY FILTER (Optional)</div>
-                      <small class="text-muted d-block mb-2">Only enter trades when ATM implied volatility meets a condition. IV is calculated from the nearest ATM option at entry time.</small>
-                      <div class="mb-2">
-                        <div class="form-check">
-                          <input class="form-check-input" type="checkbox" id="ivConditionEnabled">
-                          <label class="form-check-label" for="ivConditionEnabled">Enable IV% filter</label>
-                        </div>
-                      </div>
-                      <div id="ivConditionParams" style="display:none;">
-                        <div class="row">
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label" for="ivConditionOperator">Condition:</label>
-                            <select class="form-select" id="ivConditionOperator">
-                              <option value=">">&gt; (greater than)</option>
-                              <option value=">=">&gt;= (greater or equal)</option>
-                              <option value="<">&lt; (less than)</option>
-                              <option value="<=">&lt;= (less or equal)</option>
-                            </select>
+                      <div class="opt-section-body" id="ivFilterBody">
+                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Only trade when ATM implied volatility meets a threshold at entry time.</p>
+                        <div class="mb-2">
+                          <div class="form-check" style="margin-bottom:10px;">
+                            <input class="form-check-input" type="checkbox" id="ivConditionEnabled" onchange="document.getElementById('ivConditionParams').style.display=this.checked?'block':'none'">
+                            <label class="form-check-label" style="font-size:0.82rem; font-weight:600;" for="ivConditionEnabled">Enable IV% filter</label>
                           </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label" for="ivConditionThreshold">IV% threshold:</label>
-                            <input type="number" class="form-control" id="ivConditionThreshold" step="0.1" min="0" max="500" placeholder="e.g. 25 for 25%">
+                        </div>
+                        <div id="ivConditionParams" style="display:none;">
+                          <div class="bt-grid-2">
+                            <div>
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Condition:</label>
+                              <select class="form-select" id="ivConditionOperator">
+                                <option value=">">&gt; (greater than)</option>
+                                <option value=">=">&gt;= (greater or equal)</option>
+                                <option value="<">&lt; (less than)</option>
+                                <option value="<=">&lt;= (less or equal)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">IV% Threshold:</label>
+                              <input type="number" class="form-control" id="ivConditionThreshold" step="0.1" min="0" max="500" placeholder="e.g., 25">
+                              <div class="field-hint">Enter as percentage (e.g., 25 = 25%)</div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <!-- [7.5/14] NET PREMIUM FILTER -->
+                    <!-- OPT: NET PREMIUM FILTER -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[7.5/14]</span> NET PREMIUM FILTER (Optional)</div>
-                      <small class="text-muted d-block mb-2">Filter trades based on net premium at entry. Leave blank to skip.</small>
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Min net premium:</label>
-                          <input type="number" class="form-control" id="netPremiumMin" step="0.01" placeholder="Leave blank to skip">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Max net premium:</label>
-                          <input type="number" class="form-control" id="netPremiumMax" step="0.01" placeholder="Leave blank to skip">
-                        </div>
+                      <div class="opt-section-header" onclick="toggleOptSection('premFilter')">
+                        <span class="section-step opt" style="font-size:0.72rem;">$</span>
+                        <i class="fas fa-coins section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Net Premium Filter</span>
+                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
-                    </div>
-
-                    <!-- [8/14] TAKE PROFIT -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[8/14]</span> TAKE PROFIT <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Take Profit: Triggers a close order when the position's unrealized profit meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and TP = 50%, the position closes when unrealized profit reaches $500. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
-                      <div class="mb-3">
-                        <label class="form-label">Take profit by:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="takeProfitType" id="tpPct" value="P" checked>
-                          <label class="form-check-label" for="tpPct">Percentage</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="takeProfitType" id="tpDollar" value="D">
-                          <label class="form-check-label" for="tpDollar">Dollar</label>
-                        </div>
-                      </div>
-                      <div class="mb-3" id="takeProfitPctGroup">
-                        <label class="form-label">TP % (e.g., 50):</label>
-                        <input type="number" class="form-control" id="takeProfitPct" min="0" step="0.01" value="50">
-                      </div>
-                      <div class="mb-3" id="takeProfitDollarGroup" style="display: none;">
-                        <label class="form-label">TP $ per contract:</label>
-                        <input type="number" class="form-control" id="takeProfitDollar" min="0" step="1" placeholder="100">
-                      </div>
-                    </div>
-
-                    <!-- [9/14] STOP LOSS -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[9/14]</span> STOP LOSS <i class="fas fa-info-circle" style="font-size:11px;color:#b0b4c0;cursor:pointer;" data-tip="Stop Loss: Triggers a close order when the position's unrealized loss meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and SL = 200%, the position closes when unrealized loss reaches $2,000. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></div>
-                      <div class="mb-3">
-                        <label class="form-label">Stop loss by:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="stopLossType" id="slPct" value="P" checked>
-                          <label class="form-check-label" for="slPct">Percentage</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="stopLossType" id="slDollar" value="D">
-                          <label class="form-check-label" for="slDollar">Dollar</label>
-                        </div>
-                      </div>
-                      <div class="mb-3" id="stopLossPctGroup">
-                        <label class="form-label">SL % (e.g., 200):</label>
-                        <input type="number" class="form-control" id="stopLossPct" min="0" step="0.01" value="200">
-                      </div>
-                      <div class="mb-3" id="stopLossDollarGroup" style="display: none;">
-                        <label class="form-label">SL $ per contract:</label>
-                        <input type="number" class="form-control" id="stopLossDollar" min="0" step="1" placeholder="500">
-                      </div>
-                    </div>
-
-                    <!-- [10/14] EXIT CONDITIONS -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[10/14]</span> EXIT CONDITIONS <small class="text-muted">(optional — at least one exit mechanism required)</small></div>
-                      <p class="text-muted small mb-3">Signal-based exit conditions based on the underlying price. These are checked on each bar while holding — after TP/SL, before expiration.</p>
-                      
-                      <div class="mb-3">
-                        <label class="form-label">Exit condition type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="optExitCondType" id="optExitPreset" value="preset" checked onchange="updateOptExitCondType()">
-                          <label class="form-check-label" for="optExitPreset">Preset Conditions</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="optExitCondType" id="optExitCustom" value="custom" onchange="updateOptExitCondType()">
-                          <label class="form-check-label" for="optExitCustom">Custom Builder</label>
-                        </div>
-                      </div>
-                      
-                      <div id="optExitPresetSection" style="display: block;">
-                        <div class="mb-3">
-                          <label class="form-label">Select Exit Preset:</label>
-                          <select class="form-select" id="optExitPresetCondition" onchange="updateOptExitPresetFields()">
-                            <option value="">-- None (skip) --</option>
-                            <option value="1">Premarket Change %</option>
-                            <option value="2">Change % (from prev close)</option>
-                            <option value="3">Gap % (open vs prev close)</option>
-                            <option value="4">Change-Open % (from today's open)</option>
-                            <option value="5">Velocity (Rate of Change)</option>
-                          </select>
-                        </div>
-                        
-                        <div id="optExitStandardPresetFields" class="row" style="display: none;">
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Operator:</label>
-                            <select class="form-select" id="optExitPresetOperator">
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
-                              <option value="=">=</option>
-                            </select>
+                      <div class="opt-section-body" id="premFilterBody">
+                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Skip trades where net premium at entry is outside a desired range. Leave blank to skip.</p>
+                        <div class="bt-grid-2">
+                          <div>
+                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Min Net Premium ($)</label>
+                            <input type="number" class="form-control" id="netPremiumMin" step="0.01" placeholder="No minimum">
                           </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Threshold (%):</label>
-                            <input type="number" class="form-control" id="optExitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
-                          </div>
-                        </div>
-                        
-                        <div id="optExitVelocityFields" class="row" style="display: none;">
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Time Interval (minutes):</label>
-                            <input type="number" class="form-control" id="optExitVelocityLookback" placeholder="e.g., 5" value="5" min="1">
-                          </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Operator:</label>
-                            <select class="form-select" id="optExitVelocityOperator">
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
-                            </select>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Threshold (%):</label>
-                            <input type="number" class="form-control" id="optExitVelocityThreshold" step="0.01" placeholder="e.g., 1.5">
+                          <div>
+                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Max Net Premium ($)</label>
+                            <input type="number" class="form-control" id="netPremiumMax" step="0.01" placeholder="No maximum">
                           </div>
                         </div>
                       </div>
-                      
-                      <div id="optExitCustomSection" style="display: none;">
-                        <div class="alert alert-info py-2">
-                          <i class="fas fa-tools me-2"></i>Custom Exit Condition Builder — Compare underlying price indicators to define exit triggers
-                        </div>
-                        <div id="optExitConditionsContainer"></div>
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addOptExitCondition()">
-                          <i class="fas fa-plus me-1"></i>Add Exit Condition
-                        </button>
-                      </div>
                     </div>
 
-                    <!-- [11/14] CONCURRENT TRADES -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[11/14]</span> CONCURRENT TRADES</div>
-                      <div class="mb-3">
-                        <label class="form-label">Allow concurrent trades?</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="concurrentTrades" id="concNo" value="n" checked>
-                          <label class="form-check-label" for="concNo">No</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="concurrentTrades" id="concYes" value="y">
-                          <label class="form-check-label" for="concYes">Yes</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- [12/14] PDT AVOIDANCE -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[12/14]</span> PDT AVOIDANCE</div>
-                      <div class="mb-3">
-                        <label class="form-label">Avoid day trades?</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="avoidPdt" id="pdtNo" value="n" checked>
-                          <label class="form-check-label" for="pdtNo">No</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="avoidPdt" id="pdtYes" value="y">
-                          <label class="form-check-label" for="pdtYes">Yes</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- [13/14] STARTING CAPITAL -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[13/14]</span> STARTING CAPITAL</div>
-                      <div class="mb-3">
-                        <label class="form-label">Starting capital ($):</label>
-                        <input type="number" class="form-control" id="startingCapital" min="1000" step="1" value="50000" required>
-                      </div>
-                    </div>
-
-                    <!-- [14/14] ALLOCATION PER TRADE -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[14/14]</span> ALLOCATION PER TRADE</div>
-                      <div class="mb-3">
-                        <label class="form-label">Select allocation type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="allocationType" id="allocPct" value="1" checked>
-                          <label class="form-check-label" for="allocPct">Percentage of capital</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="allocationType" id="allocContracts" value="2">
-                          <label class="form-check-label" for="allocContracts">Fixed # of contracts</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="allocationType" id="allocFixed" value="3">
-                          <label class="form-check-label" for="allocFixed">Fixed $ amount</label>
-                        </div>
-                      </div>
-                      <div class="mb-3" id="allocationPctGroup">
-                        <label class="form-label">Enter % (e.g., 10):</label>
-                        <input type="number" class="form-control" id="allocationPct" min="0.1" max="100" step="0.01" value="10">
-                      </div>
-                      <div class="mb-3" id="allocationContractsGroup" style="display: none;">
-                        <label class="form-label">Enter # of contracts:</label>
-                        <input type="number" class="form-control" id="allocationContracts" min="1" step="1" placeholder="1">
-                      </div>
-                      <div class="mb-3" id="allocationFixedGroup" style="display: none;">
-                        <label class="form-label">Enter $ amount:</label>
-                        <input type="number" class="form-control" id="allocationFixed" min="100" step="1" placeholder="5000">
-                      </div>
-                    </div>
-
-                    <!-- Submit Buttons -->
-                    <div class="d-flex gap-2 mt-4 flex-wrap">
-                      <button type="submit" class="btn btn-success btn-lg" id="runBacktestBtn">
+                    <!-- Sticky Run Bar -->
+                    <div class="bt-run-bar">
+                      <button type="submit" class="btn btn-lg" id="runBacktestBtn" style="background:linear-gradient(135deg,#1d4ed8,#4f46e5); color:white; font-weight:700; padding:12px 32px; border-radius:10px; border:none; box-shadow:0 4px 14px rgba(79,70,229,0.35);">
                         <i class="fas fa-play me-2"></i>Run Backtest
                       </button>
-                      <button type="button" class="btn btn-secondary btn-lg" id="resetBacktestBtn">
-                        <i class="fas fa-redo me-2"></i>Reset Form
+                      <button type="button" class="btn btn-outline-secondary" id="resetBacktestBtn" style="border-radius:10px; padding:12px 20px;">
+                        <i class="fas fa-redo me-1"></i>Reset
                       </button>
                     </div>
-                  </form>
+
 
                   <div id="optConfigSummaryOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
                       <div style="background:#fff; border-radius:16px; max-width:700px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">

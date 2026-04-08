@@ -1075,8 +1075,10 @@ function setupFormControls() {
     document.querySelectorAll('input[name="takeProfitType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             const isPct = e.target.value === 'P';
-            document.getElementById('takeProfitPctGroup').style.display = isPct ? 'block' : 'none';
-            document.getElementById('takeProfitDollarGroup').style.display = isPct ? 'none' : 'block';
+            document.getElementById('takeProfitPctGroup').style.display = isPct ? 'flex' : 'none';
+            document.getElementById('takeProfitDollarGroup').style.display = isPct ? 'none' : 'flex';
+            if (document.getElementById('tpPctBtn')) document.getElementById('tpPctBtn').classList.toggle('on', isPct);
+            if (document.getElementById('tpDollarBtn')) document.getElementById('tpDollarBtn').classList.toggle('on', !isPct);
         });
     });
     
@@ -1084,8 +1086,10 @@ function setupFormControls() {
     document.querySelectorAll('input[name="stopLossType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             const isPct = e.target.value === 'P';
-            document.getElementById('stopLossPctGroup').style.display = isPct ? 'block' : 'none';
-            document.getElementById('stopLossDollarGroup').style.display = isPct ? 'none' : 'block';
+            document.getElementById('stopLossPctGroup').style.display = isPct ? 'flex' : 'none';
+            document.getElementById('stopLossDollarGroup').style.display = isPct ? 'none' : 'flex';
+            if (document.getElementById('slPctBtn')) document.getElementById('slPctBtn').classList.toggle('on', isPct);
+            if (document.getElementById('slDollarBtn')) document.getElementById('slDollarBtn').classList.toggle('on', !isPct);
         });
     });
     
@@ -1093,9 +1097,10 @@ function setupFormControls() {
     document.querySelectorAll('input[name="allocationType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             const type = e.target.value;
-            document.getElementById('allocationPctGroup').style.display = type === '1' ? 'block' : 'none';
+            document.getElementById('allocationPctGroup').style.display = type === '1' ? 'flex' : 'none';
             document.getElementById('allocationContractsGroup').style.display = type === '2' ? 'block' : 'none';
             document.getElementById('allocationFixedGroup').style.display = type === '3' ? 'block' : 'none';
+            document.querySelectorAll('.alloc-type-btn').forEach(b => b.classList.toggle('on', b.dataset.alloc === type));
         });
     });
     
@@ -3281,10 +3286,16 @@ function applyOptionsConfig(rawConfig) {
         }
 
         var concurrentRadio = document.querySelector(`input[name="concurrentTrades"][value="${config.concurrentTrades}"]`);
-        if (concurrentRadio) concurrentRadio.checked = true;
+        if (concurrentRadio) {
+            concurrentRadio.checked = true;
+            document.querySelectorAll('.bt-toggle-btn[data-radio="concurrentTrades"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.concurrentTrades));
+        }
 
         var pdtRadio = document.querySelector(`input[name="avoidPdt"][value="${config.avoidPdt}"]`);
-        if (pdtRadio) pdtRadio.checked = true;
+        if (pdtRadio) {
+            pdtRadio.checked = true;
+            document.querySelectorAll('.bt-toggle-btn[data-radio="avoidPdt"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.avoidPdt));
+        }
 
         if (document.getElementById('netPremiumMin') && config.netPremiumMin) {
             document.getElementById('netPremiumMin').value = config.netPremiumMin;
@@ -3528,3 +3539,59 @@ function applyPriceConditions(conditions) {
     });
 }
 
+
+// ─────────────────────────────────────────
+// UI HELPER FUNCTIONS (new redesign)
+// ─────────────────────────────────────────
+
+function btToggle(btn) {
+    const radioName = btn.dataset.radio;
+    const val = btn.dataset.val;
+    // Update radio
+    const radios = document.querySelectorAll(`input[name="${radioName}"]`);
+    radios.forEach(r => { r.checked = r.value === val; });
+    // Update button states
+    const group = btn.closest('[class*="toggle-row"], [class*="opt-section-body"], .tpsl-input-row, .bt-grid-2, .mb-3, div');
+    const allBtns = btn.parentElement ? btn.parentElement.querySelectorAll('.bt-toggle-btn') : [];
+    allBtns.forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+}
+
+function toggleOptSection(id) {
+    const body = document.getElementById(id + 'Body');
+    const header = body ? body.previousElementSibling : null;
+    if (!body) return;
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    if (header) header.classList.toggle('open', !isOpen);
+}
+
+function setTpType(type) {
+    document.getElementById('tpPct').checked = (type === 'P');
+    document.getElementById('tpDollar').checked = (type === 'D');
+    document.getElementById('tpPctBtn').classList.toggle('on', type === 'P');
+    document.getElementById('tpDollarBtn').classList.toggle('on', type === 'D');
+    document.getElementById('takeProfitPctGroup').style.display = type === 'P' ? 'flex' : 'none';
+    document.getElementById('takeProfitDollarGroup').style.display = type === 'D' ? 'flex' : 'none';
+}
+
+function setSlType(type) {
+    document.getElementById('slPct').checked = (type === 'P');
+    document.getElementById('slDollar').checked = (type === 'D');
+    document.getElementById('slPctBtn').classList.toggle('on', type === 'P');
+    document.getElementById('slDollarBtn').classList.toggle('on', type === 'D');
+    document.getElementById('stopLossPctGroup').style.display = type === 'P' ? 'flex' : 'none';
+    document.getElementById('stopLossDollarGroup').style.display = type === 'D' ? 'flex' : 'none';
+}
+
+function setAllocType(n) {
+    document.getElementById('allocPct').checked = n === 1;
+    document.getElementById('allocContracts').checked = n === 2;
+    document.getElementById('allocFixed').checked = n === 3;
+    document.querySelectorAll('.alloc-type-btn').forEach(b => {
+        b.classList.toggle('on', parseInt(b.dataset.alloc) === n);
+    });
+    document.getElementById('allocationPctGroup').style.display = n === 1 ? 'flex' : 'none';
+    document.getElementById('allocationContractsGroup').style.display = n === 2 ? 'block' : 'none';
+    document.getElementById('allocationFixedGroup').style.display = n === 3 ? 'block' : 'none';
+}
