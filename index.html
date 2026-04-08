@@ -5339,5 +5339,43 @@
         loadDashboardData();
       }
     </script>
+
+  <!-- ═══ Backtester form-control final override (after all stylesheets) ═══ -->
+  <style>
+    html body #backtesterPage input.form-control,
+    html body #backtesterPage select.form-select,
+    html body #backtesterPage select.form-control,
+    html body #backtesterPage textarea.form-control,
+    html body #stockBacktesterPage input.form-control,
+    html body #stockBacktesterPage select.form-select,
+    html body #stockBacktesterPage select.form-control,
+    html body #stockBacktesterPage textarea.form-control {
+      background: #ffffff !important;
+      border: 2px solid #64748b !important;
+      border-radius: 7px !important;
+      color: #0f172a !important;
+      box-shadow: none !important;
+      outline: none !important;
+      padding: 8px 12px !important;
+    }
+    html body #backtesterPage input.form-control:focus,
+    html body #backtesterPage select.form-select:focus,
+    html body #backtesterPage select.form-control:focus,
+    html body #backtesterPage textarea.form-control:focus,
+    html body #stockBacktesterPage input.form-control:focus,
+    html body #stockBacktesterPage select.form-select:focus,
+    html body #stockBacktesterPage select.form-control:focus,
+    html body #stockBacktesterPage textarea.form-control:focus {
+      border-color: #3b82f6 !important;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.18) !important;
+    }
+    html body #backtesterPage input.form-control::placeholder,
+    html body #backtesterPage textarea.form-control::placeholder,
+    html body #stockBacktesterPage input.form-control::placeholder,
+    html body #stockBacktesterPage textarea.form-control::placeholder {
+      color: #64748b !important;
+      opacity: 1 !important;
+    }
+  </style>
   </body>
 </html>
