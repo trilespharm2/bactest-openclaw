@@ -2251,6 +2251,44 @@ def get_leg_config(leg_name: str, option_type: str, position: str, existing_legs
 
 # ==================== STRIKE CALCULATION ====================
 
+def fetch_orb_level(client, underlying: str, trade_date: datetime,
+                    orb_period_min: int, orb_level: str) -> Optional[float]:
+    """
+    Fetch the Opening Range High or Low for a given period.
+    ORB window: 9:30 ET to 9:30 + orb_period_min ET.
+    Returns the highest high (orb_level='high') or lowest low (orb_level='low').
+    """
+    et = pytz.timezone('US/Eastern')
+    date_naive = trade_date.replace(tzinfo=None)
+    orb_start_et = et.localize(date_naive.replace(hour=9, minute=30, second=0, microsecond=0))
+    orb_end_et = orb_start_et + timedelta(minutes=orb_period_min)
+    orb_start_ts = int(orb_start_et.timestamp() * 1000)
+    orb_end_ts = int(orb_end_et.timestamp() * 1000)
+    date_str = trade_date.strftime('%Y-%m-%d')
+
+    try:
+        bars = list(client.list_aggs(
+            underlying, 1, 'minute',
+            date_str, date_str,
+            adjusted='true', limit=500
+        ))
+    except Exception as e:
+        print(f"  ✗ ORB: Failed to fetch minute bars for {underlying}: {e}")
+        return None
+
+    orb_bars = [b for b in bars if orb_start_ts <= b.timestamp <= orb_end_ts]
+
+    if not orb_bars:
+        print(f"  ✗ ORB: No bars in ORB window for {underlying} on {date_str} "
+              f"(window {orb_start_ts}-{orb_end_ts}, got {len(bars)} total bars)")
+        return None
+
+    if orb_level == 'high':
+        return max(b.high for b in orb_bars)
+    else:
+        return min(b.low for b in orb_bars)
+
+
 def calculate_strike_simple(underlying_price: float, leg_config: Dict, 
                            calculated_strikes: List[float], underlying: str) -> Optional[float]:
     """
@@ -2315,7 +2353,12 @@ def calculate_strike_simple(underlying_price: float, leg_config: Dict,
         # Delta-based strike selection requires API calls
         # Return None here - it will be handled separately in fetch_options_data_optimized
         return None
-    
+
+    elif config_type == 'orb_breakout':
+        # ORB breakout requires intraday minute data API calls
+        # Return None here - handled separately in fetch_options_data_optimized
+        return None
+
     if target_strike is None:
         return None
     
@@ -2585,6 +2628,67 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             calculated_strikes.append(strike)
             delta_leg_data[i] = {'strike': strike, 'price': option_price, 'delta': actual_delta}
             print(f"    {leg_name}: Strike {strike} (Δ={actual_delta:.3f})")
+
+        elif config_type == 'orb_breakout':
+            leg_name = leg_config.get('name', f"Leg {i+1}")
+            orb_period_min = int(params.get('orb_period', 60))
+            orb_level = str(params.get('orb_level', 'low'))
+            direction = str(params.get('direction', 'above'))
+            dist_type = str(params.get('dist_type', 'dollar'))
+            try:
+                dist_value = float(params.get('dist_value', 1.0))
+            except (ValueError, TypeError):
+                dist_value = 1.0
+            strike_fallback = str(params.get('strike_fallback', 'closest'))
+
+            # Enforce: entry must occur AFTER the ORB period ends
+            orb_total_min = 9 * 60 + 30 + orb_period_min
+            orb_end_hour = orb_total_min // 60
+            orb_end_min = orb_total_min % 60
+            entry_h, entry_m = map(int, config['entry_time'].split(':'))
+            entry_total_min = entry_h * 60 + entry_m
+            if entry_total_min <= orb_total_min:
+                print(f"  ✗ ORB: Entry time {config['entry_time']} must be after "
+                      f"{orb_end_hour:02d}:{orb_end_min:02d} for {orb_period_min}-min ORB — skipping trade")
+                return False, [], []
+
+            # Fetch ORB high or low via minute bar data
+            orb_value = fetch_orb_level(client, config['symbol'], trade_date, orb_period_min, orb_level)
+            if orb_value is None:
+                return False, [], []
+
+            # Calculate target strike from ORB level
+            if dist_type == 'dollar':
+                if direction == 'above':
+                    target_strike = orb_value + dist_value
+                else:
+                    target_strike = orb_value - dist_value
+            else:  # pct
+                pct = dist_value / 100.0
+                if direction == 'above':
+                    target_strike = orb_value * (1 + pct)
+                else:
+                    target_strike = orb_value * (1 - pct)
+
+            # Determine strike increment for the underlying
+            sym = config['symbol']
+            if sym in ["SPY", "QQQ", "IWM"]:
+                increment = 1
+            elif sym in ["SPX", "SPXW", "NDX"]:
+                increment = 5
+            else:
+                increment = 5
+
+            strike = round_strike_with_direction(target_strike, increment, direction, strike_fallback)
+            if strike is None:
+                print(f"  ✗ ORB: Failed to round strike for {leg_name}")
+                return False, [], []
+
+            calculated_strikes.append(strike)
+            dist_label = f"${dist_value}" if dist_type == 'dollar' else f"{dist_value}%"
+            print(f"    {leg_name}: ORB {orb_period_min}m {orb_level}={orb_value:.2f} "
+                  f"→ {dist_label} {direction} → target={target_strike:.2f} → strike={strike}")
+
         else:
             # Standard strike calculation (no API calls)
             leg_name = leg_config.get('name', f"Leg {i+1}")
