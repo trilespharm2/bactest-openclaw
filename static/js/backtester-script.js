@@ -1170,7 +1170,6 @@ function setupStrategySelection() {
 }
 
 function buildLegConfiguration(strategy) {
-    console.log('[BUILD_LEG_CONFIG] backtester-script.js version called for:', strategy);
     const legDefinitions = getStrategyLegs(strategy);
     const container = document.getElementById('legConfigSection');
     
@@ -1490,6 +1489,8 @@ function handleLegMethodChange(e) {
                 <div id="orbSummary_${legIndex}" style="margin-top:10px; padding:8px 14px; background:#e8f5e9; border:1px solid #a5d6a7; border-radius:6px; font-size:13px; color:#2e7d32; font-weight:600;">
                     <i class="fas fa-info-circle"></i> Strike: <span id="orbSummaryText_${legIndex}">$1 above 60 min low (closest)</span>
                 </div>
+                <div id="orbEntryWarn_${legIndex}" style="display:none; margin-top:8px; padding:10px 14px; background:#fce4ec; border:1px solid #ef9a9a; border-radius:6px; font-size:13px; color:#c62828; font-weight:600;">
+                </div>
             `;
             break;
 
@@ -1590,11 +1591,35 @@ function handleLegMethodChange(e) {
             const fallbackLabels = { closest: 'closest', or_higher: 'or higher', or_less: 'or lower' };
             summaryEl.textContent = `${distPrefix}${distVal}${distSuffix} ${direction} ${period} min ${level} (${fallbackLabels[fallback] || fallback})`;
         };
+        const checkOrbEntryTimeConflict = () => {
+            const warnEl = document.getElementById(`orbEntryWarn_${legIndex}`);
+            if (!warnEl) return;
+            const orbMin = parseInt(paramsContainer.querySelector('[data-param="orb_period"]')?.value) || 60;
+            const orbEndTotal = 9 * 60 + 30 + orbMin;
+            const orbEndH = String(Math.floor(orbEndTotal / 60)).padStart(2, '0');
+            const orbEndM = String(orbEndTotal % 60).padStart(2, '0');
+            const orbEndStr = orbEndH + ':' + orbEndM;
+            const entryEl = document.getElementById('entryTime');
+            const entryMaxEl = document.getElementById('entryTimeMax');
+            const entryTime = entryEl ? entryEl.value : '';
+            const entryCheck = (entryMaxEl && entryMaxEl.value) ? entryMaxEl.value : entryTime;
+            if (entryCheck && entryCheck <= orbEndStr) {
+                warnEl.style.display = 'block';
+                warnEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Entry time <strong>' + entryCheck + '</strong> is before ORB period ends at <strong>' + orbEndStr + '</strong>. All trades will be skipped. Set entry time' + ((entryMaxEl && entryMaxEl.value) ? ' end' : '') + ' after <strong>' + orbEndStr + '</strong>.';
+            } else {
+                warnEl.style.display = 'none';
+            }
+        };
         paramsContainer.querySelectorAll('.orb-param').forEach(el => {
-            el.addEventListener('change', updateOrbSummary);
-            el.addEventListener('input', updateOrbSummary);
+            el.addEventListener('change', () => { updateOrbSummary(); checkOrbEntryTimeConflict(); });
+            el.addEventListener('input', () => { updateOrbSummary(); checkOrbEntryTimeConflict(); });
         });
+        const entryTimeEl = document.getElementById('entryTime');
+        const entryTimeMaxEl = document.getElementById('entryTimeMax');
+        if (entryTimeEl) entryTimeEl.addEventListener('change', checkOrbEntryTimeConflict);
+        if (entryTimeMaxEl) entryTimeMaxEl.addEventListener('change', checkOrbEntryTimeConflict);
         updateOrbSummary();
+        checkOrbEntryTimeConflict();
     }
 
     updateAllReferenceLegDropdowns();
@@ -2329,6 +2354,16 @@ function validateOptionsConfig(config) {
             }
             if (leg.dte !== undefined && (isNaN(leg.dte) || leg.dte < 0)) {
                 errors.push(`${leg.name}: DTE must be 0 or greater`);
+            }
+            if (leg.config_type === 'orb_breakout' && leg.params && config.entry_time) {
+                const orbMin = parseInt(leg.params.orb_period) || 60;
+                const orbEndH = Math.floor((9 * 60 + 30 + orbMin) / 60);
+                const orbEndM = (9 * 60 + 30 + orbMin) % 60;
+                const orbEndStr = String(orbEndH).padStart(2, '0') + ':' + String(orbEndM).padStart(2, '0');
+                const entryToCheck = config.entry_time_max || config.entry_time;
+                if (entryToCheck <= orbEndStr) {
+                    errors.push(`${leg.name}: ORB Breakout requires entry time after ${orbEndStr} for a ${orbMin}-min ORB period. Current entry time${config.entry_time_max ? ' end' : ''} is ${entryToCheck}.`);
+                }
             }
         }
         

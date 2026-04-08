@@ -4744,7 +4744,6 @@
       }
       
       function buildLegConfiguration(strategy) {
-        console.log('[BUILD_LEG_CONFIG] index.html version called for:', strategy);
         const legDefs = getStrategyLegs(strategy);
         const container = document.getElementById('legConfigSection');
         if (legDefs.length === 0) {
@@ -4830,7 +4829,8 @@
             + '</select></div>'
             + '</div>'
             + '<div id="orbSummary_' + legIndex + '" style="padding:8px 14px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:13px;color:#2e7d32;font-weight:600;">'
-            + '<i class="fas fa-info-circle"></i> Strike: <span id="orbSummaryText_' + legIndex + '">$1 above 60 min low (closest)</span></div>';
+            + '<i class="fas fa-info-circle"></i> Strike: <span id="orbSummaryText_' + legIndex + '">$1 above 60 min low (closest)</span></div>'
+            + '<div id="orbEntryWarn_' + legIndex + '" style="display:none; margin-top:8px; padding:10px 14px; background:#fce4ec; border:1px solid #ef9a9a; border-radius:6px; font-size:13px; color:#c62828; font-weight:600;"></div>';
         }
         paramsContainer.innerHTML = html;
 
@@ -4849,11 +4849,35 @@
             var fallbackLabel = {closest: 'closest', or_higher: 'or higher', or_less: 'or lower'}[fallback] || fallback;
             summaryEl.textContent = prefix + distVal + suffix + ' ' + dir + ' ' + period + ' min ' + level + ' (' + fallbackLabel + ')';
           };
+          var checkOrbEntryTimeConflict = function() {
+            var warnEl = document.getElementById('orbEntryWarn_' + legIndex);
+            if (!warnEl) return;
+            var orbMin = parseInt(paramsContainer.querySelector('[data-param="orb_period"]')?.value) || 60;
+            var orbEndTotal = 9 * 60 + 30 + orbMin;
+            var orbEndH = String(Math.floor(orbEndTotal / 60)).padStart(2, '0');
+            var orbEndM = String(orbEndTotal % 60).padStart(2, '0');
+            var orbEndStr = orbEndH + ':' + orbEndM;
+            var entryEl = document.getElementById('entryTime');
+            var entryMaxEl = document.getElementById('entryTimeMax');
+            var entryTime = entryEl ? entryEl.value : '';
+            var entryCheck = (entryMaxEl && entryMaxEl.value) ? entryMaxEl.value : entryTime;
+            if (entryCheck && entryCheck <= orbEndStr) {
+              warnEl.style.display = 'block';
+              warnEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Entry time <strong>' + entryCheck + '</strong> is before ORB period ends at <strong>' + orbEndStr + '</strong>. All trades will be skipped. Set entry time' + ((entryMaxEl && entryMaxEl.value) ? ' end' : '') + ' after <strong>' + orbEndStr + '</strong>.';
+            } else {
+              warnEl.style.display = 'none';
+            }
+          };
           paramsContainer.querySelectorAll('.orb-param').forEach(function(el) {
-            el.addEventListener('change', updateOrbSummary);
-            el.addEventListener('input', updateOrbSummary);
+            el.addEventListener('change', function() { updateOrbSummary(); checkOrbEntryTimeConflict(); });
+            el.addEventListener('input', function() { updateOrbSummary(); checkOrbEntryTimeConflict(); });
           });
+          var entryTimeEl = document.getElementById('entryTime');
+          var entryTimeMaxEl = document.getElementById('entryTimeMax');
+          if (entryTimeEl) entryTimeEl.addEventListener('change', checkOrbEntryTimeConflict);
+          if (entryTimeMaxEl) entryTimeMaxEl.addEventListener('change', checkOrbEntryTimeConflict);
           updateOrbSummary();
+          checkOrbEntryTimeConflict();
         }
       }
       
