@@ -969,8 +969,10 @@ function initializeBacktesterPage() {
         TierRestrictions.applyDateConstraints(startEl, endEl);
         TierRestrictions.enforceDTEMax(dteEl);
         if (TierRestrictions.isFree()) {
-            var customRadio = document.querySelector('input[name="optionsEntryType"][value="custom"]');
-            if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.4'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
+            var customRadio = document.querySelector('#backtesterPage input[name="optionsEntryType"][value="custom"]');
+            if (customRadio) { customRadio.disabled = true; }
+            var optCustomToggle = document.querySelector('#backtesterPage .bt-toggle-btn[data-val="custom"]');
+            if (optCustomToggle) { optCustomToggle.disabled = true; optCustomToggle.style.opacity = '0.5'; optCustomToggle.style.cursor = 'not-allowed'; optCustomToggle.title = 'Custom builder requires Standard or Premium plan'; }
         }
         if (symbolEl) {
             symbolEl.addEventListener('change', function() {
