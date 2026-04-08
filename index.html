@@ -441,6 +441,43 @@
       .section-icon.opt { color: #94a3b8; }
       .section-opt-badge { font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid #e2e8f0; padding: 1px 7px; border-radius: 10px; margin-left: 2px; }
       .field-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
+
+      /* ── Backtester form-control contrast fix ─────────────────────────────── */
+      #backtesterPage .form-control,
+      #backtesterPage .form-select,
+      #stockBacktesterPage .form-control,
+      #stockBacktesterPage .form-select {
+        background-color: #ffffff !important;
+        border: 1.5px solid #94a3b8 !important;
+        border-radius: 7px !important;
+        color: #1e293b !important;
+        font-size: 0.88rem !important;
+      }
+      #backtesterPage .form-control:focus,
+      #backtesterPage .form-select:focus,
+      #stockBacktesterPage .form-control:focus,
+      #stockBacktesterPage .form-select:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
+        outline: none !important;
+      }
+      #backtesterPage .form-control::placeholder,
+      #stockBacktesterPage .form-control::placeholder {
+        color: #64748b !important;
+        opacity: 1;
+      }
+      /* Textarea inside backtester */
+      #backtesterPage textarea.form-control,
+      #stockBacktesterPage textarea.form-control {
+        resize: vertical;
+      }
+      /* Section label backgrounds — slightly more opaque so fields stand out */
+      #stockBacktesterPage .backtester-section > .section-label {
+        background: linear-gradient(90deg, #d1fae5, #e0fdf4) !important;
+      }
+      #backtesterPage .backtester-section > .section-label {
+        background: linear-gradient(90deg, #dbeafe, #eff6ff) !important;
+      }
       /* Toggle buttons for binary choices */
       .bt-toggle-row { display: flex; gap: 8px; }
       .bt-toggle-btn { flex: 1; padding: 9px 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; border-radius: 8px; font-size: 0.83rem; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; max-width: 160px; }
