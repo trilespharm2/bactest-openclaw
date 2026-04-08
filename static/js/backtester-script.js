@@ -2113,7 +2113,7 @@ function buildOptConfigSummaryHtml(config) {
     let legsHtml = '';
     if (config.legs && config.legs.length > 0) {
         legsHtml = config.legs.map(leg => {
-            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg'};
+            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg','orb_breakout':'ORB Breakout'};
             const method = methodMap[leg.config_type] || leg.config_type;
             let paramStr = '';
             if (leg.params) {
@@ -2123,6 +2123,7 @@ function buildOptConfigSummaryHtml(config) {
                 else if (leg.config_type === 'pct_underlying') paramStr = `${p.direction || ''} ${p.pct || 0}%`;
                 else if (leg.config_type === 'dollar_underlying') paramStr = `${p.direction || ''} $${p.amount || 0}`;
                 else if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') paramStr = `From ${p.reference_leg || 'Leg'}: ${p.pct || p.amount || 0}${leg.config_type === 'pct_leg' ? '%' : '$'}`;
+                else if (leg.config_type === 'orb_breakout') { const dPfx = p.dist_type === 'pct' ? '' : '$'; const dSfx = p.dist_type === 'pct' ? '%' : ''; paramStr = `${dPfx}${p.dist_value}${dSfx} ${p.direction} ${p.orb_period}m ${p.orb_level} (${p.strike_fallback || 'closest'})`; }
             }
             const dteStr = leg.dte !== undefined ? ` (DTE: ${leg.dte})` : '';
             return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}${dteStr}</div>`;

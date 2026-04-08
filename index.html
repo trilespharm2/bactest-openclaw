@@ -4754,10 +4754,12 @@
         let html = '<div class="alert alert-info mb-3"><strong>Strategy requires ' + legDefs.length + ' legs</strong></div>';
         
         legDefs.forEach((leg, index) => {
+          var multiLeg = legDefs.length > 1;
           var legMethodOptions = '<option value="">-- Select Method --</option><option value="mid_price">1. Mid Price Range</option><option value="pct_underlying">2. % Distance from Underlying</option><option value="dollar_underlying">3. $ Distance from Underlying</option>';
-          if (legDefs.length > 1 && index > 0) {
+          if (multiLeg && index > 0) {
             legMethodOptions += '<option value="pct_leg">4. % Distance from Another Leg</option><option value="dollar_leg">5. $ Distance from Another Leg</option>';
           }
+          legMethodOptions += '<option value="orb_breakout">' + (multiLeg && index > 0 ? '6' : '4') + '. ORB Breakout Strike Selection</option>';
           html += '<div class="leg-config-card"><div class="leg-header"><span class="leg-title">Leg ' + (index + 1) + ': ' + leg.name + '</span><span class="leg-badge">' + (leg.type === 'C' ? 'Call' : 'Put') + ' - ' + leg.position + '</span></div><div class="mb-3"><label class="form-label">Configuration method:</label><select class="form-select leg-method-select" data-leg-index="' + index + '">' + legMethodOptions + '</select></div><div id="legParams' + index + '"></div></div>';
         });
         
@@ -4794,8 +4796,61 @@
           const label = method === 'pct_leg' ? '% distance:' : '$ distance:';
           const param = method === 'pct_leg' ? 'pct' : 'amount';
           html = '<div class="row"><div class="col-md-4 mb-3"><label class="form-label">Reference leg:</label><select class="form-select leg-param" data-param="reference">' + refOptions + '</select></div><div class="col-md-4 mb-3"><label class="form-label">Direction:</label><select class="form-select leg-param" data-param="direction"><option value="below" ' + (defaultDirection === 'below' ? 'selected' : '') + '>Below</option><option value="above" ' + (defaultDirection === 'above' ? 'selected' : '') + '>Above</option></select></div><div class="col-md-4 mb-3"><label class="form-label">' + label + '</label><input type="number" class="form-control leg-param" data-param="' + param + '" step="0.01" placeholder="2.0"></div></div>';
+        } else if (method === 'orb_breakout') {
+          html = '<div style="margin-bottom:10px;padding:8px 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;"><small style="color:#795548;font-weight:600;">&#9200; ORB Breakout: Strike set relative to the Opening Range High/Low. Entry must occur <em>after</em> the ORB period ends.</small></div>'
+            + '<div class="row">'
+            + '<div class="col-md-4 mb-3"><label class="form-label">ORB Period:</label><select class="form-select leg-param orb-param" data-param="orb_period">'
+            + '<option value="15">15 min (9:30\u20139:45)</option>'
+            + '<option value="30">30 min (9:30\u201310:00)</option>'
+            + '<option value="60" selected>60 min (9:30\u201310:30)</option>'
+            + '</select></div>'
+            + '<div class="col-md-4 mb-3"><label class="form-label">ORB Level:</label><select class="form-select leg-param orb-param" data-param="orb_level">'
+            + '<option value="high">High</option>'
+            + '<option value="low" selected>Low</option>'
+            + '</select></div>'
+            + '<div class="col-md-4 mb-3"><label class="form-label">Direction:</label><select class="form-select leg-param orb-param" data-param="direction">'
+            + '<option value="above" ' + (defaultDirection === 'above' ? 'selected' : '') + '>above</option>'
+            + '<option value="below" ' + (defaultDirection === 'below' ? 'selected' : '') + '>below</option>'
+            + '</select></div>'
+            + '</div>'
+            + '<div class="row">'
+            + '<div class="col-md-6 mb-3"><label class="form-label">Distance:</label>'
+            + '<div class="input-group">'
+            + '<input type="number" class="form-control leg-param orb-param" data-param="dist_value" step="0.5" min="0" placeholder="1" value="1">'
+            + '<select class="form-select leg-param orb-param" data-param="dist_type" style="max-width:80px;"><option value="dollar">$</option><option value="pct">%</option></select>'
+            + '</div></div>'
+            + '<div class="col-md-6 mb-3"><label class="form-label">Strike fallback:</label><select class="form-select leg-param orb-param" data-param="strike_fallback">'
+            + '<option value="closest">Closest (default)</option>'
+            + '<option value="or_higher">Or Higher</option>'
+            + '<option value="or_less">Or Lower</option>'
+            + '</select></div>'
+            + '</div>'
+            + '<div id="orbSummary_' + legIndex + '" style="padding:8px 14px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:13px;color:#2e7d32;font-weight:600;">'
+            + '<i class="fas fa-info-circle"></i> Strike: <span id="orbSummaryText_' + legIndex + '">$1 above 60 min low (closest)</span></div>';
         }
         paramsContainer.innerHTML = html;
+
+        if (method === 'orb_breakout') {
+          var updateOrbSummary = function() {
+            var summaryEl = document.getElementById('orbSummaryText_' + legIndex);
+            if (!summaryEl) return;
+            var period = paramsContainer.querySelector('[data-param="orb_period"]')?.value || '60';
+            var level = paramsContainer.querySelector('[data-param="orb_level"]')?.value || 'low';
+            var dir = paramsContainer.querySelector('[data-param="direction"]')?.value || 'above';
+            var distVal = paramsContainer.querySelector('[data-param="dist_value"]')?.value || '1';
+            var distType = paramsContainer.querySelector('[data-param="dist_type"]')?.value || 'dollar';
+            var fallback = paramsContainer.querySelector('[data-param="strike_fallback"]')?.value || 'closest';
+            var prefix = distType === 'dollar' ? '$' : '';
+            var suffix = distType === 'pct' ? '%' : '';
+            var fallbackLabel = {closest: 'closest', or_higher: 'or higher', or_less: 'or lower'}[fallback] || fallback;
+            summaryEl.textContent = prefix + distVal + suffix + ' ' + dir + ' ' + period + ' min ' + level + ' (' + fallbackLabel + ')';
+          };
+          paramsContainer.querySelectorAll('.orb-param').forEach(function(el) {
+            el.addEventListener('change', updateOrbSummary);
+            el.addEventListener('input', updateOrbSummary);
+          });
+          updateOrbSummary();
+        }
       }
       
       function setupOptionsFormSubmit() {
