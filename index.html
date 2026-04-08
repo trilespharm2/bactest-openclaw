@@ -1926,354 +1926,391 @@
             <!-- Stock Backtester Page -->
             <section id="stockBacktesterPage" class="page">
               <div class="page-header">
-                <h3 class="fw-bold mb-3">Stock Backtester</h3>
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px;">
+                  <div>
+                    <h3 class="fw-bold mb-1" style="font-size:1.25rem; color:#1e293b;">Stock Backtester</h3>
+                    <p style="margin:0; font-size:0.82rem; color:#94a3b8;">Test buy/sell strategies against real historical price data</p>
+                  </div>
+                </div>
               </div>
               <div class="card">
-                <div class="card-header">
-                  <div class="card-title"><i class="fas fa-chart-bar me-2"></i>STOCK BACKTESTING SYSTEM V3.0</div>
+                <div class="card-header" style="background:linear-gradient(135deg,#065f46,#0d9488); border-radius:12px 12px 0 0;">
+                  <div class="card-title" style="color:white; display:flex; align-items:center; gap:8px;"><i class="fas fa-chart-bar"></i> Strategy Configuration</div>
                 </div>
-                <div class="card-body">
+                <div class="card-body" style="padding:0 20px;">
                   <form id="stockBacktestForm">
-                    <!-- [1/7] BACKTEST NAME -->
+
+                    <!-- 1. NAME + SYMBOL + DATES -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[1/8]</span> BACKTEST NAME</div>
-                      <div class="mb-3">
-                        <label class="form-label">Enter a name for this backtest:</label>
-                        <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
-                        <small class="text-muted">This name will be used to identify your backtest in the results page</small>
+                      <div class="section-label">
+                        <span class="section-step" style="background:#0d9488;">1</span>
+                        <i class="fas fa-tag section-icon" style="color:#0d9488;"></i>
+                        Backtest Name
                       </div>
+                      <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap-Up Strategy, AAPL Momentum" required>
+                      <div class="field-hint">Give this run a name so you can find it in your results history.</div>
                     </div>
 
-                    <!-- [2/7] DATE RANGE -->
+                    <!-- 2. SYMBOL & DATE RANGE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[2/8]</span> DATE RANGE</div>
-                      <div class="row">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Start Date:</label>
+                      <div class="section-label">
+                        <span class="section-step" style="background:#0d9488;">2</span>
+                        <i class="fas fa-search-dollar section-icon" style="color:#0d9488;"></i>
+                        Symbol &amp; Date Range
+                      </div>
+
+                      <!-- Symbol Mode toggle -->
+                      <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Symbol Mode</label>
+                      <div style="display:flex; gap:8px; margin-bottom:14px;">
+                        <button type="button" class="bt-toggle-btn on" id="symbolSingleBtn" onclick="setSymbolMode('single')" style="max-width:160px;">Single Symbol</button>
+                        <button type="button" class="bt-toggle-btn" id="symbolMultipleBtn" onclick="setSymbolMode('multiple')" style="max-width:160px;">Multiple Symbols</button>
+                      </div>
+                      <input type="radio" name="symbol_mode" id="symbolSingle" value="single" checked class="bt-hidden-radio">
+                      <input type="radio" name="symbol_mode" id="symbolMultiple" value="multiple" class="bt-hidden-radio">
+
+                      <!-- Single symbol input -->
+                      <div id="singleSymbolSection" style="margin-bottom:14px;">
+                        <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Symbol</label>
+                        <input type="text" class="form-control" id="singleSymbol" placeholder="e.g., SPY, AAPL, QQQ" style="text-transform:uppercase; max-width:280px;">
+                      </div>
+
+                      <!-- Multiple symbols input -->
+                      <div id="multipleSymbolsSection" style="display:none; margin-bottom:14px;">
+                        <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Symbols <span style="font-weight:400; color:#94a3b8;">(comma-separated)</span></label>
+                        <textarea class="form-control" id="multipleSymbols" rows="3" placeholder="AAPL, MSFT, TSLA, GOOGL, NVDA"></textarea>
+                        <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
+                          <label class="btn btn-outline-secondary btn-sm" for="csvFileMultiple" style="cursor:pointer; margin:0;">
+                            <i class="fas fa-file-csv me-1"></i>Upload CSV
+                          </label>
+                          <input type="file" class="d-none" id="csvFileMultiple" accept=".csv" onchange="handleMultiCsvUpload(this)">
+                          <span style="font-size:0.75rem; color:#94a3b8;">One symbol per row, or comma-separated</span>
+                        </div>
+                      </div>
+
+                      <!-- Date Range -->
+                      <div class="bt-grid-2">
+                        <div>
+                          <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Start Date</label>
                           <input type="date" class="form-control" id="stockStartDate" required>
                         </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">End Date:</label>
+                        <div>
+                          <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">End Date</label>
                           <input type="date" class="form-control" id="stockEndDate" required>
                         </div>
                       </div>
                     </div>
 
-                    <!-- [3/7] SYMBOL SELECTION -->
+                    <!-- 3. ENTRY CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[3/8]</span> SYMBOL SELECTION</div>
-                      <div class="mb-3">
-                        <label class="form-label">Select symbol mode:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="symbol_mode" id="symbolSingle" value="single" checked>
-                          <label class="form-check-label" for="symbolSingle">Single Symbol</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="symbol_mode" id="symbolMultiple" value="multiple">
-                          <label class="form-check-label" for="symbolMultiple">Multiple Symbols</label>
-                        </div>
+                      <div class="section-label">
+                        <span class="section-step" style="background:#0d9488;">3</span>
+                        <i class="fas fa-sign-in-alt section-icon" style="color:#0d9488;"></i>
+                        Entry Conditions
                       </div>
-                      
-                      <!-- Single symbol input -->
-                      <div id="singleSymbolSection" class="mb-3">
-                        <label class="form-label">Enter symbol:</label>
-                        <input type="text" class="form-control" id="singleSymbol" placeholder="e.g., SPY" style="text-transform: uppercase;">
-                      </div>
-                      
-                      <!-- Multiple symbols input -->
-                      <div id="multipleSymbolsSection" class="mb-3" style="display: none;">
-                        <label class="form-label">Enter symbols (comma-separated):</label>
-                        <textarea class="form-control" id="multipleSymbols" rows="3" placeholder="e.g., AAPL, MSFT, TSLA, GOOGL"></textarea>
-                        <div class="mt-2">
-                          <label class="btn btn-outline-secondary btn-sm" for="csvFileMultiple" style="cursor:pointer;">
-                            <i class="fas fa-file-csv me-1"></i>Upload CSV
-                          </label>
-                          <input type="file" class="d-none" id="csvFileMultiple" accept=".csv" onchange="handleMultiCsvUpload(this)">
-                          <small class="text-muted ms-2">Or upload a CSV file with symbols (one per row)</small>
-                        </div>
-                      </div>
-                      
-                    </div>
+                      <p style="font-size:0.78rem; color:#64748b; margin:0 0 12px;">What market signal triggers a trade entry?</p>
 
-                    <!-- [4/7] ENTRY CONDITIONS -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[4/8]</span> ENTRY CONDITIONS</div>
-                      <div class="mb-3">
-                        <label class="form-label">Condition type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="entry_type" id="entryPreset" value="preset" checked>
-                          <label class="form-check-label" for="entryPreset">Preset Conditions</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="entry_type" id="entryCustom" value="custom">
-                          <label class="form-check-label" for="entryCustom">Custom Builder</label>
-                        </div>
+                      <!-- Toggle Preset / Custom -->
+                      <div style="display:flex; gap:8px; margin-bottom:14px;">
+                        <button type="button" class="bt-toggle-btn on" id="entryPresetBtn" onclick="setEntryType('preset')" style="max-width:160px;">Preset Signal</button>
+                        <button type="button" class="bt-toggle-btn" id="entryCustomBtn" onclick="setEntryType('custom')" style="max-width:160px;">Custom Builder</button>
                       </div>
-                      
-                      <!-- Preset Conditions -->
+                      <input type="radio" name="entry_type" id="entryPreset" value="preset" checked class="bt-hidden-radio">
+                      <input type="radio" name="entry_type" id="entryCustom" value="custom" class="bt-hidden-radio">
+
+                      <!-- Preset Section -->
                       <div id="presetSection">
-                        <div class="mb-3">
-                          <label class="form-label">Select Preset:</label>
+                        <div style="margin-bottom:12px;">
+                          <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Signal Type</label>
                           <select class="form-select" id="presetCondition">
                             <option value="1">Premarket Change %</option>
-                            <option value="2">Change %</option>
-                            <option value="3">Gap %</option>
-                            <option value="4">Change-Open %</option>
+                            <option value="2">Change % (from prev close)</option>
+                            <option value="3">Gap % (open vs prev close)</option>
+                            <option value="4">Change-Open % (from today's open)</option>
                             <option value="5">Velocity (Rate of Change)</option>
                           </select>
                         </div>
-                        
-                        <!-- Standard preset fields -->
-                        <div id="standardPresetFields" class="row">
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Operator:</label>
+                        <div id="standardPresetFields" class="bt-grid-2">
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Operator</label>
                             <select class="form-select" id="presetOperator">
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
-                              <option value="=">=</option>
+                              <option value=">">> (greater than)</option>
+                              <option value="<">< (less than)</option>
+                              <option value=">=">>= (greater or equal)</option>
+                              <option value="<="><= (less or equal)</option>
+                              <option value="="">= (equals)</option>
                             </select>
                           </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Threshold (%):</label>
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Threshold (%)</label>
                             <input type="number" class="form-control" id="presetThreshold" step="0.01" placeholder="e.g., 2.5">
                           </div>
                         </div>
-                        
-                        <!-- Velocity specific fields -->
-                        <div id="velocityFields" class="row" style="display: none;">
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Time Interval (minutes):</label>
-                            <input type="number" class="form-control" id="velocityLookback" placeholder="e.g., 5" value="5">
+                        <div id="velocityFields" class="bt-grid-2" style="display:none;">
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Interval (min)</label>
+                            <input type="number" class="form-control" id="velocityLookback" placeholder="5" value="5">
                           </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Operator:</label>
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Operator</label>
                             <select class="form-select" id="velocityOperator">
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
+                              <option value=">">> (greater than)</option>
+                              <option value="<">< (less than)</option>
+                              <option value=">=">>= </option>
+                              <option value="<="><= </option>
                             </select>
                           </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Threshold (%):</label>
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Threshold (%)</label>
                             <input type="number" class="form-control" id="velocityThreshold" step="0.01" placeholder="e.g., 1.5">
                           </div>
                         </div>
                       </div>
-                      
-                      <!-- Custom Conditions Builder -->
-                      <div id="customSection" class="stock-backtester-builder" style="display: none;">
-                        <div class="alert alert-info">
-                          <i class="fas fa-tools me-2"></i>Custom Condition Builder - Compare candles to define entry triggers
-                        </div>
+
+                      <!-- Custom Builder -->
+                      <div id="customSection" class="stock-backtester-builder" style="display:none;">
+                        <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Condition Builder — Compare candles and indicators to define entry triggers</div>
                         <div id="conditionsContainer" class="conditions-container"></div>
-                        <button type="button" class="btn btn-secondary btn-sm mt-2" id="addConditionBtn" onclick="addCondition()">
+                        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addConditionBtn" onclick="addCondition()">
                           <i class="fas fa-plus me-1"></i>Add Condition
                         </button>
                       </div>
                     </div>
 
-                    <!-- [5/8] EXIT CONDITIONS -->
+                    <!-- 4. TRADE DIRECTION & POSITION SIZE -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[5/8]</span> EXIT CONDITIONS <span class="text-muted" style="font-size:0.75em; font-weight:normal;">(optional — at least one required)</span></div>
-                      <div class="mb-3">
-                        <label class="form-label">Exit condition type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="exit_cond_type" id="exitCondPreset" value="preset" checked>
-                          <label class="form-check-label" for="exitCondPreset">Preset Conditions</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="exit_cond_type" id="exitCondCustom" value="custom">
-                          <label class="form-check-label" for="exitCondCustom">Custom Builder</label>
-                        </div>
+                      <div class="section-label">
+                        <span class="section-step" style="background:#0d9488;">4</span>
+                        <i class="fas fa-arrows-alt-v section-icon" style="color:#0d9488;"></i>
+                        Direction &amp; Position Size
                       </div>
 
-                      <div id="exitPresetSection">
-                        <div class="mb-3">
-                          <label class="form-label">Select Preset:</label>
-                          <select class="form-select" id="exitPresetCondition">
-                            <option value="">-- None (skip) --</option>
-                            <option value="1">Premarket Change %</option>
-                            <option value="2">Change %</option>
-                            <option value="3">Gap %</option>
-                            <option value="4">Change-Open %</option>
-                            <option value="5">Velocity (Rate of Change)</option>
-                          </select>
+                      <div class="bt-grid-2" style="margin-bottom:16px;">
+                        <div>
+                          <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Trade Direction</label>
+                          <div style="display:flex; gap:8px;">
+                            <button type="button" class="bt-toggle-btn on success" id="dirLongBtn" onclick="setDirection('long')" style="flex:1;">&#8593; Long</button>
+                            <button type="button" class="bt-toggle-btn" id="dirShortBtn" onclick="setDirection('short')" style="flex:1;">&#8595; Short</button>
+                          </div>
+                          <input type="radio" name="direction" id="dirLong" value="long" checked class="bt-hidden-radio">
+                          <input type="radio" name="direction" id="dirShort" value="short" class="bt-hidden-radio">
+                          <div class="field-hint">Long = buy and hold. Short = sell and buy back.</div>
                         </div>
-
-                        <div id="exitStandardPresetFields" class="row" style="display: none;">
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Operator:</label>
-                            <select class="form-select" id="exitPresetOperator">
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
-                              <option value="=">=</option>
-                            </select>
-                          </div>
-                          <div class="col-md-6 mb-3">
-                            <label class="form-label">Threshold (%):</label>
-                            <input type="number" class="form-control" id="exitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
-                          </div>
-                        </div>
-
-                        <div id="exitVelocityFields" class="row" style="display: none;">
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Time Interval (minutes):</label>
-                            <input type="number" class="form-control" id="exitVelocityLookback" placeholder="e.g., 5" value="5">
-                          </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Operator:</label>
-                            <select class="form-select" id="exitVelocityOperator">
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
-                            </select>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Threshold (%):</label>
-                            <input type="number" class="form-control" id="exitVelocityThreshold" step="0.01" placeholder="e.g., 1.5">
-                          </div>
-                        </div>
+                        <div></div>
                       </div>
 
-                      <div id="exitCustomSection" class="stock-backtester-builder" style="display: none;">
-                        <div class="alert alert-info">
-                          <i class="fas fa-tools me-2"></i>Custom Condition Builder - Compare candles to define exit triggers
-                        </div>
-                        <div id="exitConditionsContainer" class="conditions-container"></div>
-                        <button type="button" class="btn btn-secondary btn-sm mt-2" id="addExitConditionBtn" onclick="addExitCondition()">
-                          <i class="fas fa-plus me-1"></i>Add Exit Condition
-                        </button>
+                      <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Position Sizing</label>
+                      <div class="alloc-type-row">
+                        <button type="button" class="alloc-type-btn on" id="sizingSharesBtn" data-sizing="shares" onclick="setStockSizing('shares')">Fixed Shares</button>
+                        <button type="button" class="alloc-type-btn" id="sizingDollarsBtn" data-sizing="dollars" onclick="setStockSizing('dollars')">Fixed $</button>
+                        <button type="button" class="alloc-type-btn" id="sizingPercentBtn" data-sizing="percent" onclick="setStockSizing('percent')">% of Capital</button>
                       </div>
-                    </div>
+                      <input type="radio" name="sizing_type" id="sizingShares" value="shares" checked class="bt-hidden-radio">
+                      <input type="radio" name="sizing_type" id="sizingDollars" value="dollars" class="bt-hidden-radio">
+                      <input type="radio" name="sizing_type" id="sizingPercent" value="percent" class="bt-hidden-radio">
 
-                    <!-- [6/8] ENTRY CRITERIA -->
-                    <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[6/8]</span> ENTRY CRITERIA</div>
-                      
-                      <!-- Direction Selection -->
-                      <div class="mb-3">
-                        <label class="form-label">Direction:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="direction" id="dirLong" value="long" checked>
-                          <label class="form-check-label" for="dirLong">Long</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="direction" id="dirShort" value="short">
-                          <label class="form-check-label" for="dirShort">Short</label>
-                        </div>
-                      </div>
-                      
-                      <!-- Position Sizing -->
-                      <div class="mb-3">
-                        <label class="form-label">Position Sizing:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="sizing_type" id="sizingShares" value="shares" checked>
-                          <label class="form-check-label" for="sizingShares">Fixed Shares</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="sizing_type" id="sizingDollars" value="dollars">
-                          <label class="form-check-label" for="sizingDollars">Fixed Dollars</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="sizing_type" id="sizingPercent" value="percent">
-                          <label class="form-check-label" for="sizingPercent">% of Capital</label>
-                        </div>
-                      </div>
-                      
-                      <!-- Shares -->
-                      <div id="sharesSection" class="mb-3">
-                        <label class="form-label">Number of Shares:</label>
+                      <div id="sharesSection" style="margin-top:12px; max-width:220px;">
+                        <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Number of Shares</label>
                         <input type="number" class="form-control" id="stockSizingShares" min="1" placeholder="e.g., 100">
                       </div>
-                      
-                      <!-- Dollars -->
-                      <div id="dollarsSection" class="mb-3" style="display: none;">
-                        <label class="form-label">Dollar Amount:</label>
-                        <input type="number" class="form-control" id="stockSizingDollars" step="0.01" min="0.01" placeholder="e.g., 5000.00">
-                      </div>
-                      
-                      <!-- Percent -->
-                      <div id="percentSection" class="row" style="display: none;">
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Starting Capital ($):</label>
-                          <input type="number" class="form-control" id="stockStartingCapital" step="0.01" min="1" placeholder="e.g., 50000">
+                      <div id="dollarsSection" style="display:none; margin-top:12px; max-width:220px;">
+                        <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Dollar Amount per Trade</label>
+                        <div class="tpsl-input-row">
+                          <span class="tpsl-suffix">$</span>
+                          <input type="number" class="form-control" id="stockSizingDollars" step="0.01" min="0.01" placeholder="5000">
                         </div>
-                        <div class="col-md-6 mb-3">
-                          <label class="form-label">Percent of Capital (%):</label>
-                          <input type="number" class="form-control" id="stockSizingPercent" step="0.01" min="0.01" max="100" placeholder="e.g., 10">
+                      </div>
+                      <div id="percentSection" style="display:none; margin-top:12px;">
+                        <div class="bt-grid-2">
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Starting Capital</label>
+                            <div class="tpsl-input-row">
+                              <span class="tpsl-suffix">$</span>
+                              <input type="number" class="form-control" id="stockStartingCapital" step="0.01" min="1" placeholder="50000">
+                            </div>
+                          </div>
+                          <div>
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Percent of Capital</label>
+                            <div class="tpsl-input-row">
+                              <input type="number" class="form-control" id="stockSizingPercent" step="0.01" min="0.01" max="100" placeholder="10">
+                              <span class="tpsl-suffix">%</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <!-- [7/8] EXIT CRITERIA -->
+                    <!-- 5. TAKE PROFIT & STOP LOSS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[7/8]</span> EXIT CRITERIA</div>
-                      
-                      <!-- Take Profit -->
-                      <div class="mb-3">
-                        <label class="form-label">Take Profit Type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="take_profit_type" id="stockTpPct" value="percent" checked>
-                          <label class="form-check-label" for="stockTpPct">Percent (%)</label>
+                      <div class="section-label">
+                        <span class="section-step" style="background:#0d9488;">5</span>
+                        <i class="fas fa-balance-scale section-icon" style="color:#0d9488;"></i>
+                        Take Profit &amp; Stop Loss
+                      </div>
+
+                      <div class="tpsl-row" style="margin-bottom:14px;">
+                        <!-- Take Profit -->
+                        <div class="tpsl-card">
+                          <div class="tpsl-card-title"><i class="fas fa-trophy" style="color:#22c55e;"></i> Take Profit</div>
+                          <div class="tpsl-type-row">
+                            <button type="button" class="tpsl-type-btn on" id="stockTpPctBtn" onclick="setStockTpType('percent')">% move</button>
+                            <button type="button" class="tpsl-type-btn" id="stockTpDollarBtn" onclick="setStockTpType('dollar')">$ per share</button>
+                          </div>
+                          <input type="radio" name="take_profit_type" id="stockTpPct" value="percent" checked class="bt-hidden-radio">
+                          <input type="radio" name="take_profit_type" id="stockTpDollar" value="dollar" class="bt-hidden-radio">
+                          <div class="tpsl-input-row">
+                            <input type="number" class="form-control" id="takeProfitValue" step="0.01" min="0.01" placeholder="e.g., 5">
+                            <span class="tpsl-suffix" id="stockTpSuffix">%</span>
+                          </div>
+                          <div class="field-hint" style="margin-top:6px;">Close when profit reaches this level.</div>
                         </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="take_profit_type" id="stockTpDollar" value="dollar">
-                          <label class="form-check-label" for="stockTpDollar">Dollar ($)</label>
+                        <!-- Stop Loss -->
+                        <div class="tpsl-card">
+                          <div class="tpsl-card-title"><i class="fas fa-shield-alt" style="color:#ef4444;"></i> Stop Loss</div>
+                          <div class="tpsl-type-row">
+                            <button type="button" class="tpsl-type-btn on" id="stockSlPctBtn" onclick="setStockSlType('percent')">% move</button>
+                            <button type="button" class="tpsl-type-btn" id="stockSlDollarBtn" onclick="setStockSlType('dollar')">$ per share</button>
+                          </div>
+                          <input type="radio" name="stop_loss_type" id="stockSlPct" value="percent" checked class="bt-hidden-radio">
+                          <input type="radio" name="stop_loss_type" id="stockSlDollar" value="dollar" class="bt-hidden-radio">
+                          <div class="tpsl-input-row">
+                            <input type="number" class="form-control" id="stopLossValue" step="0.01" min="0.01" placeholder="e.g., 3">
+                            <span class="tpsl-suffix" id="stockSlSuffix">%</span>
+                          </div>
+                          <div class="field-hint" style="margin-top:6px;">Close when loss reaches this threshold.</div>
                         </div>
                       </div>
-                      <div class="mb-3">
-                        <label class="form-label">Take Profit Value:</label>
-                        <input type="number" class="form-control" id="takeProfitValue" step="0.01" min="0.01" placeholder="e.g., 5 (for 5% or $5)">
-                      </div>
-                      
-                      <!-- Stop Loss -->
-                      <div class="mb-3">
-                        <label class="form-label">Stop Loss Type:</label>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="stop_loss_type" id="stockSlPct" value="percent" checked>
-                          <label class="form-check-label" for="stockSlPct">Percent (%)</label>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="radio" name="stop_loss_type" id="stockSlDollar" value="dollar">
-                          <label class="form-check-label" for="stockSlDollar">Dollar ($)</label>
-                        </div>
-                      </div>
-                      <div class="mb-3">
-                        <label class="form-label">Stop Loss Value:</label>
-                        <input type="number" class="form-control" id="stopLossValue" step="0.01" min="0.01" placeholder="e.g., 3 (for 3% or $3)">
-                      </div>
-                      
-                      <!-- Max Days -->
-                      <div class="mb-3">
-                        <label class="form-label">Max Days in Trade:</label>
-                        <input type="number" class="form-control" id="maxDays" min="1" placeholder="e.g., 5">
+
+                      <div style="max-width:220px;">
+                        <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Max Days in Trade <span class="section-opt-badge">optional</span></label>
+                        <input type="number" class="form-control" id="maxDays" min="1" placeholder="e.g., 5 (no limit if blank)">
+                        <div class="field-hint">Auto-close position after N calendar days.</div>
                       </div>
                     </div>
 
-                    <!-- [8/8] ADVANCED OPTIONS -->
+                    <!-- OPTIONAL DIVIDER -->
+                    <div style="margin: 4px 0 0; padding:10px 0 0;">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="flex:1; height:1px; background:#e2e8f0;"></div>
+                        <span style="font-size:0.72rem; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;">Optional Settings</span>
+                        <div style="flex:1; height:1px; background:#e2e8f0;"></div>
+                      </div>
+                    </div>
+
+                    <!-- OPT: EXIT CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label"><span class="section-number">[8/8]</span> ADVANCED OPTIONS</div>
-                      <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="allowConsecutive">
-                        <label class="form-check-label" for="allowConsecutive">Allow consecutive trades (new entry if already in position for same symbol)</label>
+                      <div class="opt-section-header" onclick="toggleOptSection('stockExitConds')">
+                        <span class="section-step opt">&#9664;</span>
+                        <i class="fas fa-door-open section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal-Based Exit Conditions</span>
+                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
+                      </div>
+                      <div class="opt-section-body" id="stockExitCondsBody">
+                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Close the trade early when the stock meets a secondary signal condition (e.g., reversal indicator).</p>
+
+                        <div style="display:flex; gap:8px; margin-bottom:14px;">
+                          <button type="button" class="bt-toggle-btn on" id="exitCondPresetBtn" onclick="setExitCondType('preset')" style="max-width:160px;">Preset Signal</button>
+                          <button type="button" class="bt-toggle-btn" id="exitCondCustomBtn" onclick="setExitCondType('custom')" style="max-width:160px;">Custom Builder</button>
+                        </div>
+                        <input type="radio" name="exit_cond_type" id="exitCondPreset" value="preset" checked class="bt-hidden-radio">
+                        <input type="radio" name="exit_cond_type" id="exitCondCustom" value="custom" class="bt-hidden-radio">
+
+                        <div id="exitPresetSection">
+                          <div style="margin-bottom:12px;">
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Signal Type <span style="font-weight:400; color:#94a3b8;">(blank = no condition exit)</span></label>
+                            <select class="form-select" id="exitPresetCondition">
+                              <option value="">-- None / Skip --</option>
+                              <option value="1">Premarket Change %</option>
+                              <option value="2">Change % (from prev close)</option>
+                              <option value="3">Gap % (open vs prev close)</option>
+                              <option value="4">Change-Open %</option>
+                              <option value="5">Velocity (Rate of Change)</option>
+                            </select>
+                          </div>
+                          <div id="exitStandardPresetFields" class="bt-grid-2" style="display:none;">
+                            <div>
+                              <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Operator</label>
+                              <select class="form-select" id="exitPresetOperator">
+                                <option value=">">> (greater than)</option>
+                                <option value="<">< (less than)</option>
+                                <option value=">=">>= (greater or equal)</option>
+                                <option value="<="><= (less or equal)</option>
+                                <option value="="">= (equals)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Threshold (%)</label>
+                              <input type="number" class="form-control" id="exitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
+                            </div>
+                          </div>
+                          <div id="exitVelocityFields" class="bt-grid-2" style="display:none;">
+                            <div>
+                              <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Interval (min)</label>
+                              <input type="number" class="form-control" id="exitVelocityLookback" placeholder="5" value="5">
+                            </div>
+                            <div>
+                              <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Operator</label>
+                              <select class="form-select" id="exitVelocityOperator">
+                                <option value=">">> (greater than)</option>
+                                <option value="<">< (less than)</option>
+                                <option value=">=">>= </option>
+                                <option value="<="><= </option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:6px;">Threshold (%)</label>
+                              <input type="number" class="form-control" id="exitVelocityThreshold" step="0.01" placeholder="e.g., 1.5">
+                            </div>
+                          </div>
+                        </div>
+
+                        <div id="exitCustomSection" class="stock-backtester-builder" style="display:none;">
+                          <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Condition Builder — Compare candles and indicators to define exit triggers</div>
+                          <div id="exitConditionsContainer" class="conditions-container"></div>
+                          <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addExitConditionBtn" onclick="addExitCondition()">
+                            <i class="fas fa-plus me-1"></i>Add Exit Condition
+                          </button>
+                        </div>
+                      </div><!-- /opt-section-body stockExitCondsBody -->
+                    </div><!-- /backtester-section exit conds -->
+
+                    <!-- OPT: ADVANCED OPTIONS -->
+                    <div class="backtester-section" style="border-bottom:none;">
+                      <div class="opt-section-header" onclick="toggleOptSection('stockAdvanced')">
+                        <span class="section-step opt">&#9664;</span>
+                        <i class="fas fa-sliders-h section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Advanced Options</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
+                      </div>
+                      <div class="opt-section-body" id="stockAdvancedBody">
+                        <div style="display:flex; align-items:flex-start; gap:12px; padding:4px 0 8px;">
+                          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <label style="font-size:0.8rem; color:#475569; font-weight:600; margin:0;">Allow Consecutive Trades</label>
+                            <div style="display:flex; gap:8px;">
+                              <button type="button" class="bt-toggle-btn on" id="consecYesBtn" onclick="setConsecTrades(true)" style="max-width:80px; font-size:0.8rem; padding:5px 14px;">Yes</button>
+                              <button type="button" class="bt-toggle-btn" id="consecNoBtn" onclick="setConsecTrades(false)" style="max-width:80px; font-size:0.8rem; padding:5px 14px;">No</button>
+                            </div>
+                            <input type="checkbox" id="allowConsecutive" class="bt-hidden-radio" checked>
+                          </div>
+                        </div>
+                        <div class="field-hint">When enabled, a new entry can be opened on a symbol that already has an active position.</div>
                       </div>
                     </div>
 
-                    <!-- Submit Buttons -->
-                    <div class="d-flex gap-2 mt-4 flex-wrap">
-                      <button type="submit" class="btn btn-success btn-lg" id="runStockBacktestBtn">
+                    <!-- Sticky Run Bar -->
+                    <div class="bt-run-bar" style="background:linear-gradient(135deg,#065f46,#0d9488);">
+                      <div style="flex:1;">
+                        <div style="font-size:0.8rem; color:rgba(255,255,255,0.8);">Ready to run?</div>
+                        <div style="font-size:0.72rem; color:rgba(255,255,255,0.55);">All required fields must be filled before running.</div>
+                      </div>
+                      <button type="button" class="btn btn-secondary btn-sm" id="resetStockBacktestBtn" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); color:white;">
+                        <i class="fas fa-redo me-1"></i>Reset
+                      </button>
+                      <button type="submit" class="btn btn-lg" id="runStockBacktestBtn" style="background:white; color:#065f46; font-weight:700; border:none; padding:10px 28px; border-radius:8px; font-size:0.9rem;">
                         <i class="fas fa-play me-2"></i>Run Backtest
                       </button>
-                      <button type="button" class="btn btn-secondary btn-lg" id="resetStockBacktestBtn">
-                        <i class="fas fa-redo me-2"></i>Reset Form
-                      </button>
                     </div>
+
                   </form>
 
                   <div id="configSummaryOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
@@ -5069,6 +5106,78 @@
       }
       
       // ========== STOCK BACKTESTER ==========
+      /* ── Stock Backtester Toggle Helpers ── */
+      function setSymbolMode(mode) {
+        document.getElementById('symbolSingle').checked = mode === 'single';
+        document.getElementById('symbolMultiple').checked = mode === 'multiple';
+        document.getElementById('singleSymbolSection').style.display = mode === 'single' ? 'block' : 'none';
+        document.getElementById('multipleSymbolsSection').style.display = mode === 'multiple' ? 'block' : 'none';
+        document.getElementById('symbolSingleBtn').classList.toggle('on', mode === 'single');
+        document.getElementById('symbolMultipleBtn').classList.toggle('on', mode === 'multiple');
+      }
+
+      function setEntryType(type) {
+        document.getElementById('entryPreset').checked = type === 'preset';
+        document.getElementById('entryCustom').checked = type === 'custom';
+        document.getElementById('presetSection').style.display = type === 'preset' ? 'block' : 'none';
+        document.getElementById('customSection').style.display = type === 'custom' ? 'block' : 'none';
+        document.getElementById('entryPresetBtn').classList.toggle('on', type === 'preset');
+        document.getElementById('entryCustomBtn').classList.toggle('on', type === 'custom');
+      }
+
+      function setExitCondType(type) {
+        document.getElementById('exitCondPreset').checked = type === 'preset';
+        document.getElementById('exitCondCustom').checked = type === 'custom';
+        document.getElementById('exitPresetSection').style.display = type === 'preset' ? 'block' : 'none';
+        document.getElementById('exitCustomSection').style.display = type === 'custom' ? 'block' : 'none';
+        document.getElementById('exitCondPresetBtn').classList.toggle('on', type === 'preset');
+        document.getElementById('exitCondCustomBtn').classList.toggle('on', type === 'custom');
+      }
+
+      function setDirection(dir) {
+        document.getElementById('dirLong').checked = dir === 'long';
+        document.getElementById('dirShort').checked = dir === 'short';
+        document.getElementById('dirLongBtn').classList.toggle('on', dir === 'long');
+        document.getElementById('dirShortBtn').classList.toggle('on', dir === 'short');
+      }
+
+      function setStockSizing(type) {
+        document.getElementById('sizingShares').checked = type === 'shares';
+        document.getElementById('sizingDollars').checked = type === 'dollars';
+        document.getElementById('sizingPercent').checked = type === 'percent';
+        ['Shares','Dollars','Percent'].forEach(t => {
+          document.getElementById('sizing' + t + 'Btn').classList.toggle('on', type === t.toLowerCase());
+        });
+        document.getElementById('sharesSection').style.display = type === 'shares' ? 'block' : 'none';
+        document.getElementById('dollarsSection').style.display = type === 'dollars' ? 'block' : 'none';
+        document.getElementById('percentSection').style.display = type === 'percent' ? 'block' : 'none';
+      }
+
+      function setStockTpType(type) {
+        document.getElementById('stockTpPct').checked = type === 'percent';
+        document.getElementById('stockTpDollar').checked = type === 'dollar';
+        document.getElementById('stockTpPctBtn').classList.toggle('on', type === 'percent');
+        document.getElementById('stockTpDollarBtn').classList.toggle('on', type === 'dollar');
+        const suffix = document.getElementById('stockTpSuffix');
+        if (suffix) suffix.textContent = type === 'percent' ? '%' : '$';
+      }
+
+      function setStockSlType(type) {
+        document.getElementById('stockSlPct').checked = type === 'percent';
+        document.getElementById('stockSlDollar').checked = type === 'dollar';
+        document.getElementById('stockSlPctBtn').classList.toggle('on', type === 'percent');
+        document.getElementById('stockSlDollarBtn').classList.toggle('on', type === 'dollar');
+        const suffix = document.getElementById('stockSlSuffix');
+        if (suffix) suffix.textContent = type === 'percent' ? '%' : '$';
+      }
+
+      function setConsecTrades(val) {
+        const cb = document.getElementById('allowConsecutive');
+        if (cb) cb.checked = val;
+        document.getElementById('consecYesBtn').classList.toggle('on', val === true);
+        document.getElementById('consecNoBtn').classList.toggle('on', val === false);
+      }
+
       function initStockBacktester() {
         setupStockSymbolMode();
         setupStockEntryType();
@@ -5079,6 +5188,7 @@
         setupStockFormSubmit();
         setupStockResetBtn();
         setStockDefaultDates();
+        setConsecTrades(true);
       }
       
       function setStockDefaultDates() {
@@ -5176,19 +5286,22 @@
             const form = document.getElementById('stockBacktestForm');
             if (form) form.reset();
             setStockDefaultDates();
-            document.getElementById('singleSymbolSection').style.display = 'block';
-            document.getElementById('multipleSymbolsSection').style.display = 'none';
-            document.getElementById('presetSection').style.display = 'block';
-            document.getElementById('customSection').style.display = 'none';
-            document.getElementById('exitPresetSection').style.display = 'block';
-            document.getElementById('exitCustomSection').style.display = 'none';
+            setSymbolMode('single');
+            setEntryType('preset');
+            setExitCondType('preset');
+            setDirection('long');
+            setStockSizing('shares');
+            setStockTpType('percent');
+            setStockSlType('percent');
+            setConsecTrades(true);
             document.getElementById('exitStandardPresetFields').style.display = 'none';
             document.getElementById('exitVelocityFields').style.display = 'none';
+            document.getElementById('standardPresetFields').style.display = 'grid';
+            document.getElementById('velocityFields').style.display = 'none';
             var exitContainer = document.getElementById('exitConditionsContainer');
             if (exitContainer) exitContainer.innerHTML = '';
-            document.getElementById('sharesSection').style.display = 'block';
-            document.getElementById('dollarsSection').style.display = 'none';
-            document.getElementById('percentSection').style.display = 'none';
+            var entryContainer = document.getElementById('conditionsContainer');
+            if (entryContainer) entryContainer.innerHTML = '';
           });
         }
       }
