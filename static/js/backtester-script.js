@@ -1170,6 +1170,7 @@ function setupStrategySelection() {
 }
 
 function buildLegConfiguration(strategy) {
+    console.log('[BUILD_LEG_CONFIG] backtester-script.js version called for:', strategy);
     const legDefinitions = getStrategyLegs(strategy);
     const container = document.getElementById('legConfigSection');
     

@@ -4744,6 +4744,7 @@
       }
       
       function buildLegConfiguration(strategy) {
+        console.log('[BUILD_LEG_CONFIG] index.html version called for:', strategy);
         const legDefs = getStrategyLegs(strategy);
         const container = document.getElementById('legConfigSection');
         if (legDefs.length === 0) {
