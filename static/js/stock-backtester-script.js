@@ -5,122 +5,6 @@ let conditionCount = 0;
 let exitConditionCount = 0;
 let exitConditionNextId = 0;
 
-// ─── Toggle UI helpers (redesigned form) ──────────────────────────────────────
-
-function stkToggle(btn) {
-    var radioName = btn.getAttribute('data-radio');
-    var val = btn.getAttribute('data-val');
-    if (!radioName) return;
-    document.querySelectorAll('input[name="' + radioName + '"]').forEach(function(r) {
-        r.checked = (r.value === val);
-    });
-    var parent = btn.closest('.bt-toggle-row') || btn.parentElement;
-    parent.querySelectorAll('.bt-toggle-btn[data-radio="' + radioName + '"]').forEach(function(b) {
-        b.classList.toggle('on', b === btn);
-    });
-}
-
-function toggleSymbolMode(mode) {
-    var single = document.getElementById('singleSymbolSection');
-    var multi  = document.getElementById('multipleSymbolsSection');
-    if (single) single.style.display = mode === 'single' ? 'block' : 'none';
-    if (multi)  multi.style.display  = mode === 'multiple' ? 'block' : 'none';
-}
-
-function toggleEntryType(type) {
-    var preset = document.getElementById('presetSection');
-    var custom = document.getElementById('customSection');
-    if (preset) preset.style.display = type === 'preset' ? 'block' : 'none';
-    if (custom) custom.style.display = type === 'custom' ? 'block' : 'none';
-    if (type === 'custom') {
-        var cc = document.getElementById('conditionsContainer');
-        if (cc && cc.children.length === 0) addCondition();
-    }
-    if (type === 'preset') updatePresetFields();
-}
-
-function toggleExitCondType(type) {
-    var ep = document.getElementById('exitPresetSection');
-    var ec = document.getElementById('exitCustomSection');
-    if (ep) ep.style.display = type === 'preset' ? 'block' : 'none';
-    if (ec) ec.style.display = type === 'custom'  ? 'block' : 'none';
-    if (type === 'custom') {
-        var ecc = document.getElementById('exitConditionsContainer');
-        if (ecc && ecc.children.length === 0) addExitCondition();
-    }
-}
-
-function setStkSizing(type) {
-    document.querySelectorAll('.alloc-type-btn').forEach(function(b) {
-        b.classList.toggle('on', b.getAttribute('data-sizing') === type);
-    });
-    document.querySelectorAll('input[name="sizing_type"]').forEach(function(r) {
-        r.checked = (r.value === type);
-    });
-    updateSizingType();
-}
-
-function setStkTpType(type) {
-    var pBtn = document.getElementById('stockTpPctBtn');
-    var dBtn = document.getElementById('stockTpDollarBtn');
-    if (pBtn) pBtn.classList.toggle('on', type === 'percent');
-    if (dBtn) dBtn.classList.toggle('on', type === 'dollar');
-    var rPct = document.getElementById('stockTpPct');
-    var rDol = document.getElementById('stockTpDollar');
-    if (rPct) rPct.checked = (type === 'percent');
-    if (rDol) rDol.checked = (type === 'dollar');
-    var sfx = document.getElementById('stockTpSuffix');
-    if (sfx) sfx.textContent = type === 'percent' ? '%' : '$';
-}
-
-function setStkSlType(type) {
-    var pBtn = document.getElementById('stockSlPctBtn');
-    var dBtn = document.getElementById('stockSlDollarBtn');
-    if (pBtn) pBtn.classList.toggle('on', type === 'percent');
-    if (dBtn) dBtn.classList.toggle('on', type === 'dollar');
-    var rPct = document.getElementById('stockSlPct');
-    var rDol = document.getElementById('stockSlDollar');
-    if (rPct) rPct.checked = (type === 'percent');
-    if (rDol) rDol.checked = (type === 'dollar');
-    var sfx = document.getElementById('stockSlSuffix');
-    if (sfx) sfx.textContent = type === 'percent' ? '%' : '$';
-}
-
-// Collapsible optional sections (guard in case backtester-script already defined it)
-if (typeof toggleOptSection !== 'function') {
-    window.toggleOptSection = function(id) {
-        var body   = document.getElementById(id + 'Body');
-        var header = body ? body.previousElementSibling : null;
-        if (!body) return;
-        var isOpen = body.style.display !== 'none';
-        body.style.display = isOpen ? 'none' : 'block';
-        if (header) {
-            var chev = header.querySelector('.opt-section-chevron');
-            var step = header.querySelector('.section-step.opt');
-            if (chev) chev.style.transform = isOpen ? '' : 'rotate(180deg)';
-            if (step) step.innerHTML = isOpen ? '&#9664;' : '&#9660;';
-        }
-    };
-}
-
-function setupStockFormToggles() {
-    document.querySelectorAll('#stockBacktestForm .bt-toggle-btn[data-radio]').forEach(function(btn) {
-        var radioName = btn.getAttribute('data-radio');
-        var val       = btn.getAttribute('data-val');
-        var checked   = document.querySelector('input[name="' + radioName + '"]:checked');
-        btn.classList.toggle('on', !!(checked && checked.value === val));
-    });
-    var szChecked = document.querySelector('input[name="sizing_type"]:checked');
-    if (szChecked) setStkSizing(szChecked.value);
-    var tpChecked = document.querySelector('input[name="take_profit_type"]:checked');
-    if (tpChecked) setStkTpType(tpChecked.value);
-    var slChecked = document.querySelector('input[name="stop_loss_type"]:checked');
-    if (slChecked) setStkSlType(slChecked.value);
-    toggleSymbolMode('single');
-    updateEntryType();
-    updateSizingType();
-}
-
 // Initialize form function (can be called from dashboard)
 function initializeStockBacktesterPage() {
     console.log('=== Stock Backtester V3.0 Initialized ===');
@@ -179,8 +63,8 @@ function initializeStockBacktesterPage() {
         
         console.log('Default dates set');
         
-        // Sync new toggle button visuals and initial display
-        setupStockFormToggles();
+        // Initialize with one condition if custom is selected
+        updateEntryType();
         
         console.log('Entry type initialized');
         
@@ -191,17 +75,7 @@ function initializeStockBacktesterPage() {
             form.addEventListener('submit', handleSubmit);
             console.log('✓ Form submit handler attached');
         } else {
-            // Retry once after a short delay (SPA may not have made the section visible yet)
-            setTimeout(function() {
-                const formRetry = document.getElementById('stockBacktestForm');
-                if (formRetry) {
-                    formRetry.removeEventListener('submit', handleSubmit);
-                    formRetry.addEventListener('submit', handleSubmit);
-                    console.log('✓ Form submit handler attached (retry)');
-                } else {
-                    console.warn('stockBacktestForm not found after retry — submit handler not attached');
-                }
-            }, 300);
+            console.error('ERROR: stockBacktestForm not found!');
         }
         
         console.log('=== Initialization Complete ===');
@@ -377,8 +251,10 @@ function resetStockBacktestForm() {
         if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
         if (endDateEl) endDateEl.valueAsDate = today;
         
-        // Reset dynamic sections + toggle button visuals
-        setupStockFormToggles();
+        // Reset dynamic sections
+        updateSymbolMode();
+        updateEntryType();
+        updateSizingType();
         
         // Clear conditions
         const conditionsContainer = document.getElementById('conditionsContainer');
