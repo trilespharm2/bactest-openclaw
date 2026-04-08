@@ -29,14 +29,18 @@ function initializeStockBacktesterPage() {
 
     function applyStockTierRestrictions() {
         if (typeof TierRestrictions === 'undefined') { setTimeout(applyStockTierRestrictions, 200); return; }
-        var startEl = document.getElementById('startDate');
-        var endEl = document.getElementById('endDate');
+        var startEl = document.getElementById('stockStartDate');
+        var endEl = document.getElementById('stockEndDate');
         TierRestrictions.applyDateConstraints(startEl, endEl);
         if (TierRestrictions.isFree()) {
             var customRadio = document.querySelector('input[name="entry_type"][value="custom"]');
             if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.4'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
             var multiRadio = document.querySelector('input[name="symbol_mode"][value="multiple"]');
             if (multiRadio) { multiRadio.disabled = true; multiRadio.parentElement.style.opacity = '0.4'; multiRadio.parentElement.title = 'Multiple symbols requires Standard or Premium plan'; }
+            var customToggleBtn = document.querySelector('#stockBacktesterPage .bt-toggle-btn[data-val="custom"]');
+            if (customToggleBtn) { customToggleBtn.disabled = true; customToggleBtn.style.opacity = '0.4'; customToggleBtn.title = 'Custom builder requires Standard or Premium plan'; }
+            var multiToggleBtn = document.querySelector('#stockBacktesterPage .bt-toggle-btn[data-val="multiple"]');
+            if (multiToggleBtn) { multiToggleBtn.disabled = true; multiToggleBtn.style.opacity = '0.4'; multiToggleBtn.title = 'Multiple symbols requires Standard or Premium plan'; }
         }
         var symEl = document.getElementById('singleSymbol');
         if (symEl) {
@@ -55,8 +59,8 @@ function initializeStockBacktesterPage() {
         const oneMonthAgo = new Date(today);
         oneMonthAgo.setMonth(today.getMonth() - 1);
         
-        const startDateEl = document.getElementById('startDate');
-        const endDateEl = document.getElementById('endDate');
+        const startDateEl = document.getElementById('stockStartDate');
+        const endDateEl = document.getElementById('stockEndDate');
         
         if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
         if (endDateEl) endDateEl.valueAsDate = today;
@@ -246,8 +250,8 @@ function resetStockBacktestForm() {
         const oneMonthAgo = new Date(today);
         oneMonthAgo.setMonth(today.getMonth() - 1);
         
-        const startDateEl = document.getElementById('startDate');
-        const endDateEl = document.getElementById('endDate');
+        const startDateEl = document.getElementById('stockStartDate');
+        const endDateEl = document.getElementById('stockEndDate');
         if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
         if (endDateEl) endDateEl.valueAsDate = today;
         
@@ -262,7 +266,32 @@ function resetStockBacktestForm() {
             conditionsContainer.innerHTML = '';
         }
         conditionCount = 0;
+        
+        // Sync redesigned toggle button visual states
+        syncStockToggleUI();
     }
+}
+
+function syncStockToggleUI() {
+    var page = document.getElementById('stockBacktesterPage');
+    if (!page) return;
+    page.querySelectorAll('.bt-toggle-btn[data-radio]').forEach(function(btn) {
+        var radioName = btn.dataset.radio;
+        var val = btn.dataset.val;
+        var radio = document.querySelector('input[name="' + radioName + '"][value="' + val + '"]');
+        btn.classList.toggle('on', radio ? radio.checked : false);
+    });
+    page.querySelectorAll('.alloc-type-btn[data-alloc]').forEach(function(btn) {
+        var radio = document.querySelector('input[name="sizing_type"][value="' + btn.dataset.alloc + '"]');
+        btn.classList.toggle('on', radio ? radio.checked : false);
+    });
+    setStockTpType(document.getElementById('stockTpPct').checked ? 'percent' : 'dollar');
+    setStockSlType(document.getElementById('stockSlPct').checked ? 'percent' : 'dollar');
+    setStockSizing(document.querySelector('input[name="sizing_type"]:checked').value);
+    var consecutive = document.getElementById('allowConsecutive');
+    page.querySelectorAll('.bt-toggle-btn[data-radio="_stockConsecutive"]').forEach(function(btn) {
+        btn.classList.toggle('on', (btn.dataset.val === 'yes') === consecutive.checked);
+    });
 }
 
 const STOCK_METRICS = [
@@ -1063,8 +1092,8 @@ async function collectFormData() {
     
     // Basic info
     config.name = document.getElementById('backtestName').value;
-    config.start_date = document.getElementById('startDate').value;
-    config.end_date = document.getElementById('endDate').value;
+    config.start_date = document.getElementById('stockStartDate').value;
+    config.end_date = document.getElementById('stockEndDate').value;
     
     // Symbol mode
     config.symbol_mode = document.querySelector('input[name="symbol_mode"]:checked').value;
@@ -1711,11 +1740,11 @@ function applyStockConfig(config) {
         document.getElementById('backtestName').value = config.name;
     }
 
-    if (document.getElementById('startDate') && config.start_date) {
-        document.getElementById('startDate').value = config.start_date;
+    if (document.getElementById('stockStartDate') && config.start_date) {
+        document.getElementById('stockStartDate').value = config.start_date;
     }
-    if (document.getElementById('endDate') && config.end_date) {
-        document.getElementById('endDate').value = config.end_date;
+    if (document.getElementById('stockEndDate') && config.end_date) {
+        document.getElementById('stockEndDate').value = config.end_date;
     }
 
     var symbolMode = config.symbol_mode || 'single';
@@ -2013,3 +2042,54 @@ async function cancelStockBacktest(backtestId) {
     }
 }
 
+
+// Shared UI toggle helpers (also defined in backtester-script.js for options form)
+if (typeof btToggle === 'undefined') {
+    window.btToggle = function(btn) {
+        const radioName = btn.dataset.radio;
+        const val = btn.dataset.val;
+        const radios = document.querySelectorAll('input[name="' + radioName + '"]');
+        radios.forEach(function(r) { r.checked = r.value === val; });
+        var allBtns = btn.parentElement ? btn.parentElement.querySelectorAll('.bt-toggle-btn') : [];
+        allBtns.forEach(function(b) { b.classList.remove('on'); });
+        btn.classList.add('on');
+    };
+}
+
+if (typeof toggleOptSection === 'undefined') {
+    window.toggleOptSection = function(id) {
+        var body = document.getElementById(id + 'Body');
+        var header = body ? body.previousElementSibling : null;
+        if (!body) return;
+        var isOpen = body.classList.contains('open');
+        body.classList.toggle('open', !isOpen);
+        if (header) header.classList.toggle('open', !isOpen);
+    };
+}
+
+// Stock backtester toggle helpers for redesigned UI
+function setStockSizing(type) {
+    document.getElementById('sizingShares').checked = type === 'shares';
+    document.getElementById('sizingDollars').checked = type === 'dollars';
+    document.getElementById('sizingPercent').checked = type === 'percent';
+    document.querySelectorAll('#stockBacktesterPage .alloc-type-btn').forEach(b => b.classList.toggle('on', b.dataset.alloc === type));
+    document.getElementById('sharesSection').style.display = type === 'shares' ? 'block' : 'none';
+    document.getElementById('dollarsSection').style.display = type === 'dollars' ? 'block' : 'none';
+    document.getElementById('percentSection').style.display = type === 'percent' ? 'grid' : 'none';
+}
+
+function setStockTpType(type) {
+    document.getElementById('stockTpPct').checked = type === 'percent';
+    document.getElementById('stockTpDollar').checked = type === 'dollar';
+    document.getElementById('stockTpPctBtn').classList.toggle('on', type === 'percent');
+    document.getElementById('stockTpDollarBtn').classList.toggle('on', type === 'dollar');
+    document.getElementById('stockTpSuffix').textContent = type === 'percent' ? '%' : '$';
+}
+
+function setStockSlType(type) {
+    document.getElementById('stockSlPct').checked = type === 'percent';
+    document.getElementById('stockSlDollar').checked = type === 'dollar';
+    document.getElementById('stockSlPctBtn').classList.toggle('on', type === 'percent');
+    document.getElementById('stockSlDollarBtn').classList.toggle('on', type === 'dollar');
+    document.getElementById('stockSlSuffix').textContent = type === 'percent' ? '%' : '$';
+}
