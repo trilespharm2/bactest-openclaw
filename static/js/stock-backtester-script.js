@@ -86,26 +86,6 @@ function setStkSlType(type) {
     if (sfx) sfx.textContent = type === 'percent' ? '%' : '$';
 }
 
-window.stkToggle = stkToggle;
-window.toggleSymbolMode = toggleSymbolMode;
-window.toggleEntryType = toggleEntryType;
-window.toggleExitCondType = toggleExitCondType;
-window.setStkSizing = setStkSizing;
-window.setStkTpType = setStkTpType;
-window.setStkSlType = setStkSlType;
-window.addCondition = addCondition;
-window.handleMultiCsvUpload = handleMultiCsvUpload;
-window.closeConfigSummary = closeConfigSummary;
-window.showConfigSummary = showConfigSummary;
-window.addExitCondition = addExitCondition;
-window.removeCondition = removeCondition;
-window.removeExitCondition = removeExitCondition;
-window.resetStockBacktestForm = resetStockBacktestForm;
-window.toggleCustomDay = toggleCustomDay;
-window.onStockCandleChange = onStockCandleChange;
-window.updateStockConditionFields = updateStockConditionFields;
-window.updateExitConditionFields = updateExitConditionFields;
-
 // Collapsible optional sections (guard in case backtester-script already defined it)
 if (typeof toggleOptSection !== 'function') {
     window.toggleOptSection = function(id) {
