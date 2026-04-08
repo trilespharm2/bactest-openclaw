@@ -433,7 +433,7 @@
       /* Backtester Styles */
       .backtester-section { margin-bottom: 0; padding: 20px 0; border-bottom: 1px solid #eef0f6; }
       .backtester-section:last-of-type { border-bottom: none; }
-      .section-label { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #1e293b; margin-bottom: 14px; font-size: 0.85rem; letter-spacing: 0.03em; text-transform: uppercase; background: linear-gradient(90deg, #eff6ff, #f0f4ff); padding: 8px 14px; border-radius: 6px; margin-left: -20px; margin-right: -20px; padding-left: 20px; }
+      .section-label { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #0f172a; margin-bottom: 14px; font-size: 0.85rem; letter-spacing: 0.03em; text-transform: uppercase; background: linear-gradient(90deg, #dbeafe, #e0e7ff); padding: 8px 14px; border-radius: 6px; margin-left: -20px; margin-right: -20px; padding-left: 20px; }
       .section-step { width: 24px; height: 24px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; font-weight: 800; flex-shrink: 0; }
       .section-number { background: #3b82f6; color: white; padding: 3px 9px; border-radius: 4px; font-size: 0.75em; font-weight: 700; flex-shrink: 0; }
       .section-step.opt { background: #94a3b8; }
@@ -1309,7 +1309,7 @@
                       </div>
                       <div class="bt-grid-2" style="margin-bottom:14px;">
                         <div>
-                          <label class="form-label fw-600" style="font-size:0.8rem; color:#475569; font-weight:600;">Symbol</label>
+                          <label class="form-label fw-600" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Symbol</label>
                           <input type="text" class="form-control" id="symbol" placeholder="SPX" required style="text-transform:uppercase;">
                           <div class="field-hint">SPX, AAPL, QQQ, TSLA, etc.</div>
                         </div>
@@ -1317,11 +1317,11 @@
                       </div>
                       <div class="bt-grid-2">
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Start Date</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Start Date</label>
                           <input type="date" class="form-control" id="startDate" required>
                         </div>
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">End Date</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">End Date</label>
                           <input type="date" class="form-control" id="endDate" required>
                         </div>
                       </div>
@@ -1336,12 +1336,12 @@
                       </div>
                       <div class="bt-grid-2">
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Entry Time</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Entry Time</label>
                           <input type="time" class="form-control" id="entryTime" min="09:30" max="16:00" value="10:00" required>
                           <div class="field-hint">Market hours: 09:30 – 16:00</div>
                         </div>
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Entry Window End <span class="section-opt-badge">optional</span></label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Entry Window End <span class="section-opt-badge">optional</span></label>
                           <input type="time" class="form-control" id="entryTimeMax" min="09:30" max="16:00">
                           <div class="field-hint">Leave blank for exact-time entry. Set a window to enter any time between start and end.</div>
                         </div>
@@ -1497,7 +1497,7 @@
                       </div>
                       <div class="bt-grid-2" style="margin-bottom:14px;">
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Starting Capital</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Starting Capital</label>
                           <div class="tpsl-input-row">
                             <span class="tpsl-suffix">$</span>
                             <input type="number" class="form-control" id="startingCapital" min="1000" step="1" value="50000" required>
@@ -1505,7 +1505,7 @@
                         </div>
                         <div></div>
                       </div>
-                      <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Allocation Per Trade</label>
+                      <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Allocation Per Trade</label>
                       <div class="alloc-type-row">
                         <button type="button" class="alloc-type-btn on" data-alloc="1" onclick="setAllocType(1)">% of Capital</button>
                         <button type="button" class="alloc-type-btn" data-alloc="2" onclick="setAllocType(2)">Fixed Contracts</button>
@@ -1550,7 +1550,7 @@
                       <div class="opt-section-body" id="tradeRulesBody">
                         <div class="bt-grid-2" style="margin-top:4px;">
                           <div>
-                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Concurrent Trades</label>
+                            <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Concurrent Trades</label>
                             <div class="bt-toggle-row">
                               <button type="button" class="bt-toggle-btn on" data-radio="concurrentTrades" data-val="n" onclick="btToggle(this)">One at a time</button>
                               <button type="button" class="bt-toggle-btn" data-radio="concurrentTrades" data-val="y" onclick="btToggle(this)">Allow concurrent</button>
@@ -1560,7 +1560,7 @@
                             <div class="field-hint" style="margin-top:6px;">Whether to hold multiple open trades simultaneously.</div>
                           </div>
                           <div>
-                            <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">PDT Rule Avoidance</label>
+                            <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">PDT Rule Avoidance</label>
                             <div class="bt-toggle-row">
                               <button type="button" class="bt-toggle-btn on" data-radio="avoidPdt" data-val="n" onclick="btToggle(this)">No restriction</button>
                               <button type="button" class="bt-toggle-btn" data-radio="avoidPdt" data-val="y" onclick="btToggle(this)">Avoid day trades</button>
@@ -1594,7 +1594,7 @@
                         </div>
                         <div id="optExitPresetSection">
                           <div class="mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Exit Signal:</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
                             <select class="form-select" id="optExitPresetCondition" onchange="updateOptExitPresetFields()">
                               <option value="">— None (skip) —</option>
                               <option value="1">Premarket Change %</option>
@@ -1606,7 +1606,7 @@
                           </div>
                           <div id="optExitStandardPresetFields" class="row" style="display:none;">
                             <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
                               <select class="form-select" id="optExitPresetOperator">
                                 <option value=">">></option><option value="<"><</option>
                                 <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
@@ -1614,24 +1614,24 @@
                               </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
                               <input type="number" class="form-control" id="optExitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
                             </div>
                           </div>
                           <div id="optExitVelocityFields" class="row" style="display:none;">
                             <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Interval (min):</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
                               <input type="number" class="form-control" id="optExitVelocityLookback" placeholder="5" value="5" min="1">
                             </div>
                             <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
                               <select class="form-select" id="optExitVelocityOperator">
                                 <option value=">">></option><option value="<"><</option>
                                 <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
                               </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
                               <input type="number" class="form-control" id="optExitVelocityThreshold" step="0.01" placeholder="1.5">
                             </div>
                           </div>
@@ -1748,7 +1748,7 @@
                         <div id="ivConditionParams" style="display:none;">
                           <div class="bt-grid-2">
                             <div>
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Condition:</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Condition:</label>
                               <select class="form-select" id="ivConditionOperator">
                                 <option value=">">&gt; (greater than)</option>
                                 <option value=">=">&gt;= (greater or equal)</option>
@@ -1757,7 +1757,7 @@
                               </select>
                             </div>
                             <div>
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">IV% Threshold:</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">IV% Threshold:</label>
                               <input type="number" class="form-control" id="ivConditionThreshold" step="0.1" min="0" max="500" placeholder="e.g., 25">
                               <div class="field-hint">Enter as percentage (e.g., 25 = 25%)</div>
                             </div>
@@ -1779,11 +1779,11 @@
                         <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Skip trades where net premium at entry is outside a desired range. Leave blank to skip.</p>
                         <div class="bt-grid-2">
                           <div>
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Min Net Premium ($)</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Min Net Premium ($)</label>
                             <input type="number" class="form-control" id="netPremiumMin" step="0.01" placeholder="No minimum">
                           </div>
                           <div>
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Max Net Premium ($)</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Max Net Premium ($)</label>
                             <input type="number" class="form-control" id="netPremiumMax" step="0.01" placeholder="No maximum">
                           </div>
                         </div>
@@ -1959,7 +1959,7 @@
                         <i class="fas fa-search-dollar section-icon" style="color:#059669;"></i>
                         Symbol &amp; Date Range
                       </div>
-                      <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Symbol Mode</label>
+                      <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Symbol Mode</label>
                       <div class="bt-toggle-row" style="margin-bottom:14px;">
                         <button type="button" class="bt-toggle-btn on" data-radio="symbol_mode" data-val="single" onclick="btToggle(this); document.getElementById('singleSymbolSection').style.display='block'; document.getElementById('multipleSymbolsSection').style.display='none';">Single</button>
                         <button type="button" class="bt-toggle-btn" data-radio="symbol_mode" data-val="multiple" onclick="btToggle(this); document.getElementById('singleSymbolSection').style.display='none'; document.getElementById('multipleSymbolsSection').style.display='block';">Multiple</button>
@@ -1967,11 +1967,11 @@
                       <input class="bt-hidden-radio" type="radio" name="symbol_mode" id="symbolSingle" value="single" checked>
                       <input class="bt-hidden-radio" type="radio" name="symbol_mode" id="symbolMultiple" value="multiple">
                       <div id="singleSymbolSection" class="mb-3">
-                        <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Symbol</label>
+                        <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Symbol</label>
                         <input type="text" class="form-control" id="singleSymbol" placeholder="SPY" style="text-transform:uppercase; max-width:220px;">
                       </div>
                       <div id="multipleSymbolsSection" class="mb-3" style="display:none;">
-                        <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Symbols (comma-separated)</label>
+                        <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Symbols (comma-separated)</label>
                         <textarea class="form-control" id="multipleSymbols" rows="3" placeholder="AAPL, MSFT, TSLA, GOOGL"></textarea>
                         <div class="mt-2" style="display:flex; align-items:center; gap:8px;">
                           <label class="btn btn-outline-secondary btn-sm" for="csvFileMultiple" style="cursor:pointer; border-radius:6px;">
@@ -1983,11 +1983,11 @@
                       </div>
                       <div class="bt-grid-2">
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Start Date</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Start Date</label>
                           <input type="date" class="form-control" id="stockStartDate" required>
                         </div>
                         <div>
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">End Date</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">End Date</label>
                           <input type="date" class="form-control" id="stockEndDate" required>
                         </div>
                       </div>
@@ -2008,7 +2008,7 @@
                       <input class="bt-hidden-radio" type="radio" name="entry_type" id="entryCustom" value="custom">
                       <div id="presetSection">
                         <div class="mb-3">
-                          <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Entry Signal:</label>
+                          <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Entry Signal:</label>
                           <select class="form-select" id="presetCondition">
                             <option value="1">Premarket Change %</option>
                             <option value="2">Change %</option>
@@ -2019,7 +2019,7 @@
                         </div>
                         <div id="standardPresetFields" class="row">
                           <div class="col-md-6 mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
                             <select class="form-select" id="presetOperator">
                               <option value=">">></option><option value="<"><</option>
                               <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
@@ -2027,24 +2027,24 @@
                             </select>
                           </div>
                           <div class="col-md-6 mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
                             <input type="number" class="form-control" id="presetThreshold" step="0.01" placeholder="e.g., 2.5">
                           </div>
                         </div>
                         <div id="velocityFields" class="row" style="display:none;">
                           <div class="col-md-4 mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Interval (min):</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
                             <input type="number" class="form-control" id="velocityLookback" placeholder="5" value="5">
                           </div>
                           <div class="col-md-4 mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
                             <select class="form-select" id="velocityOperator">
                               <option value=">">></option><option value="<"><</option>
                               <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
                             </select>
                           </div>
                           <div class="col-md-4 mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
                             <input type="number" class="form-control" id="velocityThreshold" step="0.01" placeholder="1.5">
                           </div>
                         </div>
@@ -2065,7 +2065,7 @@
                       </div>
                       <div class="bt-grid-2">
                         <div>
-                          <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Direction</label>
+                          <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Direction</label>
                           <div class="bt-toggle-row">
                             <button type="button" class="bt-toggle-btn on success" data-radio="direction" data-val="long" onclick="btToggle(this)"><i class="fas fa-arrow-up me-1"></i>Long</button>
                             <button type="button" class="bt-toggle-btn" data-radio="direction" data-val="short" onclick="btToggle(this)"><i class="fas fa-arrow-down me-1"></i>Short</button>
@@ -2076,7 +2076,7 @@
                         <div></div>
                       </div>
                       <div style="margin-top:16px;">
-                        <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Position Sizing</label>
+                        <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Position Sizing</label>
                         <div class="alloc-type-row">
                           <button type="button" class="alloc-type-btn on" data-alloc="shares" onclick="setStockSizing('shares')">Fixed Shares</button>
                           <button type="button" class="alloc-type-btn" data-alloc="dollars" onclick="setStockSizing('dollars')">Fixed Dollars</button>
@@ -2098,14 +2098,14 @@
                         </div>
                         <div id="percentSection" class="bt-grid-2" style="display:none;">
                           <div>
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Starting Capital</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Starting Capital</label>
                             <div class="tpsl-input-row">
                               <span class="tpsl-suffix">$</span>
                               <input type="number" class="form-control" id="stockStartingCapital" step="0.01" min="1" placeholder="50000">
                             </div>
                           </div>
                           <div>
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Allocation (%)</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Allocation (%)</label>
                             <div class="tpsl-input-row">
                               <input type="number" class="form-control" id="stockSizingPercent" step="0.01" min="0.01" max="100" placeholder="10">
                               <span class="tpsl-suffix">%</span>
@@ -2153,7 +2153,7 @@
                         </div>
                       </div>
                       <div style="max-width:220px;">
-                        <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Max Days in Trade</label>
+                        <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Max Days in Trade</label>
                         <input type="number" class="form-control" id="maxDays" min="1" placeholder="5">
                         <div class="field-hint">Auto-close after this many trading days.</div>
                       </div>
@@ -2187,7 +2187,7 @@
                         <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondCustom" value="custom">
                         <div id="exitPresetSection">
                           <div class="mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Exit Signal:</label>
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
                             <select class="form-select" id="exitPresetCondition">
                               <option value="">— None (skip) —</option>
                               <option value="1">Premarket Change %</option>
@@ -2199,7 +2199,7 @@
                           </div>
                           <div id="exitStandardPresetFields" class="row" style="display:none;">
                             <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
                               <select class="form-select" id="exitPresetOperator">
                                 <option value=">">></option><option value="<"><</option>
                                 <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
@@ -2207,24 +2207,24 @@
                               </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
                               <input type="number" class="form-control" id="exitPresetThreshold" step="0.01" placeholder="2.5">
                             </div>
                           </div>
                           <div id="exitVelocityFields" class="row" style="display:none;">
                             <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Interval (min):</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
                               <input type="number" class="form-control" id="exitVelocityLookback" placeholder="5" value="5">
                             </div>
                             <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Operator:</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
                               <select class="form-select" id="exitVelocityOperator">
                                 <option value=">">></option><option value="<"><</option>
                                 <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
                               </select>
                             </div>
                             <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#475569; font-weight:600;">Threshold (%):</label>
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
                               <input type="number" class="form-control" id="exitVelocityThreshold" step="0.01" placeholder="1.5">
                             </div>
                           </div>
@@ -2247,7 +2247,7 @@
                       </div>
                       <div class="opt-section-body" id="stockAdvancedBody">
                         <div style="margin-top:4px;">
-                          <label style="font-size:0.8rem; color:#475569; font-weight:600; display:block; margin-bottom:8px;">Consecutive Trades</label>
+                          <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Consecutive Trades</label>
                           <div class="bt-toggle-row">
                             <button type="button" class="bt-toggle-btn on" onclick="document.getElementById('allowConsecutive').checked=false; btToggle(this);" data-radio="_stockConsecutive" data-val="no">One at a time</button>
                             <button type="button" class="bt-toggle-btn" onclick="document.getElementById('allowConsecutive').checked=true; btToggle(this);" data-radio="_stockConsecutive" data-val="yes">Allow consecutive</button>
@@ -2926,7 +2926,7 @@
                   <p style="color:#64748b;font-size:0.88rem;max-width:420px;margin:0 auto 20px;">Your simulated trading results are saved to your account. Sign in or create a free account to track your performance over time.</p>
                   <div class="d-flex justify-content-center gap-2">
                     <a href="/login" class="btn" style="background:linear-gradient(135deg,#1b55e2,#6366f1);color:#fff;font-weight:700;padding:10px 28px;border-radius:8px;">Sign In</a>
-                    <a href="/register" class="btn" style="background:#fff;color:#475569;border:1px solid #d1d5db;font-weight:600;padding:10px 28px;border-radius:8px;">Create Free Account</a>
+                    <a href="/register" class="btn" style="background:#fff;color:#1e293b;border:1px solid #d1d5db;font-weight:600;padding:10px 28px;border-radius:8px;">Create Free Account</a>
                   </div>
                 </div>
               </div>

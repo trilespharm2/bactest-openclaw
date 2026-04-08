@@ -34,13 +34,13 @@ function initializeStockBacktesterPage() {
         TierRestrictions.applyDateConstraints(startEl, endEl);
         if (TierRestrictions.isFree()) {
             var customRadio = document.querySelector('input[name="entry_type"][value="custom"]');
-            if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.4'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
+            if (customRadio) { customRadio.disabled = true; customRadio.parentElement.style.opacity = '0.65'; customRadio.parentElement.title = 'Custom builder requires Standard or Premium plan'; }
             var multiRadio = document.querySelector('input[name="symbol_mode"][value="multiple"]');
-            if (multiRadio) { multiRadio.disabled = true; multiRadio.parentElement.style.opacity = '0.4'; multiRadio.parentElement.title = 'Multiple symbols requires Standard or Premium plan'; }
+            if (multiRadio) { multiRadio.disabled = true; multiRadio.parentElement.style.opacity = '0.65'; multiRadio.parentElement.title = 'Multiple symbols requires Standard or Premium plan'; }
             var customToggleBtn = document.querySelector('#stockBacktesterPage .bt-toggle-btn[data-val="custom"]');
-            if (customToggleBtn) { customToggleBtn.disabled = true; customToggleBtn.style.opacity = '0.4'; customToggleBtn.title = 'Custom builder requires Standard or Premium plan'; }
+            if (customToggleBtn) { customToggleBtn.disabled = true; customToggleBtn.style.opacity = '0.65'; customToggleBtn.style.cursor = 'not-allowed'; customToggleBtn.title = 'Custom builder requires Standard or Premium plan'; }
             var multiToggleBtn = document.querySelector('#stockBacktesterPage .bt-toggle-btn[data-val="multiple"]');
-            if (multiToggleBtn) { multiToggleBtn.disabled = true; multiToggleBtn.style.opacity = '0.4'; multiToggleBtn.title = 'Multiple symbols requires Standard or Premium plan'; }
+            if (multiToggleBtn) { multiToggleBtn.disabled = true; multiToggleBtn.style.opacity = '0.65'; multiToggleBtn.style.cursor = 'not-allowed'; multiToggleBtn.title = 'Multiple symbols requires Standard or Premium plan'; }
         }
         var symEl = document.getElementById('singleSymbol');
         if (symEl) {
