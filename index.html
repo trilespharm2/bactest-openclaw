@@ -442,30 +442,6 @@
       .section-opt-badge { font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid #e2e8f0; padding: 1px 7px; border-radius: 10px; margin-left: 2px; }
       .field-hint { font-size: 0.75rem; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
 
-      /* ── Backtester form-control contrast fix ─────────────────────────────── */
-      #backtesterPage .form-control,
-      #backtesterPage .form-select,
-      #stockBacktesterPage .form-control,
-      #stockBacktesterPage .form-select {
-        background-color: #ffffff !important;
-        border: 1.5px solid #94a3b8 !important;
-        border-radius: 7px !important;
-        color: #1e293b !important;
-        font-size: 0.88rem !important;
-      }
-      #backtesterPage .form-control:focus,
-      #backtesterPage .form-select:focus,
-      #stockBacktesterPage .form-control:focus,
-      #stockBacktesterPage .form-select:focus {
-        border-color: #3b82f6 !important;
-        box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
-        outline: none !important;
-      }
-      #backtesterPage .form-control::placeholder,
-      #stockBacktesterPage .form-control::placeholder {
-        color: #64748b !important;
-        opacity: 1;
-      }
       /* Textarea inside backtester */
       #backtesterPage textarea.form-control,
       #stockBacktesterPage textarea.form-control {
@@ -473,7 +449,7 @@
       }
       /* Section label backgrounds — slightly more opaque so fields stand out */
       #stockBacktesterPage .backtester-section > .section-label {
-        background: linear-gradient(90deg, #d1fae5, #e0fdf4) !important;
+        background: linear-gradient(90deg, #a7f3d0, #d1fae5) !important;
       }
       #backtesterPage .backtester-section > .section-label {
         background: linear-gradient(90deg, #dbeafe, #eff6ff) !important;
@@ -1979,7 +1955,7 @@
 
                     <!-- 1. BACKTEST NAME -->
                     <div class="backtester-section">
-                      <div class="section-label" style="background:linear-gradient(90deg,#ecfdf5,#f0fdf8);">
+                      <div class="section-label" style="background:linear-gradient(90deg,#a7f3d0,#d1fae5);">
                         <span class="section-step" style="background:#059669;">1</span>
                         <i class="fas fa-tag" style="color:#059669; font-size:0.9rem; flex-shrink:0;"></i>
                         Backtest Name
@@ -1990,7 +1966,7 @@
 
                     <!-- 2. SYMBOL & DATES -->
                     <div class="backtester-section">
-                      <div class="section-label" style="background:linear-gradient(90deg,#ecfdf5,#f0fdf8);">
+                      <div class="section-label" style="background:linear-gradient(90deg,#a7f3d0,#d1fae5);">
                         <span class="section-step" style="background:#059669;">2</span>
                         <i class="fas fa-search-dollar" style="color:#059669; font-size:0.9rem; flex-shrink:0;"></i>
                         Symbol &amp; Date Range
@@ -2037,7 +2013,7 @@
 
                     <!-- 3. ENTRY CONDITIONS -->
                     <div class="backtester-section">
-                      <div class="section-label" style="background:linear-gradient(90deg,#ecfdf5,#f0fdf8);">
+                      <div class="section-label" style="background:linear-gradient(90deg,#a7f3d0,#d1fae5);">
                         <span class="section-step" style="background:#059669;">3</span>
                         <i class="fas fa-sign-in-alt" style="color:#059669; font-size:0.9rem; flex-shrink:0;"></i>
                         Entry Conditions
@@ -2104,7 +2080,7 @@
 
                     <!-- 4. TRADE SETUP (Direction + Sizing) -->
                     <div class="backtester-section">
-                      <div class="section-label" style="background:linear-gradient(90deg,#ecfdf5,#f0fdf8);">
+                      <div class="section-label" style="background:linear-gradient(90deg,#a7f3d0,#d1fae5);">
                         <span class="section-step" style="background:#059669;">4</span>
                         <i class="fas fa-arrows-alt-v" style="color:#059669; font-size:0.9rem; flex-shrink:0;"></i>
                         Trade Setup
@@ -2168,7 +2144,7 @@
 
                     <!-- 5. TAKE PROFIT & STOP LOSS -->
                     <div class="backtester-section">
-                      <div class="section-label" style="background:linear-gradient(90deg,#ecfdf5,#f0fdf8);">
+                      <div class="section-label" style="background:linear-gradient(90deg,#a7f3d0,#d1fae5);">
                         <span class="section-step" style="background:#059669;">5</span>
                         <i class="fas fa-balance-scale" style="color:#059669; font-size:0.9rem; flex-shrink:0;"></i>
                         Take Profit &amp; Stop Loss
@@ -5350,13 +5326,16 @@
     html body #stockBacktesterPage select.form-select,
     html body #stockBacktesterPage select.form-control,
     html body #stockBacktesterPage textarea.form-control {
-      background: #ffffff !important;
+      background-color: #ffffff !important;
       border: 2px solid #64748b !important;
       border-radius: 7px !important;
       color: #0f172a !important;
       box-shadow: none !important;
       outline: none !important;
       padding: 8px 12px !important;
+      opacity: 1 !important;
+      font-size: 0.88rem !important;
+      -webkit-appearance: none !important;
     }
     html body #backtesterPage input.form-control:focus,
     html body #backtesterPage select.form-select:focus,
