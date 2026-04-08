@@ -1170,6 +1170,7 @@ function setupStrategySelection() {
 }
 
 function buildLegConfiguration(strategy) {
+    console.log('[BUILD_LEG_CONFIG] backtester-script.js version called for:', strategy);
     const legDefinitions = getStrategyLegs(strategy);
     const container = document.getElementById('legConfigSection');
     
@@ -1201,6 +1202,7 @@ function buildLegConfiguration(strategy) {
         }
         optionsHTML += `
             <option value="delta">${legDefinitions.length > 1 ? '6' : '4'}. Delta-based Strike Selection</option>
+            <option value="orb_breakout">${legDefinitions.length > 1 ? '7' : '5'}. ORB Breakout Strike Selection</option>
         `;
         
         const dteFieldHTML = leg.dte_label ? `
@@ -1436,6 +1438,61 @@ function handleLegMethodChange(e) {
             `;
             break;
             
+        case 'orb_breakout':
+            html = `
+                <div style="margin-bottom:10px; padding:8px 12px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px;">
+                    <small style="color:#795548; font-weight:600;">⏰ ORB Breakout: Strike is set relative to the Opening Range High or Low. Entry must occur <em>after</em> the ORB period ends.</small>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>ORB Period:</label>
+                        <select class="leg-param orb-param" data-param="orb_period" data-leg-index="${legIndex}">
+                            <option value="15">15 min &nbsp;(9:30–9:45)</option>
+                            <option value="30">30 min &nbsp;(9:30–10:00)</option>
+                            <option value="60" selected>60 min &nbsp;(9:30–10:30)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>ORB Level:</label>
+                        <select class="leg-param orb-param" data-param="orb_level" data-leg-index="${legIndex}">
+                            <option value="high">High</option>
+                            <option value="low" selected>Low</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Direction:</label>
+                        <select class="leg-param orb-param" data-param="direction" data-leg-index="${legIndex}">
+                            <option value="above" ${defaultDirection === 'above' ? 'selected' : ''}>above</option>
+                            <option value="below" ${defaultDirection === 'below' ? 'selected' : ''}>below</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Distance:</label>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <input type="number" class="leg-param orb-param" data-param="dist_value" data-leg-index="${legIndex}" step="0.5" min="0" placeholder="1" value="1" style="width:80px;">
+                            <select class="leg-param orb-param" data-param="dist_type" data-leg-index="${legIndex}" style="width:70px;">
+                                <option value="dollar">$</option>
+                                <option value="pct">%</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:12px;">
+                    <label>Strike selection fallback:</label>
+                    <select class="leg-param orb-param" data-param="strike_fallback" data-leg-index="${legIndex}">
+                        <option value="closest">Closest (default)</option>
+                        <option value="or_higher">Or Higher</option>
+                        <option value="or_less">Or Lower</option>
+                    </select>
+                </div>
+                <div id="orbSummary_${legIndex}" style="margin-top:10px; padding:8px 14px; background:#e8f5e9; border:1px solid #a5d6a7; border-radius:6px; font-size:13px; color:#2e7d32; font-weight:600;">
+                    <i class="fas fa-info-circle"></i> Strike: <span id="orbSummaryText_${legIndex}">$1 above 60 min low (closest)</span>
+                </div>
+            `;
+            break;
+
         case 'delta':
             // Delta default values based on leg type
             // Calls: positive delta (0.0 to 1.0)
@@ -1517,6 +1574,28 @@ function handleLegMethodChange(e) {
         inp.addEventListener('input', runInlineLegValidation);
     });
     runInlineLegValidation();
+
+    if (method === 'orb_breakout') {
+        const updateOrbSummary = () => {
+            const summaryEl = document.getElementById(`orbSummaryText_${legIndex}`);
+            if (!summaryEl) return;
+            const period = paramsContainer.querySelector('[data-param="orb_period"]')?.value || '60';
+            const level = paramsContainer.querySelector('[data-param="orb_level"]')?.value || 'low';
+            const direction = paramsContainer.querySelector('[data-param="direction"]')?.value || 'above';
+            const distVal = paramsContainer.querySelector('[data-param="dist_value"]')?.value || '1';
+            const distType = paramsContainer.querySelector('[data-param="dist_type"]')?.value || 'dollar';
+            const fallback = paramsContainer.querySelector('[data-param="strike_fallback"]')?.value || 'closest';
+            const distPrefix = distType === 'dollar' ? '$' : '';
+            const distSuffix = distType === 'pct' ? '%' : '';
+            const fallbackLabels = { closest: 'closest', or_higher: 'or higher', or_less: 'or lower' };
+            summaryEl.textContent = `${distPrefix}${distVal}${distSuffix} ${direction} ${period} min ${level} (${fallbackLabels[fallback] || fallback})`;
+        };
+        paramsContainer.querySelectorAll('.orb-param').forEach(el => {
+            el.addEventListener('change', updateOrbSummary);
+            el.addEventListener('input', updateOrbSummary);
+        });
+        updateOrbSummary();
+    }
 
     updateAllReferenceLegDropdowns();
 }
@@ -2035,7 +2114,7 @@ function buildOptConfigSummaryHtml(config) {
     let legsHtml = '';
     if (config.legs && config.legs.length > 0) {
         legsHtml = config.legs.map(leg => {
-            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg'};
+            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg','orb_breakout':'ORB Breakout'};
             const method = methodMap[leg.config_type] || leg.config_type;
             let paramStr = '';
             if (leg.params) {
@@ -2045,6 +2124,7 @@ function buildOptConfigSummaryHtml(config) {
                 else if (leg.config_type === 'pct_underlying') paramStr = `${p.direction || ''} ${p.pct || 0}%`;
                 else if (leg.config_type === 'dollar_underlying') paramStr = `${p.direction || ''} $${p.amount || 0}`;
                 else if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') paramStr = `From ${p.reference_leg || 'Leg'}: ${p.pct || p.amount || 0}${leg.config_type === 'pct_leg' ? '%' : '$'}`;
+                else if (leg.config_type === 'orb_breakout') { const dPfx = p.dist_type === 'pct' ? '' : '$'; const dSfx = p.dist_type === 'pct' ? '%' : ''; paramStr = `${dPfx}${p.dist_value}${dSfx} ${p.direction} ${p.orb_period}m ${p.orb_level} (${p.strike_fallback || 'closest'})`; }
             }
             const dteStr = leg.dte !== undefined ? ` (DTE: ${leg.dte})` : '';
             return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}${dteStr}</div>`;
