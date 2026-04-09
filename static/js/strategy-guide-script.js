@@ -821,5 +821,21 @@ function initStrategyGuide() {
   setupRefSearch('sgResSearchInput', 'sgResSearchClear', ['#sgResSections', '#sgStockResSections']);
   setupRefSearch('sgSimSearchInput', 'sgSimSearchClear', ['#sgSimSetupSections', '#sgSimActiveSections', '#sgSimResultsSections']);
 
+  const modeToggle = document.getElementById('sgSimModeToggle');
+  if (modeToggle) {
+    const modeBtns = modeToggle.querySelectorAll('.sg-mode-btn');
+    modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.simmode;
+        const stockContent = document.getElementById('sgSimModeStock');
+        const optionsContent = document.getElementById('sgSimModeOptions');
+        if (stockContent) stockContent.classList.toggle('active', mode === 'stock');
+        if (optionsContent) optionsContent.classList.toggle('active', mode === 'options');
+      });
+    });
+  }
+
   console.log('Strategy Guide initialized with', STRATEGY_DATA.length, 'strategies');
 }
