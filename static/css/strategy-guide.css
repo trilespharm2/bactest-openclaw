@@ -638,29 +638,6 @@
   font-style: italic;
 }
 
-.sg-bt-screenshot-wrap {
-  margin: 0 0 20px;
-  border: 1px solid #e0e3eb;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #f5f6f8;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-}
-
-.sg-bt-screenshot {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.sg-bt-screenshot-caption {
-  padding: 8px 14px;
-  background: #f5f6f8;
-  border-top: 1px solid #e0e3eb;
-  color: #787b86;
-  font-size: 12px;
-  font-style: italic;
-}
 
 @media (max-width: 600px) {
   .sg-tabs {
