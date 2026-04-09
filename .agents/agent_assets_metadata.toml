@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "FyEIQD5jp4EhLC52fanpi"
+uri = "file://screenshots/OPTIONS_RESULTS_REFERENCE.md"
+type = "text"
+title = "Options Backtest Results - Complete Reference Guide"
