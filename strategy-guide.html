@@ -3,6 +3,7 @@
     <button class="sg-tab active" data-tab="strategies"><i class="fas fa-chess me-1"></i>Strategy Guide</button>
     <button class="sg-tab" data-tab="backtester"><i class="fas fa-flask me-1"></i>Backtester Reference</button>
     <button class="sg-tab" data-tab="results"><i class="fas fa-chart-line me-1"></i>Results Reference</button>
+    <button class="sg-tab" data-tab="simTrading"><i class="fas fa-gamepad me-1"></i>Simulated Trading</button>
   </div>
 
   <div id="sgTabStrategies" class="sg-tab-content active">
@@ -1995,6 +1996,879 @@
               <li><strong>Market impact</strong> — Large share sizes can move the market in real trading.</li>
               <li><strong>Regime changes</strong> — Past performance doesn't guarantee future results.</li>
             </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+
+  </div>
+
+  <div id="sgTabSimTrading" class="sg-tab-content">
+    <div class="sg-header">
+      <h2><i class="fas fa-gamepad me-2"></i>Simulated Trading Reference</h2>
+      <p class="sg-subtitle">Complete guide to setting up sessions, using the live trading interface, and interpreting your results</p>
+      <div class="sg-sub-toggle">
+        <button class="sg-sub-toggle-btn active" data-subtab="sim-setup"><i class="fas fa-cog me-1"></i>Session Setup</button>
+        <button class="sg-sub-toggle-btn" data-subtab="sim-active"><i class="fas fa-bolt me-1"></i>Active Trading</button>
+        <button class="sg-sub-toggle-btn" data-subtab="sim-results"><i class="fas fa-chart-pie me-1"></i>Results</button>
+      </div>
+      <div class="sg-search-wrapper">
+        <i class="fas fa-search sg-search-icon"></i>
+        <input type="text" id="sgSimSearchInput" class="sg-search-input" placeholder="Search features, controls, or terms...">
+        <button id="sgSimSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+
+    <div id="sgSimSubSetup" class="sg-sub-content active">
+    <div id="sgSimSetupSections" class="sg-bt-sections">
+
+      <div class="sg-bt-section" data-section="sim-overview">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-info-circle"></i></span>
+          <h3>What is Simulated Trading?</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">Simulated Trading (also called Manual Backtesting or Paper Trading) lets you practice trading with virtual capital using real historical market data. Unlike the automated backtester, <strong>you</strong> make every trading decision — when to enter, when to exit, and how much to risk.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-check-circle" style="color:#089981"></i> Why Use It</div>
+            <ul class="sg-bt-list">
+              <li><strong>Practice without risk</strong> — Test strategies with $0 on the line.</li>
+              <li><strong>Learn price action</strong> — Watch how candles form and patterns develop in real-time playback.</li>
+              <li><strong>Build discipline</strong> — Practice entry/exit execution before risking real money.</li>
+              <li><strong>Test options strategies</strong> — Execute complex multi-leg options trades with live Greeks and payoff diagrams.</li>
+              <li><strong>Review and improve</strong> — Analyze your results with equity curves, trade logs, and performance metrics.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-config-symbol">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">1/5</span>
+          <h3>Symbol</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 90" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="90" fill="#ffffff" rx="8"/>
+              <text x="16" y="24" fill="#6a6d78" font-size="11" font-family="system-ui">Symbol</text>
+              <rect x="16" y="32" width="200" height="34" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <circle cx="34" cy="49" r="10" fill="#f0f3fa"/>
+              <text x="34" y="53" text-anchor="middle" fill="#2962ff" font-size="10" font-family="system-ui"><tspan>&#x1F50D;</tspan></text>
+              <text x="50" y="54" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">SPY</text>
+              <text x="16" y="80" fill="#94a3b8" font-size="10" font-family="system-ui">Enter any US stock or ETF ticker (e.g., SPY, AAPL, QQQ, TSLA)</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-search"></i> Symbol Input</div>
+            <div class="sg-bt-field-desc">The ticker symbol of the stock or ETF you want to trade. Historical intraday (1-minute) bar data will be fetched for this symbol. Defaults to SPY.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Start with liquid, high-volume tickers like SPY, QQQ, or AAPL for the most realistic experience with minimal data gaps.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-config-dates">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">2/5</span>
+          <h3>Date Range</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="130" fill="#ffffff" rx="8"/>
+              <text x="16" y="24" fill="#6a6d78" font-size="11" font-family="system-ui">Chart Start Date</text>
+              <rect x="16" y="32" width="150" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="52" fill="#1e222d" font-size="11" font-family="system-ui">2026-01-01</text>
+              <text x="200" y="24" fill="#6a6d78" font-size="11" font-family="system-ui">Chart End Date</text>
+              <rect x="200" y="32" width="150" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="212" y="52" fill="#1e222d" font-size="11" font-family="system-ui">2026-03-31</text>
+              <text x="16" y="84" fill="#6a6d78" font-size="11" font-family="system-ui">Trading Start Date</text>
+              <rect x="16" y="92" width="150" height="30" rx="6" fill="#f5f6fa" stroke="#2962ff" stroke-width="1.5"/>
+              <text x="28" y="112" fill="#2962ff" font-size="11" font-weight="600" font-family="system-ui">2026-02-01</text>
+              <text x="200" y="100" fill="#94a3b8" font-size="9" font-family="system-ui" font-style="italic">Must be between Chart Start and Chart End</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-alt"></i> Chart Start Date / Chart End Date</div>
+            <div class="sg-bt-field-desc">The full range of historical data to load into the chart. This determines how much history you can scroll back and see — the chart will contain all candles from this range.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-check" style="color:#2962ff"></i> Trading Start Date</div>
+            <div class="sg-bt-field-desc">The date where you will actually begin placing trades. The chart will start playback from this date, but you can scroll back to see earlier candles for context. Must fall between the Chart Start and Chart End dates.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Set the Chart Start Date a few weeks before your Trading Start Date. This gives you historical context (support/resistance levels, trends) before you start trading.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-config-mode">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">3/5</span>
+          <h3>Trading Mode</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 70" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="70" fill="#ffffff" rx="8"/>
+              <text x="16" y="24" fill="#6a6d78" font-size="11" font-family="system-ui">Trading Mode</text>
+              <rect x="16" y="34" width="70" height="28" rx="6" fill="#2962ff"/>
+              <text x="51" y="53" text-anchor="middle" fill="#fff" font-size="12" font-weight="600" font-family="system-ui">Stock</text>
+              <rect x="90" y="34" width="80" height="28" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="130" y="53" text-anchor="middle" fill="#64748b" font-size="12" font-weight="600" font-family="system-ui">Options</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-exchange-alt"></i> Stock vs Options</div>
+            <div class="sg-bt-field-desc">Choose your trading mode. This affects the entire trading interface:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Stock Mode</strong> — Simple buy/sell with share quantities. You see a BUY/SELL panel with quantity input and a Close All button.</li>
+              <li><strong>Options Mode</strong> — Full options trading with 22+ strategies, Greeks, payoff diagrams, TP/SL automation, and multi-leg configuration. A dedicated options panel appears below the stock controls.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Start with Stock mode to get familiar with the interface and chart controls. Switch to Options mode once you're comfortable with the playback system.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-config-balance">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">4/5</span>
+          <h3>Account Balance</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 70" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="70" fill="#ffffff" rx="8"/>
+              <text x="16" y="24" fill="#6a6d78" font-size="11" font-family="system-ui">Account Balance ($)</text>
+              <rect x="16" y="34" width="200" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="54" fill="#1e222d" font-size="13" font-weight="600" font-family="system-ui">$100,000</text>
+              <text x="230" y="54" fill="#94a3b8" font-size="10" font-family="system-ui" font-style="italic">Default: $100,000</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Starting Capital</div>
+            <div class="sg-bt-field-desc">The virtual account balance you start with. This amount decreases when you open positions and increases/decreases based on your P&L. Default is $100,000.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-config-start">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">5/5</span>
+          <h3>Start Trading</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="60" fill="#ffffff" rx="8"/>
+              <rect x="160" y="10" width="200" height="40" rx="8" fill="#2962ff"/>
+              <text x="260" y="36" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="system-ui"><tspan>&#x1F680;</tspan> Start Trading</text>
+            </svg>
+          </div>
+          <p class="sg-bt-intro">Clicking "Start Trading" loads the historical data for your symbol and date range, then opens the active trading interface. Your session is saved automatically — you can close the page and resume later from the session list.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-redo"></i> Resuming Sessions</div>
+            <div class="sg-bt-field-desc">Active sessions appear in a list on the main Simulated Trading page. Each session card shows: symbol, trading mode, current balance, realized P&L, unrealized P&L, closed trade count, and a Resume button. Sessions persist in your browser until you end them.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+
+    <div id="sgSimSubActive" class="sg-sub-content">
+    <div id="sgSimActiveSections" class="sg-bt-sections">
+
+      <div class="sg-bt-section" data-section="sim-top-bar">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-desktop"></i></span>
+          <h3>Top Bar — Symbol, Price & Time</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 50" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="50" fill="#f8f9fd" rx="6" stroke="#e0e3eb" stroke-width="1"/>
+              <rect x="12" y="12" width="55" height="26" rx="5" fill="#fff" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="22" y="29" fill="#6a6d78" font-size="10" font-family="system-ui"><tspan>&#x2190;</tspan> Back</text>
+              <text x="80" y="30" fill="#191919" font-size="15" font-weight="700" font-family="system-ui">SPY</text>
+              <text x="120" y="30" fill="#191919" font-size="13" font-weight="600" font-family="system-ui">$482.30</text>
+              <text x="180" y="30" fill="#089981" font-size="11" font-family="system-ui">+1.25%</text>
+              <text x="520" y="30" fill="#2962ff" font-size="12" font-weight="600" font-family="system-ui">02/01/2026 10:30:00 ET</text>
+              <rect x="620" y="15" width="65" height="20" rx="4" fill="#f0f3fa"/>
+              <text x="652" y="29" text-anchor="middle" fill="#6a6d78" font-size="8" font-family="system-ui">Bar 150/390</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-arrow-left"></i> Back Button</div>
+            <div class="sg-bt-field-desc">Returns to the session setup page. Your session state is saved automatically — you can resume it anytime from the active sessions list.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-tag"></i> Symbol & Price</div>
+            <div class="sg-bt-field-desc">Shows the current ticker symbol, the last closing price of the current candle, and the price change percentage from the previous candle.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-clock" style="color:#2962ff"></i> Simulation Time</div>
+            <div class="sg-bt-field-desc">The current date and time in the simulation (Eastern Time). This advances as you step through bars or use autoplay. This is the "present" moment in the simulation — you're trading at this point in history.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-info-circle"></i> Bar Visibility Info</div>
+            <div class="sg-bt-field-desc">Shows your position in the data (e.g., "Bar 150/390"). Helps you know how much data remains before the end of the session.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-timeframe">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-th"></i></span>
+          <h3>Timeframe Selectors</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 40" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="40" fill="#f8f9fd" rx="6" stroke="#e0e3eb" stroke-width="1"/>
+              <rect x="12" y="8" width="35" height="24" rx="5" fill="#2962ff"/>
+              <text x="29" y="24" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">1m</text>
+              <rect x="51" y="8" width="35" height="24" rx="5" fill="#f0f1f5"/>
+              <text x="68" y="24" text-anchor="middle" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">5m</text>
+              <rect x="90" y="8" width="35" height="24" rx="5" fill="#f0f1f5"/>
+              <text x="107" y="24" text-anchor="middle" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">15m</text>
+              <rect x="129" y="8" width="35" height="24" rx="5" fill="#f0f1f5"/>
+              <text x="146" y="24" text-anchor="middle" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">30m</text>
+              <rect x="168" y="8" width="35" height="24" rx="5" fill="#f0f1f5"/>
+              <text x="185" y="24" text-anchor="middle" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">1h</text>
+              <rect x="207" y="8" width="35" height="24" rx="5" fill="#f0f1f5"/>
+              <text x="224" y="24" text-anchor="middle" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">2h</text>
+              <rect x="246" y="8" width="35" height="24" rx="5" fill="#f0f1f5"/>
+              <text x="263" y="24" text-anchor="middle" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">4h</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Available Timeframes</div>
+            <div class="sg-bt-field-desc">Switch between 7 timeframes to view candles at different granularities. The simulator fetches 1-minute data and aggregates it on the fly:</div>
+            <ul class="sg-bt-list">
+              <li><strong>1m</strong> — 1-minute candles. Highest resolution, best for scalping practice.</li>
+              <li><strong>5m / 15m / 30m</strong> — Intermediate timeframes for intraday patterns.</li>
+              <li><strong>1h / 2h</strong> — Higher timeframes for swing trade analysis.</li>
+              <li><strong>4h</strong> — Lowest resolution. Best for identifying major trends and support/resistance.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Use multi-timeframe analysis: check the 1h chart for the trend, then drop to 5m or 15m for precise entries. Switching timeframes does not affect your position or playback state.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-playback">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-play-circle"></i></span>
+          <h3>Playback Controls</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 45" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="45" fill="#f8f9fd" rx="6" stroke="#e0e3eb" stroke-width="1"/>
+              <rect x="12" y="8" width="30" height="28" rx="6" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="27" y="26" text-anchor="middle" fill="#191919" font-size="11" font-family="system-ui"><tspan>&#x23EE;</tspan></text>
+              <rect x="46" y="8" width="30" height="28" rx="6" fill="#2962ff"/>
+              <text x="61" y="26" text-anchor="middle" fill="#fff" font-size="11" font-family="system-ui"><tspan>&#x25B6;</tspan></text>
+              <rect x="80" y="8" width="30" height="28" rx="6" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="95" y="26" text-anchor="middle" fill="#191919" font-size="11" font-family="system-ui"><tspan>&#x23ED;</tspan></text>
+              <rect x="114" y="8" width="30" height="28" rx="6" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="129" y="26" text-anchor="middle" fill="#191919" font-size="10" font-family="system-ui"><tspan>&#x2316;</tspan></text>
+              <line x1="155" y1="10" x2="155" y2="35" stroke="#e0e3eb" stroke-width="1"/>
+              <text x="168" y="17" fill="#6a6d78" font-size="9" font-family="system-ui">Interval:</text>
+              <rect x="168" y="20" width="50" height="18" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="177" y="33" fill="#191919" font-size="9" font-family="system-ui">5 min</text>
+              <text x="232" y="17" fill="#6a6d78" font-size="9" font-family="system-ui">Speed:</text>
+              <rect x="232" y="20" width="40" height="18" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="241" y="33" fill="#191919" font-size="9" font-family="system-ui">3s</text>
+              <text x="286" y="17" fill="#6a6d78" font-size="9" font-family="system-ui">Skip:</text>
+              <rect x="286" y="20" width="35" height="18" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="295" y="33" fill="#191919" font-size="9" font-family="system-ui">1</text>
+            </svg>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-step-backward"></i> Prev Bar / <i class="fas fa-step-forward"></i> Next Bar</div>
+            <div class="sg-bt-field-desc">Manually step backward or forward one bar at a time. Each step reveals the next candle on the chart (in the current timeframe). This is the most precise way to advance the simulation.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-play" style="color:#2962ff"></i> Play / Pause (Autoplay)</div>
+            <div class="sg-bt-field-desc">Toggle automatic bar advancement. When playing, bars advance at the configured Speed interval. Press again to pause. The icon toggles between Play (▶) and Pause (⏸).</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-crosshairs"></i> Reset View</div>
+            <div class="sg-bt-field-desc">Centers the chart back to the current simulation candle. Useful after scrolling back in history to review past price action.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-sliders-h"></i> Interval / Speed / Skip</div>
+            <div class="sg-bt-field-desc">Three controls that govern autoplay behavior:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Interval</strong> — How many minutes of data to advance per step: 1 min, 5 min, 15 min, 30 min, or 1 hr. At "5 min" interval, each autoplay tick adds 5 minutes of candle data.</li>
+              <li><strong>Speed</strong> — How fast the autoplay runs: 0.5s (fastest), 1s, 2s, 3s (default), or 5s (slowest) between each step.</li>
+              <li><strong>Skip</strong> — Number of bars to jump per step (default: 1). Set to 5 to skip 5 bars at a time for faster advancement.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> For quick review: set Interval to 30 min, Speed to 0.5s, Skip to 5. For careful analysis: use 1 min interval, manual step-by-step.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-goto-date">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-search-location"></i></span>
+          <h3>Jump to Date & Time</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 45" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="45" fill="#f8f9fd" rx="6" stroke="#e0e3eb" stroke-width="1"/>
+              <text x="16" y="28" fill="#6a6d78" font-size="10" font-family="system-ui">Go to:</text>
+              <rect x="50" y="10" width="90" height="25" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="58" y="27" fill="#94a3b8" font-size="10" font-family="system-ui">MM/DD/YYYY</text>
+              <rect x="146" y="10" width="55" height="25" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="154" y="27" fill="#94a3b8" font-size="10" font-family="system-ui">HH:MM</text>
+              <rect x="207" y="10" width="28" height="25" rx="5" fill="#f0f1f5" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="221" y="27" text-anchor="middle" fill="#191919" font-size="10" font-family="system-ui"><tspan>&#x1F50D;</tspan></text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-day"></i> Go to Date / Time</div>
+            <div class="sg-bt-field-desc">Jump directly to a specific date and time in the simulation. Enter a date (MM/DD/YYYY) and optional time (HH:MM), then click the search button. The chart advances to that point, revealing all candles up to that moment. Useful for skipping weekends, overnight periods, or jumping to a specific market event.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> To skip to market open: enter the date and type "09:30". To jump to close: type "16:00". Market hours are 9:30 AM - 4:00 PM ET.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-indicators">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-chart-line"></i></span>
+          <h3>Technical Indicators</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 160" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="160" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="240" height="140" rx="8" fill="#f8f9fd" stroke="#e0e3eb" stroke-width="1"/>
+              <text x="28" y="30" fill="#191919" font-size="12" font-weight="600" font-family="system-ui">Add Indicator</text>
+              <text x="28" y="48" fill="#6a6d78" font-size="9" font-family="system-ui">Type</text>
+              <rect x="28" y="52" width="210" height="22" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="36" y="67" fill="#191919" font-size="10" font-family="system-ui">SMA (Simple Moving Average)</text>
+              <text x="28" y="84" fill="#6a6d78" font-size="9" font-family="system-ui">Period (candles)</text>
+              <rect x="28" y="88" width="210" height="22" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.5"/>
+              <text x="36" y="103" fill="#191919" font-size="10" font-family="system-ui">20</text>
+              <rect x="28" y="118" width="210" height="26" rx="6" fill="#2962ff"/>
+              <text x="133" y="136" text-anchor="middle" fill="#fff" font-size="11" font-weight="600" font-family="system-ui">Add to Chart</text>
+              <text x="280" y="30" fill="#191919" font-size="11" font-weight="600" font-family="system-ui">Available Indicators</text>
+              <rect x="280" y="40" width="14" height="14" rx="3" fill="#2962ff"/>
+              <text x="300" y="51" fill="#191919" font-size="10" font-family="system-ui">SMA — Simple Moving Average</text>
+              <rect x="280" y="60" width="14" height="14" rx="3" fill="#ff6d00"/>
+              <text x="300" y="71" fill="#191919" font-size="10" font-family="system-ui">EMA — Exponential Moving Average</text>
+              <rect x="280" y="80" width="14" height="14" rx="3" fill="#7c3aed"/>
+              <text x="300" y="91" fill="#191919" font-size="10" font-family="system-ui">VWAP — Volume Weighted Avg Price</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-plus-circle" style="color:#2962ff"></i> Adding Indicators</div>
+            <div class="sg-bt-field-desc">Click "Indicators" in the toolbar to open the dropdown. Configure the indicator type, period, line thickness (1-4px), and color, then click "Add to Chart". Active indicators appear as overlay lines on the candlestick chart.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-wave-square"></i> Indicator Types</div>
+            <ul class="sg-bt-list">
+              <li><strong>SMA (Simple Moving Average)</strong> — Average price over the last N candles. Configurable period (e.g., 20, 50, 200). Good for identifying trends and dynamic support/resistance.</li>
+              <li><strong>EMA (Exponential Moving Average)</strong> — Weighted moving average that reacts faster to recent price changes. More responsive than SMA for short-term trading.</li>
+              <li><strong>VWAP (Volume Weighted Average Price)</strong> — Average price weighted by volume. Resets daily. Institutional benchmark — price above VWAP = bullish, below = bearish.</li>
+            </ul>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-trash-alt"></i> Managing Active Indicators</div>
+            <div class="sg-bt-field-desc">Active indicators are listed at the bottom of the dropdown with a remove button (×). Each shows the type, period, and color. You can add multiple indicators simultaneously (e.g., SMA 20 + SMA 50 for crossover strategies).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-ohlc-bar">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-bars"></i></span>
+          <h3>OHLC Data Bar</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 35" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="35" fill="#ffffff" rx="6" stroke="#e0e3eb" stroke-width="0.5"/>
+              <text x="16" y="22" fill="#6a6d78" font-size="10" font-family="system-ui">O</text>
+              <text x="26" y="22" fill="#191919" font-size="10" font-weight="600" font-family="system-ui">482.10</text>
+              <text x="80" y="22" fill="#6a6d78" font-size="10" font-family="system-ui">H</text>
+              <text x="90" y="22" fill="#089981" font-size="10" font-weight="600" font-family="system-ui">483.55</text>
+              <text x="145" y="22" fill="#6a6d78" font-size="10" font-family="system-ui">L</text>
+              <text x="153" y="22" fill="#f23645" font-size="10" font-weight="600" font-family="system-ui">481.80</text>
+              <text x="210" y="22" fill="#6a6d78" font-size="10" font-family="system-ui">C</text>
+              <text x="220" y="22" fill="#191919" font-size="10" font-weight="600" font-family="system-ui">483.20</text>
+              <text x="280" y="22" fill="#6a6d78" font-size="10" font-family="system-ui">Vol</text>
+              <text x="300" y="22" fill="#6a6d78" font-size="10" font-weight="600" font-family="system-ui">1.2M</text>
+              <line x1="355" y1="8" x2="355" y2="27" stroke="#e0e3eb" stroke-width="0.5"/>
+              <text x="365" y="22" fill="#6a6d78" font-size="10" font-family="system-ui">IV</text>
+              <text x="378" y="22" fill="#7c3aed" font-size="10" font-weight="600" font-family="system-ui">18.5%</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-eye"></i> Candle Data</div>
+            <div class="sg-bt-field-desc">Displays the OHLCV data for the current or hovered candle. Updates in real-time as you move your mouse over the chart:</div>
+            <ul class="sg-bt-list">
+              <li><strong>O</strong> — Open price (where the candle started)</li>
+              <li><strong>H</strong> — High price (highest point, shown in green)</li>
+              <li><strong>L</strong> — Low price (lowest point, shown in red)</li>
+              <li><strong>C</strong> — Close price (where the candle ended)</li>
+              <li><strong>Vol</strong> — Volume (number of shares traded in this candle)</li>
+              <li><strong>IV</strong> — Implied Volatility (shown in purple, used for options pricing)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-chart">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-chart-area"></i></span>
+          <h3>Interactive Chart</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">The main chart area uses TradingView's Lightweight Charts library. It displays candlestick data with volume bars at the bottom. The chart is interactive — you can scroll, zoom, and hover for details.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-mouse-pointer"></i> Chart Interactions</div>
+            <ul class="sg-bt-list">
+              <li><strong>Scroll</strong> — Pan left/right through historical candles.</li>
+              <li><strong>Pinch/Zoom</strong> — Zoom in for detail or out for the big picture.</li>
+              <li><strong>Hover</strong> — Shows crosshair and updates the OHLC bar with that candle's data.</li>
+            </ul>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-ruler-horizontal" style="color:#089981"></i> Visual Overlays</div>
+            <div class="sg-bt-field-desc">When you have an open position, the chart automatically shows:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Entry Price Line</strong> — A horizontal dashed line at your entry price, visible across all candles.</li>
+              <li><strong>P&L Shading</strong> — Green shading above entry (profit zone) or red shading below entry (loss zone) for active positions.</li>
+              <li><strong>Indicator Lines</strong> — SMA, EMA, and VWAP overlays if configured.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-stock-trading">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-exchange-alt" style="color:#089981"></i></span>
+          <h3>Stock Trading Panel</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 55" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="55" fill="#f8f9fd" rx="6" stroke="#e0e3eb" stroke-width="1"/>
+              <text x="16" y="15" fill="#6a6d78" font-size="9" font-family="system-ui">Balance</text>
+              <text x="16" y="32" fill="#191919" font-size="14" font-weight="700" font-family="system-ui">$98,450.00</text>
+              <text x="120" y="15" fill="#6a6d78" font-size="9" font-family="system-ui">Realized</text>
+              <text x="120" y="32" fill="#089981" font-size="12" font-weight="600" font-family="system-ui">+$1,250.00</text>
+              <text x="220" y="15" fill="#6a6d78" font-size="9" font-family="system-ui">Unrealized</text>
+              <text x="220" y="32" fill="#f23645" font-size="12" font-weight="600" font-family="system-ui">-$340.00</text>
+              <rect x="380" y="10" width="55" height="28" rx="5" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="392" y="29" fill="#191919" font-size="11" font-family="system-ui">100</text>
+              <rect x="442" y="10" width="60" height="28" rx="5" fill="#26a69a"/>
+              <text x="472" y="29" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="system-ui">BUY</text>
+              <rect x="508" y="10" width="60" height="28" rx="5" fill="#ef5350"/>
+              <text x="538" y="29" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="system-ui">SELL</text>
+              <rect x="580" y="10" width="100" height="28" rx="5" fill="#ff9800"/>
+              <text x="630" y="29" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="system-ui">CLOSE ALL</text>
+            </svg>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Account Metrics</div>
+            <div class="sg-bt-field-desc">Three real-time metrics displayed on the left side of the trading panel:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Balance</strong> — Your current available capital. Decreases when you open positions, adjusts on close.</li>
+              <li><strong>Realized P&L</strong> — Total profit/loss from closed trades. Green = profit, red = loss.</li>
+              <li><strong>Unrealized P&L</strong> — Current profit/loss on open positions (mark-to-market). Updates as the price moves.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-shopping-cart" style="color:#26a69a"></i> BUY Button</div>
+            <div class="sg-bt-field-desc">Opens a long position at the current candle's closing price. Enter the number of shares in the Quantity input first. The cost (shares × price) is deducted from your balance.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-hand-holding-usd" style="color:#ef5350"></i> SELL Button</div>
+            <div class="sg-bt-field-desc">Opens a short position at the current candle's closing price. You profit if the price goes down. Same quantity input as BUY.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-times-circle" style="color:#ff9800"></i> CLOSE ALL</div>
+            <div class="sg-bt-field-desc">Closes all open stock positions at the current candle's closing price. Appears only when you have open positions. Realized P&L is updated immediately.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-options-trading">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-layer-group" style="color:#2962ff"></i></span>
+          <h3>Options Trading Panel</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">The options panel appears below the stock controls when the session is in <strong>Options mode</strong>. It provides a complete options trading experience with strategy selection, leg configuration, Greeks, and automated TP/SL.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-day"></i> DTE (Days to Expiration)</div>
+            <div class="sg-bt-field-desc">Set the number of days until the option expires. Enter 0 for same-day (0DTE) options, or any value up to 365. The Black-Scholes model uses this along with IV, strike price, and underlying price to calculate the option's theoretical value and Greeks.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> 0DTE options have the fastest time decay (theta) and are highly sensitive to price moves. Great for practicing quick scalps.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chess-knight"></i> Strategy Selector</div>
+            <div class="sg-bt-field-desc">Choose from 22 options strategies organized into 5 groups:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Single Leg</strong> — Long Call, Long Put, Naked Short Call, Naked Short Put</li>
+              <li><strong>Vertical Spreads</strong> — Short/Long Put Spread, Short/Long Call Spread</li>
+              <li><strong>Iron Strategies</strong> — Short/Long Iron Condor, Short/Long Iron Butterfly</li>
+              <li><strong>Straddles & Strangles</strong> — Long/Short Straddle, Long/Short Strangle</li>
+              <li><strong>Calendar & Diagonal</strong> — Calendar Call/Put Spread, Diagonal Call/Put Spread, Double Calendar, Double Diagonal</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> The strategy selection auto-configures the correct number of legs, strikes, and position types. You can fine-tune each leg in the Leg Configuration section below.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bullseye" style="color:#089981"></i> Take Profit (TP)</div>
+            <div class="sg-bt-field-desc">Optional auto-close when profit reaches a threshold. Set a value and choose the type:</div>
+            <ul class="sg-bt-list">
+              <li><strong>% (Percentage)</strong> — Close when unrealized profit reaches X% of the total cost to open. Example: Cost is $1,000, TP is 35% → closes at $350 profit.</li>
+              <li><strong>$ (Dollar)</strong> — Close when unrealized profit reaches a fixed dollar amount per contract.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-shield-alt" style="color:#f23645"></i> Stop Loss (SL)</div>
+            <div class="sg-bt-field-desc">Optional auto-close when loss reaches a threshold. Works the same way as TP but in reverse:</div>
+            <ul class="sg-bt-list">
+              <li><strong>% (Percentage)</strong> — Close when unrealized loss reaches X% of the cost to open. Example: Cost is $1,000, SL is 200% → closes at $2,000 loss.</li>
+              <li><strong>$ (Dollar)</strong> — Close when unrealized loss reaches a fixed dollar amount per contract.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-sort-numeric-up"></i> Quantity</div>
+            <div class="sg-bt-field-desc">Number of contracts to trade. Each contract represents 100 shares of the underlying stock. Default is 10.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bolt" style="color:#2962ff"></i> Trade Button</div>
+            <div class="sg-bt-field-desc">Executes the options trade with the current configuration (DTE, strategy, legs, quantity). The position opens at the theoretical price calculated from Black-Scholes at the current simulation time. A confirmation toast appears showing the trade details.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-leg-config">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-sliders-h"></i></span>
+          <h3>Leg Configuration & Presets</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">For multi-leg strategies (spreads, condors, butterflies), the Leg Configuration section appears below the strategy selector. It shows each leg with its parameters and allows adjustment.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-cogs"></i> Per-Leg Parameters</div>
+            <div class="sg-bt-field-desc">Each leg displays and lets you configure:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Type</strong> — Call or Put</li>
+              <li><strong>Position</strong> — Long (buy) or Short (sell)</li>
+              <li><strong>Strike Price</strong> — Relative to the current price (e.g., ATM, OTM by $5)</li>
+              <li><strong>DTE</strong> — Days to expiration (may differ for calendar/diagonal spreads)</li>
+            </ul>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-magic"></i> Presets</div>
+            <div class="sg-bt-field-desc">Quick-apply common configurations for the selected strategy (e.g., "Narrow Width" vs "Wide Width" for spreads, "$2 OTM" vs "$5 OTM" for single legs). Click a preset button to automatically adjust all leg strikes.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-payoff-diagram">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-chart-area" style="color:#2962ff"></i></span>
+          <h3>Payoff Diagram Modal</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">When you have an open options position, click it to open the Payoff Diagram modal — a live, interactive visualization of your position's profit/loss profile.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-line"></i> P&L Curve</div>
+            <div class="sg-bt-field-desc">The main chart shows the theoretical P&L at different underlying prices. It plots: max profit, max loss, breakeven points, and your current position on the curve.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-info-circle"></i> Position Stats</div>
+            <div class="sg-bt-field-desc">Above the chart, a stats bar shows: strategy name, current unrealized P&L, underlying price, net delta, theta, and time remaining.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-play-circle"></i> Payoff Playback</div>
+            <div class="sg-bt-field-desc">The payoff modal has its own playback controls (Previous/Play/Next). You can step through bars within the modal and watch how the P&L curve shifts as time passes and the underlying price moves. Playback speed is configurable (1x, 2x, 4x, 10x).</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-times-circle" style="color:#f23645"></i> Close Position</div>
+            <div class="sg-bt-field-desc">The "Close Position" button at the bottom right of the modal closes the options position at the current theoretical value. P&L is realized and the position is removed from your open positions list.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-open-positions">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-list-alt"></i></span>
+          <h3>Open Positions List (Options)</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">When you have open options positions, an "Open Positions" card appears at the bottom of the options panel. It lists every active position with real-time P&L updates.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-layer-group"></i> Position Card Info</div>
+            <div class="sg-bt-field-desc">Each position card shows: strategy name, quantity, net premium (entry cost), current value, unrealized P&L (with color coding), and Greeks (Delta, Gamma, Theta, Vega). Click a position to open its Payoff Diagram.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-robot"></i> TP/SL Automation</div>
+            <div class="sg-bt-field-desc">If you set TP or SL when placing the trade, positions are automatically closed when the threshold is hit during playback. A notification toast confirms the auto-close with the realized P&L.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-end-session">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-stop-circle" style="color:#f23645"></i></span>
+          <h3>End Session</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-stop" style="color:#f23645"></i> End Session Button</div>
+            <div class="sg-bt-field-desc">Closes all remaining open positions at the current price and finalizes the session. A confirmation dialog appears first. After ending:</div>
+            <ul class="sg-bt-list">
+              <li>All open stock and options positions are closed at current prices.</li>
+              <li>Final balance, P&L, and all trade data are saved.</li>
+              <li>You are redirected to the Results page with full performance analysis.</li>
+              <li>The session is removed from the "active sessions" list.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> You don't have to end a session immediately. Use the Back button to save your progress and return later to resume trading from where you left off.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+
+    <div id="sgSimSubResults" class="sg-sub-content">
+    <div id="sgSimResultsSections" class="sg-bt-sections">
+
+      <div class="sg-bt-section" data-section="sim-res-overview">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-chart-pie"></i></span>
+          <h3>Results Overview</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">After ending a session, you are taken to the Results Detail page. This page provides a complete performance analysis of your trading session — everything you need to evaluate your decisions and improve.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-id-card"></i> Session Summary</div>
+            <div class="sg-bt-field-desc">The header shows: Session ID, Symbol, Total Trades, and Net P&L with a color-coded icon (green checkmark for profit, red X for loss).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-res-stats">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-calculator"></i></span>
+          <h3>Performance Statistics</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 170" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="170" fill="#ffffff" rx="8"/>
+              <text x="20" y="24" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">Performance Statistics</text>
+              <text x="30" y="50" fill="#64748b" font-size="10" font-family="system-ui">Win Rate</text>
+              <text x="200" y="50" text-anchor="end" fill="#089981" font-size="10" font-weight="700" font-family="system-ui">68.4%</text>
+              <text x="30" y="70" fill="#64748b" font-size="10" font-family="system-ui">Wins / Losses</text>
+              <text x="200" y="70" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">13 / 6</text>
+              <text x="30" y="90" fill="#64748b" font-size="10" font-family="system-ui">Profit Factor</text>
+              <text x="200" y="90" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">2.15</text>
+              <text x="30" y="110" fill="#64748b" font-size="10" font-family="system-ui">Max Drawdown</text>
+              <text x="200" y="110" text-anchor="end" fill="#f23645" font-size="10" font-weight="700" font-family="system-ui">-6.20%</text>
+              <text x="30" y="130" fill="#64748b" font-size="10" font-family="system-ui">Sharpe Ratio</text>
+              <text x="200" y="130" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">1.45</text>
+              <text x="380" y="50" fill="#64748b" font-size="10" font-family="system-ui">Gross Profit</text>
+              <text x="550" y="50" text-anchor="end" fill="#089981" font-size="10" font-weight="700" font-family="system-ui">$8,450.00</text>
+              <text x="380" y="70" fill="#64748b" font-size="10" font-family="system-ui">Gross Loss</text>
+              <text x="550" y="70" text-anchor="end" fill="#f23645" font-size="10" font-weight="700" font-family="system-ui">-$3,930.00</text>
+              <text x="380" y="90" fill="#64748b" font-size="10" font-family="system-ui">Avg Win / Avg Loss</text>
+              <text x="550" y="90" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">$650 / -$655</text>
+              <text x="380" y="110" fill="#64748b" font-size="10" font-family="system-ui">Max Win / Max Loss</text>
+              <text x="550" y="110" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">$2,100 / -$1,200</text>
+              <text x="380" y="130" fill="#64748b" font-size="10" font-family="system-ui">Max Consec Wins / Losses</text>
+              <text x="550" y="130" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">5 / 2</text>
+              <text x="380" y="150" fill="#64748b" font-size="10" font-family="system-ui">Avg Trade Duration</text>
+              <text x="550" y="150" text-anchor="end" fill="#1e222d" font-size="10" font-weight="600" font-family="system-ui">45 min</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-list-ul"></i> All Metrics</div>
+            <ul class="sg-bt-list">
+              <li><strong>Win Rate</strong> — Percentage of trades that were profitable.</li>
+              <li><strong>Wins / Losses</strong> — Count of winning vs losing trades.</li>
+              <li><strong>Profit Factor</strong> — Gross Profit / Gross Loss. Above 1.0 = profitable overall.</li>
+              <li><strong>Max Drawdown</strong> — Largest peak-to-trough decline in portfolio value.</li>
+              <li><strong>Sharpe Ratio</strong> — Risk-adjusted return. Higher = better risk/reward.</li>
+              <li><strong>Gross Profit / Gross Loss</strong> — Total dollars won and lost.</li>
+              <li><strong>Average Win / Average Loss</strong> — Mean dollar value of winning and losing trades.</li>
+              <li><strong>Max Win / Max Loss</strong> — Largest single winning and losing trade.</li>
+              <li><strong>Max Consecutive Wins / Losses</strong> — Longest winning and losing streaks.</li>
+              <li><strong>Average Trade Duration</strong> — Mean time between entry and exit.</li>
+              <li><strong>Initial Balance / Final Balance</strong> — Starting vs ending capital.</li>
+              <li><strong>Net Return %</strong> — Overall percentage return on initial capital.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-res-equity">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-chart-area"></i></span>
+          <h3>Equity Curve</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 700 150" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="700" height="150" fill="#ffffff" rx="8"/>
+              <text x="20" y="20" fill="#1e222d" font-size="12" font-weight="700" font-family="system-ui">Equity Curve</text>
+              <line x1="40" y1="100" x2="680" y2="100" stroke="#e0e3eb" stroke-width="0.8" stroke-dasharray="4,3"/>
+              <text x="36" y="104" text-anchor="end" fill="#94a3b8" font-size="7" font-family="system-ui">$100k</text>
+              <polyline points="50,105 100,98 150,110 200,95 250,88 300,92 350,80 400,72 450,78 500,65 550,55 600,50 650,42" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="150" cy="110" r="2" fill="#3b82f6"/>
+              <circle cx="300" cy="92" r="2" fill="#3b82f6"/>
+              <circle cx="450" cy="78" r="2" fill="#3b82f6"/>
+              <circle cx="650" cy="42" r="2" fill="#3b82f6"/>
+              <line x1="40" y1="100" x2="680" y2="100" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="3,3"/>
+              <text x="650" y="140" text-anchor="end" fill="#94a3b8" font-size="8" font-style="italic" font-family="system-ui">Dashed line = Initial Balance reference</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-line"></i> Reading the Equity Curve</div>
+            <div class="sg-bt-field-desc">The equity curve plots your portfolio value after each closed trade. A dashed horizontal line marks your initial balance. Interactive tooltips show the exact dollar value at each trade point. Look for a smooth upward curve — jagged or declining curves indicate inconsistent or losing strategies.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-res-trade-log-stock">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-table"></i></span>
+          <h3>Trade Log — Stock Mode</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview sg-trade-log-preview">
+            <div class="sg-tl-header">
+              <span class="sg-tl-title">Trade Log</span>
+              <span class="sg-tl-badge">Stock Mode</span>
+            </div>
+            <div class="sg-tl-scroll-wrap">
+              <table class="sg-tl-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Side</th>
+                    <th>Qty</th>
+                    <th>Entry Price</th>
+                    <th>Exit Price</th>
+                    <th>Entry Time</th>
+                    <th>Exit Time</th>
+                    <th>Duration</th>
+                    <th>P&L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td>
+                    <td><span style="background:#26a69a;color:#fff;padding:1px 8px;border-radius:4px;font-size:10px;">Long</span></td>
+                    <td>100</td>
+                    <td>$482.30</td>
+                    <td>$485.60</td>
+                    <td>10:15 AM</td>
+                    <td>11:42 AM</td>
+                    <td>1h 27m</td>
+                    <td class="sg-tl-pnl-pos">+$330.00</td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td><span style="background:#ef5350;color:#fff;padding:1px 8px;border-radius:4px;font-size:10px;">Short</span></td>
+                    <td>50</td>
+                    <td>$486.10</td>
+                    <td>$484.20</td>
+                    <td>1:05 PM</td>
+                    <td>2:30 PM</td>
+                    <td>1h 25m</td>
+                    <td class="sg-tl-pnl-pos">+$95.00</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-columns"></i> Stock Trade Log Columns</div>
+            <ul class="sg-bt-list">
+              <li><strong>#</strong> — Trade number (sequential).</li>
+              <li><strong>Side</strong> — Long (green badge) or Short (red badge).</li>
+              <li><strong>Qty</strong> — Number of shares traded.</li>
+              <li><strong>Entry / Exit Price</strong> — Price per share at open and close.</li>
+              <li><strong>Entry / Exit Time</strong> — Simulation time when the trade was opened and closed.</li>
+              <li><strong>Duration</strong> — How long the position was held.</li>
+              <li><strong>P&L</strong> — Dollar profit or loss. Green = profit, red = loss.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-res-trade-log-options">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-table" style="color:#2962ff"></i></span>
+          <h3>Trade Log — Options Mode</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">Options trade logs are more detailed than stock logs. Each trade row shows strategy-level data with expandable per-leg details.</p>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-columns"></i> Options Trade Log Columns</div>
+            <ul class="sg-bt-list">
+              <li><strong>#</strong> — Trade number.</li>
+              <li><strong>Strategy</strong> — Name of the options strategy (e.g., Long Call, Short Iron Condor).</li>
+              <li><strong>Exit Reason</strong> — How the trade closed: Manual, Take Profit, Stop Loss, or Session End.</li>
+              <li><strong>Qty</strong> — Number of contracts.</li>
+              <li><strong>Underlying Price at Entry</strong> — Stock price when the options trade was opened.</li>
+              <li><strong>Net Premium Entry / Exit</strong> — Total premium paid or received to open and close.</li>
+              <li><strong>Net IV</strong> — Implied Volatility at entry.</li>
+              <li><strong>Greeks</strong> — Aggregate Delta (Δ), Gamma (Γ), Theta (Θ), and Vega for the entire position.</li>
+            </ul>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-expand-alt"></i> Expandable Leg Details</div>
+            <div class="sg-bt-field-desc">Click any options trade row to reveal a sub-table showing per-leg breakdown:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Leg Name</strong> — e.g., "Leg 1: Long Call"</li>
+              <li><strong>Symbol</strong> — Full option symbol</li>
+              <li><strong>Type / Position</strong> — Call or Put, Long or Short</li>
+              <li><strong>Strike</strong> — The strike price</li>
+              <li><strong>Entry / Exit Price</strong> — Per-contract premium at open and close</li>
+              <li><strong>Individual Greeks</strong> — Delta, Gamma, Theta, Vega for this specific leg</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="sim-res-export">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step"><i class="fas fa-file-export"></i></span>
+          <h3>Download & Export</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-download"></i> Download CSV</div>
+            <div class="sg-bt-field-desc">Export the complete trade log as a CSV file for analysis in Excel, Google Sheets, or Python. Includes all columns plus per-leg details for options trades. Available on Standard and Premium plans.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-database"></i> Data Persistence</div>
+            <div class="sg-bt-field-desc">Session results are stored in your browser's local storage. They persist across page refreshes and browser sessions. You can review past sessions anytime from the Simulated Trading results list.</div>
           </div>
         </div>
       </div>

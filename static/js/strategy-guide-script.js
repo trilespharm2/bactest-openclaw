@@ -761,7 +761,10 @@ function initStrategyGuide() {
           'bt-options': 'sgBtSubOptions',
           'bt-stock': 'sgBtSubStock',
           'res-options': 'sgResSubOptions',
-          'res-stock': 'sgResSubStock'
+          'res-stock': 'sgResSubStock',
+          'sim-setup': 'sgSimSubSetup',
+          'sim-active': 'sgSimSubActive',
+          'sim-results': 'sgSimSubResults'
         };
         const target = document.getElementById(map[subtab]);
         if (target) target.classList.add('active');
@@ -816,6 +819,7 @@ function initStrategyGuide() {
 
   setupRefSearch('sgBtSearchInput', 'sgBtSearchClear', ['#sgBtSections', '#sgStockBtSections']);
   setupRefSearch('sgResSearchInput', 'sgResSearchClear', ['#sgResSections', '#sgStockResSections']);
+  setupRefSearch('sgSimSearchInput', 'sgSimSearchClear', ['#sgSimSetupSections', '#sgSimActiveSections', '#sgSimResultsSections']);
 
   console.log('Strategy Guide initialized with', STRATEGY_DATA.length, 'strategies');
 }
