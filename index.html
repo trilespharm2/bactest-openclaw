@@ -211,6 +211,25 @@
       .learn-more-page .lm-cta p { font-size: 0.85rem; color: #64748b; margin-bottom: 16px; }
       .learn-more-page .lm-cta .btn-get-started { display: inline-flex; align-items: center; gap: 6px; padding: 10px 24px; background: linear-gradient(135deg, #1b55e2, #6366f1); color: #fff; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-decoration: none; }
       .learn-more-page .lm-cta .btn-get-started:hover { background: linear-gradient(135deg, #1544b8, #4f46e5); }
+      .lm-hero { text-align: center; margin-bottom: 28px; padding: 8px 0 4px; }
+      .lm-hero h1 { font-size: 1.5rem; font-weight: 800; margin: 0 0 8px; background: linear-gradient(135deg, #1b55e2, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+      .lm-hero p { font-size: 0.9rem; color: #64748b; margin: 0; }
+      .lm-showcase { display: grid; grid-template-columns: 55% 1fr; gap: 28px; align-items: center; background: #fff; border-radius: 14px; border: 1px solid #e8ecf1; box-shadow: 0 2px 16px rgba(0,0,0,0.07); padding: 28px; margin-bottom: 24px; }
+      .lm-showcase.lm-flip { grid-template-columns: 1fr 55%; }
+      @media (max-width: 720px) { .lm-showcase, .lm-showcase.lm-flip { grid-template-columns: 1fr; } .lm-showcase.lm-flip .lm-showcase-pitch { order: -1; } }
+      .lm-showcase-img svg { width: 100%; height: auto; border-radius: 8px; filter: drop-shadow(0 3px 12px rgba(0,0,0,0.14)); }
+      .lm-showcase-pitch { display: flex; flex-direction: column; justify-content: center; }
+      .lm-showcase-pitch h3 { font-size: 1rem; font-weight: 800; color: #1e293b; margin: 0 0 14px; line-height: 1.35; }
+      .lm-showcase-pitch .lm-pitch-eyebrow { font-size: 0.72rem; font-weight: 700; color: #6366f1; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+      .lm-pitch-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+      .lm-pitch-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 0.82rem; color: #475569; line-height: 1.5; }
+      .lm-pitch-list li .lm-check { width: 18px; height: 18px; border-radius: 50%; background: #dcfce7; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+      .lm-pitch-list li .lm-check i { color: #16a34a; font-size: 0.6rem; }
+      .lm-pitch-list li strong { color: #1e293b; font-weight: 700; }
+      .lm-stat-bar { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+      .lm-stat { background: linear-gradient(135deg, #eef2ff, #f5f3ff); border: 1px solid #e0e7ff; border-radius: 8px; padding: 8px 14px; text-align: center; }
+      .lm-stat .lm-stat-val { font-size: 1.05rem; font-weight: 800; color: #4f46e5; display: block; }
+      .lm-stat .lm-stat-label { font-size: 0.67rem; color: #64748b; display: block; }
       .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-top: 30px; }
       .feature-card { background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); transition: transform 0.3s; }
       .feature-card:hover { transform: translateY(-5px); }
@@ -3751,48 +3770,215 @@
               <div class="learn-more-page">
                 <a href="#" onclick="event.preventDefault();navigateToPage('home');" class="lm-back-btn"><i class="fas fa-arrow-left"></i> Back to Home</a>
 
-                <div class="lm-video-container">
-                  <div class="lm-video-placeholder">
-                    <i class="fas fa-play-circle"></i>
-                    <p>Options Backtester walkthrough video coming soon</p>
+                <div class="lm-hero">
+                  <h1>Options Backtester</h1>
+                  <p>Test any options strategy against 5 years of real historical data — before risking a single dollar.</p>
+                </div>
+
+                <!-- Showcase 1: Form mockup + pitch -->
+                <div class="lm-showcase">
+                  <div class="lm-showcase-img">
+                    <svg viewBox="0 0 480 302" xmlns="http://www.w3.org/2000/svg">
+                      <!-- card bg -->
+                      <rect width="480" height="302" fill="#f8fafc" rx="10" stroke="#e2e8f0" stroke-width="1"/>
+                      <!-- top bar -->
+                      <rect x="0" y="0" width="480" height="36" fill="#1e222d" rx="10"/>
+                      <rect x="0" y="20" width="480" height="16" fill="#1e222d"/>
+                      <circle cx="16" cy="18" r="5" fill="#ef4444" opacity="0.8"/>
+                      <circle cx="30" cy="18" r="5" fill="#f59e0b" opacity="0.8"/>
+                      <circle cx="44" cy="18" r="5" fill="#22c55e" opacity="0.8"/>
+                      <text x="240" y="23" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui" font-weight="600" letter-spacing="0.5">BACKTEST CONFIGURATION</text>
+                      <!-- GENERAL section -->
+                      <rect x="12" y="44" width="456" height="82" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="20" y="57" fill="#6366f1" font-size="8" font-weight="700" font-family="system-ui" letter-spacing="0.8">GENERAL</text>
+                      <text x="20" y="70" fill="#94a3b8" font-size="7.5" font-family="system-ui">Strategy</text>
+                      <text x="196" y="70" fill="#94a3b8" font-size="7.5" font-family="system-ui">Symbol</text>
+                      <rect x="20" y="73" width="170" height="19" rx="4" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="28" y="86" fill="#1e293b" font-size="9.5" font-weight="600" font-family="system-ui">Iron Condor</text>
+                      <text x="183" y="86" fill="#6366f1" font-size="9" font-family="system-ui">&#9660;</text>
+                      <rect x="196" y="73" width="72" height="19" rx="4" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="204" y="86" fill="#1e293b" font-size="9.5" font-weight="700" font-family="system-ui">SPY</text>
+                      <text x="20" y="104" fill="#94a3b8" font-size="7.5" font-family="system-ui">Date Range</text>
+                      <text x="290" y="104" fill="#94a3b8" font-size="7.5" font-family="system-ui">DTE Range</text>
+                      <rect x="20" y="107" width="100" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="28" y="119" fill="#1e293b" font-size="8.5" font-family="system-ui">Jan 1, 2020</text>
+                      <text x="124" y="118" fill="#94a3b8" font-size="9" font-family="system-ui">&#8594;</text>
+                      <rect x="136" y="107" width="106" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="144" y="119" fill="#1e293b" font-size="8.5" font-family="system-ui">Dec 31, 2024</text>
+                      <rect x="290" y="107" width="38" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="298" y="119" fill="#1e293b" font-size="8.5" font-family="system-ui">30</text>
+                      <text x="332" y="118" fill="#94a3b8" font-size="8.5" font-family="system-ui">&#8211;</text>
+                      <rect x="342" y="107" width="38" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="350" y="119" fill="#1e293b" font-size="8.5" font-family="system-ui">45</text>
+                      <text x="384" y="104" fill="#94a3b8" font-size="7.5" font-family="system-ui">DTE</text>
+                      <!-- STRIKES section -->
+                      <rect x="12" y="134" width="456" height="52" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="20" y="147" fill="#6366f1" font-size="8" font-weight="700" font-family="system-ui" letter-spacing="0.8">STRIKE SELECTION</text>
+                      <text x="20" y="158" fill="#94a3b8" font-size="7.5" font-family="system-ui">Short Put</text>
+                      <text x="168" y="158" fill="#94a3b8" font-size="7.5" font-family="system-ui">Short Call</text>
+                      <text x="316" y="158" fill="#94a3b8" font-size="7.5" font-family="system-ui">Wing Width</text>
+                      <rect x="20" y="161" width="136" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="28" y="173" fill="#1e293b" font-size="9" font-weight="600" font-family="system-ui">0.20 &#916;</text>
+                      <rect x="168" y="161" width="136" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="176" y="173" fill="#1e293b" font-size="9" font-weight="600" font-family="system-ui">0.20 &#916;</text>
+                      <rect x="316" y="161" width="136" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="324" y="173" fill="#1e293b" font-size="9" font-weight="600" font-family="system-ui">$10 wide</text>
+                      <!-- CONDITIONS section -->
+                      <rect x="12" y="194" width="456" height="64" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="20" y="207" fill="#6366f1" font-size="8" font-weight="700" font-family="system-ui" letter-spacing="0.8">CONDITIONS</text>
+                      <text x="20" y="220" fill="#94a3b8" font-size="7.5" font-family="system-ui">Entry:</text>
+                      <rect x="48" y="212" width="52" height="15" rx="3" fill="#eef2ff" stroke="#c7d2fe" stroke-width="0.8"/>
+                      <text x="52" y="223" fill="#4f46e5" font-size="8" font-weight="600" font-family="system-ui">RSI(14)</text>
+                      <rect x="104" y="212" width="34" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="108" y="223" fill="#1e293b" font-size="8" font-family="system-ui">&lt; &#9660;</text>
+                      <rect x="142" y="212" width="28" height="15" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="150" y="223" fill="#1e293b" font-size="8.5" font-weight="600" font-family="system-ui">45</text>
+                      <text x="20" y="240" fill="#94a3b8" font-size="7.5" font-family="system-ui">Exit:</text>
+                      <circle cx="42" cy="237" r="5.5" fill="#6366f1"/>
+                      <circle cx="42" cy="237" r="2.5" fill="#fff"/>
+                      <text x="51" y="241" fill="#1e293b" font-size="8.5" font-weight="600" font-family="system-ui">50% of max profit</text>
+                      <circle cx="158" cy="237" r="5.5" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+                      <text x="167" y="241" fill="#94a3b8" font-size="8.5" font-family="system-ui">21 DTE</text>
+                      <circle cx="216" cy="237" r="5.5" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+                      <text x="225" y="241" fill="#94a3b8" font-size="8.5" font-family="system-ui">100% loss</text>
+                      <!-- SIZING + BUTTON row -->
+                      <text x="12" y="275" fill="#94a3b8" font-size="7.5" font-family="system-ui">Contracts:</text>
+                      <rect x="68" y="264" width="32" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="76" y="276" fill="#1e293b" font-size="9" font-weight="700" font-family="system-ui">1</text>
+                      <text x="108" y="275" fill="#94a3b8" font-size="7.5" font-family="system-ui">Max Open:</text>
+                      <rect x="164" y="264" width="32" height="17" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.8"/>
+                      <text x="172" y="276" fill="#1e293b" font-size="9" font-weight="700" font-family="system-ui">3</text>
+                      <rect x="214" y="262" width="254" height="22" rx="6" fill="url(#btnGrad)"/>
+                      <defs><linearGradient id="btnGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1b55e2"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs>
+                      <text x="341" y="277" text-anchor="middle" fill="#ffffff" font-size="9.5" font-weight="700" font-family="system-ui">&#9654;  Run Backtest</text>
+                    </svg>
+                  </div>
+                  <div class="lm-showcase-pitch">
+                    <p class="lm-pitch-eyebrow">Configure in minutes</p>
+                    <h3>Every variable, fully under your control</h3>
+                    <ul class="lm-pitch-list">
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>22 leg strategy types</strong> — iron condors, calendars, diagonals, strangles, spreads &amp; more</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>0 to 45+ DTE</strong> expiration targeting — find the sweet spot for your strategy</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Delta-based strike selection</strong> — target exact probability levels, not arbitrary strikes</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Technical indicator entry rules</strong> — RSI, MACD, moving averages, and more</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Flexible exit logic</strong> — profit targets, DTE stops, or max-loss cutoffs</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Any US-listed equity or index</strong> — SPY, QQQ, individual stocks, and ETFs</span></li>
+                    </ul>
                   </div>
                 </div>
 
-                <div class="lm-section">
-                  <h2><i class="fas fa-layer-group"></i> Options Backtester Overview</h2>
-                  <p>Test complex options strategies against years of historical data. Whether you trade simple calls and puts or multi-leg spreads, the Options Backtester lets you validate your strategy before risking real capital. Configure entry and exit conditions using technical indicators, set strike selection rules, and analyze detailed P/L outcomes.</p>
-                </div>
-
-                <div class="lm-section">
-                  <h2><i class="fas fa-cogs"></i> Features</h2>
-                  <div class="lm-feature-grid">
-                    <div class="lm-feature-item">
-                      <div class="lm-feat-icon" style="background:linear-gradient(135deg,#6366f1,#818cf8);"><i class="fas fa-layer-group"></i></div>
-                      <div><h4>22+ Strategy Types</h4><p>Spreads, straddles, strangles, iron condors, calendars, diagonals, and more — all configurable.</p></div>
-                    </div>
-                    <div class="lm-feature-item">
-                      <div class="lm-feat-icon" style="background:linear-gradient(135deg,#10b981,#34d399);"><i class="fas fa-sliders-h"></i></div>
-                      <div><h4>Custom Entry/Exit Rules</h4><p>Define conditions using moving averages, RSI, MACD, price thresholds, and more.</p></div>
-                    </div>
-                    <div class="lm-feature-item">
-                      <div class="lm-feat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);"><i class="fas fa-chart-area"></i></div>
-                      <div><h4>Greeks Analysis</h4><p>See Delta, Gamma, Theta, and Vega across your positions over time.</p></div>
-                    </div>
-                    <div class="lm-feature-item">
-                      <div class="lm-feat-icon" style="background:linear-gradient(135deg,#ef4444,#f87171);"><i class="fas fa-database"></i></div>
-                      <div><h4>Historical Options Data</h4><p>Real options chain data via Polygon.io for accurate strike pricing and premium calculations.</p></div>
+                <!-- Showcase 2: Results mockup + pitch (flipped) -->
+                <div class="lm-showcase lm-flip">
+                  <div class="lm-showcase-pitch">
+                    <p class="lm-pitch-eyebrow">Instant, actionable insights</p>
+                    <h3>See exactly how your strategy performed — across 5 years of history</h3>
+                    <ul class="lm-pitch-list">
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>5 years of real options chain data</strong> — accurate pricing, real strikes, real premiums</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Improve your win rate</strong> — identify which conditions and expirations yield the best results</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Uncover high-ROI setups</strong> — find strategies with 200–400%+ historical returns</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Full equity curve &amp; drawdown analysis</strong> — understand the ride, not just the destination</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Per-trade log with P/L breakdown</strong> — entry price, expiration, outcome, and Greeks</span></li>
+                      <li><span class="lm-check"><i class="fas fa-check"></i></span><span><strong>Stop trading guesses</strong> — validate your edge before risking real capital</span></li>
+                    </ul>
+                    <div class="lm-stat-bar">
+                      <div class="lm-stat"><span class="lm-stat-val">72.4%</span><span class="lm-stat-label">Win Rate</span></div>
+                      <div class="lm-stat"><span class="lm-stat-val">+365%</span><span class="lm-stat-label">Total ROI</span></div>
+                      <div class="lm-stat"><span class="lm-stat-val">2.8x</span><span class="lm-stat-label">Profit Factor</span></div>
                     </div>
                   </div>
-                </div>
-
-                <div class="lm-section">
-                  <h2><i class="fas fa-search-plus"></i> Results &amp; Analysis</h2>
-                  <p>After each backtest, review detailed trade logs with entry/exit prices, P/L per trade, equity curves, drawdown analysis, and key metrics like Win Rate, Profit Factor, and Sharpe Ratio. Identify which market conditions favor your strategy and refine your approach.</p>
+                  <div class="lm-showcase-img">
+                    <svg viewBox="0 0 480 302" xmlns="http://www.w3.org/2000/svg">
+                      <!-- card bg -->
+                      <rect width="480" height="302" fill="#f8fafc" rx="10" stroke="#e2e8f0" stroke-width="1"/>
+                      <!-- top bar -->
+                      <rect x="0" y="0" width="480" height="36" fill="#1e222d" rx="10"/>
+                      <rect x="0" y="20" width="480" height="16" fill="#1e222d"/>
+                      <circle cx="16" cy="18" r="5" fill="#ef4444" opacity="0.8"/>
+                      <circle cx="30" cy="18" r="5" fill="#f59e0b" opacity="0.8"/>
+                      <circle cx="44" cy="18" r="5" fill="#22c55e" opacity="0.8"/>
+                      <text x="240" y="23" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui" font-weight="600" letter-spacing="0.5">BACKTEST RESULTS — Iron Condor SPY  2020–2024</text>
+                      <!-- 4 metric tiles -->
+                      <rect x="10" y="44" width="104" height="42" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="62" y="63" text-anchor="middle" fill="#22c55e" font-size="14" font-weight="800" font-family="system-ui">72.4%</text>
+                      <text x="62" y="78" text-anchor="middle" fill="#6b7280" font-size="7.5" font-family="system-ui">Win Rate</text>
+                      <rect x="120" y="44" width="104" height="42" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="172" y="63" text-anchor="middle" fill="#22c55e" font-size="14" font-weight="800" font-family="system-ui">+365%</text>
+                      <text x="172" y="78" text-anchor="middle" fill="#6b7280" font-size="7.5" font-family="system-ui">Total ROI</text>
+                      <rect x="230" y="44" width="104" height="42" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="282" y="63" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="800" font-family="system-ui">2.8x</text>
+                      <text x="282" y="78" text-anchor="middle" fill="#6b7280" font-size="7.5" font-family="system-ui">Profit Factor</text>
+                      <rect x="340" y="44" width="130" height="42" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="405" y="63" text-anchor="middle" fill="#ef4444" font-size="14" font-weight="800" font-family="system-ui">-18.3%</text>
+                      <text x="405" y="78" text-anchor="middle" fill="#6b7280" font-size="7.5" font-family="system-ui">Max Drawdown</text>
+                      <!-- Equity curve chart area -->
+                      <rect x="10" y="94" width="460" height="96" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <text x="18" y="106" fill="#1e293b" font-size="8" font-weight="700" font-family="system-ui">Equity Curve</text>
+                      <text x="434" y="106" fill="#22c55e" font-size="8" font-weight="700" font-family="system-ui">+365%</text>
+                      <!-- Y axis labels -->
+                      <text x="14" y="181" fill="#94a3b8" font-size="7" font-family="system-ui">$10k</text>
+                      <text x="14" y="155" fill="#94a3b8" font-size="7" font-family="system-ui">$22k</text>
+                      <text x="14" y="129" fill="#94a3b8" font-size="7" font-family="system-ui">$34k</text>
+                      <text x="14" y="113" fill="#94a3b8" font-size="7" font-family="system-ui">$46k</text>
+                      <!-- Grid lines -->
+                      <line x1="34" y1="108" x2="464" y2="108" stroke="#f1f5f9" stroke-width="0.8"/>
+                      <line x1="34" y1="128" x2="464" y2="128" stroke="#f1f5f9" stroke-width="0.8"/>
+                      <line x1="34" y1="148" x2="464" y2="148" stroke="#f1f5f9" stroke-width="0.8"/>
+                      <line x1="34" y1="168" x2="464" y2="168" stroke="#f1f5f9" stroke-width="0.8"/>
+                      <!-- Equity curve fill -->
+                      <path d="M34,178 L34,178 L82,168 L112,160 L142,165 L172,155 L202,148 L220,153 L250,140 L280,130 L300,136 L330,122 L360,112 L390,116 L420,108 L450,112 L464,110 L464,185 Z" fill="#6366f1" opacity="0.12"/>
+                      <!-- Equity curve line -->
+                      <path d="M34,178 L82,168 L112,160 L142,165 L172,155 L202,148 L220,153 L250,140 L280,130 L300,136 L330,122 L360,112 L390,116 L420,108 L450,112 L464,110" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/>
+                      <!-- X axis labels -->
+                      <text x="34" y="192" fill="#94a3b8" font-size="7" font-family="system-ui">2020</text>
+                      <text x="136" y="192" fill="#94a3b8" font-size="7" font-family="system-ui">2021</text>
+                      <text x="240" y="192" fill="#94a3b8" font-size="7" font-family="system-ui">2022</text>
+                      <text x="344" y="192" fill="#94a3b8" font-size="7" font-family="system-ui">2023</text>
+                      <text x="448" y="192" fill="#94a3b8" font-size="7" font-family="system-ui">2024</text>
+                      <!-- Trade log table -->
+                      <rect x="10" y="198" width="460" height="96" rx="6" fill="#ffffff" stroke="#e8ecf1" stroke-width="1"/>
+                      <rect x="10" y="198" width="460" height="22" rx="6" fill="#f8fafc" stroke="#e8ecf1" stroke-width="1"/>
+                      <rect x="10" y="208" width="460" height="12" fill="#f8fafc"/>
+                      <text x="18" y="213" fill="#6b7280" font-size="7.5" font-weight="700" font-family="system-ui">DATE OPENED</text>
+                      <text x="118" y="213" fill="#6b7280" font-size="7.5" font-weight="700" font-family="system-ui">EXPIRY</text>
+                      <text x="208" y="213" fill="#6b7280" font-size="7.5" font-weight="700" font-family="system-ui">STRIKES</text>
+                      <text x="318" y="213" fill="#6b7280" font-size="7.5" font-weight="700" font-family="system-ui">P/L</text>
+                      <text x="378" y="213" fill="#6b7280" font-size="7.5" font-weight="700" font-family="system-ui">STATUS</text>
+                      <!-- Row 1 -->
+                      <text x="18" y="230" fill="#1e293b" font-size="8" font-family="system-ui">Jan 6, 2020</text>
+                      <text x="118" y="230" fill="#1e293b" font-size="8" font-family="system-ui">Feb 21, 2020</text>
+                      <text x="208" y="230" fill="#1e293b" font-size="8" font-family="system-ui">320/315/340/345</text>
+                      <text x="318" y="230" fill="#22c55e" font-size="8" font-weight="700" font-family="system-ui">+$248</text>
+                      <rect x="375" y="223" width="36" height="12" rx="6" fill="#dcfce7"/>
+                      <text x="393" y="233" text-anchor="middle" fill="#166534" font-size="7" font-weight="700" font-family="system-ui">WIN</text>
+                      <!-- Row 2 -->
+                      <text x="18" y="247" fill="#1e293b" font-size="8" font-family="system-ui">Feb 3, 2020</text>
+                      <text x="118" y="247" fill="#1e293b" font-size="8" font-family="system-ui">Mar 20, 2020</text>
+                      <text x="208" y="247" fill="#1e293b" font-size="8" font-family="system-ui">295/290/325/330</text>
+                      <text x="318" y="247" fill="#ef4444" font-size="8" font-weight="700" font-family="system-ui">-$412</text>
+                      <rect x="375" y="240" width="36" height="12" rx="6" fill="#fee2e2"/>
+                      <text x="393" y="250" text-anchor="middle" fill="#991b1b" font-size="7" font-weight="700" font-family="system-ui">LOSS</text>
+                      <!-- Row 3 -->
+                      <text x="18" y="264" fill="#1e293b" font-size="8" font-family="system-ui">Apr 1, 2020</text>
+                      <text x="118" y="264" fill="#1e293b" font-size="8" font-family="system-ui">May 15, 2020</text>
+                      <text x="208" y="264" fill="#1e293b" font-size="8" font-family="system-ui">270/265/310/315</text>
+                      <text x="318" y="264" fill="#22c55e" font-size="8" font-weight="700" font-family="system-ui">+$187</text>
+                      <rect x="375" y="257" width="36" height="12" rx="6" fill="#dcfce7"/>
+                      <text x="393" y="267" text-anchor="middle" fill="#166534" font-size="7" font-weight="700" font-family="system-ui">WIN</text>
+                      <!-- Row 4 -->
+                      <text x="18" y="281" fill="#1e293b" font-size="8" font-family="system-ui">May 4, 2020</text>
+                      <text x="118" y="281" fill="#1e293b" font-size="8" font-family="system-ui">Jun 19, 2020</text>
+                      <text x="208" y="281" fill="#1e293b" font-size="8" font-family="system-ui">290/285/325/330</text>
+                      <text x="318" y="281" fill="#22c55e" font-size="8" font-weight="700" font-family="system-ui">+$214</text>
+                      <rect x="375" y="274" width="36" height="12" rx="6" fill="#dcfce7"/>
+                      <text x="393" y="284" text-anchor="middle" fill="#166534" font-size="7" font-weight="700" font-family="system-ui">WIN</text>
+                      <text x="240" y="296" text-anchor="middle" fill="#94a3b8" font-size="7.5" font-family="system-ui">Showing 4 of 187 trades  ·  Sort by date, P/L, or outcome</text>
+                    </svg>
+                  </div>
                 </div>
 
                 <div class="lm-cta">
-                  <h3>Ready to test your options strategy?</h3>
-                  <p>Create a free account and start backtesting with real historical data.</p>
+                  <h3>Ready to discover your edge?</h3>
+                  <p>Create a free account and backtest your options strategy against 5 years of real market data.</p>
                   <a href="/register" class="btn-get-started">Get Started Free <i class="fas fa-arrow-right"></i></a>
                 </div>
               </div>
