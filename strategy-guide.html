@@ -247,9 +247,8 @@
             <div class="sg-bt-example-diagram">
               <svg viewBox="0 0 560 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
                 <defs>
-                  <marker id="arrowGreen1" viewBox="0 0 10 10" refX="5" refY="10" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L5,10 L10,0" fill="none" stroke="#089981" stroke-width="2"/></marker>
                   <linearGradient id="emaFill1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.10"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.01"/></linearGradient>
-                  <filter id="shadow1"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/></filter>
+                  <filter id="shadow1"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.10"/></filter>
                 </defs>
                 <rect width="560" height="280" fill="#ffffff" rx="10"/>
                 <rect x="55" y="15" width="490" height="225" fill="#fafbfc" rx="4" stroke="#eef0f4" stroke-width="0.5"/>
@@ -258,67 +257,54 @@
                 <line x1="55" y1="150" x2="545" y2="150" stroke="#eef0f4" stroke-width="0.5"/>
                 <line x1="55" y1="195" x2="545" y2="195" stroke="#eef0f4" stroke-width="0.5"/>
                 <line x1="55" y1="240" x2="545" y2="240" stroke="#d0d5dd" stroke-width="0.8"/>
-                <text x="50" y="64" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$103</text>
-                <text x="50" y="109" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$101</text>
-                <text x="50" y="154" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$99</text>
-                <text x="50" y="199" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$97</text>
-                <text x="50" y="244" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$95</text>
-                <!-- 16 candles (5-min bars) with realistic wicks -->
-                <line x1="78" y1="218" x2="78" y2="200" stroke="#ef4444" stroke-width="1.2"/>
-                <rect x="74" y="205" width="8" height="10" fill="#ef4444" rx="0.5"/>
-                <line x1="100" y1="212" x2="100" y2="190" stroke="#ef4444" stroke-width="1.2"/>
-                <rect x="96" y="195" width="8" height="12" fill="#ef4444" rx="0.5"/>
-                <line x1="122" y1="210" x2="122" y2="185" stroke="#ef4444" stroke-width="1.2"/>
-                <rect x="118" y="192" width="8" height="13" fill="#ef4444" rx="0.5"/>
-                <line x1="144" y1="200" x2="144" y2="178" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="140" y="180" width="8" height="14" fill="#22c55e" rx="0.5"/>
-                <line x1="166" y1="188" x2="166" y2="165" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="162" y="168" width="8" height="14" fill="#22c55e" rx="0.5"/>
-                <line x1="188" y1="180" x2="188" y2="160" stroke="#ef4444" stroke-width="1.2"/>
-                <rect x="184" y="163" width="8" height="12" fill="#ef4444" rx="0.5"/>
-                <line x1="210" y1="175" x2="210" y2="150" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="206" y="152" width="8" height="16" fill="#22c55e" rx="0.5"/>
-                <line x1="232" y1="160" x2="232" y2="140" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="228" y="142" width="8" height="12" fill="#22c55e" rx="0.5"/>
-                <line x1="254" y1="148" x2="254" y2="128" stroke="#ef4444" stroke-width="1.2"/>
-                <rect x="250" y="130" width="8" height="12" fill="#ef4444" rx="0.5"/>
-                <line x1="276" y1="145" x2="276" y2="122" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="272" y="124" width="8" height="14" fill="#22c55e" rx="0.5"/>
-                <line x1="298" y1="132" x2="298" y2="108" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="294" y="110" width="8" height="16" fill="#22c55e" rx="0.5"/>
-                <line x1="320" y1="118" x2="320" y2="92" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="316" y="94" width="8" height="18" fill="#22c55e" rx="0.5"/>
-                <!-- Signal candle (tall green) -->
-                <line x1="342" y1="100" x2="342" y2="72" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="338" y="74" width="8" height="20" fill="#22c55e" rx="0.5" filter="url(#shadow1)"/>
-                <line x1="364" y1="82" x2="364" y2="58" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="360" y="60" width="8" height="16" fill="#22c55e" rx="0.5"/>
-                <line x1="386" y1="75" x2="386" y2="48" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="382" y="50" width="8" height="18" fill="#22c55e" rx="0.5"/>
-                <line x1="408" y1="65" x2="408" y2="38" stroke="#22c55e" stroke-width="1.2"/>
-                <rect x="404" y="40" width="8" height="18" fill="#22c55e" rx="0.5"/>
-                <!-- 9 EMA line with area fill -->
-                <path d="M78,210 C100,202 122,198 144,190 C166,180 188,172 210,162 C232,152 254,142 276,135 C298,126 320,115 342,102 C364,90 386,80 408,68 L430,60" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M78,210 C100,202 122,198 144,190 C166,180 188,172 210,162 C232,152 254,142 276,135 C298,126 320,115 342,102 C364,90 386,80 408,68 L430,60 L430,240 L78,240 Z" fill="url(#emaFill1)"/>
-                <!-- +1% above EMA (dashed gold line) -->
-                <path d="M78,208 C100,200 122,196 144,188 C166,177 188,169 210,159 C232,149 254,139 276,131 C298,122 320,110 342,96 C364,84 386,73 408,61 L430,53" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="7,4" stroke-linecap="round"/>
-                <!-- Labels for lines -->
-                <rect x="434" y="53" width="55" height="16" rx="3" fill="#eef4ff" stroke="#3b82f6" stroke-width="0.6"/>
-                <text x="461" y="64" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700" font-family="system-ui">9 EMA</text>
-                <rect x="434" y="38" width="55" height="14" rx="3" fill="#fef9ee" stroke="#f59e0b" stroke-width="0.6"/>
-                <text x="461" y="48" text-anchor="middle" fill="#d97706" font-size="8" font-weight="600" font-family="system-ui">EMA +1%</text>
+                <text x="50" y="64" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$510</text>
+                <text x="50" y="109" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$508</text>
+                <text x="50" y="154" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$506</text>
+                <text x="50" y="199" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$504</text>
+                <text x="50" y="244" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$502</text>
+                <!-- 18 five-minute candles (SPY uptrend) -->
+                <line x1="70" y1="212" x2="70" y2="229" stroke="#ef4444" stroke-width="1.2"/><rect x="65" y="218" width="10" height="8" fill="#ef4444" rx="0.5"/>
+                <line x1="97" y1="208" x2="97" y2="224" stroke="#22c55e" stroke-width="1.2"/><rect x="92" y="212" width="10" height="9" fill="#22c55e" rx="0.5"/>
+                <line x1="124" y1="205" x2="124" y2="222" stroke="#ef4444" stroke-width="1.2"/><rect x="119" y="209" width="10" height="9" fill="#ef4444" rx="0.5"/>
+                <line x1="151" y1="196" x2="151" y2="215" stroke="#22c55e" stroke-width="1.2"/><rect x="146" y="200" width="10" height="12" fill="#22c55e" rx="0.5"/>
+                <line x1="178" y1="188" x2="178" y2="207" stroke="#22c55e" stroke-width="1.2"/><rect x="173" y="192" width="10" height="11" fill="#22c55e" rx="0.5"/>
+                <line x1="205" y1="184" x2="205" y2="200" stroke="#ef4444" stroke-width="1.2"/><rect x="200" y="187" width="10" height="9" fill="#ef4444" rx="0.5"/>
+                <line x1="232" y1="177" x2="232" y2="194" stroke="#22c55e" stroke-width="1.2"/><rect x="227" y="181" width="10" height="10" fill="#22c55e" rx="0.5"/>
+                <line x1="259" y1="168" x2="259" y2="186" stroke="#22c55e" stroke-width="1.2"/><rect x="254" y="172" width="10" height="11" fill="#22c55e" rx="0.5"/>
+                <line x1="286" y1="164" x2="286" y2="181" stroke="#ef4444" stroke-width="1.2"/><rect x="281" y="167" width="10" height="10" fill="#ef4444" rx="0.5"/>
+                <line x1="313" y1="156" x2="313" y2="174" stroke="#22c55e" stroke-width="1.2"/><rect x="308" y="160" width="10" height="11" fill="#22c55e" rx="0.5"/>
+                <line x1="340" y1="146" x2="340" y2="165" stroke="#22c55e" stroke-width="1.2"/><rect x="335" y="150" width="10" height="12" fill="#22c55e" rx="0.5"/>
+                <line x1="367" y1="142" x2="367" y2="159" stroke="#ef4444" stroke-width="1.2"/><rect x="362" y="145" width="10" height="10" fill="#ef4444" rx="0.5"/>
+                <!-- Signal candle: big green breakout, price crosses above EMA+1% -->
+                <line x1="394" y1="79" x2="394" y2="152" stroke="#22c55e" stroke-width="1.2"/><rect x="389" y="84" width="10" height="63" fill="#22c55e" rx="0.5" filter="url(#shadow1)"/>
+                <!-- Continuation candles after signal -->
+                <line x1="421" y1="67" x2="421" y2="93" stroke="#22c55e" stroke-width="1.2"/><rect x="416" y="71" width="10" height="17" fill="#22c55e" rx="0.5"/>
+                <line x1="448" y1="58" x2="448" y2="79" stroke="#22c55e" stroke-width="1.2"/><rect x="443" y="62" width="10" height="13" fill="#22c55e" rx="0.5"/>
+                <line x1="475" y1="55" x2="475" y2="74" stroke="#ef4444" stroke-width="1.2"/><rect x="470" y="58" width="10" height="11" fill="#ef4444" rx="0.5"/>
+                <line x1="502" y1="48" x2="502" y2="68" stroke="#22c55e" stroke-width="1.2"/><rect x="497" y="52" width="10" height="13" fill="#22c55e" rx="0.5"/>
+                <line x1="529" y1="42" x2="529" y2="60" stroke="#22c55e" stroke-width="1.2"/><rect x="524" y="46" width="10" height="11" fill="#22c55e" rx="0.5"/>
+                <!-- 9 EMA line — smooth, lagging below price -->
+                <path d="M70,228 C97,224 124,220 151,214 C178,207 205,201 232,194 C259,185 286,178 313,170 C340,161 367,152 394,140 C421,118 448,96 475,80 C502,67 516,62 529,58" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M70,228 C97,224 124,220 151,214 C178,207 205,201 232,194 C259,185 286,178 313,170 C340,161 367,152 394,140 C421,118 448,96 475,80 C502,67 516,62 529,58 L529,240 L70,240 Z" fill="url(#emaFill1)"/>
+                <!-- EMA+1% threshold line (dashed amber, above EMA) -->
+                <path d="M70,216 C97,212 124,208 151,202 C178,195 205,189 232,182 C259,173 286,165 313,157 C340,148 367,138 394,120 C421,98 448,76 475,60 C502,47 516,42 529,38" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="7,4" stroke-linecap="round"/>
+                <!-- Line labels -->
+                <rect x="438" y="50" width="56" height="16" rx="3" fill="#eef4ff" stroke="#3b82f6" stroke-width="0.7"/>
+                <text x="466" y="61" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700" font-family="system-ui">9 EMA</text>
+                <rect x="438" y="31" width="62" height="16" rx="3" fill="#fef9ee" stroke="#f59e0b" stroke-width="0.7"/>
+                <text x="469" y="42" text-anchor="middle" fill="#d97706" font-size="8.5" font-weight="600" font-family="system-ui">EMA +1%</text>
                 <!-- Entry signal badge -->
-                <rect x="308" y="38" width="108" height="24" rx="6" fill="#ecfdf5" stroke="#22c55e" stroke-width="1.2" filter="url(#shadow1)"/>
-                <circle cx="320" cy="50" r="3.5" fill="#22c55e"/>
-                <text x="365" y="54" text-anchor="middle" fill="#15803d" font-size="10.5" font-weight="700" font-family="system-ui">ENTRY SIGNAL</text>
-                <line x1="342" y1="62" x2="342" y2="72" stroke="#22c55e" stroke-width="2" stroke-dasharray="3,2"/>
+                <rect x="305" y="17" width="118" height="24" rx="6" fill="#ecfdf5" stroke="#22c55e" stroke-width="1.2" filter="url(#shadow1)"/>
+                <circle cx="317" cy="29" r="3.5" fill="#22c55e"/>
+                <text x="362" y="33" text-anchor="middle" fill="#15803d" font-size="10.5" font-weight="700" font-family="system-ui">ENTRY SIGNAL</text>
+                <line x1="394" y1="41" x2="394" y2="77" stroke="#22c55e" stroke-width="2" stroke-dasharray="3,2"/>
                 <!-- Time labels -->
-                <text x="78" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:30</text>
-                <text x="144" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:35</text>
-                <text x="210" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:40</text>
-                <text x="276" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:45</text>
-                <text x="342" y="256" text-anchor="middle" fill="#15803d" font-size="8" font-weight="700" font-family="system-ui">9:50</text>
-                <text x="408" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:55</text>
+                <text x="70" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:30</text>
+                <text x="151" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">9:45</text>
+                <text x="232" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">10:00</text>
+                <text x="313" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">10:15</text>
+                <text x="394" y="256" text-anchor="middle" fill="#15803d" font-size="8" font-weight="700" font-family="system-ui">10:25 ✓</text>
+                <text x="475" y="256" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="system-ui">10:40</text>
                 <text x="300" y="272" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">5-Minute Bars  ·  SPY</text>
                 <text x="16" y="150" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui" transform="rotate(-90 16 150)">Price ($)</text>
               </svg>
@@ -346,71 +332,83 @@
             <div class="sg-bt-example-diagram">
               <svg viewBox="0 0 560 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
                 <defs>
-                  <filter id="shadow2"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/></filter>
-                  <linearGradient id="closeFill2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f59e0b" stop-opacity="0.08"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0.01"/></linearGradient>
+                  <filter id="shadow2b"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.12"/></filter>
+                  <linearGradient id="threshZone2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.07"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.01"/></linearGradient>
                 </defs>
                 <rect width="560" height="280" fill="#ffffff" rx="10"/>
-                <rect x="55" y="15" width="490" height="230" fill="#fafbfc" rx="4" stroke="#eef0f4" stroke-width="0.5"/>
-                <line x1="55" y1="55" x2="545" y2="55" stroke="#eef0f4" stroke-width="0.5"/>
-                <line x1="55" y1="100" x2="545" y2="100" stroke="#eef0f4" stroke-width="0.5"/>
-                <line x1="55" y1="145" x2="545" y2="145" stroke="#eef0f4" stroke-width="0.5"/>
-                <line x1="55" y1="190" x2="545" y2="190" stroke="#eef0f4" stroke-width="0.5"/>
-                <line x1="55" y1="245" x2="545" y2="245" stroke="#d0d5dd" stroke-width="0.8"/>
-                <text x="50" y="59" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$102</text>
-                <text x="50" y="104" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$101</text>
-                <text x="50" y="149" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$100</text>
-                <text x="50" y="194" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$99</text>
-                <text x="50" y="249" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$98</text>
-                <!-- 1-hour candles (wider, more realistic) -->
-                <!-- Candle 1: 9:30 - red -->
-                <line x1="90" y1="165" x2="90" y2="218" stroke="#ef4444" stroke-width="1.5"/>
-                <rect x="80" y="175" width="20" height="32" fill="#ef4444" rx="1.5"/>
-                <!-- Candle 2: 10:30 - red -->
-                <line x1="140" y1="158" x2="140" y2="210" stroke="#ef4444" stroke-width="1.5"/>
-                <rect x="130" y="162" width="20" height="38" fill="#ef4444" rx="1.5"/>
-                <!-- Candle 3: 11:30 - green -->
-                <line x1="190" y1="165" x2="190" y2="208" stroke="#22c55e" stroke-width="1.5"/>
-                <rect x="180" y="170" width="20" height="28" fill="#22c55e" rx="1.5"/>
-                <!-- Candle 4: 12:30 - green -->
-                <line x1="240" y1="148" x2="240" y2="192" stroke="#22c55e" stroke-width="1.5"/>
-                <rect x="230" y="152" width="20" height="30" fill="#22c55e" rx="1.5"/>
-                <!-- Candle 5: 1:30 - green -->
-                <line x1="290" y1="132" x2="290" y2="168" stroke="#22c55e" stroke-width="1.5"/>
-                <rect x="280" y="136" width="20" height="24" fill="#22c55e" rx="1.5"/>
-                <!-- Candle 6: 2:30 - green (last completed hourly) -->
-                <line x1="340" y1="118" x2="340" y2="155" stroke="#22c55e" stroke-width="1.5"/>
-                <rect x="330" y="122" width="20" height="22" fill="#22c55e" rx="1.5"/>
-                <!-- Last 1hr close level line (from candle 6 close at y=122) -->
-                <rect x="352" y="119" width="192" height="26" fill="url(#closeFill2)" opacity="0.6"/>
-                <line x1="352" y1="122" x2="545" y2="122" stroke="#f59e0b" stroke-width="2" stroke-dasharray="8,4"/>
-                <line x1="352" y1="145" x2="545" y2="145" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4,3"/>
-                <!-- +0.5% label between the two lines -->
-                <line x1="500" y1="124" x2="500" y2="143" stroke="#64748b" stroke-width="1"/>
-                <line x1="496" y1="124" x2="504" y2="124" stroke="#64748b" stroke-width="1"/>
-                <line x1="496" y1="143" x2="504" y2="143" stroke="#64748b" stroke-width="1"/>
-                <text x="510" y="136" fill="#64748b" font-size="8.5" font-weight="600" font-family="system-ui">0.5%</text>
-                <!-- Current candle (tall green, breaking above +0.5%) -->
-                <line x1="410" y1="80" x2="410" y2="130" stroke="#22c55e" stroke-width="1.5"/>
-                <rect x="400" y="85" width="20" height="35" fill="#22c55e" rx="1.5" filter="url(#shadow2)"/>
-                <!-- Line labels -->
-                <rect x="460" y="115" width="80" height="15" rx="3" fill="#fef9ee" stroke="#f59e0b" stroke-width="0.6"/>
-                <text x="500" y="126" text-anchor="middle" fill="#d97706" font-size="8.5" font-weight="700" font-family="system-ui">1hr Close</text>
-                <rect x="460" y="146" width="80" height="15" rx="3" fill="#f1f5f9" stroke="#94a3b8" stroke-width="0.6"/>
-                <text x="500" y="157" text-anchor="middle" fill="#64748b" font-size="8" font-weight="600" font-family="system-ui">Close +0.5%</text>
-                <!-- Entry signal badge -->
-                <rect x="370" y="50" width="108" height="24" rx="6" fill="#ecfdf5" stroke="#22c55e" stroke-width="1.2" filter="url(#shadow2)"/>
-                <circle cx="382" cy="62" r="3.5" fill="#22c55e"/>
-                <text x="428" y="66" text-anchor="middle" fill="#15803d" font-size="10.5" font-weight="700" font-family="system-ui">ENTRY SIGNAL</text>
-                <line x1="410" y1="74" x2="410" y2="83" stroke="#22c55e" stroke-width="2" stroke-dasharray="3,2"/>
+                <rect x="60" y="15" width="485" height="230" fill="#fafbfc" rx="4" stroke="#eef0f4" stroke-width="0.5"/>
+                <!-- Grid lines — $513, $512, $511, $510, $509 (scale: 46px per $1) -->
+                <line x1="60" y1="61" x2="545" y2="61" stroke="#eef0f4" stroke-width="0.5"/>
+                <line x1="60" y1="107" x2="545" y2="107" stroke="#eef0f4" stroke-width="0.5"/>
+                <line x1="60" y1="153" x2="545" y2="153" stroke="#eef0f4" stroke-width="0.5"/>
+                <line x1="60" y1="199" x2="545" y2="199" stroke="#eef0f4" stroke-width="0.5"/>
+                <line x1="60" y1="245" x2="545" y2="245" stroke="#d0d5dd" stroke-width="0.8"/>
+                <text x="55" y="65" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$513</text>
+                <text x="55" y="111" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$512</text>
+                <text x="55" y="157" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$511</text>
+                <text x="55" y="203" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$510</text>
+                <text x="55" y="249" text-anchor="end" fill="#8b95a5" font-size="9.5" font-family="system-ui">$509</text>
+                <!-- Prev hour close at y=199 ($510.00) — amber dashed -->
+                <line x1="60" y1="199" x2="545" y2="199" stroke="#f59e0b" stroke-width="2" stroke-dasharray="8,4"/>
+                <!-- +0.5% threshold at y=82 ($512.55) — slate dashed -->
+                <line x1="60" y1="82" x2="545" y2="82" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5,3"/>
+                <!-- Breakout zone shading between the two lines (post-boundary) -->
+                <rect x="448" y="82" width="97" height="117" fill="url(#threshZone2)"/>
+                <!-- Hour boundary (11:00) — indigo dashed vertical -->
+                <line x1="448" y1="15" x2="448" y2="245" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.75"/>
+                <!-- 25 one-minute candle bars: i=0..19 pre-hour (10:40–10:59), i=20..24 post-hour (11:00–11:04) -->
+                <!-- Bar spacing: ~19.4px; bar body width: 12px -->
+                <!-- PRE-HOUR bars — price consolidating around $510, slowly drifting up -->
+                <line x1="70" y1="190" x2="70" y2="218" stroke="#22c55e" stroke-width="1.2"/><rect x="64" y="200" width="12" height="11" fill="#22c55e" rx="0.5"/>
+                <line x1="89" y1="194" x2="89" y2="215" stroke="#ef4444" stroke-width="1.2"/><rect x="83" y="201" width="12" height="8" fill="#ef4444" rx="0.5"/>
+                <line x1="109" y1="199" x2="109" y2="218" stroke="#ef4444" stroke-width="1.2"/><rect x="103" y="206" width="12" height="9" fill="#ef4444" rx="0.5"/>
+                <line x1="128" y1="196" x2="128" y2="216" stroke="#22c55e" stroke-width="1.2"/><rect x="122" y="203" width="12" height="10" fill="#22c55e" rx="0.5"/>
+                <line x1="147" y1="183" x2="147" y2="208" stroke="#22c55e" stroke-width="1.2"/><rect x="141" y="189" width="12" height="16" fill="#22c55e" rx="0.5"/>
+                <line x1="167" y1="181" x2="167" y2="200" stroke="#ef4444" stroke-width="1.2"/><rect x="161" y="184" width="12" height="12" fill="#ef4444" rx="0.5"/>
+                <line x1="186" y1="186" x2="186" y2="204" stroke="#ef4444" stroke-width="1.2"/><rect x="180" y="189" width="12" height="11" fill="#ef4444" rx="0.5"/>
+                <line x1="206" y1="179" x2="206" y2="200" stroke="#22c55e" stroke-width="1.2"/><rect x="200" y="183" width="12" height="13" fill="#22c55e" rx="0.5"/>
+                <line x1="225" y1="171" x2="225" y2="193" stroke="#22c55e" stroke-width="1.2"/><rect x="219" y="175" width="12" height="15" fill="#22c55e" rx="0.5"/>
+                <line x1="244" y1="168" x2="244" y2="187" stroke="#ef4444" stroke-width="1.2"/><rect x="238" y="172" width="12" height="12" fill="#ef4444" rx="0.5"/>
+                <line x1="264" y1="174" x2="264" y2="192" stroke="#ef4444" stroke-width="1.2"/><rect x="258" y="177" width="12" height="11" fill="#ef4444" rx="0.5"/>
+                <line x1="283" y1="169" x2="283" y2="188" stroke="#22c55e" stroke-width="1.2"/><rect x="277" y="173" width="12" height="12" fill="#22c55e" rx="0.5"/>
+                <line x1="303" y1="165" x2="303" y2="183" stroke="#ef4444" stroke-width="1.2"/><rect x="297" y="168" width="12" height="11" fill="#ef4444" rx="0.5"/>
+                <line x1="322" y1="159" x2="322" y2="179" stroke="#22c55e" stroke-width="1.2"/><rect x="316" y="163" width="12" height="13" fill="#22c55e" rx="0.5"/>
+                <line x1="341" y1="152" x2="341" y2="172" stroke="#22c55e" stroke-width="1.2"/><rect x="335" y="156" width="12" height="13" fill="#22c55e" rx="0.5"/>
+                <line x1="361" y1="149" x2="361" y2="167" stroke="#ef4444" stroke-width="1.2"/><rect x="355" y="152" width="12" height="11" fill="#ef4444" rx="0.5"/>
+                <line x1="380" y1="154" x2="380" y2="171" stroke="#ef4444" stroke-width="1.2"/><rect x="374" y="157" width="12" height="10" fill="#ef4444" rx="0.5"/>
+                <line x1="400" y1="148" x2="400" y2="166" stroke="#22c55e" stroke-width="1.2"/><rect x="394" y="152" width="12" height="11" fill="#22c55e" rx="0.5"/>
+                <line x1="419" y1="145" x2="419" y2="162" stroke="#ef4444" stroke-width="1.2"/><rect x="413" y="148" width="12" height="10" fill="#ef4444" rx="0.5"/>
+                <line x1="438" y1="151" x2="438" y2="168" stroke="#ef4444" stroke-width="1.2"/><rect x="432" y="154" width="12" height="10" fill="#ef4444" rx="0.5"/>
+                <!-- POST-HOUR bars — sharp rally toward and through $512.55 threshold -->
+                <!-- 11:00: first bar of new hour, strong green -->
+                <line x1="458" y1="143" x2="458" y2="168" stroke="#22c55e" stroke-width="1.2"/><rect x="452" y="147" width="12" height="17" fill="#22c55e" rx="0.5"/>
+                <!-- 11:01: momentum continues -->
+                <line x1="477" y1="118" x2="477" y2="150" stroke="#22c55e" stroke-width="1.2"/><rect x="471" y="122" width="12" height="25" fill="#22c55e" rx="0.5"/>
+                <!-- 11:02: brief red pullback at $511 area -->
+                <line x1="497" y1="109" x2="497" y2="134" stroke="#ef4444" stroke-width="1.2"/><rect x="491" y="112" width="12" height="18" fill="#ef4444" rx="0.5"/>
+                <!-- 11:03: strong green push toward threshold -->
+                <line x1="516" y1="88" x2="516" y2="119" stroke="#22c55e" stroke-width="1.2"/><rect x="510" y="92" width="12" height="24" fill="#22c55e" rx="0.5"/>
+                <!-- 11:04 SIGNAL: closes at $512.96 — above $512.55 threshold (y=82). Body straddles threshold. -->
+                <line x1="535" y1="55" x2="535" y2="100" stroke="#22c55e" stroke-width="1.2"/><rect x="529" y="59" width="12" height="38" fill="#22c55e" rx="0.5" filter="url(#shadow2b)"/>
+                <!-- Reference line labels -->
+                <rect x="62" y="188" width="90" height="16" rx="3" fill="#fef9ee" stroke="#f59e0b" stroke-width="0.7"/>
+                <text x="107" y="199" text-anchor="middle" fill="#b45309" font-size="8.5" font-weight="700" font-family="system-ui">Prev Hr Close</text>
+                <rect x="62" y="72" width="76" height="16" rx="3" fill="#f1f5f9" stroke="#64748b" stroke-width="0.6"/>
+                <text x="100" y="83" text-anchor="middle" fill="#475569" font-size="8.5" font-weight="600" font-family="system-ui">Close +0.5%</text>
+                <!-- Hour boundary label -->
+                <rect x="421" y="4" width="54" height="14" rx="3" fill="#eef2ff" stroke="#6366f1" stroke-width="0.7"/>
+                <text x="448" y="14" text-anchor="middle" fill="#4338ca" font-size="8" font-weight="700" font-family="system-ui">11:00</text>
+                <!-- Entry signal badge + arrow to signal bar -->
+                <rect x="376" y="16" width="122" height="22" rx="5" fill="#ecfdf5" stroke="#22c55e" stroke-width="1.2" filter="url(#shadow2b)"/>
+                <circle cx="388" cy="27" r="3.5" fill="#22c55e"/>
+                <text x="436" y="31" text-anchor="middle" fill="#15803d" font-size="10.5" font-weight="700" font-family="system-ui">ENTRY SIGNAL</text>
+                <line x1="498" y1="27" x2="535" y2="53" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="3,2"/>
                 <!-- Time labels -->
-                <text x="90" y="260" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">9:30</text>
-                <text x="140" y="260" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">10:30</text>
-                <text x="190" y="260" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">11:30</text>
-                <text x="240" y="260" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">12:30</text>
-                <text x="290" y="260" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">1:30</text>
-                <text x="340" y="260" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">2:30</text>
-                <text x="410" y="260" text-anchor="middle" fill="#15803d" font-size="8.5" font-weight="700" font-family="system-ui">Current</text>
-                <text x="300" y="274" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">1-Hour Bars  ·  SPY</text>
+                <text x="70" y="261" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">10:40</text>
+                <text x="264" y="261" text-anchor="middle" fill="#9ca3af" font-size="8.5" font-family="system-ui">10:50</text>
+                <text x="448" y="261" text-anchor="middle" fill="#4338ca" font-size="8.5" font-weight="700" font-family="system-ui">11:00</text>
+                <text x="535" y="261" text-anchor="middle" fill="#15803d" font-size="8.5" font-weight="700" font-family="system-ui">11:04 ✓</text>
+                <text x="300" y="274" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui">1-Minute Bars  ·  SPY  ·  Prev Hour (10:00–11:00) close = $510.00</text>
                 <text x="16" y="150" text-anchor="middle" fill="#6b7280" font-size="9" font-family="system-ui" transform="rotate(-90 16 150)">Price ($)</text>
               </svg>
             </div>
