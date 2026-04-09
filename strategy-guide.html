@@ -3,8 +3,6 @@
     <button class="sg-tab active" data-tab="strategies"><i class="fas fa-chess me-1"></i>Strategy Guide</button>
     <button class="sg-tab" data-tab="backtester"><i class="fas fa-flask me-1"></i>Backtester Reference</button>
     <button class="sg-tab" data-tab="results"><i class="fas fa-chart-line me-1"></i>Results Reference</button>
-    <button class="sg-tab" data-tab="stockBacktester"><i class="fas fa-chart-bar me-1"></i>Stock Backtester</button>
-    <button class="sg-tab" data-tab="stockResults"><i class="fas fa-poll me-1"></i>Stock Results</button>
   </div>
 
   <div id="sgTabStrategies" class="sg-tab-content active">
@@ -37,7 +35,11 @@
   <div id="sgTabBacktester" class="sg-tab-content">
     <div class="sg-header">
       <h2><i class="fas fa-flask me-2"></i>Backtester Parameter Reference</h2>
-      <p class="sg-subtitle">Detailed breakdown of every field, parameter, and configuration option in the Options Backtester — labeled to match the backtester form sections</p>
+      <p class="sg-subtitle">Detailed breakdown of every field, parameter, and configuration option — labeled to match the backtester form sections</p>
+      <div class="sg-sub-toggle">
+        <button class="sg-sub-toggle-btn active" data-subtab="bt-options"><i class="fas fa-layer-group me-1"></i>Options</button>
+        <button class="sg-sub-toggle-btn" data-subtab="bt-stock"><i class="fas fa-chart-bar me-1"></i>Stock</button>
+      </div>
       <div class="sg-search-wrapper">
         <i class="fas fa-search sg-search-icon"></i>
         <input type="text" id="sgBtSearchInput" class="sg-search-input" placeholder="Search parameters, fields, or keywords...">
@@ -45,6 +47,7 @@
       </div>
     </div>
 
+    <div id="sgBtSubOptions" class="sg-sub-content active">
     <div id="sgBtSections" class="sg-bt-sections">
 
       <div class="sg-bt-section" data-section="setup">
@@ -866,12 +869,315 @@
       </div>
 
     </div>
+    </div>
+
+    <div id="sgBtSubStock" class="sg-sub-content">
+    <div id="sgStockBtSections" class="sg-bt-sections">
+
+      <div class="sg-bt-section" data-section="stock-name">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">1/7</span>
+          <h3>Backtest Name</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="130" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
+              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
+              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">1</text>
+              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">BACKTEST NAME</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Give this backtest a memorable name:</text>
+              <rect x="16" y="66" width="488" height="34" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="88" fill="#9ca3af" font-size="12" font-family="system-ui" font-style="italic">e.g., SPY Gap Up Strategy, AAPL Momentum</text>
+              <text x="16" y="118" fill="#9ca3af" font-size="10" font-family="system-ui">Used to identify this backtest in your results history</text>
+            </svg>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-tag"></i> Backtest Name</div>
+            <div class="sg-bt-field-desc">A descriptive label to identify this backtest in your results list. Use meaningful names like "SPY Gap Up 5% March 2025" so you can quickly find and compare results later.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Include the strategy type, symbol, and condition in the name for easy identification.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="stock-symbol-dates">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">2/7</span>
+          <h3>Symbol & Date Range</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="200" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
+              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
+              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">2</text>
+              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">SYMBOL &amp; DATE RANGE</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Symbol Mode:</text>
+              <rect x="16" y="64" width="60" height="24" rx="12" fill="#059669"/>
+              <text x="46" y="80" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">Single</text>
+              <rect x="82" y="64" width="70" height="24" rx="12" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="117" y="80" text-anchor="middle" fill="#64748b" font-size="10" font-weight="600" font-family="system-ui">Multiple</text>
+              <text x="16" y="108" fill="#6a6d78" font-size="11" font-family="system-ui">Symbol:</text>
+              <rect x="16" y="114" width="200" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="134" fill="#1e222d" font-size="12" font-weight="600" font-family="system-ui">SPY</text>
+              <text x="16" y="160" fill="#6a6d78" font-size="11" font-family="system-ui">Start Date:</text>
+              <rect x="16" y="166" width="150" height="28" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="185" fill="#1e222d" font-size="11" font-family="system-ui">2026-01-01</text>
+              <text x="200" y="160" fill="#6a6d78" font-size="11" font-family="system-ui">End Date:</text>
+              <rect x="200" y="166" width="150" height="28" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="212" y="185" fill="#1e222d" font-size="11" font-family="system-ui">2026-03-31</text>
+            </svg>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-toggle-on"></i> Symbol Mode</div>
+            <div class="sg-bt-field-desc">Choose how to specify which stocks to backtest:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Single</strong> — Enter one ticker symbol (e.g., SPY, AAPL).</li>
+              <li><strong>Multiple</strong> — Enter comma-separated tickers (e.g., AAPL, MSFT, TSLA) or upload a CSV file with one symbol per row.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Multiple mode runs the same strategy across all symbols — great for screening which tickers work best with your setup.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Symbol</div>
+            <div class="sg-bt-field-desc">The ticker symbol(s) to backtest. Supports any US stock or ETF (e.g., SPY, QQQ, AAPL, TSLA). In Single mode, enter one symbol. In Multiple mode, enter comma-separated symbols or upload a CSV.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-file-csv"></i> CSV Upload (Multiple mode)</div>
+            <div class="sg-bt-field-desc">Upload a CSV file with one ticker symbol per row. The backtester will run your strategy against every symbol in the file. Useful for testing across an entire watchlist or sector.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-alt"></i> Start Date / End Date</div>
+            <div class="sg-bt-field-desc">The date range for the backtest. The engine fetches intraday price data for each trading day in this range and evaluates your entry/exit conditions bar by bar.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Longer date ranges produce more trades and more statistically significant results. Start with at least 1-3 months.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="stock-entry-conditions">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">3/7</span>
+          <h3>Entry Conditions</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 170" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="170" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
+              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
+              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">3</text>
+              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">ENTRY CONDITIONS</text>
+              <rect x="16" y="50" width="55" height="22" rx="11" fill="#059669"/>
+              <text x="43" y="65" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">Preset</text>
+              <rect x="77" y="50" width="100" height="22" rx="11" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="127" y="65" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">Custom Builder</text>
+              <text x="16" y="94" fill="#6a6d78" font-size="10" font-family="system-ui">Entry Signal:</text>
+              <rect x="16" y="100" width="200" height="26" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="118" fill="#1e222d" font-size="10" font-family="system-ui">Premarket Change %</text>
+              <text x="16" y="142" fill="#6a6d78" font-size="10" font-family="system-ui">Operator:</text>
+              <rect x="16" y="148" width="60" height="20" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="28" y="162" fill="#1e222d" font-size="10" font-family="system-ui">&gt;</text>
+              <text x="110" y="142" fill="#6a6d78" font-size="10" font-family="system-ui">Threshold (%):</text>
+              <rect x="110" y="148" width="80" height="20" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="122" y="162" fill="#1e222d" font-size="10" font-family="system-ui">2.5</text>
+            </svg>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-toggle-on"></i> Condition Type</div>
+            <div class="sg-bt-field-desc">Choose between Preset signals or the Custom Builder:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Preset</strong> — Quick setup using built-in market signals.</li>
+              <li><strong>Custom Builder</strong> — Build complex conditions by comparing technical indicators (SMA, EMA, RSI, MACD) across different timeframes and offsets.</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-signal"></i> Preset Entry Signals</div>
+            <div class="sg-bt-field-desc">Five built-in market signals you can configure with an operator and threshold:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Premarket Change %</strong> — Percentage change from previous close to premarket price. Captures overnight momentum.</li>
+              <li><strong>Change %</strong> — Intraday percentage change from previous close. Measures overall daily momentum.</li>
+              <li><strong>Gap %</strong> — Percentage gap between previous close and market open. Detects gap-up or gap-down scenarios.</li>
+              <li><strong>Change-Open %</strong> — Percentage change from today's open price. Measures movement since the market opened.</li>
+              <li><strong>Velocity (Rate of Change)</strong> — Rate of price change over a specified minute interval. Detects rapid momentum bursts (e.g., "price rose 1.5% in the last 5 minutes").</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-tools"></i> Custom Condition Builder</div>
+            <div class="sg-bt-field-desc">Build sophisticated entry rules by comparing candle data and technical indicators. Each condition compares a left-side value to a right-side value using an operator.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Metrics</strong> — Price, SMA (Simple Moving Average), EMA (Exponential Moving Average), RSI (Relative Strength Index), MACD.</li>
+              <li><strong>Timeframes</strong> — Minute, Hour, Day candles.</li>
+              <li><strong>Offsets</strong> — Compare current vs. prior candles (e.g., "Current RSI vs. RSI 5 bars ago").</li>
+              <li><strong>Operators</strong> — >, <, >=, <=, =</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: "Enter when Current Price > SMA(20) AND RSI < 30" — this finds oversold stocks trading above their 20-day moving average.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="stock-entry-criteria">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">4/7</span>
+          <h3>Entry Criteria (Direction & Sizing)</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 155" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="155" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
+              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
+              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">4</text>
+              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">ENTRY CRITERIA</text>
+              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Direction:</text>
+              <rect x="16" y="64" width="55" height="24" rx="12" fill="#059669"/>
+              <text x="43" y="80" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">Long</text>
+              <rect x="77" y="64" width="55" height="24" rx="12" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="104" y="80" text-anchor="middle" fill="#64748b" font-size="10" font-weight="600" font-family="system-ui">Short</text>
+              <text x="16" y="108" fill="#6a6d78" font-size="11" font-family="system-ui">Position Sizing:</text>
+              <rect x="16" y="114" width="80" height="22" rx="11" fill="#059669"/>
+              <text x="56" y="129" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">Fixed Shares</text>
+              <rect x="102" y="114" width="80" height="22" rx="11" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="142" y="129" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">Fixed Dollars</text>
+              <rect x="188" y="114" width="80" height="22" rx="11" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="228" y="129" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">% of Capital</text>
+              <rect x="16" y="142" width="100" height="2" rx="1" fill="#e2e8f0"/>
+            </svg>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-compass"></i> Direction</div>
+            <div class="sg-bt-field-desc">Whether the strategy goes Long (buy, profit when price rises) or Short (sell, profit when price falls).</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-sliders-h"></i> Position Sizing</div>
+            <div class="sg-bt-field-desc">How to determine the number of shares per trade. Three modes available:</div>
+            <ul class="sg-bt-list">
+              <li><strong>Fixed Shares</strong> — Always trade a specific number of shares (e.g., 100 shares per trade). Simplest option.</li>
+              <li><strong>Fixed Dollars</strong> — Allocate a fixed dollar amount per trade (e.g., $5,000). Shares are calculated from the entry price.</li>
+              <li><strong>% of Capital</strong> — Allocate a percentage of your current account balance per trade (e.g., 10%). Requires setting a Starting Capital amount. This compounds gains and reduces exposure after losses.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> % of Capital is the most realistic mode — it simulates compounding and proper position sizing. Fixed Shares is best for simple comparison across symbols.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Starting Capital (% of Capital mode)</div>
+            <div class="sg-bt-field-desc">Your simulated starting account balance. Only required when using "% of Capital" sizing mode. The backtester tracks your running balance, compounding gains and reducing size after losses.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="stock-exit-criteria">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">5/7</span>
+          <h3>Exit Criteria (TP / SL / Max Days)</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-ui-preview">
+            <svg viewBox="0 0 520 140" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+              <rect width="520" height="140" fill="#ffffff" rx="8"/>
+              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
+              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
+              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">5</text>
+              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">EXIT CRITERIA</text>
+              <rect x="16" y="50" width="230" height="50" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+              <text x="28" y="68" fill="#059669" font-size="10" font-weight="700" font-family="system-ui"><tspan>&#x1f3c6;</tspan> Take Profit</text>
+              <rect x="28" y="76" width="50" height="18" rx="4" fill="#059669"/>
+              <text x="53" y="89" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">%</text>
+              <rect x="84" y="76" width="50" height="18" rx="4" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="109" y="89" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">$</text>
+              <rect x="270" y="50" width="230" height="50" rx="8" fill="#fff1f2" stroke="#fecaca" stroke-width="1"/>
+              <text x="282" y="68" fill="#ef4444" font-size="10" font-weight="700" font-family="system-ui"><tspan>&#x1f6e1;</tspan> Stop Loss</text>
+              <rect x="282" y="76" width="50" height="18" rx="4" fill="#ef4444"/>
+              <text x="307" y="89" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">%</text>
+              <rect x="338" y="76" width="50" height="18" rx="4" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
+              <text x="363" y="89" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">$</text>
+              <text x="16" y="120" fill="#6a6d78" font-size="11" font-family="system-ui">Max Days in Trade:</text>
+              <rect x="140" y="108" width="60" height="24" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
+              <text x="152" y="125" fill="#1e222d" font-size="11" font-family="system-ui">5</text>
+            </svg>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-trophy" style="color:#22c55e"></i> Take Profit</div>
+            <div class="sg-bt-field-desc">The profit target at which positions are automatically closed. Can be set as a percentage gain or a fixed dollar amount per share.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Percent</strong> — Close when the price rises X% from entry (e.g., 5% gain).</li>
+              <li><strong>Dollar</strong> — Close when the price rises $X from entry (e.g., $2.50 per share).</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-shield-alt" style="color:#ef4444"></i> Stop Loss</div>
+            <div class="sg-bt-field-desc">The maximum acceptable loss per trade before the position is automatically closed.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Percent</strong> — Close when the price drops X% from entry (e.g., 3% loss).</li>
+              <li><strong>Dollar</strong> — Close when the price drops $X from entry (e.g., $1.00 per share).</li>
+            </ul>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-hourglass-end"></i> Max Days in Trade</div>
+            <div class="sg-bt-field-desc">Auto-close the position after this many trading days regardless of profit or loss. Prevents positions from being held indefinitely. If neither TP nor SL is hit within this window, the trade exits at the closing price on the final day.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="stock-exit-signals">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">6/7</span>
+          <h3>Signal-Based Exit Conditions <span style="font-size:11px;color:#94a3b8;font-weight:400;">(optional)</span></h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <p class="sg-bt-intro">An optional layer of exit logic that can close positions early based on market signals — independent of TP/SL/Max Days. The same Preset and Custom Builder options are available as in Entry Conditions.</p>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-door-open"></i> Exit Signal</div>
+            <div class="sg-bt-field-desc">Choose a Preset signal or Custom Builder condition. When the signal triggers on any bar while a position is open, the trade is closed immediately. This overrides TP/SL if it fires first.</div>
+            <ul class="sg-bt-list">
+              <li><strong>Preset signals</strong> — Same 5 options: Premarket Change %, Change %, Gap %, Change-Open %, Velocity.</li>
+              <li><strong>Custom Builder</strong> — Same indicator comparisons: Price, SMA, EMA, RSI, MACD across timeframes.</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: "Exit when RSI > 70" — closes positions when the stock becomes overbought, even if TP/SL hasn't been hit.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section" data-section="stock-advanced">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">7/7</span>
+          <h3>Advanced Options <span style="font-size:11px;color:#94a3b8;font-weight:400;">(optional)</span></h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-layer-group"></i> Allow Consecutive Trades</div>
+            <div class="sg-bt-field-desc">When enabled, the backtester can open a new position in the same symbol even while a previous position is still active. When disabled (default), the backtester waits for the current position to close before taking new entries.</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Enabling consecutive trades can dramatically increase trade count but also increases risk. Start with it disabled to evaluate your base strategy.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+
   </div>
 
   <div id="sgTabResults" class="sg-tab-content">
     <div class="sg-header">
       <h2><i class="fas fa-chart-line me-2"></i>Results & Metrics Reference</h2>
-      <p class="sg-subtitle">Complete visual guide to every section, metric, chart, and data field on the Options Backtest Result Detail page</p>
+      <p class="sg-subtitle">Complete visual guide to every section, metric, chart, and data field on the Backtest Result Detail page</p>
+      <div class="sg-sub-toggle">
+        <button class="sg-sub-toggle-btn active" data-subtab="res-options"><i class="fas fa-layer-group me-1"></i>Options</button>
+        <button class="sg-sub-toggle-btn" data-subtab="res-stock"><i class="fas fa-chart-bar me-1"></i>Stock</button>
+      </div>
       <div class="sg-search-wrapper">
         <i class="fas fa-search sg-search-icon"></i>
         <input type="text" id="sgResSearchInput" class="sg-search-input" placeholder="Search metrics, charts, or terms...">
@@ -879,6 +1185,7 @@
       </div>
     </div>
 
+    <div id="sgResSubOptions" class="sg-sub-content active">
     <div id="sgResSections" class="sg-bt-sections">
 
       <div class="sg-bt-section" data-section="page-header">
@@ -1364,326 +1671,9 @@
       </div>
 
     </div>
-  </div>
-
-  <div id="sgTabStockBacktester" class="sg-tab-content">
-    <div class="sg-header">
-      <h2><i class="fas fa-chart-bar me-2"></i>Stock Backtester Reference</h2>
-      <p class="sg-subtitle">Detailed breakdown of every field, parameter, and configuration option in the Stock Backtester — labeled to match the form sections</p>
-      <div class="sg-search-wrapper">
-        <i class="fas fa-search sg-search-icon"></i>
-        <input type="text" id="sgStockBtSearchInput" class="sg-search-input" placeholder="Search parameters, fields, or keywords...">
-        <button id="sgStockBtSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
-      </div>
     </div>
 
-    <div id="sgStockBtSections" class="sg-bt-sections">
-
-      <div class="sg-bt-section" data-section="stock-name">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">1/7</span>
-          <h3>Backtest Name</h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <div class="sg-bt-ui-preview">
-            <svg viewBox="0 0 520 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
-              <rect width="520" height="130" fill="#ffffff" rx="8"/>
-              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
-              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
-              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">1</text>
-              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">BACKTEST NAME</text>
-              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Give this backtest a memorable name:</text>
-              <rect x="16" y="66" width="488" height="34" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="28" y="88" fill="#9ca3af" font-size="12" font-family="system-ui" font-style="italic">e.g., SPY Gap Up Strategy, AAPL Momentum</text>
-              <text x="16" y="118" fill="#9ca3af" font-size="10" font-family="system-ui">Used to identify this backtest in your results history</text>
-            </svg>
-          </div>
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-tag"></i> Backtest Name</div>
-            <div class="sg-bt-field-desc">A descriptive label to identify this backtest in your results list. Use meaningful names like "SPY Gap Up 5% March 2025" so you can quickly find and compare results later.</div>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Include the strategy type, symbol, and condition in the name for easy identification.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="stock-symbol-dates">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">2/7</span>
-          <h3>Symbol & Date Range</h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <div class="sg-bt-ui-preview">
-            <svg viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
-              <rect width="520" height="200" fill="#ffffff" rx="8"/>
-              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
-              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
-              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">2</text>
-              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">SYMBOL &amp; DATE RANGE</text>
-              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Symbol Mode:</text>
-              <rect x="16" y="64" width="60" height="24" rx="12" fill="#059669"/>
-              <text x="46" y="80" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">Single</text>
-              <rect x="82" y="64" width="70" height="24" rx="12" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="117" y="80" text-anchor="middle" fill="#64748b" font-size="10" font-weight="600" font-family="system-ui">Multiple</text>
-              <text x="16" y="108" fill="#6a6d78" font-size="11" font-family="system-ui">Symbol:</text>
-              <rect x="16" y="114" width="200" height="30" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="28" y="134" fill="#1e222d" font-size="12" font-weight="600" font-family="system-ui">SPY</text>
-              <text x="16" y="160" fill="#6a6d78" font-size="11" font-family="system-ui">Start Date:</text>
-              <rect x="16" y="166" width="150" height="28" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="28" y="185" fill="#1e222d" font-size="11" font-family="system-ui">2026-01-01</text>
-              <text x="200" y="160" fill="#6a6d78" font-size="11" font-family="system-ui">End Date:</text>
-              <rect x="200" y="166" width="150" height="28" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="212" y="185" fill="#1e222d" font-size="11" font-family="system-ui">2026-03-31</text>
-            </svg>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-toggle-on"></i> Symbol Mode</div>
-            <div class="sg-bt-field-desc">Choose how to specify which stocks to backtest:</div>
-            <ul class="sg-bt-list">
-              <li><strong>Single</strong> — Enter one ticker symbol (e.g., SPY, AAPL).</li>
-              <li><strong>Multiple</strong> — Enter comma-separated tickers (e.g., AAPL, MSFT, TSLA) or upload a CSV file with one symbol per row.</li>
-            </ul>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Multiple mode runs the same strategy across all symbols — great for screening which tickers work best with your setup.</div>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-chart-bar"></i> Symbol</div>
-            <div class="sg-bt-field-desc">The ticker symbol(s) to backtest. Supports any US stock or ETF (e.g., SPY, QQQ, AAPL, TSLA). In Single mode, enter one symbol. In Multiple mode, enter comma-separated symbols or upload a CSV.</div>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-file-csv"></i> CSV Upload (Multiple mode)</div>
-            <div class="sg-bt-field-desc">Upload a CSV file with one ticker symbol per row. The backtester will run your strategy against every symbol in the file. Useful for testing across an entire watchlist or sector.</div>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-calendar-alt"></i> Start Date / End Date</div>
-            <div class="sg-bt-field-desc">The date range for the backtest. The engine fetches intraday price data for each trading day in this range and evaluates your entry/exit conditions bar by bar.</div>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Longer date ranges produce more trades and more statistically significant results. Start with at least 1-3 months.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="stock-entry-conditions">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">3/7</span>
-          <h3>Entry Conditions</h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <div class="sg-bt-ui-preview">
-            <svg viewBox="0 0 520 170" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
-              <rect width="520" height="170" fill="#ffffff" rx="8"/>
-              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
-              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
-              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">3</text>
-              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">ENTRY CONDITIONS</text>
-              <rect x="16" y="50" width="55" height="22" rx="11" fill="#059669"/>
-              <text x="43" y="65" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">Preset</text>
-              <rect x="77" y="50" width="100" height="22" rx="11" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="127" y="65" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">Custom Builder</text>
-              <text x="16" y="94" fill="#6a6d78" font-size="10" font-family="system-ui">Entry Signal:</text>
-              <rect x="16" y="100" width="200" height="26" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="28" y="118" fill="#1e222d" font-size="10" font-family="system-ui">Premarket Change %</text>
-              <text x="16" y="142" fill="#6a6d78" font-size="10" font-family="system-ui">Operator:</text>
-              <rect x="16" y="148" width="60" height="20" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="28" y="162" fill="#1e222d" font-size="10" font-family="system-ui">&gt;</text>
-              <text x="110" y="142" fill="#6a6d78" font-size="10" font-family="system-ui">Threshold (%):</text>
-              <rect x="110" y="148" width="80" height="20" rx="4" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="122" y="162" fill="#1e222d" font-size="10" font-family="system-ui">2.5</text>
-            </svg>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-toggle-on"></i> Condition Type</div>
-            <div class="sg-bt-field-desc">Choose between Preset signals or the Custom Builder:</div>
-            <ul class="sg-bt-list">
-              <li><strong>Preset</strong> — Quick setup using built-in market signals.</li>
-              <li><strong>Custom Builder</strong> — Build complex conditions by comparing technical indicators (SMA, EMA, RSI, MACD) across different timeframes and offsets.</li>
-            </ul>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-signal"></i> Preset Entry Signals</div>
-            <div class="sg-bt-field-desc">Five built-in market signals you can configure with an operator and threshold:</div>
-            <ul class="sg-bt-list">
-              <li><strong>Premarket Change %</strong> — Percentage change from previous close to premarket price. Captures overnight momentum.</li>
-              <li><strong>Change %</strong> — Intraday percentage change from previous close. Measures overall daily momentum.</li>
-              <li><strong>Gap %</strong> — Percentage gap between previous close and market open. Detects gap-up or gap-down scenarios.</li>
-              <li><strong>Change-Open %</strong> — Percentage change from today's open price. Measures movement since the market opened.</li>
-              <li><strong>Velocity (Rate of Change)</strong> — Rate of price change over a specified minute interval. Detects rapid momentum bursts (e.g., "price rose 1.5% in the last 5 minutes").</li>
-            </ul>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-tools"></i> Custom Condition Builder</div>
-            <div class="sg-bt-field-desc">Build sophisticated entry rules by comparing candle data and technical indicators. Each condition compares a left-side value to a right-side value using an operator.</div>
-            <ul class="sg-bt-list">
-              <li><strong>Metrics</strong> — Price, SMA (Simple Moving Average), EMA (Exponential Moving Average), RSI (Relative Strength Index), MACD.</li>
-              <li><strong>Timeframes</strong> — Minute, Hour, Day candles.</li>
-              <li><strong>Offsets</strong> — Compare current vs. prior candles (e.g., "Current RSI vs. RSI 5 bars ago").</li>
-              <li><strong>Operators</strong> — >, <, >=, <=, =</li>
-            </ul>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: "Enter when Current Price > SMA(20) AND RSI < 30" — this finds oversold stocks trading above their 20-day moving average.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="stock-entry-criteria">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">4/7</span>
-          <h3>Entry Criteria (Direction & Sizing)</h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <div class="sg-bt-ui-preview">
-            <svg viewBox="0 0 520 155" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
-              <rect width="520" height="155" fill="#ffffff" rx="8"/>
-              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
-              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
-              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">4</text>
-              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">ENTRY CRITERIA</text>
-              <text x="16" y="58" fill="#6a6d78" font-size="11" font-family="system-ui">Direction:</text>
-              <rect x="16" y="64" width="55" height="24" rx="12" fill="#059669"/>
-              <text x="43" y="80" text-anchor="middle" fill="#fff" font-size="10" font-weight="600" font-family="system-ui">Long</text>
-              <rect x="77" y="64" width="55" height="24" rx="12" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="104" y="80" text-anchor="middle" fill="#64748b" font-size="10" font-weight="600" font-family="system-ui">Short</text>
-              <text x="16" y="108" fill="#6a6d78" font-size="11" font-family="system-ui">Position Sizing:</text>
-              <rect x="16" y="114" width="80" height="22" rx="11" fill="#059669"/>
-              <text x="56" y="129" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">Fixed Shares</text>
-              <rect x="102" y="114" width="80" height="22" rx="11" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="142" y="129" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">Fixed Dollars</text>
-              <rect x="188" y="114" width="80" height="22" rx="11" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="228" y="129" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">% of Capital</text>
-              <rect x="16" y="142" width="100" height="2" rx="1" fill="#e2e8f0"/>
-            </svg>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-compass"></i> Direction</div>
-            <div class="sg-bt-field-desc">Whether the strategy goes Long (buy, profit when price rises) or Short (sell, profit when price falls).</div>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-sliders-h"></i> Position Sizing</div>
-            <div class="sg-bt-field-desc">How to determine the number of shares per trade. Three modes available:</div>
-            <ul class="sg-bt-list">
-              <li><strong>Fixed Shares</strong> — Always trade a specific number of shares (e.g., 100 shares per trade). Simplest option.</li>
-              <li><strong>Fixed Dollars</strong> — Allocate a fixed dollar amount per trade (e.g., $5,000). Shares are calculated from the entry price.</li>
-              <li><strong>% of Capital</strong> — Allocate a percentage of your current account balance per trade (e.g., 10%). Requires setting a Starting Capital amount. This compounds gains and reduces exposure after losses.</li>
-            </ul>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> % of Capital is the most realistic mode — it simulates compounding and proper position sizing. Fixed Shares is best for simple comparison across symbols.</div>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-wallet"></i> Starting Capital (% of Capital mode)</div>
-            <div class="sg-bt-field-desc">Your simulated starting account balance. Only required when using "% of Capital" sizing mode. The backtester tracks your running balance, compounding gains and reducing size after losses.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="stock-exit-criteria">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">5/7</span>
-          <h3>Exit Criteria (TP / SL / Max Days)</h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <div class="sg-bt-ui-preview">
-            <svg viewBox="0 0 520 140" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
-              <rect width="520" height="140" fill="#ffffff" rx="8"/>
-              <rect x="16" y="10" width="488" height="30" rx="15" fill="#ecfdf5"/>
-              <rect x="24" y="16" width="26" height="18" rx="9" fill="#059669"/>
-              <text x="37" y="29" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">5</text>
-              <text x="60" y="30" fill="#1e222d" font-size="13" font-weight="700" font-family="system-ui">EXIT CRITERIA</text>
-              <rect x="16" y="50" width="230" height="50" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
-              <text x="28" y="68" fill="#059669" font-size="10" font-weight="700" font-family="system-ui"><tspan>&#x1f3c6;</tspan> Take Profit</text>
-              <rect x="28" y="76" width="50" height="18" rx="4" fill="#059669"/>
-              <text x="53" y="89" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">%</text>
-              <rect x="84" y="76" width="50" height="18" rx="4" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="109" y="89" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">$</text>
-              <rect x="270" y="50" width="230" height="50" rx="8" fill="#fff1f2" stroke="#fecaca" stroke-width="1"/>
-              <text x="282" y="68" fill="#ef4444" font-size="10" font-weight="700" font-family="system-ui"><tspan>&#x1f6e1;</tspan> Stop Loss</text>
-              <rect x="282" y="76" width="50" height="18" rx="4" fill="#ef4444"/>
-              <text x="307" y="89" text-anchor="middle" fill="#fff" font-size="9" font-weight="600" font-family="system-ui">%</text>
-              <rect x="338" y="76" width="50" height="18" rx="4" fill="#f1f5f9" stroke="#d1d4dc" stroke-width="0.8"/>
-              <text x="363" y="89" text-anchor="middle" fill="#64748b" font-size="9" font-weight="600" font-family="system-ui">$</text>
-              <text x="16" y="120" fill="#6a6d78" font-size="11" font-family="system-ui">Max Days in Trade:</text>
-              <rect x="140" y="108" width="60" height="24" rx="6" fill="#f5f6fa" stroke="#d1d4dc" stroke-width="1"/>
-              <text x="152" y="125" fill="#1e222d" font-size="11" font-family="system-ui">5</text>
-            </svg>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-trophy" style="color:#22c55e"></i> Take Profit</div>
-            <div class="sg-bt-field-desc">The profit target at which positions are automatically closed. Can be set as a percentage gain or a fixed dollar amount per share.</div>
-            <ul class="sg-bt-list">
-              <li><strong>Percent</strong> — Close when the price rises X% from entry (e.g., 5% gain).</li>
-              <li><strong>Dollar</strong> — Close when the price rises $X from entry (e.g., $2.50 per share).</li>
-            </ul>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-shield-alt" style="color:#ef4444"></i> Stop Loss</div>
-            <div class="sg-bt-field-desc">The maximum acceptable loss per trade before the position is automatically closed.</div>
-            <ul class="sg-bt-list">
-              <li><strong>Percent</strong> — Close when the price drops X% from entry (e.g., 3% loss).</li>
-              <li><strong>Dollar</strong> — Close when the price drops $X from entry (e.g., $1.00 per share).</li>
-            </ul>
-          </div>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-hourglass-end"></i> Max Days in Trade</div>
-            <div class="sg-bt-field-desc">Auto-close the position after this many trading days regardless of profit or loss. Prevents positions from being held indefinitely. If neither TP nor SL is hit within this window, the trade exits at the closing price on the final day.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="stock-exit-signals">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">6/7</span>
-          <h3>Signal-Based Exit Conditions <span style="font-size:11px;color:#94a3b8;font-weight:400;">(optional)</span></h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <p class="sg-bt-intro">An optional layer of exit logic that can close positions early based on market signals — independent of TP/SL/Max Days. The same Preset and Custom Builder options are available as in Entry Conditions.</p>
-
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-door-open"></i> Exit Signal</div>
-            <div class="sg-bt-field-desc">Choose a Preset signal or Custom Builder condition. When the signal triggers on any bar while a position is open, the trade is closed immediately. This overrides TP/SL if it fires first.</div>
-            <ul class="sg-bt-list">
-              <li><strong>Preset signals</strong> — Same 5 options: Premarket Change %, Change %, Gap %, Change-Open %, Velocity.</li>
-              <li><strong>Custom Builder</strong> — Same indicator comparisons: Price, SMA, EMA, RSI, MACD across timeframes.</li>
-            </ul>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: "Exit when RSI > 70" — closes positions when the stock becomes overbought, even if TP/SL hasn't been hit.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sg-bt-section" data-section="stock-advanced">
-        <div class="sg-bt-section-header">
-          <span class="sg-bt-step">7/7</span>
-          <h3>Advanced Options <span style="font-size:11px;color:#94a3b8;font-weight:400;">(optional)</span></h3>
-        </div>
-        <div class="sg-bt-section-body">
-          <div class="sg-bt-field">
-            <div class="sg-bt-field-name"><i class="fas fa-layer-group"></i> Allow Consecutive Trades</div>
-            <div class="sg-bt-field-desc">When enabled, the backtester can open a new position in the same symbol even while a previous position is still active. When disabled (default), the backtester waits for the current position to close before taking new entries.</div>
-            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Enabling consecutive trades can dramatically increase trade count but also increases risk. Start with it disabled to evaluate your base strategy.</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <div id="sgTabStockResults" class="sg-tab-content">
-    <div class="sg-header">
-      <h2><i class="fas fa-poll me-2"></i>Stock Results Reference</h2>
-      <p class="sg-subtitle">Complete visual guide to every section, metric, and data field on the Stock Backtest Result Detail page</p>
-      <div class="sg-search-wrapper">
-        <i class="fas fa-search sg-search-icon"></i>
-        <input type="text" id="sgStockResSearchInput" class="sg-search-input" placeholder="Search metrics, charts, or terms...">
-        <button id="sgStockResSearchClear" class="sg-search-clear" style="display:none;"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
-
+    <div id="sgResSubStock" class="sg-sub-content">
     <div id="sgStockResSections" class="sg-bt-sections">
 
       <div class="sg-bt-section" data-section="stock-report-header">
@@ -2010,5 +2000,8 @@
       </div>
 
     </div>
+    </div>
+
   </div>
 </div>
+

@@ -747,28 +747,62 @@ function initStrategyGuide() {
     });
   });
 
-  function setupRefSearch(inputId, clearId, containerSelector) {
+  document.querySelectorAll('.sg-sub-toggle').forEach(toggle => {
+    const btns = toggle.querySelectorAll('.sg-sub-toggle-btn');
+    btns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabContent = toggle.closest('.sg-tab-content');
+        const subContents = tabContent.querySelectorAll('.sg-sub-content');
+        btns.forEach(b => b.classList.remove('active'));
+        subContents.forEach(sc => sc.classList.remove('active'));
+        btn.classList.add('active');
+        const subtab = btn.dataset.subtab;
+        const map = {
+          'bt-options': 'sgBtSubOptions',
+          'bt-stock': 'sgBtSubStock',
+          'res-options': 'sgResSubOptions',
+          'res-stock': 'sgResSubStock'
+        };
+        const target = document.getElementById(map[subtab]);
+        if (target) target.classList.add('active');
+        const searchInput = tabContent.querySelector('.sg-search-input');
+        if (searchInput && searchInput.value) {
+          searchInput.value = '';
+          searchInput.dispatchEvent(new Event('input'));
+        }
+      });
+    });
+  });
+
+  function setupRefSearch(inputId, clearId, containerSelectors) {
     const inp = document.getElementById(inputId);
     const clr = document.getElementById(clearId);
-    const container = document.querySelector(containerSelector);
-    if (!inp || !container) return;
-    let emptyEl = container.parentElement.querySelector('.sg-ref-no-results');
+    if (!inp) return;
+    const selectors = Array.isArray(containerSelectors) ? containerSelectors : [containerSelectors];
+    const containers = selectors.map(s => document.querySelector(s)).filter(Boolean);
+    if (containers.length === 0) return;
+    let emptyEl = containers[0].parentElement.querySelector('.sg-ref-no-results');
     if (!emptyEl) {
       emptyEl = document.createElement('div');
       emptyEl.className = 'sg-no-results sg-ref-no-results';
       emptyEl.style.display = 'none';
       emptyEl.innerHTML = '<i class="fas fa-search"></i><h4>No matching sections</h4><p>Try a different search term</p>';
-      container.insertAdjacentElement('afterend', emptyEl);
+      containers[0].insertAdjacentElement('afterend', emptyEl);
     }
     inp.addEventListener('input', () => {
       const q = inp.value.toLowerCase().trim();
       if (clr) clr.style.display = q ? 'flex' : 'none';
-      const sections = container.querySelectorAll('.sg-bt-section');
+      const activeContainer = containers.find(c => c.closest('.sg-sub-content.active')) || containers[0];
       let visible = 0;
-      sections.forEach(sec => {
-        const match = !q || sec.textContent.toLowerCase().includes(q);
-        sec.style.display = match ? '' : 'none';
-        if (match) visible++;
+      containers.forEach(container => {
+        const isActive = container === activeContainer;
+        const sections = container.querySelectorAll('.sg-bt-section');
+        sections.forEach(sec => {
+          if (!isActive) { sec.style.display = ''; return; }
+          const match = !q || sec.textContent.toLowerCase().includes(q);
+          sec.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
       });
       emptyEl.style.display = (q && visible === 0) ? '' : 'none';
     });
@@ -780,10 +814,8 @@ function initStrategyGuide() {
     }
   }
 
-  setupRefSearch('sgBtSearchInput', 'sgBtSearchClear', '#sgBtSections');
-  setupRefSearch('sgResSearchInput', 'sgResSearchClear', '#sgResSections');
-  setupRefSearch('sgStockBtSearchInput', 'sgStockBtSearchClear', '#sgStockBtSections');
-  setupRefSearch('sgStockResSearchInput', 'sgStockResSearchClear', '#sgStockResSections');
+  setupRefSearch('sgBtSearchInput', 'sgBtSearchClear', ['#sgBtSections', '#sgStockBtSections']);
+  setupRefSearch('sgResSearchInput', 'sgResSearchClear', ['#sgResSections', '#sgStockResSections']);
 
   console.log('Strategy Guide initialized with', STRATEGY_DATA.length, 'strategies');
 }
