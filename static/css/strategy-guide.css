@@ -593,6 +593,12 @@
   height: auto;
 }
 
+#sgTabScreener .sg-bt-ui-preview,
+#sgTabNotifications .sg-bt-ui-preview {
+  max-width: 560px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
 .sg-trade-log-preview {
   padding: 0;
   overflow: visible;
