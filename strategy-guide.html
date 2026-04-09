@@ -885,10 +885,6 @@
           <h3>Report Header</h3>
         </div>
         <div class="sg-bt-section-body">
-          <div class="sg-bt-screenshot-wrap">
-            <img src="/static/images/guide/results_01_header_equity.jpg" alt="Header and Equity Curve" class="sg-bt-screenshot" loading="lazy">
-            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Header bar with action buttons and equity curve below</div>
-          </div>
           <p class="sg-bt-intro">The header sits at the top of the result page inside a frosted-glass card. It identifies the report and provides quick-action buttons.</p>
 
           <div class="sg-bt-field">
@@ -925,6 +921,10 @@
           <h3>Equity Curve</h3>
         </div>
         <div class="sg-bt-section-body">
+          <div class="sg-bt-screenshot-wrap">
+            <img src="/static/images/guide/results_equity_stats.jpg" alt="Equity Curve and Performance Statistics" class="sg-bt-screenshot" loading="lazy">
+            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Equity curve chart (left) with performance statistics panel (right)</div>
+          </div>
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-chart-area"></i> Cumulative P&L Chart</div>
             <div class="sg-bt-field-desc">A Chart.js line chart plotting the running total of profit and loss after each trade. The X-axis shows trades in sequence (labeled by exit date when available), and the Y-axis (right side) shows cumulative dollar P&L starting from $0.</div>
@@ -968,8 +968,8 @@
         </div>
         <div class="sg-bt-section-body">
           <div class="sg-bt-screenshot-wrap">
-            <img src="/static/images/guide/results_02_configuration.jpg" alt="Configuration Section" class="sg-bt-screenshot" loading="lazy">
-            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Configuration section showing all backtest parameters</div>
+            <img src="/static/images/guide/results_configuration.jpg" alt="Configuration Section" class="sg-bt-screenshot" loading="lazy">
+            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Configuration section showing all backtest parameters and strategy legs</div>
           </div>
           <p class="sg-bt-intro">A collapsible section showing all the settings used to run this backtest, displayed as a grid of labeled cards. Use this to understand exactly what was tested or to reproduce the backtest later.</p>
 
@@ -1060,8 +1060,8 @@
         </div>
         <div class="sg-bt-section-body">
           <div class="sg-bt-screenshot-wrap">
-            <img src="/static/images/guide/results_03_performance_stats.jpg" alt="Performance Statistics" class="sg-bt-screenshot" loading="lazy">
-            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> 8 core performance metrics displayed as stat pills</div>
+            <img src="/static/images/guide/results_equity_stats.jpg" alt="Performance Statistics" class="sg-bt-screenshot" loading="lazy">
+            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Performance statistics panel showing all 8 key metrics</div>
           </div>
           <p class="sg-bt-intro">Eight primary metrics displayed in a 4x2 grid of stat pills at the top of every result page. These give you an instant snapshot of the strategy's performance.</p>
 
@@ -1117,8 +1117,8 @@
         </div>
         <div class="sg-bt-section-body">
           <div class="sg-bt-screenshot-wrap">
-            <img src="/static/images/guide/results_04_trade_log.jpg" alt="Trade Log Table" class="sg-bt-screenshot" loading="lazy">
-            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Paginated trade log showing individual trades with P&L color coding</div>
+            <img src="/static/images/guide/results_trade_log.jpg" alt="Trade Log Table" class="sg-bt-screenshot" loading="lazy">
+            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Paginated trade log showing individual trades with full column detail</div>
           </div>
           <p class="sg-bt-intro">A paginated table (10 trades per page) showing every individual trade executed during the backtest. Each row represents one complete trade from entry to exit. P&L values are color-coded green (profit) or red (loss).</p>
 
@@ -1206,8 +1206,8 @@
         </div>
         <div class="sg-bt-section-body">
           <div class="sg-bt-screenshot-wrap">
-            <img src="/static/images/guide/results_05_decision_tree.jpg" alt="Decision Tree Log Book" class="sg-bt-screenshot" loading="lazy">
-            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Decision tree showing day-by-day trading decisions with event timeline</div>
+            <img src="/static/images/guide/results_decision_tree.jpg" alt="Decision Tree Log Book" class="sg-bt-screenshot" loading="lazy">
+            <div class="sg-bt-screenshot-caption"><i class="fas fa-camera me-1"></i> Decision tree showing day-by-day trading decisions with status badges and P&L</div>
           </div>
           <p class="sg-bt-intro">A chronological, day-by-day record of what the backtester did on each trading day. Shows not only which trades were taken, but also <strong>why</strong> trades were skipped on certain days. This is one of the most valuable sections for debugging and refining your strategy.</p>
 
