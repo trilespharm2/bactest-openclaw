@@ -782,6 +782,8 @@ function initStrategyGuide() {
 
   setupRefSearch('sgBtSearchInput', 'sgBtSearchClear', '#sgBtSections');
   setupRefSearch('sgResSearchInput', 'sgResSearchClear', '#sgResSections');
+  setupRefSearch('sgStockBtSearchInput', 'sgStockBtSearchClear', '#sgStockBtSections');
+  setupRefSearch('sgStockResSearchInput', 'sgStockResSearchClear', '#sgStockResSections');
 
   console.log('Strategy Guide initialized with', STRATEGY_DATA.length, 'strategies');
 }

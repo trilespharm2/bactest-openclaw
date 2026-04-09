@@ -10,6 +10,9 @@
   margin-bottom: 28px;
   border-bottom: 1px solid #2a2e39;
   padding-bottom: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .sg-tab {
@@ -24,6 +27,8 @@
   transition: color 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .sg-tab:hover {
