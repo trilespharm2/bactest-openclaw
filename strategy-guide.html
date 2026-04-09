@@ -1,9 +1,11 @@
 <div class="strategy-guide-container">
   <div class="sg-tabs">
-    <button class="sg-tab active" data-tab="strategies"><i class="fas fa-chess me-1"></i>Strategy Guide</button>
+    <button class="sg-tab active" data-tab="strategies"><i class="fas fa-chess me-1"></i>Options Strategies</button>
     <button class="sg-tab" data-tab="backtester"><i class="fas fa-flask me-1"></i>Backtester Reference</button>
     <button class="sg-tab" data-tab="results"><i class="fas fa-chart-line me-1"></i>Results Reference</button>
     <button class="sg-tab" data-tab="simTrading"><i class="fas fa-gamepad me-1"></i>Simulated Trading</button>
+    <button class="sg-tab" data-tab="screener"><i class="fas fa-filter me-1"></i>Screener</button>
+    <button class="sg-tab" data-tab="notifications"><i class="fas fa-bell me-1"></i>Notifications</button>
   </div>
 
   <div id="sgTabStrategies" class="sg-tab-content active">
@@ -3484,5 +3486,277 @@
     </div>
 
   </div>
+
+  <!-- ═══════════════════════════════════════════════════════ SCREENER TAB -->
+  <div id="sgTabScreener" class="sg-tab-content">
+    <div class="sg-header">
+      <h2><i class="fas fa-filter me-2"></i>How to Use the Stock Screener</h2>
+      <p class="sg-subtitle">Step-by-step guide to filtering, scanning, and saving criteria across 170+ data points to find stocks that match your strategy</p>
+    </div>
+
+    <div class="sg-bt-sections">
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 1</span>
+          <h3>Choose a Filter Category</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-th-large"></i> Category Tabs</div>
+            <div class="sg-bt-field-desc">The screener organizes all 170+ filters into category tabs at the top — such as <strong>Price &amp; Volume</strong>, <strong>Fundamentals</strong>, <strong>Technical Indicators</strong>, <strong>Options</strong>, and more. Click any category tab to load its available filters in the left panel. You can also use the search bar above the tabs to search across all 170 filters at once by name or keyword (e.g., "RSI", "market cap", "EPS").</div>
+          </div>
+          <div class="sg-bt-example-field">
+            <div class="sg-bt-example-label"><i class="fas fa-lightbulb"></i> Tip</div>
+            <div>Type a keyword like <strong>"volume"</strong> in the search bar to instantly see every volume-related filter across all categories without switching tabs.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 2</span>
+          <h3>Select Filters</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-check-square"></i> Adding Filters</div>
+            <div class="sg-bt-field-desc">Click any filter name in the left panel to select it — a checkmark appears and the filter moves to the <strong>Filter Configuration</strong> panel on the right. You can select as many filters as you need. The active filter count badge next to the panel header shows how many you've added so far.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-times-circle"></i> Removing Filters</div>
+            <div class="sg-bt-field-desc">Click a selected filter again to deselect it, or use the <strong>Clear All</strong> button at the bottom of the configuration panel to remove all active filters at once and start fresh.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 3</span>
+          <h3>Configure Filter Values</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-sliders-h"></i> Setting Thresholds</div>
+            <div class="sg-bt-field-desc">Each selected filter appears in the right panel with input fields to set its exact criteria. Numeric filters (e.g., Price, Volume, Market Cap) let you set a <strong>minimum</strong> and/or <strong>maximum</strong> value. Boolean filters (e.g., "Has Dividend", "Is S&amp;P 500") are toggled on/off. Categorical filters (e.g., Sector, Exchange) use a dropdown to pick one or more values.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-info-circle"></i> Leaving Fields Blank</div>
+            <div class="sg-bt-field-desc">For numeric range filters, leaving the <strong>Min</strong> blank means "no lower bound" and leaving the <strong>Max</strong> blank means "no upper bound." For example, setting Min Volume = 1,000,000 with no Max screens for any stock trading at least 1M shares daily with no ceiling.</div>
+          </div>
+          <div class="sg-bt-example-field">
+            <div class="sg-bt-example-label"><i class="fas fa-lightbulb"></i> Example</div>
+            <div>To find large-cap tech stocks with strong momentum: select <strong>Market Cap Min = 10B</strong>, <strong>Sector = Technology</strong>, and <strong>RSI (14) Min = 55</strong>. Each filter narrows the universe of matching stocks.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 4</span>
+          <h3>Run the Scan</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-search"></i> Run Scan Button</div>
+            <div class="sg-bt-field-desc">Once you've configured at least one filter, the <strong>Run Scan</strong> button becomes active. Click it to execute the screen against real-time market data. Results appear in a sortable table below the panels, showing ticker, name, price, and the values for each filter you applied. The scan uses live Polygon.io data for price and volume metrics and fundamental data for financials.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-sort"></i> Sorting Results</div>
+            <div class="sg-bt-field-desc">Click any column header in the results table to sort ascending or descending by that metric. Use this to quickly rank results — for example, sort by <strong>Volume</strong> descending to find the highest-volume matches, or sort by <strong>% Change</strong> descending to surface top movers.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 5</span>
+          <h3>Save &amp; Reuse Filter Sets</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bookmark"></i> Save Filter</div>
+            <div class="sg-bt-field-desc">After configuring a useful set of filters, click <strong>Save Filter</strong> to store it under a custom name. Saved filters persist to your account so they're available on any device. This is especially useful for scan setups you run regularly — e.g., a "Pre-Market Movers" filter or "High IV Options Candidates" filter.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bookmarks"></i> Load Stored Filters</div>
+            <div class="sg-bt-field-desc">Click <strong>Stored Filters</strong> to open a modal listing all your saved filter sets. Select one to load it instantly — all filter selections and threshold values are restored exactly as you saved them. You can also delete outdated filter sets from this panel.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bell"></i> Use Filters in Notifications</div>
+            <div class="sg-bt-field-desc">Saved filter sets can be used directly in the <strong>Notifications</strong> scanner. Instead of building filter criteria from scratch, you select a stored filter as the scanner's condition — any stock matching your saved criteria triggers an alert. See the Notifications tab for details on setting up automated scans.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════ NOTIFICATIONS TAB -->
+  <div id="sgTabNotifications" class="sg-tab-content">
+    <div class="sg-header">
+      <h2><i class="fas fa-bell me-2"></i>How to Use Notifications</h2>
+      <p class="sg-subtitle">Set up automated scanners that run on a schedule and alert you the moment a stock meets your conditions — so you never miss a setup</p>
+    </div>
+
+    <div class="sg-bt-sections">
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Overview</span>
+          <h3>How Notifications Work</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-robot"></i> Automated Market Scanning</div>
+            <div class="sg-bt-field-desc">A <strong>Notification Scanner</strong> is a saved set of stock filter conditions that runs automatically on a schedule you define. Every time the scanner runs, it checks the entire market (or a list of specific tickers) against your criteria. If any stocks match, you receive an alert immediately — in-app or via email.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-exchange-alt"></i> Screener vs. Notifications</div>
+            <div class="sg-bt-field-desc">The Screener is a <strong>manual, on-demand</strong> tool — you run it whenever you want to check the market. Notifications are <strong>automated and persistent</strong> — they run in the background 24/7 (or during hours you specify) and push alerts to you without any manual action required. Think of it as the Screener running itself on autopilot.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 0</span>
+          <h3>Name Your Scanner</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-tag"></i> Scanner Name</div>
+            <div class="sg-bt-field-desc">Give your scanner a descriptive name so you can identify it later in your scanner list. Use names that reflect the purpose, such as <strong>"NASDAQ Pre-Market Movers"</strong>, <strong>"High IV Earnings Play"</strong>, or <strong>"RSI Oversold Watch"</strong>. Names do not affect how the scanner runs — they're purely for your own organization.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 1</span>
+          <h3>Symbol Selection</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-globe"></i> Any Symbol</div>
+            <div class="sg-bt-field-desc">Select <strong>Any Symbol</strong> to scan the entire market — every US-listed equity will be checked against your filter conditions. This is ideal for broad market scans where you don't want to restrict the universe in advance (e.g., finding any stock with unusual volume, regardless of sector or size).</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-list"></i> List Symbols</div>
+            <div class="sg-bt-field-desc">Select <strong>List Symbols</strong> to monitor only specific tickers. Enter each ticker (e.g., AAPL, MSFT, NVDA) in the input fields. Click <strong>Add Another Symbol</strong> to add more rows. This is ideal when you're watching a focused watchlist and only want alerts from those specific names.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 2</span>
+          <h3>Filter Configuration</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-star"></i> Preset Filters</div>
+            <div class="sg-bt-field-desc">Choose a built-in preset from the dropdown for a quick-start scan. Presets are curated filter combinations for common strategies, such as <strong>NASDAQ High Movers (&gt;75% 1-day change)</strong>. Presets require no additional configuration — just select one and move on.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bookmarks"></i> Stored Filters</div>
+            <div class="sg-bt-field-desc">Switch to <strong>Stored Filters</strong> to use a filter set you previously saved from the Screener. This is the most powerful option — it lets you build a precise, multi-condition screen in the Screener (with full control over every parameter), save it, and then attach it here to run automatically. Any stock matching your saved criteria triggers an alert.</div>
+          </div>
+          <div class="sg-bt-example-field">
+            <div class="sg-bt-example-label"><i class="fas fa-lightbulb"></i> Workflow Tip</div>
+            <div>Build and test your filter in the <strong>Screener</strong> first — run it manually to confirm it returns the types of results you want. Then save it, come here, and select it as a Stored Filter to automate it.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 3</span>
+          <h3>Scan Frequency</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-clock"></i> How Often to Scan</div>
+            <div class="sg-bt-field-desc">Choose how frequently the scanner runs and checks the market. Options range from <strong>1 minute</strong> (near real-time, ideal for intraday scalping setups) to <strong>1 week</strong> (for swing trade or position trade criteria). Common choices:</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-stopwatch"></i> Frequency Options</div>
+            <div class="sg-bt-field-desc">
+              <ul style="margin: 6px 0 0 16px; padding: 0; line-height: 2;">
+                <li><strong>1 min</strong> — Real-time momentum scans, breakout alerts, or unusual volume spikes</li>
+                <li><strong>5 min</strong> — Intraday setups; balances speed with reduced noise</li>
+                <li><strong>30 min</strong> — Mid-day strategy checks, good for swing setups forming intraday</li>
+                <li><strong>1 hour</strong> — Suitable for most daily active trading strategies (default)</li>
+                <li><strong>4 hours</strong> — Broader intraday checks; good for end-of-session alerts</li>
+                <li><strong>1 day</strong> — End-of-day scans for swing and position traders</li>
+                <li><strong>1 week</strong> — Weekly strategy screening for long-term setups</li>
+              </ul>
+            </div>
+          </div>
+          <div class="sg-bt-example-field">
+            <div class="sg-bt-example-label"><i class="fas fa-exclamation-triangle"></i> Note</div>
+            <div>More frequent scans (1 min, 5 min) consume more resources. Higher-tier plans support higher scan frequencies. Check the <a href="#" data-page="pricing" style="color:#3b6df0;">Pricing</a> page for details.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 4</span>
+          <h3>Timing Settings (Optional)</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-calendar-clock"></i> Active Hours</div>
+            <div class="sg-bt-field-desc">Set a <strong>From</strong> and <strong>To</strong> time window to restrict the scanner to specific hours. For example, set 09:30 AM – 04:00 PM to limit scans to regular market hours only. Leave both fields blank to run the scanner 24/7, including pre-market and after-hours. All times are in Eastern Time (ET).</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-hourglass-end"></i> Duration / Expiry</div>
+            <div class="sg-bt-field-desc">Choose <strong>Indefinitely</strong> to keep the scanner running permanently until you manually pause or delete it. Choose <strong>Until Date</strong> and pick a calendar date to have the scanner automatically deactivate on that date — useful for event-driven setups like earnings season or a scheduled economic release.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-ban"></i> Repeat Symbol Filter</div>
+            <div class="sg-bt-field-desc">When <strong>On</strong>, a stock that already triggered an alert is excluded from future alerts after appearing a set number of times. Set the threshold (e.g., 5 appearances) to avoid receiving repeated alerts for the same ticker. When <strong>Off</strong> (default), every matching scan result sends an alert regardless of how many times that ticker has appeared before.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Step 5</span>
+          <h3>Notification Channel</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-bell"></i> In-App Alerts</div>
+            <div class="sg-bt-field-desc">Alerts appear in the notification bell in the top-right header. A badge counter shows the number of unread alerts. Click the bell to open the alerts panel and see every match — including the ticker, which filter conditions were met, the time of the match, and the price/value at the time of the scan.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-envelope"></i> Email Alerts</div>
+            <div class="sg-bt-field-desc">You can configure email delivery in your notification settings. Email alerts are sent to your registered account email and include a summary of every ticker that triggered the scanner during that scan cycle. Available on Standard and Premium plans.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sg-bt-section">
+        <div class="sg-bt-section-header">
+          <span class="sg-bt-step">Managing</span>
+          <h3>Managing Your Scanners</h3>
+        </div>
+        <div class="sg-bt-section-body">
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-list-alt"></i> Active Scanners List</div>
+            <div class="sg-bt-field-desc">All your saved scanners appear in the <strong>Active Scanners</strong> section on the Notifications page. Each entry shows the scanner name, filter used, frequency, and current status (Active / Paused). You can <strong>pause</strong> a scanner temporarily without deleting it, or <strong>delete</strong> it permanently.</div>
+          </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-history"></i> Alert History</div>
+            <div class="sg-bt-field-desc">The <strong>Notification History</strong> section logs every alert that has fired — even ones you've already read. Each entry shows which scanner triggered it, the matching tickers, the exact filter values at the time, and a timestamp. Use this to review past opportunities or fine-tune your scanner's thresholds based on historical matches.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 

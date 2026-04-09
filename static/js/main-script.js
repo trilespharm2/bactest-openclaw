@@ -498,7 +498,7 @@ async function navigateToPage(pageName, skipPushState = false) {
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
         'simResultDetail': 'Simulated Trading Analysis',
-        'strategyGuide': 'Options Strategy Guide',
+        'strategyGuide': 'Information Guide',
         'optionsResultDetail': 'Options Backtest Analysis',
         'stockResultDetail': 'Stock Backtest Analysis'
     };
