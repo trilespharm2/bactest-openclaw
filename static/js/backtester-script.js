@@ -1143,7 +1143,7 @@ function setupStrategySelection() {
             
             // Show/hide wing configuration for Iron strategies
             const isIronStrategy = strategy.includes('Iron');
-            if (wingConfigSection) wingConfigSection.style.display = isIronStrategy ? 'flex' : 'none';
+            if (wingConfigSection) wingConfigSection.style.display = isIronStrategy ? 'block' : 'none';
             if (wingConfigForm) wingConfigForm.style.display = isIronStrategy ? 'block' : 'none';
             
             // Gray out global DTE for calendar/diagonal strategies
