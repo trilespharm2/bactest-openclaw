@@ -1592,83 +1592,12 @@
                       </div>
                     </div>
 
-                    <!-- OPT: EXIT CONDITIONS -->
-                    <div class="backtester-section">
-                      <div class="opt-section-header" onclick="toggleOptSection('exitConds')">
-                        <span class="section-step opt">&#9664;</span>
-                        <i class="fas fa-door-open section-icon opt"></i>
-                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal-Based Exit Conditions</span>
-                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
-                        <i class="fas fa-chevron-down opt-section-chevron"></i>
-                      </div>
-                      <div class="opt-section-body" id="exitCondsBody">
-                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Close the position early when the underlying meets a price signal (checked on each bar, after TP/SL, before expiry).</p>
-                        <div class="mb-3">
-                          <div style="display:flex; gap:8px; margin-bottom:12px;">
-                            <button type="button" class="bt-toggle-btn on" data-radio="optExitCondType" data-val="preset" onclick="btToggle(this); updateOptExitCondType();">Preset condition</button>
-                            <button type="button" class="bt-toggle-btn" data-radio="optExitCondType" data-val="custom" onclick="btToggle(this); updateOptExitCondType();">Custom builder</button>
-                          </div>
-                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitPreset" value="preset" checked onchange="updateOptExitCondType()">
-                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitCustom" value="custom" onchange="updateOptExitCondType()">
-                        </div>
-                        <div id="optExitPresetSection">
-                          <div class="mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
-                            <select class="form-select" id="optExitPresetCondition" onchange="updateOptExitPresetFields()">
-                              <option value="">— None (skip) —</option>
-                              <option value="1">Premarket Change %</option>
-                              <option value="2">Change % (from prev close)</option>
-                              <option value="3">Gap % (open vs prev close)</option>
-                              <option value="4">Change-Open % (from today's open)</option>
-                              <option value="5">Velocity (Rate of Change)</option>
-                            </select>
-                          </div>
-                          <div id="optExitStandardPresetFields" class="row" style="display:none;">
-                            <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
-                              <select class="form-select" id="optExitPresetOperator">
-                                <option value=">">></option><option value="<"><</option>
-                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                                <option value="=">=</option>
-                              </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
-                              <input type="number" class="form-control" id="optExitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
-                            </div>
-                          </div>
-                          <div id="optExitVelocityFields" class="row" style="display:none;">
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
-                              <input type="number" class="form-control" id="optExitVelocityLookback" placeholder="5" value="5" min="1">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
-                              <select class="form-select" id="optExitVelocityOperator">
-                                <option value=">">></option><option value="<"><</option>
-                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                              </select>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
-                              <input type="number" class="form-control" id="optExitVelocityThreshold" step="0.01" placeholder="1.5">
-                            </div>
-                          </div>
-                        </div>
-                        <div id="optExitCustomSection" style="display:none;">
-                          <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Exit Condition Builder — compare price indicators to define exit triggers</div>
-                          <div id="optExitConditionsContainer"></div>
-                          <button type="button" class="btn btn-outline-primary btn-sm" onclick="addOptExitCondition()"><i class="fas fa-plus me-1"></i>Add Exit Condition</button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- OPT: ENTRY CONDITIONS (underlying price) -->
+                    <!-- OPT: ENTRY CONDITIONS (signal-based) -->
                     <div class="backtester-section">
                       <div class="opt-section-header" onclick="toggleOptSection('entryConds')">
                         <span class="section-step opt">&#9654;</span>
                         <i class="fas fa-filter section-icon opt"></i>
-                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Underlying Entry Conditions</span>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal Based Entry Conditions</span>
                         <span class="section-opt-badge" style="margin-left:4px;">optional</span>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
@@ -1744,6 +1673,78 @@
                           <i class="fas fa-plus me-1"></i>Add Condition
                         </button>
                       </div>
+                      </div>
+                    </div>
+
+                    <!-- OPT: EXIT CONDITIONS -->
+                    <div class="backtester-section">
+                      <div class="opt-section-header" onclick="toggleOptSection('exitConds')">
+                        <span class="section-step opt">&#9664;</span>
+                        <i class="fas fa-door-open section-icon opt"></i>
+                        <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal-Based Exit Conditions</span>
+                        <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <i class="fas fa-chevron-down opt-section-chevron"></i>
+                      </div>
+                      <div class="opt-section-body" id="exitCondsBody">
+                        <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Close the position early when the underlying meets a price signal (checked on each bar, after TP/SL, before expiry).</p>
+                        <div class="mb-3">
+                          <div style="display:flex; gap:8px; margin-bottom:12px;">
+                            <button type="button" class="bt-toggle-btn on" data-radio="optExitCondType" data-val="none" onclick="btToggle(this); updateOptExitCondType();">None</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="optExitCondType" data-val="preset" onclick="btToggle(this); updateOptExitCondType();">Preset condition</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="optExitCondType" data-val="custom" onclick="btToggle(this); updateOptExitCondType();">Custom builder</button>
+                          </div>
+                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitNone" value="none" checked onchange="updateOptExitCondType()">
+                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitPreset" value="preset" onchange="updateOptExitCondType()">
+                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitCustom" value="custom" onchange="updateOptExitCondType()">
+                        </div>
+                        <div id="optExitPresetSection" style="display:none;">
+                          <div class="mb-3">
+                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
+                            <select class="form-select" id="optExitPresetCondition" onchange="updateOptExitPresetFields()">
+                              <option value="1">Premarket Change %</option>
+                              <option value="2">Change % (from prev close)</option>
+                              <option value="3">Gap % (open vs prev close)</option>
+                              <option value="4">Change-Open % (from today's open)</option>
+                              <option value="5">Velocity (Rate of Change)</option>
+                            </select>
+                          </div>
+                          <div id="optExitStandardPresetFields" class="row" style="display:none;">
+                            <div class="col-md-6 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
+                              <select class="form-select" id="optExitPresetOperator">
+                                <option value=">">></option><option value="<"><</option>
+                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                                <option value="=">=</option>
+                              </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
+                              <input type="number" class="form-control" id="optExitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
+                            </div>
+                          </div>
+                          <div id="optExitVelocityFields" class="row" style="display:none;">
+                            <div class="col-md-4 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
+                              <input type="number" class="form-control" id="optExitVelocityLookback" placeholder="5" value="5" min="1">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
+                              <select class="form-select" id="optExitVelocityOperator">
+                                <option value=">">></option><option value="<"><</option>
+                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                              </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
+                              <input type="number" class="form-control" id="optExitVelocityThreshold" step="0.01" placeholder="1.5">
+                            </div>
+                          </div>
+                        </div>
+                        <div id="optExitCustomSection" style="display:none;">
+                          <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Exit Condition Builder — compare price indicators to define exit triggers</div>
+                          <div id="optExitConditionsContainer"></div>
+                          <button type="button" class="btn btn-outline-primary btn-sm" onclick="addOptExitCondition()"><i class="fas fa-plus me-1"></i>Add Exit Condition</button>
+                        </div>
                       </div>
                     </div>
 
@@ -2199,16 +2200,17 @@
                       <div class="opt-section-body" id="stockExitCondsBody">
                         <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Close position early based on a price-signal condition (checked on each bar).</p>
                         <div style="display:flex; gap:8px; margin-bottom:14px;">
-                          <button type="button" class="bt-toggle-btn on" data-radio="exit_cond_type" data-val="preset" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='block'; document.getElementById('exitCustomSection').style.display='none';">Preset</button>
+                          <button type="button" class="bt-toggle-btn on" data-radio="exit_cond_type" data-val="none" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='none'; document.getElementById('exitCustomSection').style.display='none';">None</button>
+                          <button type="button" class="bt-toggle-btn" data-radio="exit_cond_type" data-val="preset" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='block'; document.getElementById('exitCustomSection').style.display='none';">Preset</button>
                           <button type="button" class="bt-toggle-btn" data-radio="exit_cond_type" data-val="custom" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='none'; document.getElementById('exitCustomSection').style.display='block';">Custom Builder</button>
                         </div>
-                        <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondPreset" value="preset" checked>
+                        <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondNone" value="none" checked>
+                        <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondPreset" value="preset">
                         <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondCustom" value="custom">
-                        <div id="exitPresetSection">
+                        <div id="exitPresetSection" style="display:none;">
                           <div class="mb-3">
                             <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
                             <select class="form-select" id="exitPresetCondition">
-                              <option value="">— None (skip) —</option>
                               <option value="1">Premarket Change %</option>
                               <option value="2">Change %</option>
                               <option value="3">Gap %</option>

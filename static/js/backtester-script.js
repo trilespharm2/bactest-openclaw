@@ -88,13 +88,16 @@ function updateOptionsPresetFields() {
 // =============================================================================
 
 function updateOptExitCondType() {
-    const type = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'preset';
+    const type = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'none';
     const presetSection = document.getElementById('optExitPresetSection');
     const customSection = document.getElementById('optExitCustomSection');
     
     if (presetSection) presetSection.style.display = type === 'preset' ? 'block' : 'none';
     if (customSection) customSection.style.display = type === 'custom' ? 'block' : 'none';
     
+    if (type === 'preset') {
+        updateOptExitPresetFields();
+    }
     if (type === 'custom') {
         const container = document.getElementById('optExitConditionsContainer');
         if (container && container.querySelectorAll('.opt-exit-condition-row').length === 0) {
@@ -2516,7 +2519,16 @@ async function handleBacktestSubmit(e) {
     const config = collectFormData();
     
     if (!config) {
-        showError('Please complete all required fields');
+        const missing = window._lastMissingFields || [];
+        if (missing.length > 0) {
+            const fieldLinks = missing.map(f => {
+                const scrollJs = `document.getElementById('${f.id}').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('${f.id}').focus();`;
+                return `<a href="#" onclick="event.preventDefault();${scrollJs}" style="color:#fff;font-weight:700;text-decoration:underline;">${f.label}</a>`;
+            }).join(', ');
+            showError(`The following required fields are missing: ${fieldLinks}`);
+        } else {
+            showError('Please complete all required fields');
+        }
         form.dataset.isSubmitting = 'false';
         return;
     }
@@ -2624,9 +2636,18 @@ function collectFormData() {
     const startingCapital = parseFloat(document.getElementById('startingCapital').value);
     
     // Validate required fields (backtest_name is optional)
-    if (!symbol || !startDate || !endDate || !entryTime || dte === undefined || !strategy || !startingCapital) {
+    const _missingFields = [];
+    if (!symbol) _missingFields.push({label: 'Symbol', id: 'symbol'});
+    if (!startDate) _missingFields.push({label: 'Start Date', id: 'startDate'});
+    if (!endDate) _missingFields.push({label: 'End Date', id: 'endDate'});
+    if (!entryTime) _missingFields.push({label: 'Entry Time', id: 'entryTime'});
+    if (!strategy) _missingFields.push({label: 'Strategy', id: 'strategy'});
+    if (!startingCapital || isNaN(startingCapital)) _missingFields.push({label: 'Starting Capital', id: 'startingCapital'});
+    if (_missingFields.length > 0) {
+        window._lastMissingFields = _missingFields;
         return null;
     }
+    window._lastMissingFields = [];
     
     // Collect leg configurations
     const legDefinitions = getStrategyLegs(strategy);
@@ -2772,7 +2793,7 @@ function collectFormData() {
     }
     
     // Collect exit conditions (signal-based)
-    const optExitCondType = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'preset';
+    const optExitCondType = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'none';
     config.options_exit_cond_type = optExitCondType;
     
     if (optExitCondType === 'preset') {
