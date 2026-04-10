@@ -1356,7 +1356,7 @@
                       <div class="bt-grid-2">
                         <div>
                           <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Entry Time</label>
-                          <input type="time" class="form-control" id="entryTime" min="09:30" max="16:00" value="10:00" required>
+                          <input type="time" class="form-control" id="entryTime" min="09:30" max="16:00" required>
                           <div class="field-hint">Market hours: 09:30 – 16:00</div>
                         </div>
                         <div>
@@ -1434,7 +1434,7 @@
                         Days to Expiration (DTE)
                       </div>
                       <div style="max-width:220px;">
-                        <input type="number" class="form-control" id="dte" min="0" value="0" required>
+                        <input type="number" class="form-control" id="dte" min="0" placeholder="0" required>
                         <div class="field-hint">0 = same-day expiration (0DTE). For calendars/diagonals, set DTE per-leg below.</div>
                       </div>
                       <div id="dteCalendarNotice" style="display:none; margin-top:10px; padding:8px 12px; background:#fff3cd; border:1px solid #ffc107; border-radius:6px; font-size:0.78rem; color:#856404;">
@@ -1474,7 +1474,7 @@
                           <input type="radio" name="takeProfitType" id="tpPct" value="P" checked class="bt-hidden-radio">
                           <input type="radio" name="takeProfitType" id="tpDollar" value="D" class="bt-hidden-radio">
                           <div id="takeProfitPctGroup" class="tpsl-input-row">
-                            <input type="number" class="form-control" id="takeProfitPct" min="0" step="0.01" value="50" placeholder="50">
+                            <input type="number" class="form-control" id="takeProfitPct" min="0" step="0.01" placeholder="e.g. 50">
                             <span class="tpsl-suffix">%</span>
                           </div>
                           <div id="takeProfitDollarGroup" class="tpsl-input-row" style="display:none;">
@@ -1494,7 +1494,7 @@
                           <input type="radio" name="stopLossType" id="slPct" value="P" checked class="bt-hidden-radio">
                           <input type="radio" name="stopLossType" id="slDollar" value="D" class="bt-hidden-radio">
                           <div id="stopLossPctGroup" class="tpsl-input-row">
-                            <input type="number" class="form-control" id="stopLossPct" min="0" step="0.01" value="200" placeholder="200">
+                            <input type="number" class="form-control" id="stopLossPct" min="0" step="0.01" placeholder="e.g. 200">
                             <span class="tpsl-suffix">%</span>
                           </div>
                           <div id="stopLossDollarGroup" class="tpsl-input-row" style="display:none;">
@@ -1519,7 +1519,7 @@
                           <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Starting Capital</label>
                           <div class="tpsl-input-row">
                             <span class="tpsl-suffix">$</span>
-                            <input type="number" class="form-control" id="startingCapital" min="1000" step="1" value="50000" required>
+                            <input type="number" class="form-control" id="startingCapital" min="1000" step="1" placeholder="e.g. 50000" required>
                           </div>
                         </div>
                         <div></div>
@@ -1534,7 +1534,7 @@
                       <input type="radio" name="allocationType" id="allocContracts" value="2" class="bt-hidden-radio">
                       <input type="radio" name="allocationType" id="allocFixed" value="3" class="bt-hidden-radio">
                       <div id="allocationPctGroup" class="tpsl-input-row" style="max-width:200px;">
-                        <input type="number" class="form-control" id="allocationPct" min="0.1" max="100" step="0.01" value="10">
+                        <input type="number" class="form-control" id="allocationPct" min="0.1" max="100" step="0.01" placeholder="e.g. 10">
                         <span class="tpsl-suffix">%</span>
                       </div>
                       <div id="allocationContractsGroup" style="display:none; max-width:200px;">

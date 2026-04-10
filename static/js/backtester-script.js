@@ -2637,10 +2637,12 @@ function collectFormData() {
     
     // Validate required fields (backtest_name is optional)
     const _missingFields = [];
+    const _dteRaw = document.getElementById('dte').value;
     if (!symbol) _missingFields.push({label: 'Symbol', id: 'symbol'});
     if (!startDate) _missingFields.push({label: 'Start Date', id: 'startDate'});
     if (!endDate) _missingFields.push({label: 'End Date', id: 'endDate'});
     if (!entryTime) _missingFields.push({label: 'Entry Time', id: 'entryTime'});
+    if (_dteRaw === '' || isNaN(dte)) _missingFields.push({label: 'Days to Expiration (DTE)', id: 'dte'});
     if (!strategy) _missingFields.push({label: 'Strategy', id: 'strategy'});
     if (!startingCapital || isNaN(startingCapital)) _missingFields.push({label: 'Starting Capital', id: 'startingCapital'});
     if (_missingFields.length > 0) {
