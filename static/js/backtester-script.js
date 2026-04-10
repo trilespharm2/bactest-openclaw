@@ -1827,9 +1827,13 @@ function topologicalSortLegs(legs) {
         });
     }
     
-    // Check for circular dependencies
+    // Check for circular dependencies — identify which legs are stuck in the cycle
     if (sorted.length !== legs.length) {
-        return null;  // Circular dependency detected
+        const sortedSet = new Set(sorted);
+        const cycleLegs = legs
+            .filter((_, idx) => !sortedSet.has(idx))
+            .map(leg => leg.name);
+        return { error: 'circular', cycleLegs };
     }
     
     // Build new legs array in sorted order
@@ -2703,12 +2707,14 @@ function collectFormData() {
     // CRITICAL: Sort legs by dependencies
     // Legs that DON'T reference others must come BEFORE legs that DO reference others
     // This ensures calculated_strikes array is built in the right order
-    const sortedLegs = topologicalSortLegs(legs);
+    const sortResult = topologicalSortLegs(legs);
     
-    if (!sortedLegs) {
-        showError('Circular dependency detected in leg configuration!');
+    if (!sortResult || sortResult.error === 'circular') {
+        const cycleNames = sortResult && sortResult.cycleLegs ? sortResult.cycleLegs.join(' ↔ ') : 'unknown legs';
+        showError(`Circular reference detected between ${cycleNames}. Each leg must reference a leg that does not reference it back.`);
         return null;
     }
+    const sortedLegs = sortResult;
     
     // Collect take profit/stop loss
     const takeProfitType = document.querySelector('input[name="takeProfitType"]:checked').value;
