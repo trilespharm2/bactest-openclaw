@@ -1217,7 +1217,7 @@ function buildLegConfiguration(strategy) {
         const dteFieldHTML = leg.dte_label ? `
                 <div class="form-group" style="margin-top:8px; padding:8px 12px; background:#e8f4fd; border:1px solid #b8daff; border-radius:6px;">
                     <label style="font-weight:600; color:#004085;"><i class="fas fa-calendar-alt"></i> ${leg.dte_label}:</label>
-                    <input type="number" class="leg-dte-input" data-leg-index="${index}" min="0" placeholder="${leg.position === 'long' ? 'e.g. 30' : 'e.g. 7'}" style="width:80px; display:inline-block; margin-left:8px;">
+                    <input type="number" class="leg-dte-input" data-leg-index="${index}" min="0" value="${leg.position === 'long' ? 30 : 7}" style="width:80px; display:inline-block; margin-left:8px;">
                     <span style="font-size:11px; color:#6c757d; margin-left:6px;">business days</span>
                 </div>
         ` : '';
@@ -2698,12 +2698,7 @@ function collectFormData() {
         
         const legDteInput = document.querySelector(`.leg-dte-input[data-leg-index="${i}"]`);
         if (legDteInput) {
-            const dteRaw = legDteInput.value;
-            if (dteRaw === '' || isNaN(parseInt(dteRaw))) {
-                showError(`${legData.name}: DTE is required. Enter the number of days to expiration for this leg.`);
-                return null;
-            }
-            legData.dte = parseInt(dteRaw);
+            legData.dte = parseInt(legDteInput.value);
         }
         
         legs.push(legData);
