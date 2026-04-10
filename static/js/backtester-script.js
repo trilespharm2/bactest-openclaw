@@ -1918,7 +1918,29 @@ function validateStrikeConfiguration(strategy, legs) {
     function findLeg(position, type) {
         return legs.find(l => l.position === position && l.type === type);
     }
-    
+
+    // Helper: check if legA directly references legB and return direction ('above'/'below'), or null
+    function getLegToLegRelation(legA, legB) {
+        if ((legA.config_type === 'pct_leg' || legA.config_type === 'dollar_leg') &&
+            legA.params && legA.params.reference !== undefined) {
+            const refIdx = parseInt(legA.params.reference);
+            if (legs[refIdx] === legB) {
+                return legA.params.direction; // 'above' or 'below'
+            }
+        }
+        return null;
+    }
+
+    // Helper: build a readable leg description for error messages
+    function legDesc(leg) {
+        if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') {
+            const unit = leg.config_type === 'pct_leg' ? '%' : '$';
+            const ref = legs[parseInt(leg.params.reference)];
+            return `${leg.params.direction} the ${ref ? ref.name : 'reference leg'} by ${leg.params.pct || leg.params.amount}${unit}`;
+        }
+        return `${leg.params.direction} by ${leg.params.pct || leg.params.amount}`;
+    }
+
     // Validation rules by strategy
     const rules = {
         'Short Iron Condor': () => {
@@ -1926,152 +1948,184 @@ function validateStrikeConfiguration(strategy, legs) {
             const shortPut = findLeg('short', 'P');
             const shortCall = findLeg('short', 'C');
             const longCall = findLeg('long', 'C');
-            
-            // Validate put spread (if comparable)
-            if (shortPut && longPut && canCompare(shortPut, longPut)) {
-                const shortStrike = getRelativeStrike(shortPut);
-                const longStrike = getRelativeStrike(longPut);
-                
-                if (shortStrike <= longStrike) {
-                    return {
-                        valid: false, 
-                        error: `Short Iron Condor: Short Put must be ABOVE Long Put. Your config: Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}`
-                    };
+
+            // Put spread: Long Put must be BELOW Short Put
+            if (shortPut && longPut) {
+                if (canCompare(shortPut, longPut)) {
+                    if (getRelativeStrike(shortPut) <= getRelativeStrike(longPut)) {
+                        return { valid: false, error: `Short Iron Condor (put spread): Short Put must be ABOVE Long Put — Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'above') {
+                    return { valid: false, error: `Short Iron Condor (put spread): Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'below') {
+                    return { valid: false, error: `Short Iron Condor (put spread): Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
                 }
             }
-            
-            // Validate call spread (if comparable)
-            if (shortCall && longCall && canCompare(shortCall, longCall)) {
-                const shortStrike = getRelativeStrike(shortCall);
-                const longStrike = getRelativeStrike(longCall);
-                
-                if (shortStrike >= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Short Iron Condor: Short Call must be BELOW Long Call. Your config: Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}`
-                    };
+
+            // Call spread: Long Call must be ABOVE Short Call
+            if (shortCall && longCall) {
+                if (canCompare(shortCall, longCall)) {
+                    if (getRelativeStrike(shortCall) >= getRelativeStrike(longCall)) {
+                        return { valid: false, error: `Short Iron Condor (call spread): Short Call must be BELOW Long Call — Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'below') {
+                    return { valid: false, error: `Short Iron Condor (call spread): Long Call is set BELOW Short Call (${legDesc(longCall)}), but Long Call must be ABOVE Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'above') {
+                    return { valid: false, error: `Short Iron Condor (call spread): Short Call is set ABOVE Long Call (${legDesc(shortCall)}), but Short Call must be BELOW Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Short Iron Butterfly': () => {
-            return rules['Short Iron Condor'](); // Same rules
+            return rules['Short Iron Condor']();
         },
-        
+
         'Long Iron Condor': () => {
             const longPut = findLeg('long', 'P');
             const shortPut = findLeg('short', 'P');
             const shortCall = findLeg('short', 'C');
             const longCall = findLeg('long', 'C');
-            
-            // Validate put spread (if comparable)
-            if (shortPut && longPut && canCompare(shortPut, longPut)) {
-                const shortStrike = getRelativeStrike(shortPut);
-                const longStrike = getRelativeStrike(longPut);
-                
-                if (shortStrike >= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Iron Condor: Short Put must be BELOW Long Put. Your config: Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}`
-                    };
+
+            // Put spread: Short Put must be BELOW Long Put
+            if (shortPut && longPut) {
+                if (canCompare(shortPut, longPut)) {
+                    if (getRelativeStrike(shortPut) >= getRelativeStrike(longPut)) {
+                        return { valid: false, error: `Long Iron Condor (put spread): Short Put must be BELOW Long Put — Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'below') {
+                    return { valid: false, error: `Long Iron Condor (put spread): Long Put is set BELOW Short Put (${legDesc(longPut)}), but Long Put must be ABOVE Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'above') {
+                    return { valid: false, error: `Long Iron Condor (put spread): Short Put is set ABOVE Long Put (${legDesc(shortPut)}), but Short Put must be BELOW Long Put.` };
                 }
             }
-            
-            // Validate call spread (if comparable)
-            if (shortCall && longCall && canCompare(shortCall, longCall)) {
-                const shortStrike = getRelativeStrike(shortCall);
-                const longStrike = getRelativeStrike(longCall);
-                
-                if (shortStrike <= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Iron Condor: Short Call must be ABOVE Long Call. Your config: Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}`
-                    };
+
+            // Call spread: Short Call must be ABOVE Long Call
+            if (shortCall && longCall) {
+                if (canCompare(shortCall, longCall)) {
+                    if (getRelativeStrike(shortCall) <= getRelativeStrike(longCall)) {
+                        return { valid: false, error: `Long Iron Condor (call spread): Short Call must be ABOVE Long Call — Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'above') {
+                    return { valid: false, error: `Long Iron Condor (call spread): Long Call is set ABOVE Short Call (${legDesc(longCall)}), but Long Call must be BELOW Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'below') {
+                    return { valid: false, error: `Long Iron Condor (call spread): Short Call is set BELOW Long Call (${legDesc(shortCall)}), but Short Call must be ABOVE Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Long Iron Butterfly': () => {
-            return rules['Long Iron Condor'](); // Same rules
+            return rules['Long Iron Condor']();
         },
-        
+
         'Short Put Spread': () => {
             const longPut = findLeg('long', 'P');
             const shortPut = findLeg('short', 'P');
-            
-            if (shortPut && longPut && canCompare(shortPut, longPut)) {
-                const shortStrike = getRelativeStrike(shortPut);
-                const longStrike = getRelativeStrike(longPut);
-                
-                if (shortStrike <= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Short Put Spread: Short Put must be ABOVE Long Put. Your config: Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}`
-                    };
+
+            if (shortPut && longPut) {
+                if (canCompare(shortPut, longPut)) {
+                    if (getRelativeStrike(shortPut) <= getRelativeStrike(longPut)) {
+                        return { valid: false, error: `Short Put Spread: Short Put must be ABOVE Long Put — Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'above') {
+                    return { valid: false, error: `Short Put Spread: Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'below') {
+                    return { valid: false, error: `Short Put Spread: Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Short Call Spread': () => {
             const longCall = findLeg('long', 'C');
             const shortCall = findLeg('short', 'C');
-            
-            if (shortCall && longCall && canCompare(shortCall, longCall)) {
-                const shortStrike = getRelativeStrike(shortCall);
-                const longStrike = getRelativeStrike(longCall);
-                
-                if (shortStrike >= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Short Call Spread: Short Call must be BELOW Long Call. Your config: Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}`
-                    };
+
+            if (shortCall && longCall) {
+                if (canCompare(shortCall, longCall)) {
+                    if (getRelativeStrike(shortCall) >= getRelativeStrike(longCall)) {
+                        return { valid: false, error: `Short Call Spread: Short Call must be BELOW Long Call — Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'below') {
+                    return { valid: false, error: `Short Call Spread: Long Call is set BELOW Short Call (${legDesc(longCall)}), but Long Call must be ABOVE Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'above') {
+                    return { valid: false, error: `Short Call Spread: Short Call is set ABOVE Long Call (${legDesc(shortCall)}), but Short Call must be BELOW Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Long Put Spread': () => {
             const longPut = findLeg('long', 'P');
             const shortPut = findLeg('short', 'P');
-            
-            if (longPut && shortPut && canCompare(longPut, shortPut)) {
-                const longStrike = getRelativeStrike(longPut);
-                const shortStrike = getRelativeStrike(shortPut);
-                
-                if (longStrike >= shortStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Put Spread: Long Put must be BELOW Short Put. Your config: Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}`
-                    };
+
+            if (longPut && shortPut) {
+                if (canCompare(longPut, shortPut)) {
+                    if (getRelativeStrike(longPut) >= getRelativeStrike(shortPut)) {
+                        return { valid: false, error: `Long Put Spread: Long Put must be BELOW Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'above') {
+                    return { valid: false, error: `Long Put Spread: Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'below') {
+                    return { valid: false, error: `Long Put Spread: Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Long Call Spread': () => {
             const longCall = findLeg('long', 'C');
             const shortCall = findLeg('short', 'C');
-            
-            if (longCall && shortCall && canCompare(longCall, shortCall)) {
-                const longStrike = getRelativeStrike(longCall);
-                const shortStrike = getRelativeStrike(shortCall);
-                
-                if (longStrike >= shortStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Call Spread: Long Call must be BELOW Short Call. Your config: Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}, Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}`
-                    };
+
+            if (longCall && shortCall) {
+                if (canCompare(longCall, shortCall)) {
+                    if (getRelativeStrike(longCall) >= getRelativeStrike(shortCall)) {
+                        return { valid: false, error: `Long Call Spread: Long Call must be BELOW Short Call — Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}, Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'above') {
+                    return { valid: false, error: `Long Call Spread: Long Call is set ABOVE Short Call (${legDesc(longCall)}), but Long Call must be BELOW Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'below') {
+                    return { valid: false, error: `Long Call Spread: Short Call is set BELOW Long Call (${legDesc(shortCall)}), but Short Call must be ABOVE Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
         
