@@ -1414,17 +1414,19 @@
 
                     <!-- Wing Configuration (Iron strategies, conditional) -->
                     <div id="wingConfigSection" class="backtester-section" style="display:none; background:#fffbeb; border-radius:8px; padding:14px 16px; margin-bottom:0; border:1.5px solid #fde68a;">
-                      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                        <i class="fas fa-arrows-alt-h" style="color:#d97706; font-size:1rem;"></i>
-                        <span style="color:#92400e; font-weight:700; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em;">Wing Configuration</span>
+                      <div style="display:flex; flex-direction:column; gap:0; width:100%;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                          <i class="fas fa-arrows-alt-h" style="color:#d97706; font-size:1rem;"></i>
+                          <span style="color:#92400e; font-weight:700; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em;">Wing Configuration</span>
+                        </div>
+                        <label style="font-size:0.8rem; color:#92400e; font-weight:600; display:block; margin-bottom:8px;">Allow skewed wings? <span style="font-weight:400; color:#b45309;">(different put vs call spread width)</span></label>
+                        <div class="bt-toggle-row" id="wingConfigForm">
+                          <button type="button" class="bt-toggle-btn on" data-radio="allowSkewedWings" data-val="n" onclick="btToggle(this)">&#9679; Balanced wings</button>
+                          <button type="button" class="bt-toggle-btn" data-radio="allowSkewedWings" data-val="y" onclick="btToggle(this)">&#8596; Allow skewed</button>
+                        </div>
+                        <input type="radio" name="allowSkewedWings" id="skewedNo" value="n" checked class="bt-hidden-radio">
+                        <input type="radio" name="allowSkewedWings" id="skewedYes" value="y" class="bt-hidden-radio">
                       </div>
-                      <label style="font-size:0.8rem; color:#92400e; font-weight:600; display:block; margin-bottom:8px;">Allow skewed wings? <span style="font-weight:400; color:#b45309;">(different put vs call spread width)</span></label>
-                      <div class="bt-toggle-row" id="wingConfigForm">
-                        <button type="button" class="bt-toggle-btn on" data-radio="allowSkewedWings" data-val="n" onclick="btToggle(this)">&#9679; Balanced wings</button>
-                        <button type="button" class="bt-toggle-btn" data-radio="allowSkewedWings" data-val="y" onclick="btToggle(this)">&#8596; Allow skewed</button>
-                      </div>
-                      <input type="radio" name="allowSkewedWings" id="skewedNo" value="n" checked class="bt-hidden-radio">
-                      <input type="radio" name="allowSkewedWings" id="skewedYes" value="y" class="bt-hidden-radio">
                     </div>
 
                     <!-- 5. DTE -->

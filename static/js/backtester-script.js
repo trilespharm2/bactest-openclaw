@@ -1144,7 +1144,6 @@ function setupStrategySelection() {
             // Show/hide wing configuration for Iron strategies
             const isIronStrategy = strategy.includes('Iron');
             if (wingConfigSection) wingConfigSection.style.display = isIronStrategy ? 'block' : 'none';
-            if (wingConfigForm) wingConfigForm.style.display = isIronStrategy ? 'block' : 'none';
             
             // Gray out global DTE for calendar/diagonal strategies
             const isCalDiag = isCalendarDiagonalStrategy(strategy);
@@ -1164,7 +1163,6 @@ function setupStrategySelection() {
         } else {
             // Reset if no strategy selected
             if (wingConfigSection) wingConfigSection.style.display = 'none';
-            if (wingConfigForm) wingConfigForm.style.display = 'none';
             if (dteInput) { dteInput.disabled = false; dteInput.style.opacity = '1'; }
             if (dteCalendarNotice) dteCalendarNotice.style.display = 'none';
             if (legConfigSection) {
@@ -3065,8 +3063,7 @@ function resetForm() {
     const resultsDiv = document.getElementById('backtestResults');
     
     if (wingConfigSection) wingConfigSection.style.display = 'none';
-    if (wingConfigForm) wingConfigForm.style.display = 'none';
-    
+
     if (legConfigSection) {
         legConfigSection.innerHTML = `
             <div class="info-box">
