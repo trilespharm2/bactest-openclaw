@@ -2525,10 +2525,9 @@ async function handleBacktestSubmit(e) {
                 const scrollJs = `document.getElementById('${f.id}').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('${f.id}').focus();`;
                 return `<a href="#" onclick="event.preventDefault();${scrollJs}" style="color:#fff;font-weight:700;text-decoration:underline;">${f.label}</a>`;
             }).join(', ');
-            showError(`The following required fields are missing: ${fieldLinks}`);
-        } else {
-            showError('Please complete all required fields');
+            showError(`The following fields need attention: ${fieldLinks}`);
         }
+        // else: collectFormData already showed a specific error internally — don't overwrite it
         form.dataset.isSubmitting = 'false';
         return;
     }
@@ -2641,7 +2640,11 @@ function collectFormData() {
     if (!symbol) _missingFields.push({label: 'Symbol', id: 'symbol'});
     if (!startDate) _missingFields.push({label: 'Start Date', id: 'startDate'});
     if (!endDate) _missingFields.push({label: 'End Date', id: 'endDate'});
-    if (!entryTime) _missingFields.push({label: 'Entry Time', id: 'entryTime'});
+    if (!entryTime) {
+        _missingFields.push({label: 'Entry Time', id: 'entryTime'});
+    } else if (entryTime < '09:30' || entryTime > '16:00') {
+        _missingFields.push({label: 'Entry Time (must be between 09:30 and 16:00)', id: 'entryTime'});
+    }
     if (_dteRaw === '' || isNaN(dte)) _missingFields.push({label: 'Days to Expiration (DTE)', id: 'dte'});
     if (!strategy) _missingFields.push({label: 'Strategy', id: 'strategy'});
     if (!startingCapital || isNaN(startingCapital)) _missingFields.push({label: 'Starting Capital', id: 'startingCapital'});
