@@ -2259,56 +2259,11 @@
                       <div class="opt-section-body" id="stockExitCondsBody">
                         <p style="font-size:0.78rem; color:#64748b; margin:4px 0 12px;">Close position early based on a price-signal condition (checked on each bar).</p>
                         <div style="display:flex; gap:8px; margin-bottom:14px;">
-                          <button type="button" class="bt-toggle-btn on" data-radio="exit_cond_type" data-val="none" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='none'; document.getElementById('exitCustomSection').style.display='none';">None</button>
-                          <button type="button" class="bt-toggle-btn" data-radio="exit_cond_type" data-val="preset" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='block'; document.getElementById('exitCustomSection').style.display='none';">Preset</button>
-                          <button type="button" class="bt-toggle-btn" data-radio="exit_cond_type" data-val="custom" onclick="btToggle(this); document.getElementById('exitPresetSection').style.display='none'; document.getElementById('exitCustomSection').style.display='block';">Custom Builder</button>
+                          <button type="button" class="bt-toggle-btn on" data-radio="exit_cond_type" data-val="none" onclick="btToggle(this); document.getElementById('exitCustomSection').style.display='none';">None</button>
+                          <button type="button" class="bt-toggle-btn" data-radio="exit_cond_type" data-val="custom" onclick="btToggle(this); document.getElementById('exitCustomSection').style.display='block';">Custom Builder</button>
                         </div>
                         <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondNone" value="none" checked>
-                        <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondPreset" value="preset">
                         <input class="bt-hidden-radio" type="radio" name="exit_cond_type" id="exitCondCustom" value="custom">
-                        <div id="exitPresetSection" style="display:none;">
-                          <div class="mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
-                            <select class="form-select" id="exitPresetCondition">
-                              <option value="1">Premarket Change %</option>
-                              <option value="2">Change %</option>
-                              <option value="3">Gap %</option>
-                              <option value="4">Change-Open %</option>
-                              <option value="5">Velocity (Rate of Change)</option>
-                            </select>
-                          </div>
-                          <div id="exitStandardPresetFields" class="row" style="display:none;">
-                            <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
-                              <select class="form-select" id="exitPresetOperator">
-                                <option value=">">></option><option value="<"><</option>
-                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                                <option value="=">=</option>
-                              </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
-                              <input type="number" class="form-control" id="exitPresetThreshold" step="0.01" placeholder="2.5">
-                            </div>
-                          </div>
-                          <div id="exitVelocityFields" class="row" style="display:none;">
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
-                              <input type="number" class="form-control" id="exitVelocityLookback" placeholder="5" value="5">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
-                              <select class="form-select" id="exitVelocityOperator">
-                                <option value=">">></option><option value="<"><</option>
-                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                              </select>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
-                              <input type="number" class="form-control" id="exitVelocityThreshold" step="0.01" placeholder="1.5">
-                            </div>
-                          </div>
-                        </div>
                         <div id="exitCustomSection" class="stock-backtester-builder" style="display:none;">
                           <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Condition Builder — compare candles to define exit triggers</div>
                           <div id="exitConditionsContainer" class="conditions-container"></div>
@@ -5918,10 +5873,7 @@
             document.getElementById('multipleSymbolsSection').style.display = 'none';
             document.getElementById('presetSection').style.display = 'block';
             document.getElementById('customSection').style.display = 'none';
-            document.getElementById('exitPresetSection').style.display = 'block';
             document.getElementById('exitCustomSection').style.display = 'none';
-            document.getElementById('exitStandardPresetFields').style.display = 'none';
-            document.getElementById('exitVelocityFields').style.display = 'none';
             var exitContainer = document.getElementById('exitConditionsContainer');
             if (exitContainer) exitContainer.innerHTML = '';
             document.getElementById('sharesSection').style.display = 'block';
@@ -6262,14 +6214,34 @@
         title: 'Entry Conditions',
         subtitle: 'Stock Backtester — when to enter a trade',
         body: `<p style="margin-bottom:8px;">Defines the signal that must be satisfied for the backtester to open a position.</p>
-               <p style="margin-bottom:4px;"><strong>Preset signals</strong></p>
-               <ul style="padding-left:18px; margin:0 0 10px; font-size:0.82rem;">
-                 <li><strong>Premarket Change %</strong> — % change from prior close during 4:29–9:30 AM</li>
-                 <li><strong>Change %</strong> — intraday % change vs. yesterday's close (any candle)</li>
-                 <li><strong>Gap %</strong> — gap from prior close to today's 9:30 open</li>
-                 <li><strong>Change-Open %</strong> — move from today's open to the current price</li>
-                 <li><strong>Velocity</strong> — % change over a rolling intraday window (minutes)</li>
-               </ul>
+               <p style="margin-bottom:6px;"><strong>Preset signals</strong></p>
+               <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px; font-size:0.8rem;">
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="font-weight:600; color:#1e293b; margin-bottom:2px;">Premarket Change %</div>
+                   <div style="font-family:monospace; font-size:0.75rem; background:#f1f5f9; border-radius:4px; padding:3px 7px; color:#0369a1; display:inline-block; margin-bottom:3px;">(Premarket Price ÷ Prev Day Close − 1) × 100</div>
+                   <div style="color:#64748b; font-size:0.75rem;">Candles between <strong>4:29 AM – 9:30 AM</strong> only. Entry fires on the first candle meeting the threshold.</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="font-weight:600; color:#1e293b; margin-bottom:2px;">Change %</div>
+                   <div style="font-family:monospace; font-size:0.75rem; background:#f1f5f9; border-radius:4px; padding:3px 7px; color:#0369a1; display:inline-block; margin-bottom:3px;">(Current Price ÷ Prev Day Close − 1) × 100</div>
+                   <div style="color:#64748b; font-size:0.75rem;">No time restriction — checked on every candle throughout the day.</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="font-weight:600; color:#1e293b; margin-bottom:2px;">Gap %</div>
+                   <div style="font-family:monospace; font-size:0.75rem; background:#f1f5f9; border-radius:4px; padding:3px 7px; color:#0369a1; display:inline-block; margin-bottom:3px;">(9:30 Open ÷ Prev Day Close − 1) × 100</div>
+                   <div style="color:#64748b; font-size:0.75rem;"><strong>9:30 AM candle only.</strong> Measures the overnight gap at the open.</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="font-weight:600; color:#1e293b; margin-bottom:2px;">Change-Open %</div>
+                   <div style="font-family:monospace; font-size:0.75rem; background:#f1f5f9; border-radius:4px; padding:3px 7px; color:#0369a1; display:inline-block; margin-bottom:3px;">(Current Price ÷ 9:30 Open − 1) × 100</div>
+                   <div style="color:#64748b; font-size:0.75rem;">Intraday move from the regular-session open. Ignores the overnight gap.</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="font-weight:600; color:#1e293b; margin-bottom:2px;">Velocity (Rate of Change)</div>
+                   <div style="font-family:monospace; font-size:0.75rem; background:#f1f5f9; border-radius:4px; padding:3px 7px; color:#0369a1; display:inline-block; margin-bottom:3px;">(Current Price ÷ Price N minutes ago − 1) × 100</div>
+                   <div style="color:#64748b; font-size:0.75rem;">Rolling momentum over a configurable lookback window (minutes). Useful for detecting sharp intraday surges.</div>
+                 </div>
+               </div>
                <p style="margin-bottom:6px;"><strong>Custom Builder</strong> — example condition rows:</p>
                <div style="display:flex; flex-direction:column; gap:7px; font-size:0.78rem;">
                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:8px 10px;">
@@ -6360,10 +6332,47 @@
         icon: 'fa-door-open', iconBg: '#fff1f2', iconColor: '#ef4444',
         title: 'Signal-Based Exit Conditions',
         subtitle: 'Stock Backtester — close on a price signal',
-        body: `<p>Optionally exit an open position early when the underlying stock meets a price or momentum signal — checked on each bar, after TP/SL, before the max-days limit.</p>
-               <p>Uses the same signal types as Entry Conditions: Premarket Change %, Change %, Gap %, Change-Open %, and Velocity.</p>
-               <p><strong>Example</strong>: exit any open long if the stock drops more than 2% from the prior close — a momentum reversal exit filter.</p>
-               <p>Custom Builder supports multi-condition AND logic for more complex exit rules.</p>`
+        body: `<p style="margin-bottom:8px;">Optionally exit an open position early using the <strong>Custom Builder</strong> — the same condition builder used for entry, applied to exit logic.</p>
+               <p style="margin-bottom:6px;"><strong>How exit conditions are applied:</strong></p>
+               <div style="display:flex; flex-direction:column; gap:5px; margin-bottom:10px; font-size:0.8rem;">
+                 <div style="display:flex; gap:8px; align-items:flex-start;">
+                   <span style="background:#fee2e2; color:#b91c1c; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; font-size:0.7rem;">1</span>
+                   <span><strong>Not checked on the entry day.</strong> Exit evaluation begins on the <em>following</em> trading day and continues each day the position is held.</span>
+                 </div>
+                 <div style="display:flex; gap:8px; align-items:flex-start;">
+                   <span style="background:#fee2e2; color:#b91c1c; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; font-size:0.7rem;">2</span>
+                   <span><strong>Checked on every candle</strong> of each holding day, after TP/SL and before the max-days limit.</span>
+                 </div>
+                 <div style="display:flex; gap:8px; align-items:flex-start;">
+                   <span style="background:#fee2e2; color:#b91c1c; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; font-size:0.7rem;">3</span>
+                   <span><strong>All conditions are AND-combined.</strong> Every row in the builder must be true simultaneously for the exit to trigger.</span>
+                 </div>
+                 <div style="display:flex; gap:8px; align-items:flex-start;">
+                   <span style="background:#fee2e2; color:#b91c1c; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; font-size:0.7rem;">4</span>
+                   <span><strong>Reference values shift daily.</strong> "Yesterday" in an exit condition refers to the most recent prior trading day's data — the baseline resets each day held.</span>
+                 </div>
+               </div>
+               <p style="margin-bottom:5px;"><strong>Example exit conditions:</strong></p>
+               <div style="display:flex; flex-direction:column; gap:5px; font-size:0.78rem;">
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin-bottom:3px;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:1px 6px; color:#0369a1; font-weight:600;">RSI</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; color:#475569;">Today · Min · 14</span>
+                     <span style="font-weight:700; color:#b91c1c;">&gt;</span>
+                     <span style="background:#fee2e2; border:1px solid #fecaca; border-radius:4px; padding:1px 6px; color:#b91c1c; font-weight:600;">Value: 70</span>
+                   </div>
+                   <div style="font-size:0.72rem; color:#64748b;">Exit when RSI(14) is overbought — momentum reversal signal</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px;">
+                   <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin-bottom:3px;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:1px 6px; color:#0369a1; font-weight:600;">Close</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; color:#475569;">Today · Day</span>
+                     <span style="font-weight:700; color:#b91c1c;">&lt;</span>
+                     <span style="background:#fee2e2; border:1px solid #fecaca; border-radius:4px; padding:1px 6px; color:#b91c1c; font-weight:600;">SMA 20 · Day · Today</span>
+                   </div>
+                   <div style="font-size:0.72rem; color:#64748b;">Exit when today's close drops back below the 20-day SMA</div>
+                 </div>
+               </div>`
       },
       stk_advanced: {
         icon: 'fa-cogs', iconBg: '#f8fafc', iconColor: '#64748b',

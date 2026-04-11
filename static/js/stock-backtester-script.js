@@ -610,26 +610,14 @@ async function readCSV(file) {
 
 function updateExitCondType() {
     const type = document.querySelector('input[name="exit_cond_type"]:checked').value;
-    document.getElementById('exitPresetSection').style.display = 'none';
     document.getElementById('exitCustomSection').style.display = 'none';
 
-    if (type === 'preset') {
-        document.getElementById('exitPresetSection').style.display = 'block';
-    } else {
+    if (type === 'custom') {
         document.getElementById('exitCustomSection').style.display = 'block';
         if (document.getElementById('exitConditionsContainer').children.length === 0) {
             addExitCondition();
         }
     }
-}
-
-function updateExitPresetFields() {
-    var sel = document.getElementById('exitPresetCondition');
-    var val = sel ? sel.value : '';
-    var isVelocity = val === '5';
-    var hasVal = val !== '';
-    document.getElementById('exitStandardPresetFields').style.display = (hasVal && !isVelocity) ? 'flex' : 'none';
-    document.getElementById('exitVelocityFields').style.display = (hasVal && isVelocity) ? 'flex' : 'none';
 }
 
 function addExitCondition() {
@@ -930,11 +918,7 @@ function buildStockConfigSummaryHtml(config) {
     const slLabel = config.stop_loss_value ? (config.stop_loss_type === 'percent' ? `${config.stop_loss_value}%` : `$${config.stop_loss_value}`) : 'None';
 
     let exitCondHtml = '';
-    if (config.exit_cond_type === 'preset' && config.exit_preset_condition) {
-        const exitPresetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
-        exitCondHtml = exitPresetNames[config.exit_preset_condition] || 'Preset #' + config.exit_preset_condition;
-        exitCondHtml += ' ' + (config.exit_preset_operator || '') + ' ' + (config.exit_preset_threshold || '');
-    } else if (config.exit_custom_conditions && config.exit_custom_conditions.length > 0) {
+    if (config.exit_custom_conditions && config.exit_custom_conditions.length > 0) {
         const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
         exitCondHtml = config.exit_custom_conditions.map(function(c, i) {
             var met = c.metric || 'price';
@@ -1205,20 +1189,7 @@ async function collectFormData() {
     // Exit conditions (signal-based)
     config.exit_cond_type = document.querySelector('input[name="exit_cond_type"]:checked').value;
 
-    if (config.exit_cond_type === 'preset') {
-        var exitPresetVal = document.getElementById('exitPresetCondition').value;
-        if (exitPresetVal) {
-            config.exit_preset_condition = exitPresetVal;
-            if (exitPresetVal === '5') {
-                config.exit_velocity_lookback = document.getElementById('exitVelocityLookback').value;
-                config.exit_preset_operator = document.getElementById('exitVelocityOperator').value;
-                config.exit_preset_threshold = document.getElementById('exitVelocityThreshold').value;
-            } else {
-                config.exit_preset_operator = document.getElementById('exitPresetOperator').value;
-                config.exit_preset_threshold = document.getElementById('exitPresetThreshold').value;
-            }
-        }
-    } else {
+    if (config.exit_cond_type === 'custom') {
         config.exit_custom_conditions = [];
         var exitConds = document.querySelectorAll('.exit-condition-item');
         exitConds.forEach(function(condItem) {
@@ -1351,27 +1322,11 @@ function validateConfig(config) {
     var hasTP = config.take_profit_value && parseFloat(config.take_profit_value) > 0;
     var hasSL = config.stop_loss_value && parseFloat(config.stop_loss_value) > 0;
     var hasMaxDays = config.max_days && parseInt(config.max_days) > 0;
-    var hasExitPreset = config.exit_cond_type === 'preset' && config.exit_preset_condition;
     var hasExitCustom = config.exit_cond_type === 'custom' && config.exit_custom_conditions && config.exit_custom_conditions.length > 0;
 
-    if (!hasTP && !hasSL && !hasMaxDays && !hasExitPreset && !hasExitCustom) {
-        appAlert('At least one exit condition is required (Take Profit, Stop Loss, Max Days, or a custom/preset exit condition).');
+    if (!hasTP && !hasSL && !hasMaxDays && !hasExitCustom) {
+        appAlert('At least one exit condition is required (Take Profit, Stop Loss, Max Days, or a Custom Builder exit condition).');
         return false;
-    }
-
-    if (hasExitPreset) {
-        var threshVal = parseFloat(config.exit_preset_threshold);
-        if (isNaN(threshVal)) {
-            appAlert('Exit preset threshold must be a valid number.');
-            return false;
-        }
-        if (config.exit_preset_condition === '5') {
-            var lookbackVal = parseInt(config.exit_velocity_lookback);
-            if (isNaN(lookbackVal) || lookbackVal < 1) {
-                appAlert('Exit velocity lookback must be a positive integer.');
-                return false;
-            }
-        }
     }
 
     if (hasExitCustom) {
