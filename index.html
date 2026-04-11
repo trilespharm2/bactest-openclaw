@@ -6261,16 +6261,67 @@
         icon: 'fa-filter', iconBg: '#f0fdf4', iconColor: '#059669',
         title: 'Entry Conditions',
         subtitle: 'Stock Backtester — when to enter a trade',
-        body: `<p>Defines the signal that must be satisfied on a given day for the backtester to open a position.</p>
-               <p><strong>Preset signals:</strong></p>
-               <ul style="padding-left:18px; margin:4px 0 10px;">
-                 <li><strong>Premarket Change %</strong>: % change from prior close to the premarket price at entry time.</li>
-                 <li><strong>Change %</strong>: intraday move vs. yesterday's close at entry time.</li>
-                 <li><strong>Gap %</strong>: how much the stock gapped at the open vs. prior close.</li>
-                 <li><strong>Change-Open %</strong>: move from today's open to the current price at entry time.</li>
-                 <li><strong>Velocity (Rate of Change)</strong>: % change over a rolling intraday interval in minutes.</li>
+        body: `<p style="margin-bottom:8px;">Defines the signal that must be satisfied for the backtester to open a position.</p>
+               <p style="margin-bottom:4px;"><strong>Preset signals</strong></p>
+               <ul style="padding-left:18px; margin:0 0 10px; font-size:0.82rem;">
+                 <li><strong>Premarket Change %</strong> — % change from prior close during 4:29–9:30 AM</li>
+                 <li><strong>Change %</strong> — intraday % change vs. yesterday's close (any candle)</li>
+                 <li><strong>Gap %</strong> — gap from prior close to today's 9:30 open</li>
+                 <li><strong>Change-Open %</strong> — move from today's open to the current price</li>
+                 <li><strong>Velocity</strong> — % change over a rolling intraday window (minutes)</li>
                </ul>
-               <p><strong>Custom Builder</strong> — build multi-condition filters using candlestick comparisons (open, high, low, close, volume) and AND logic for more complex strategies.</p>`
+               <p style="margin-bottom:6px;"><strong>Custom Builder</strong> — example condition rows:</p>
+               <div style="display:flex; flex-direction:column; gap:7px; font-size:0.78rem;">
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:8px 10px;">
+                   <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em;">Example 1 — RSI oversold in an uptrend</div>
+                   <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:2px 7px; color:#0369a1; font-weight:600;">RSI</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Today</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Minute</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Period: 14</span>
+                     <span style="color:#1e293b; font-weight:700; padding:0 2px;">&lt;</span>
+                     <span style="background:#dcfce7; border:1px solid #bbf7d0; border-radius:4px; padding:2px 7px; color:#166534; font-weight:600;">Value: 30</span>
+                   </div>
+                   <div style="margin-top:5px; padding-top:5px; border-top:1px dashed #e2e8f0; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:2px 7px; color:#0369a1; font-weight:600;">Close</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Today</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Day</span>
+                     <span style="color:#1e293b; font-weight:700; padding:0 2px;">&gt;</span>
+                     <span style="background:#dcfce7; border:1px solid #bbf7d0; border-radius:4px; padding:2px 7px; color:#166534; font-weight:600;">SMA&nbsp;200&nbsp;Day&nbsp;Today</span>
+                   </div>
+                   <div style="margin-top:4px; font-size:0.7rem; color:#94a3b8;">→ RSI(14) &lt; 30 AND Close &gt; SMA200 (oversold bounce in uptrend)</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:8px 10px;">
+                   <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em;">Example 2 — Gap &amp; close above yesterday's high</div>
+                   <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:2px 7px; color:#0369a1; font-weight:600;">Close</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Today</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Day</span>
+                     <span style="color:#1e293b; font-weight:700; padding:0 2px;">&gt;</span>
+                     <span style="background:#dcfce7; border:1px solid #bbf7d0; border-radius:4px; padding:2px 7px; color:#166534; font-weight:600;">High&nbsp;Yesterday&nbsp;Day</span>
+                   </div>
+                   <div style="margin-top:4px; font-size:0.7rem; color:#94a3b8;">→ Today's close breaks above yesterday's high (breakout)</div>
+                 </div>
+                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:8px 10px;">
+                   <div style="font-size:0.7rem; color:#64748b; font-weight:600; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em;">Example 3 — Volume surge with upward momentum</div>
+                   <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:2px 7px; color:#0369a1; font-weight:600;">Volume</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Today</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Minute</span>
+                     <span style="color:#1e293b; font-weight:700; padding:0 2px;">&gt;</span>
+                     <span style="background:#dcfce7; border:1px solid #bbf7d0; border-radius:4px; padding:2px 7px; color:#166534; font-weight:600;">Volume&nbsp;Yesterday&nbsp;Day&nbsp;×2</span>
+                   </div>
+                   <div style="margin-top:5px; padding-top:5px; border-top:1px dashed #e2e8f0; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                     <span style="background:#e0f2fe; border:1px solid #bae6fd; border-radius:4px; padding:2px 7px; color:#0369a1; font-weight:600;">Close</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Today</span>
+                     <span style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:2px 7px; color:#475569;">Minute</span>
+                     <span style="color:#1e293b; font-weight:700; padding:0 2px;">&gt;</span>
+                     <span style="background:#dcfce7; border:1px solid #bbf7d0; border-radius:4px; padding:2px 7px; color:#166534; font-weight:600;">EMA&nbsp;9&nbsp;Minute&nbsp;Today</span>
+                   </div>
+                   <div style="margin-top:4px; font-size:0.7rem; color:#94a3b8;">→ Current volume &gt; 2× yesterday's volume AND price above EMA9</div>
+                 </div>
+               </div>
+               <p style="margin-top:8px; margin-bottom:0; font-size:0.78rem; color:#64748b;"><i class="fas fa-link-horizontal" style="margin-right:4px;"></i>All rows are AND-combined — every condition must be true for an entry to trigger.</p>`
       },
       stk_entryCriteria: {
         icon: 'fa-compass', iconBg: '#f0fdf4', iconColor: '#059669',
