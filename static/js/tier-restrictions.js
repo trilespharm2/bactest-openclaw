@@ -2,13 +2,15 @@ var TierRestrictions = (function() {
     var _tier = 'free';
     var _restrictions = null;
 
+    var _today = new Date().toISOString().split('T')[0];
+
     var FREE_SYMBOLS = ['SPY', 'GLD', 'QQQ'];
     var FREE_DATE_MIN = '2025-03-01';
-    var FREE_DATE_MAX = '2026-03-31';
+    var FREE_DATE_MAX = _today;
     var FREE_MAX_DTE = 3;
 
     var STANDARD_DATE_MIN = '2023-03-01';
-    var STANDARD_DATE_MAX = '2026-03-31';
+    var STANDARD_DATE_MAX = _today;
     var STANDARD_MAX_DTE = 10;
 
     var INDEX_SYMBOLS = ['^DJI', '^GSPC', '^IXIC', '^RUT', '^VIX', 'DIA', 'IWM', 'UVXY', 'VXX', 'VIXY'];
@@ -126,17 +128,17 @@ var TierRestrictions = (function() {
     function applyDateConstraints(startInput, endInput) {
         var min = getDateMin();
         var max = getDateMax();
+        var today = new Date().toISOString().split('T')[0];
+        var effectiveMax = (max && max < today) ? max : today;
         if (startInput) {
             if (min) startInput.setAttribute('min', min);
             else startInput.removeAttribute('min');
-            if (max) startInput.setAttribute('max', max);
-            else startInput.removeAttribute('max');
+            startInput.setAttribute('max', effectiveMax);
         }
         if (endInput) {
             if (min) endInput.setAttribute('min', min);
             else endInput.removeAttribute('min');
-            if (max) endInput.setAttribute('max', max);
-            else endInput.removeAttribute('max');
+            endInput.setAttribute('max', effectiveMax);
         }
         if (isFree() && min && max) {
             var inputs = [startInput, endInput];
