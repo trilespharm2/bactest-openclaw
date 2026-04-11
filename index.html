@@ -1458,7 +1458,7 @@
                         <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
                           <i class="fas fa-arrows-alt-h" style="color:#d97706; font-size:1rem;"></i>
                           <span style="color:#92400e; font-weight:700; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em;">Wing Configuration</span>
-                          <button class="bt-info-btn" type="button" onclick="openBtInfoModal('wingConfig')" style="border-color:#d97706; color:#d97706;">i</button>
+                          <button class="bt-info-btn" type="button" onclick="openBtInfoModal('wingConfig')">i</button>
                         </div>
                         <label style="font-size:0.8rem; color:#92400e; font-weight:600; display:block; margin-bottom:8px;">Allow skewed wings? <span style="font-weight:400; color:#b45309;">(different put vs call spread width)</span></label>
                         <div class="bt-toggle-row" id="wingConfigForm">
@@ -2020,7 +2020,7 @@
                         <span class="section-step" style="background:#059669;">1</span>
                         <i class="fas fa-tag section-icon" style="color:#059669;"></i>
                         Backtest Name
-                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_backtestName')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_backtestName')" style="margin-left:auto;">i</button>
                       </div>
                       <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
                       <div class="field-hint">Give this backtest a memorable name so you can find it in your results history.</div>
@@ -2032,7 +2032,7 @@
                         <span class="section-step" style="background:#059669;">2</span>
                         <i class="fas fa-search-dollar section-icon" style="color:#059669;"></i>
                         Symbol &amp; Date Range
-                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_symbolDates')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_symbolDates')" style="margin-left:auto;">i</button>
                       </div>
                       <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Symbol Mode</label>
                       <div class="bt-toggle-row" style="margin-bottom:14px;">
@@ -2074,7 +2074,7 @@
                         <span class="section-step" style="background:#059669;">3</span>
                         <i class="fas fa-filter section-icon" style="color:#059669;"></i>
                         Entry Conditions
-                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_entryConds')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_entryConds')" style="margin-left:auto;">i</button>
                       </div>
                       <div style="display:flex; gap:8px; margin-bottom:14px;">
                         <button type="button" class="bt-toggle-btn on" data-radio="entry_type" data-val="preset" onclick="btToggle(this); document.getElementById('presetSection').style.display='block'; document.getElementById('customSection').style.display='none';">Preset</button>
@@ -2138,7 +2138,7 @@
                         <span class="section-step" style="background:#059669;">4</span>
                         <i class="fas fa-compass section-icon" style="color:#059669;"></i>
                         Entry Criteria
-                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_entryCriteria')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_entryCriteria')" style="margin-left:auto;">i</button>
                       </div>
                       <div class="bt-grid-2">
                         <div>
@@ -2198,7 +2198,7 @@
                         <span class="section-step" style="background:#059669;">5</span>
                         <i class="fas fa-balance-scale section-icon" style="color:#059669;"></i>
                         Exit Criteria
-                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_exitCriteria')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_exitCriteria')" style="margin-left:auto;">i</button>
                       </div>
                       <div class="tpsl-row" style="margin-bottom:14px;">
                         <div class="tpsl-card" style="border-color:#bbf7d0;">
@@ -2463,28 +2463,28 @@
                 <div class="card-body">
                   <div class="row g-3">
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Symbol <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_symbol')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Symbol <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_symbol')" style="flex-shrink:0;">i</button></label>
                       <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-search"></i></span>
                         <input type="text" class="form-control" id="simSymbol" placeholder="e.g., SPY, AAPL" value="SPY">
                       </div>
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Chart Start Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_chartDates')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Chart Start Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_chartDates')" style="flex-shrink:0;">i</button></label>
                       <input type="date" class="form-control" id="simChartStartDate">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Chart End Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_chartDates')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Chart End Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_chartDates')" style="flex-shrink:0;">i</button></label>
                       <input type="date" class="form-control" id="simChartEndDate">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Trading Start Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_tradingStartDate')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Trading Start Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_tradingStartDate')" style="flex-shrink:0;">i</button></label>
                       <input type="date" class="form-control" id="simTradingStartDate">
                     </div>
                   </div>
                   <div class="row g-3 mt-1">
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Trading Mode <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_tradingMode')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Trading Mode <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_tradingMode')" style="flex-shrink:0;">i</button></label>
                       <div class="sim-mode-switch" id="simTradingModeSwitch">
                         <button type="button" class="sim-mode-btn active" data-mode="stock">
                           <i class="fas fa-chart-line me-1"></i>Stock
@@ -2496,7 +2496,7 @@
                       <input type="hidden" id="simTradingMode" value="stock">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Account Balance <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_accountBalance')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Account Balance <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_accountBalance')" style="flex-shrink:0;">i</button></label>
                       <div class="input-group">
                         <span class="input-group-text">$</span>
                         <input type="number" class="form-control" id="simAccountBalance" value="100000" min="0" step="1000">
