@@ -503,6 +503,20 @@
       .stock-filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
       /* Radio button completely hidden (toggle handles UX) */
       .bt-hidden-radio { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+      /* Leg config inputs/selects always fill their column */
+      .leg-method-select { width: 100%; max-width: 100%; box-sizing: border-box; }
+      .leg-param { width: 100%; max-width: 100%; box-sizing: border-box; }
+      /* Mobile fixes */
+      @media (max-width: 480px) {
+        .leg-config-card { padding: 12px; }
+        .leg-header { flex-wrap: wrap; gap: 6px; }
+        .bt-toggle-row { flex-wrap: wrap; }
+        .bt-toggle-btn { max-width: none; flex: 1 1 auto; }
+        .leg-params-container .form-grid { grid-template-columns: 1fr; gap: 10px; }
+        .backtester-section { padding: 14px 0; }
+        .tpsl-row { grid-template-columns: 1fr; }
+        .bt-grid-2 { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body class="initializing">
