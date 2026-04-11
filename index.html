@@ -2020,6 +2020,7 @@
                         <span class="section-step" style="background:#059669;">1</span>
                         <i class="fas fa-tag section-icon" style="color:#059669;"></i>
                         Backtest Name
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_backtestName')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
                       </div>
                       <input type="text" class="form-control" id="stockBacktestName" placeholder="e.g., SPY Gap Up Strategy, AAPL Momentum" required>
                       <div class="field-hint">Give this backtest a memorable name so you can find it in your results history.</div>
@@ -2031,6 +2032,7 @@
                         <span class="section-step" style="background:#059669;">2</span>
                         <i class="fas fa-search-dollar section-icon" style="color:#059669;"></i>
                         Symbol &amp; Date Range
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_symbolDates')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
                       </div>
                       <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Symbol Mode</label>
                       <div class="bt-toggle-row" style="margin-bottom:14px;">
@@ -2072,6 +2074,7 @@
                         <span class="section-step" style="background:#059669;">3</span>
                         <i class="fas fa-filter section-icon" style="color:#059669;"></i>
                         Entry Conditions
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_entryConds')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
                       </div>
                       <div style="display:flex; gap:8px; margin-bottom:14px;">
                         <button type="button" class="bt-toggle-btn on" data-radio="entry_type" data-val="preset" onclick="btToggle(this); document.getElementById('presetSection').style.display='block'; document.getElementById('customSection').style.display='none';">Preset</button>
@@ -2135,6 +2138,7 @@
                         <span class="section-step" style="background:#059669;">4</span>
                         <i class="fas fa-compass section-icon" style="color:#059669;"></i>
                         Entry Criteria
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_entryCriteria')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
                       </div>
                       <div class="bt-grid-2">
                         <div>
@@ -2194,6 +2198,7 @@
                         <span class="section-step" style="background:#059669;">5</span>
                         <i class="fas fa-balance-scale section-icon" style="color:#059669;"></i>
                         Exit Criteria
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('stk_exitCriteria')" style="margin-left:auto; border-color:#059669; color:#059669;">i</button>
                       </div>
                       <div class="tpsl-row" style="margin-bottom:14px;">
                         <div class="tpsl-card" style="border-color:#bbf7d0;">
@@ -2248,6 +2253,7 @@
                         <i class="fas fa-door-open section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal-Based Exit Conditions</span>
                         <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('stk_exitConds')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="stockExitCondsBody">
@@ -2317,6 +2323,7 @@
                         <span class="section-step opt">&#9881;</span>
                         <i class="fas fa-cogs section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Advanced Options</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('stk_advanced')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="stockAdvancedBody">
@@ -2456,28 +2463,28 @@
                 <div class="card-body">
                   <div class="row g-3">
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold">Symbol</label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Symbol <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_symbol')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
                       <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-search"></i></span>
                         <input type="text" class="form-control" id="simSymbol" placeholder="e.g., SPY, AAPL" value="SPY">
                       </div>
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold">Chart Start Date</label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Chart Start Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_chartDates')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
                       <input type="date" class="form-control" id="simChartStartDate">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold">Chart End Date</label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Chart End Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_chartDates')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
                       <input type="date" class="form-control" id="simChartEndDate">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold">Trading Start Date</label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Trading Start Date <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_tradingStartDate')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
                       <input type="date" class="form-control" id="simTradingStartDate">
                     </div>
                   </div>
                   <div class="row g-3 mt-1">
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold">Trading Mode</label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Trading Mode <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_tradingMode')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
                       <div class="sim-mode-switch" id="simTradingModeSwitch">
                         <button type="button" class="sim-mode-btn active" data-mode="stock">
                           <i class="fas fa-chart-line me-1"></i>Stock
@@ -2489,7 +2496,7 @@
                       <input type="hidden" id="simTradingMode" value="stock">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                      <label class="form-label fw-semibold">Account Balance</label>
+                      <label class="form-label fw-semibold" style="display:flex; align-items:center; gap:6px;">Account Balance <button class="bt-info-btn" type="button" onclick="openBtInfoModal('sim_accountBalance')" style="border-color:#3b82f6; color:#3b82f6; flex-shrink:0;">i</button></label>
                       <div class="input-group">
                         <span class="input-group-text">$</span>
                         <input type="number" class="form-control" id="simAccountBalance" value="100000" min="0" step="1000">
@@ -6226,6 +6233,146 @@
                  <li><strong>Max Net Premium</strong>: skip trades that collect more than this amount — useful to avoid over-priced, potentially dangerous setups.</li>
                </ul>
                <p>Leave either field blank to remove that bound. Premiums are expressed in <strong>dollars per spread</strong> (already multiplied by 100 per contract).</p>`
+      }
+      ,
+
+      // ── STOCK BACKTESTER ────────────────────────────────────────────
+      stk_backtestName: {
+        icon: 'fa-tag', iconBg: '#f0fdf4', iconColor: '#059669',
+        title: 'Backtest Name',
+        subtitle: 'Stock Backtester — identification',
+        body: `<p>Give this backtest a memorable name so you can identify it later in your results history.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Include the symbol and strategy style, e.g. <em>"SPY Gap-Up Long"</em> or <em>"AAPL Momentum 2023"</em>.</li>
+                 <li>When running multiple variants (different entry thresholds, sizing, etc.), descriptive names make comparison much easier.</li>
+               </ul>`
+      },
+      stk_symbolDates: {
+        icon: 'fa-search-dollar', iconBg: '#f0fdf4', iconColor: '#059669',
+        title: 'Symbol & Date Range',
+        subtitle: 'Stock Backtester — what to test and when',
+        body: `<p><strong>Single symbol</strong> — run the strategy against one ticker (e.g. SPY, AAPL).</p>
+               <p><strong>Multiple symbols</strong> — test the same strategy across several tickers simultaneously. Results are aggregated. You can paste a comma-separated list or upload a CSV with one ticker per row.</p>
+               <p><strong>Start / End Date</strong> — the historical window to simulate. Every trading day in the range is evaluated as a potential entry date based on your entry conditions.</p>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">Tip: Use at least 6–12 months for statistically reliable results. Indices (SPY, QQQ) tend to have cleaner, more complete intraday data than individual stocks.</p>`
+      },
+      stk_entryConds: {
+        icon: 'fa-filter', iconBg: '#f0fdf4', iconColor: '#059669',
+        title: 'Entry Conditions',
+        subtitle: 'Stock Backtester — when to enter a trade',
+        body: `<p>Defines the signal that must be satisfied on a given day for the backtester to open a position.</p>
+               <p><strong>Preset signals:</strong></p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>Premarket Change %</strong>: % change from prior close to the premarket price at entry time.</li>
+                 <li><strong>Change %</strong>: intraday move vs. yesterday's close at entry time.</li>
+                 <li><strong>Gap %</strong>: how much the stock gapped at the open vs. prior close.</li>
+                 <li><strong>Change-Open %</strong>: move from today's open to the current price at entry time.</li>
+                 <li><strong>Velocity (Rate of Change)</strong>: % change over a rolling intraday interval in minutes.</li>
+               </ul>
+               <p><strong>Custom Builder</strong> — build multi-condition filters using candlestick comparisons (open, high, low, close, volume) and AND logic for more complex strategies.</p>`
+      },
+      stk_entryCriteria: {
+        icon: 'fa-compass', iconBg: '#f0fdf4', iconColor: '#059669',
+        title: 'Entry Criteria',
+        subtitle: 'Stock Backtester — direction & position sizing',
+        body: `<p><strong>Direction</strong></p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>Long</strong>: buy shares expecting the price to rise. Profit when price goes up.</li>
+                 <li><strong>Short</strong>: sell borrowed shares expecting the price to fall. Profit when price goes down.</li>
+               </ul>
+               <p><strong>Position Sizing</strong> — how many shares / dollars to commit per trade:</p>
+               <ul style="padding-left:18px; margin:4px 0;">
+                 <li><strong>Fixed Shares</strong>: a constant number of shares each trade (e.g. 100).</li>
+                 <li><strong>Fixed Dollars</strong>: a constant dollar amount per trade (e.g. $5,000).</li>
+                 <li><strong>% of Capital</strong>: allocate a fixed percentage of your starting capital per trade (e.g. 10%), which scales as the account grows or shrinks.</li>
+               </ul>`
+      },
+      stk_exitCriteria: {
+        icon: 'fa-balance-scale', iconBg: '#fff1f2', iconColor: '#ef4444',
+        title: 'Exit Criteria',
+        subtitle: 'Stock Backtester — take profit, stop loss & time limit',
+        body: `<p><strong>Take Profit</strong> — close the position when a profit target is reached:</p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>%</strong>: percentage gain from entry price (e.g. 5%).</li>
+                 <li><strong>$</strong>: fixed dollar gain per trade (e.g. $250).</li>
+               </ul>
+               <p><strong>Stop Loss</strong> — close to limit downside:</p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>%</strong>: percentage loss from entry price (e.g. 3%).</li>
+                 <li><strong>$</strong>: fixed dollar loss per trade.</li>
+               </ul>
+               <p><strong>Max Days in Trade</strong> — automatically close any position after this many trading days, regardless of P&L. Prevents holding an open trade indefinitely.</p>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:6px;">All exit conditions are checked at each available price bar. Leave TP or SL blank to disable that rule.</p>`
+      },
+      stk_exitConds: {
+        icon: 'fa-door-open', iconBg: '#fff1f2', iconColor: '#ef4444',
+        title: 'Signal-Based Exit Conditions',
+        subtitle: 'Stock Backtester — close on a price signal',
+        body: `<p>Optionally exit an open position early when the underlying stock meets a price or momentum signal — checked on each bar, after TP/SL, before the max-days limit.</p>
+               <p>Uses the same signal types as Entry Conditions: Premarket Change %, Change %, Gap %, Change-Open %, and Velocity.</p>
+               <p><strong>Example</strong>: exit any open long if the stock drops more than 2% from the prior close — a momentum reversal exit filter.</p>
+               <p>Custom Builder supports multi-condition AND logic for more complex exit rules.</p>`
+      },
+      stk_advanced: {
+        icon: 'fa-cogs', iconBg: '#f8fafc', iconColor: '#64748b',
+        title: 'Advanced Options',
+        subtitle: 'Stock Backtester — consecutive trade control',
+        body: `<p><strong>Consecutive Trades</strong> — controls whether a new trade can be opened while an existing position in the same symbol is still open.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>One at a time</strong>: the backtester waits for the current position to close before entering a new one. Models a single-position approach.</li>
+                 <li><strong>Allow consecutive</strong>: a new position can be entered on any qualifying day, even while the previous one is still open. Can model a scaling or layering strategy, but also increases risk exposure.</li>
+               </ul>`
+      },
+
+      // ── SIMULATED TRADING ───────────────────────────────────────────
+      sim_symbol: {
+        icon: 'fa-search', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Symbol',
+        subtitle: 'Simulated Trading — ticker to trade',
+        body: `<p>Enter any valid US equity ticker symbol (e.g. <strong>SPY</strong>, <strong>QQQ</strong>, <strong>AAPL</strong>).</p>
+               <p>The simulated trading session will load historical intraday price data for this symbol across the date range you configure.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>High-volume indices and ETFs (SPY, QQQ, IWM) tend to have the most complete and clean intraday data.</li>
+                 <li>Individual stocks work too, though very small-cap or illiquid names may have gaps.</li>
+               </ul>`
+      },
+      sim_chartDates: {
+        icon: 'fa-calendar-alt', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Chart Dates',
+        subtitle: 'Simulated Trading — data window',
+        body: `<p><strong>Chart Start Date</strong> — the earliest date loaded into the chart. Data before your Trading Start Date is shown as historical context (you can see it but cannot trade it).</p>
+               <p><strong>Chart End Date</strong> — the last date available in the session. The simulation runs up to this date or until you end the session.</p>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">Setting a wider chart window (e.g. a few weeks before your trading start) gives you more context for reading price action and identifying patterns before you begin placing simulated trades.</p>`
+      },
+      sim_tradingStartDate: {
+        icon: 'fa-play-circle', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Trading Start Date',
+        subtitle: 'Simulated Trading — when to begin',
+        body: `<p>The date from which you can start placing simulated trades. Data before this date is displayed for context only — no trades can be entered.</p>
+               <p>This must fall within your Chart Start / End Date range.</p>
+               <p><strong>Tip</strong>: set the Trading Start Date a few days or weeks after the Chart Start Date so you can study recent price history before committing to trades. This mirrors real-world preparation before entering a new position.</p>`
+      },
+      sim_tradingMode: {
+        icon: 'fa-layer-group', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Trading Mode',
+        subtitle: 'Simulated Trading — stock vs. options',
+        body: `<p>Choose whether to simulate <strong>stock</strong> or <strong>options</strong> trades in this session.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>Stock mode</strong>: buy and sell shares long or short. Simple directional trading. P&L is calculated as price change × shares held.</li>
+                 <li><strong>Options mode</strong>: open options positions using real historical chain data. Choose strike, expiration, and strategy. P&L is marked to market at each bar.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">Options mode requires an active subscription with options data access. Both modes use real historical data — no artificial price feeds.</p>`
+      },
+      sim_accountBalance: {
+        icon: 'fa-wallet', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Account Balance',
+        subtitle: 'Simulated Trading — starting capital',
+        body: `<p>The virtual dollar amount in your simulated account at the start of the session. This is used to size your positions and track your total P&L as a percentage return.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Set it to a realistic amount that matches the account size you are training for.</li>
+                 <li>Your running balance, unrealized P&L, and session performance are all tracked relative to this starting figure.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">This is virtual money only — no real funds are at risk.</p>`
       }
     };
 
