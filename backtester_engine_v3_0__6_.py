@@ -937,11 +937,7 @@ class BacktesterEngine:
             minute = candle_time.minute
             
             if preset == '1':  # Premarket Change %
-                in_premarket = (
-                    (hour == 4 and minute >= 29) or
-                    (5 <= hour <= 8) or
-                    (hour == 9 and minute <= 30)
-                )
+                in_premarket = hour >= 4 and (hour < 9 or (hour == 9 and minute <= 29))
                 if not in_premarket:
                     return False, None, None
                 return self._check_price_points_vs_reference(
@@ -1108,15 +1104,11 @@ class BacktesterEngine:
             else:
                 price = candle.get('vwap') if pd.notna(candle.get('vwap')) else candle['close']
                 computed_val = None
-                if cond_id == '1':  # Premarket Change % — time-gated 4:29–9:30
+                if cond_id == '1':  # Premarket Change % — time-gated 4:00–9:29
                     candle_time = candle['timestamp']
                     c_hour = candle_time.hour
                     c_min = candle_time.minute
-                    in_premarket = (
-                        (c_hour == 4 and c_min >= 29) or
-                        (5 <= c_hour <= 8) or
-                        (c_hour == 9 and c_min <= 30)
-                    )
+                    in_premarket = c_hour >= 4 and (c_hour < 9 or (c_hour == 9 and c_min <= 29))
                     if prev_close and prev_close > 0 and in_premarket:
                         computed_val = round(((price / prev_close) - 1) * 100, 4)
                 elif cond_id == '2':  # Change % — no time gate
@@ -1459,6 +1451,69 @@ class BacktesterEngine:
                         print(f"         Prev close: ${prev_close:.2f} at {prev_close_time}")
                         break
                 
+                if entry_found and position is not None:
+                    # Same-day exit scan: check TP/SL and signal exits on candles after entry
+                    max_days_cfg = self.config.get('max_days', 0) or 0
+                    max_exit_time = position['entry_time'] + timedelta(days=max_days_cfg) if max_days_cfg > 0 else None
+                    for idx, candle in current_data.iterrows():
+                        if idx <= position['entry_idx']:
+                            continue  # only evaluate candles strictly after entry
+                        candle_high = candle['high']
+                        candle_low = candle['low']
+                        candle_close = candle['close']
+                        current_time = candle['timestamp']
+                        exit_signal, exit_reason, exit_price = self.check_exit_conditions_intraday(
+                            position['entry_price'], candle_high, candle_low, position['direction']
+                        )
+                        if not exit_signal:
+                            cond_exit, cond_reason = self.check_exit_signal_conditions(
+                                candle, grouped, dates, i, prev_close, open_930_price
+                            )
+                            if cond_exit:
+                                exit_signal = True
+                                exit_reason = cond_reason
+                                exit_price = candle_close
+                        if max_exit_time is not None and current_time >= max_exit_time and not exit_signal:
+                            exit_signal = True
+                            exit_reason = 'max_days'
+                            exit_price = candle_close
+                        if exit_signal:
+                            pnl, pnl_pct = self.calculate_pnl(
+                                position['entry_price'], exit_price,
+                                position['shares'], position['direction']
+                            )
+                            trade = {
+                                'symbol': symbol,
+                                'direction': position['direction'],
+                                'prev_close': position['prev_close'],
+                                'prev_close_timestamp': position['prev_close_time'].strftime('%Y-%m-%d %H:%M:%S'),
+                                'entry_timestamp': position['entry_time'].strftime('%Y-%m-%d %H:%M:%S'),
+                                'entry_price': position['entry_price'],
+                                'exit_timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                                'exit_price': exit_price,
+                                'shares': position['shares'],
+                                'days_in_trade': position['days_in_trade'],
+                                'exit_reason': exit_reason,
+                                'pnl': pnl,
+                                'pnl_pct': pnl_pct,
+                                'condition_values': position.get('condition_values', [])
+                            }
+                            trades.append(trade)
+                            day_entry['events'].append({
+                                'type': 'exit',
+                                'trade_num': position.get('trade_num', 0),
+                                'reason': exit_reason,
+                                'price': round(exit_price, 2),
+                                'time': str(current_time),
+                                'entry_price': round(position['entry_price'], 2),
+                                'pnl': round(pnl, 2),
+                                'pnl_pct': round(pnl_pct, 2)
+                            })
+                            day_entry['status'] = 'EXIT'
+                            print(f"  EXIT (same day): {symbol} {exit_reason.upper()} @ ${exit_price:.2f} on {current_time} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
+                            position = None
+                            break
+
                 if not entry_found:
                     if not prior_conditions_met:
                         day_entry['events'].append({
