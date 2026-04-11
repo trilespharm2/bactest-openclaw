@@ -937,7 +937,12 @@ class BacktesterEngine:
             minute = candle_time.minute
             
             if preset == '1':  # Premarket Change %
-                if not (hour >= 4 and (hour < 9 or (hour == 9 and minute <= 29))):
+                in_premarket = (
+                    (hour == 4 and minute >= 29) or
+                    (5 <= hour <= 8) or
+                    (hour == 9 and minute <= 30)
+                )
+                if not in_premarket:
                     return False, None, None
                 return self._check_price_points_vs_reference(
                     current_candle, prev_close, operator, threshold
@@ -1103,7 +1108,18 @@ class BacktesterEngine:
             else:
                 price = candle.get('vwap') if pd.notna(candle.get('vwap')) else candle['close']
                 computed_val = None
-                if cond_id in ('1', '2'):
+                if cond_id == '1':  # Premarket Change % — time-gated 4:29–9:30
+                    candle_time = candle['timestamp']
+                    c_hour = candle_time.hour
+                    c_min = candle_time.minute
+                    in_premarket = (
+                        (c_hour == 4 and c_min >= 29) or
+                        (5 <= c_hour <= 8) or
+                        (c_hour == 9 and c_min <= 30)
+                    )
+                    if prev_close and prev_close > 0 and in_premarket:
+                        computed_val = round(((price / prev_close) - 1) * 100, 4)
+                elif cond_id == '2':  # Change % — no time gate
                     if prev_close and prev_close > 0:
                         computed_val = round(((price / prev_close) - 1) * 100, 4)
                 elif cond_id == '3':
