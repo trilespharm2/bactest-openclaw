@@ -2562,7 +2562,7 @@
                   </div>
                   <div style="width: 1px; height: 20px; background: #e0e3eb;"></div>
                   <div style="display: flex; align-items: center; gap: 6px;">
-                    <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Interval:</label>
+                    <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Interval: <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_autoplay')" title="How autoplay works"></i></label>
                     <select class="sim-dark-select" id="simAutoplayInterval">
                       <option value="1">1 min</option>
                       <option value="5">5 min</option>
@@ -2571,14 +2571,14 @@
                       <option value="60">1 hr</option>
                     </select>
                     <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Speed:</label>
-                    <select class="sim-dark-select" id="simAutoplaySpeed">
+                    <select class="sim-dark-select" id="simAutoplaySpeed" title="Delay between auto-advance steps">
                       <option value="500">0.5s</option>
                       <option value="1000">1s</option>
                       <option value="2000">2s</option>
                       <option value="3000" selected>3s</option>
                       <option value="5000">5s</option>
                     </select>
-                    <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Skip:</label>
+                    <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Skip: <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_skip')" title="Skip N bars per advance"></i></label>
                     <input type="number" class="sim-dark-input" id="simSkipBars" value="1" min="1" max="100" style="width: 45px;">
                   </div>
                   <div style="width: 1px; height: 20px; background: #e0e3eb;"></div>
@@ -2625,7 +2625,7 @@
                   </div>
                   <div style="width: 1px; height: 20px; background: #e0e3eb;"></div>
                   <div style="display: flex; align-items: center; gap: 4px;">
-                    <label style="font-size: 11px; color: #6a6d78;">Go to:</label>
+                    <label style="font-size: 11px; color: #6a6d78;">Go to: <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_goto')" title="Jump to a specific date/time"></i></label>
                     <input type="text" class="sim-dark-input" id="simGotoDate" placeholder="MM/DD/YYYY" style="width: 95px;">
                     <input type="text" class="sim-dark-input" id="simGotoTime" placeholder="HH:MM" style="width: 55px;">
                     <button type="button" class="sim-nav-btn" id="simGotoDateBtn" title="Jump to date">
@@ -2640,7 +2640,7 @@
                   <span>L <span id="simOHLC_L" style="color: #f23645;">-</span></span>
                   <span>C <span id="simOHLC_C" style="color: #191919;">-</span></span>
                   <span>Vol <span id="simOHLC_V" style="color: #6a6d78;">-</span></span>
-                  <span style="margin-left: 4px; border-left: 1px solid #e0e3eb; padding-left: 8px;">IV <span id="simOHLC_IV" style="color: #7c3aed; font-weight: 600;">-</span></span>
+                  <span style="margin-left: 4px; border-left: 1px solid #e0e3eb; padding-left: 8px;">IV <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_iv')" title="Implied Volatility"></i> <span id="simOHLC_IV" style="color: #7c3aed; font-weight: 600;">-</span></span>
                 </div>
 
                 <div id="simChartContainer" style="position: relative; height: calc(100vh - 330px); min-height: 400px; background: #ffffff;">
@@ -2660,20 +2660,21 @@
                   <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                     <div style="display: flex; align-items: center; gap: 16px;">
                       <div>
-                        <span style="font-size: 11px; color: #6a6d78;">Balance</span>
+                        <span style="font-size: 11px; color: #6a6d78;">Balance <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_balance')" title="Account balance info"></i></span>
                         <div id="simCurrentBalance" style="font-size: 15px; font-weight: 700; color: #191919;">$100,000.00</div>
                       </div>
                       <div id="simStockPnlGroup">
-                        <span style="font-size: 11px; color: #6a6d78;">Realized</span>
+                        <span style="font-size: 11px; color: #6a6d78;">Realized <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_pnl')" title="Realized P&amp;L info"></i></span>
                         <div id="simRealizedPnl" style="font-size: 13px; font-weight: 600; color: #6a6d78;">$0.00</div>
                       </div>
                       <div id="simStockUnrealizedGroup">
-                        <span style="font-size: 11px; color: #6a6d78;">Unrealized</span>
+                        <span style="font-size: 11px; color: #6a6d78;">Unrealized <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_pnl')" title="Unrealized P&amp;L info"></i></span>
                         <div id="simUnrealizedPnl" style="font-size: 13px; font-weight: 600; color: #6a6d78;">$0.00</div>
                       </div>
                     </div>
 
                     <div id="simStockTradingSection" style="display: flex; align-items: center; gap: 8px;">
+                      <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Qty <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_stockTrade')" title="Trading controls"></i></label>
                       <input type="number" id="simQuantity" value="1" min="1" class="sim-dark-input" style="width: 65px;">
                       <button type="button" id="simBuyBtn" style="background: #26a69a; color: white; border: none; padding: 6px 20px; border-radius: 4px; font-weight: 700; font-size: 13px; cursor: pointer;">BUY</button>
                       <button type="button" id="simSellBtn" style="background: #ef5350; color: white; border: none; padding: 6px 20px; border-radius: 4px; font-weight: 700; font-size: 13px; cursor: pointer;">SELL</button>
@@ -2690,11 +2691,11 @@
                   <div id="simOptionsTradingSection" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e3eb;">
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">DTE:</label>
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">DTE <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_optionDTE')" title="Days to expiration"></i>:</label>
                         <input type="number" class="sim-dark-input" id="simOptionDTE" value="0" min="0" max="365" style="width: 50px;">
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Strategy:</label>
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Strategy <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_optionStrategy')" title="Option strategy type"></i>:</label>
                         <select class="sim-dark-select" id="simOptionStrategy" style="width: 155px;">
                           <optgroup label="Single Leg">
                             <option value="Long Call">Long Call</option>
@@ -2748,7 +2749,7 @@
                       </div>
                       <input type="hidden" id="simOptionDetectionBar" value="1">
                       <div style="display: flex; align-items: center; gap: 4px;">
-                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Qty:</label>
+                        <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Qty <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_optionQty')" title="Number of contracts"></i>:</label>
                         <input type="number" class="sim-dark-input" id="simOptionQuantity" value="10" min="1" style="width: 55px;">
                       </div>
                       <button type="button" id="simOptionTradeBtn" style="background: #2962ff; color: white; border: none; padding: 6px 14px; border-radius: 4px; font-weight: 600; font-size: 12px; cursor: pointer;">
@@ -6373,6 +6374,121 @@
                  <li>Your running balance, unrealized P&L, and session performance are all tracked relative to this starting figure.</li>
                </ul>
                <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">This is virtual money only — no real funds are at risk.</p>`
+      },
+
+      // ── ACTIVE SESSION ──────────────────────────────────────────────
+      simact_autoplay: {
+        icon: 'fa-play-circle', iconBg: '#eff6ff', iconColor: '#2962ff',
+        title: 'Autoplay Controls',
+        subtitle: 'Active Session — auto-advance the chart',
+        body: `<p>Press the <strong>▶ Play</strong> button to automatically advance the chart bar by bar.</p>
+               <ul style="padding-left:18px; margin:6px 0 10px;">
+                 <li><strong>Interval</strong> — the size of each time step when auto-advancing. Choose 1 min, 5 min, 15 min, 30 min, or 1 hr to match your trading timeframe.</li>
+                 <li><strong>Speed</strong> — how long to pause between each step (0.5 s = fast, 5 s = slow). Slower speeds give you more time to analyze before the next bar appears.</li>
+               </ul>
+               <p>You can also use the <strong>◀ ▶</strong> step buttons to advance or go back one bar at a time, or press ⊕ to reset the chart view to the current candle.</p>`
+      },
+      simact_skip: {
+        icon: 'fa-forward', iconBg: '#eff6ff', iconColor: '#2962ff',
+        title: 'Skip Bars',
+        subtitle: 'Active Session — advance multiple bars at once',
+        body: `<p>Sets how many bars to advance with each press of the <strong>▶ Next</strong> button (or each autoplay step).</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Skip <strong>1</strong> — default; reveals one candle at a time for maximum granularity.</li>
+                 <li>Skip <strong>5</strong> or more — useful for fast-forwarding through periods you are not interested in trading.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">Skipping does not affect P&L calculations — all intermediate bars are still processed for TP/SL detection.</p>`
+      },
+      simact_goto: {
+        icon: 'fa-search', iconBg: '#eff6ff', iconColor: '#2962ff',
+        title: 'Go To Date / Time',
+        subtitle: 'Active Session — jump to a specific point',
+        body: `<p>Enter a date and optional time to jump the chart forward (or backward) to that exact bar.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>Date format</strong>: MM/DD/YYYY — e.g. <em>03/15/2024</em></li>
+                 <li><strong>Time format</strong>: HH:MM (24-hour ET) — e.g. <em>10:30</em>. Leave blank to jump to the first bar of the day.</li>
+               </ul>
+               <p>Press the <i class="fas fa-search" style="font-size:11px;"></i> button to confirm the jump. This is useful for skipping directly to a known event (earnings, macro release, etc.).</p>`
+      },
+      simact_iv: {
+        icon: 'fa-percentage', iconBg: '#faf5ff', iconColor: '#7c3aed',
+        title: 'Implied Volatility (IV%)',
+        subtitle: 'Active Session — at-the-money IV at the current bar',
+        body: `<p><strong>Implied Volatility (IV%)</strong> is the market's expectation of how much a stock will move, expressed as an annualized percentage and derived from current at-the-money option prices.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Higher IV → more expensive options, wider expected range.</li>
+                 <li>Lower IV → cheaper options, tighter expected range.</li>
+               </ul>
+               <p>The IV shown here is the ATM (at-the-money) implied vol at the current bar's timestamp, pulled from historical options chain data.</p>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">IV is only shown for the selected DTE expiration cycle. It updates as you step through bars.</p>`
+      },
+      simact_balance: {
+        icon: 'fa-wallet', iconBg: '#f0fdf4', iconColor: '#22c55e',
+        title: 'Account Balance',
+        subtitle: 'Active Session — real-time virtual account',
+        body: `<p>Your current simulated account balance, updated in real time as trades are opened and closed.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Starts at the <strong>Account Balance</strong> you set in the session setup.</li>
+                 <li>Decreases when you open a debit position or when a losing trade closes.</li>
+                 <li>Increases when you close a profitable position or collect net credit.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:6px;">The balance reflects <em>settled</em> cash — open position value is tracked separately under Unrealized.</p>`
+      },
+      simact_pnl: {
+        icon: 'fa-chart-bar', iconBg: '#f0fdf4', iconColor: '#22c55e',
+        title: 'Realized & Unrealized P&L',
+        subtitle: 'Active Session — profit and loss tracking',
+        body: `<p><strong>Realized P&L</strong> — the total profit or loss from all positions that have been fully closed in this session. This is locked in and already reflected in your balance.</p>
+               <p><strong>Unrealized P&L</strong> — the current mark-to-market gain or loss on your open positions, based on the latest bar's price. This fluctuates as the chart advances and is not yet in your balance.</p>
+               <p style="margin-top:8px; color:#64748b; font-size:0.8rem;">Green = net profit, red = net loss. Total session P&L = Realized + Unrealized.</p>`
+      },
+      simact_stockTrade: {
+        icon: 'fa-exchange-alt', iconBg: '#f0fdf4', iconColor: '#26a69a',
+        title: 'Stock Trading — Buy / Sell',
+        subtitle: 'Active Session — enter and exit stock positions',
+        body: `<p>Use the <strong>Qty</strong> field to set the number of shares to trade, then click <strong>BUY</strong> or <strong>SELL</strong>.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>BUY</strong> — opens a long position (or adds to an existing long). Position profits if the price rises.</li>
+                 <li><strong>SELL</strong> — opens a short position (or reduces/closes an existing long). Position profits if the price falls.</li>
+                 <li><strong>CLOSE ALL</strong> — appears when a position is open; closes the entire position at the current bar's price.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:6px;">Trades execute at the current bar's close price. No slippage or commissions are simulated.</p>`
+      },
+      simact_optionDTE: {
+        icon: 'fa-calendar-alt', iconBg: '#eff6ff', iconColor: '#2962ff',
+        title: 'DTE — Days to Expiration',
+        subtitle: 'Active Session Options — target expiry',
+        body: `<p>Enter the number of calendar days until expiration you want to target for this options trade.</p>
+               <p>The system will select the available expiration cycle closest to this DTE from the real historical options chain at the current bar.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>0 DTE</strong>: same-day expiry — high gamma, fast decay.</li>
+                 <li><strong>7–14 DTE</strong>: short-term, accelerated theta.</li>
+                 <li><strong>30–45 DTE</strong>: the most common range for premium-selling strategies.</li>
+                 <li><strong>60+ DTE</strong>: longer-dated, slower decay, lower gamma risk.</li>
+               </ul>`
+      },
+      simact_optionStrategy: {
+        icon: 'fa-layer-group', iconBg: '#eff6ff', iconColor: '#2962ff',
+        title: 'Options Strategy',
+        subtitle: 'Active Session Options — structure to trade',
+        body: `<p>Select the multi-leg options structure to enter at the current bar.</p>
+               <p><strong>Single Leg</strong>: Long/Short Call or Put — directional, simple.</p>
+               <p><strong>Vertical Spreads</strong>: defined-risk directional spreads (Bull/Bear Call/Put spreads).</p>
+               <p><strong>Iron Strategies</strong>: neutral, income-generating — Iron Condor (range-bound) or Iron Butterfly (tight neutral).</p>
+               <p><strong>Straddles &amp; Strangles</strong>: volatility plays — profit from large moves in either direction.</p>
+               <p><strong>Calendar &amp; Diagonal Spreads</strong>: time-spread strategies using different expirations.</p>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">After selecting a strategy, the leg configuration section below will update to show the relevant strike selection fields.</p>`
+      },
+      simact_optionQty: {
+        icon: 'fa-hashtag', iconBg: '#eff6ff', iconColor: '#2962ff',
+        title: 'Contracts (Qty)',
+        subtitle: 'Active Session Options — position size',
+        body: `<p>The number of option contracts to open for this trade. Each standard contract controls <strong>100 shares</strong> of the underlying.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>1 contract = exposure to 100 shares.</li>
+                 <li>Premium, max profit, and max loss displayed on the payoff diagram all scale with this quantity.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:6px;">For spreads (Iron Condor, verticals, etc.), Qty applies to the entire multi-leg structure, not each individual leg.</p>`
       }
     };
 
