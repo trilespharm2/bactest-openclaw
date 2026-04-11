@@ -503,6 +503,28 @@
       .stock-filter-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
       /* Radio button completely hidden (toggle handles UX) */
       .bt-hidden-radio { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+      /* Field info icon */
+      .bt-info-btn { margin-left:auto; width:18px; height:18px; border-radius:50%; border:1.5px solid #94a3b8; background:transparent; color:#64748b; font-size:0.68rem; font-weight:700; font-style:italic; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.15s; font-family:Georgia,serif; line-height:1; padding:0; }
+      .bt-info-btn:hover { background:#3b82f6; border-color:#3b82f6; color:white; }
+      .opt-info-btn { width:16px; height:16px; border-radius:50%; border:1.5px solid #cbd5e1; background:transparent; color:#94a3b8; font-size:0.62rem; font-weight:700; font-style:italic; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; transition:all 0.15s; font-family:Georgia,serif; line-height:1; padding:0; margin-right:6px; }
+      .opt-info-btn:hover { background:#64748b; border-color:#64748b; color:white; }
+      /* Field info modal */
+      #btFieldInfoModal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:99999; align-items:center; justify-content:center; padding:16px; }
+      #btFieldInfoModal.open { display:flex; }
+      #btFieldInfoModalInner { background:white; border-radius:14px; padding:26px 24px 20px; max-width:460px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.22); position:relative; max-height:88vh; overflow-y:auto; }
+      .bt-info-modal-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-right:28px; }
+      .bt-info-modal-icon { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#6366f1); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+      .bt-info-modal-icon i { color:white; font-size:0.9rem; }
+      .bt-info-modal-title { font-size:1rem; font-weight:700; color:#0f172a; line-height:1.2; }
+      .bt-info-modal-body { font-size:0.86rem; color:#475569; line-height:1.65; }
+      .bt-info-modal-body ul { padding-left:18px; margin:8px 0; }
+      .bt-info-modal-body li { margin-bottom:4px; }
+      .bt-info-modal-body strong { color:#1e293b; }
+      .bt-info-modal-close { position:absolute; top:12px; right:14px; width:26px; height:26px; border-radius:50%; border:none; background:#f1f5f9; color:#64748b; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+      .bt-info-modal-close:hover { background:#e2e8f0; color:#1e293b; }
+      .bt-info-modal-footer { margin-top:16px; padding-top:14px; border-top:1px solid #f1f5f9; display:flex; gap:8px; flex-wrap:wrap; }
+      .bt-info-modal-learn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; background:#eff6ff; color:#3b82f6; border:1.5px solid #bfdbfe; border-radius:8px; font-size:0.8rem; font-weight:600; cursor:pointer; transition:all 0.15s; }
+      .bt-info-modal-learn:hover { background:#dbeafe; }
       /* Leg config inputs/selects always fill their column */
       .leg-method-select { width: 100%; max-width: 100%; box-sizing: border-box; }
       .leg-param { width: 100%; max-width: 100%; box-sizing: border-box; }
@@ -1328,6 +1350,7 @@
                         <span class="section-step">1</span>
                         <i class="fas fa-tag section-icon"></i>
                         Backtest Name
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('backtestName')">i</button>
                       </div>
                       <input type="text" class="form-control" id="backtestName" placeholder="e.g., SPX 0DTE Scalp, AAPL Earnings Play">
                       <div class="field-hint">Give this backtest a memorable name so you can find it in your results history.</div>
@@ -1339,6 +1362,7 @@
                         <span class="section-step">2</span>
                         <i class="fas fa-search-dollar section-icon"></i>
                         Symbol &amp; Date Range
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('symbolDates')">i</button>
                       </div>
                       <div class="bt-grid-2" style="margin-bottom:14px;">
                         <div>
@@ -1366,6 +1390,7 @@
                         <span class="section-step">3</span>
                         <i class="fas fa-clock section-icon"></i>
                         Entry Time
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('entryTime')">i</button>
                       </div>
                       <div class="bt-grid-2">
                         <div>
@@ -1388,6 +1413,7 @@
                         <span class="section-step">4</span>
                         <i class="fas fa-chess section-icon"></i>
                         Strategy Type
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('strategyType')">i</button>
                       </div>
                       <select class="form-select" id="strategy" required style="font-weight:500;">
                         <option value="">— Select a strategy —</option>
@@ -1432,6 +1458,7 @@
                         <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
                           <i class="fas fa-arrows-alt-h" style="color:#d97706; font-size:1rem;"></i>
                           <span style="color:#92400e; font-weight:700; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em;">Wing Configuration</span>
+                          <button class="bt-info-btn" type="button" onclick="openBtInfoModal('wingConfig')" style="border-color:#d97706; color:#d97706;">i</button>
                         </div>
                         <label style="font-size:0.8rem; color:#92400e; font-weight:600; display:block; margin-bottom:8px;">Allow skewed wings? <span style="font-weight:400; color:#b45309;">(different put vs call spread width)</span></label>
                         <div class="bt-toggle-row" id="wingConfigForm">
@@ -1449,6 +1476,7 @@
                         <span class="section-step">5</span>
                         <i class="fas fa-calendar-day section-icon"></i>
                         Days to Expiration (DTE)
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('dte')">i</button>
                       </div>
                       <div style="max-width:220px;">
                         <input type="number" class="form-control" id="dte" min="0" placeholder="0" required>
@@ -1465,6 +1493,7 @@
                         <span class="section-step">6</span>
                         <i class="fas fa-sliders-h section-icon"></i>
                         <span id="legConfigTitle">Leg Configuration</span>
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('legConfig')">i</button>
                       </div>
                       <div id="legConfigSection">
                         <div style="padding:16px; background:#f0f9ff; border:1.5px dashed #93c5fd; border-radius:8px; text-align:center; color:#3b82f6; font-size:0.85rem;">
@@ -1479,6 +1508,7 @@
                         <span class="section-step">7</span>
                         <i class="fas fa-balance-scale section-icon"></i>
                         Take Profit &amp; Stop Loss
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('tpsl')">i</button>
                       </div>
                       <div class="tpsl-row">
                         <!-- Take Profit -->
@@ -1530,6 +1560,7 @@
                         <span class="section-step">8</span>
                         <i class="fas fa-wallet section-icon"></i>
                         Capital &amp; Allocation
+                        <button class="bt-info-btn" type="button" onclick="openBtInfoModal('capital')">i</button>
                       </div>
                       <div class="bt-grid-2" style="margin-bottom:14px;">
                         <div>
@@ -1581,6 +1612,7 @@
                         <span class="section-step opt">&#9776;</span>
                         <i class="fas fa-cogs section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Trade Rules</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('tradeRules')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="tradeRulesBody">
@@ -1616,6 +1648,7 @@
                         <i class="fas fa-filter section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal Based Entry Conditions</span>
                         <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('entryConds')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="entryCondsBody">
@@ -1700,6 +1733,7 @@
                         <i class="fas fa-door-open section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Signal-Based Exit Conditions</span>
                         <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('exitConds')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="exitCondsBody">
@@ -1772,6 +1806,7 @@
                         <i class="fas fa-percentage section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">IV% Filter</span>
                         <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('ivFilter')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="ivFilterBody">
@@ -1810,6 +1845,7 @@
                         <i class="fas fa-coins section-icon opt"></i>
                         <span class="section-label" style="margin-bottom:0; text-transform:uppercase; font-size:0.88rem; color:#64748b;">Net Premium Filter</span>
                         <span class="section-opt-badge" style="margin-left:4px;">optional</span>
+                        <button class="opt-info-btn" type="button" onclick="event.stopPropagation();openBtInfoModal('premFilter')">i</button>
                         <i class="fas fa-chevron-down opt-section-chevron"></i>
                       </div>
                       <div class="opt-section-body" id="premFilterBody">
@@ -5983,6 +6019,240 @@
         // Initial dashboard load (default page)
         loadDashboardData();
       }
+    </script>
+
+    <!-- Options Backtester Field Info Modal -->
+    <div id="btFieldInfoModal" onclick="if(event.target===this)closeBtInfoModal()" style="display:none; position:fixed; inset:0; z-index:9000; background:rgba(15,23,42,0.55); align-items:center; justify-content:center;">
+      <div id="btFieldInfoModalInner" style="background:#fff; border-radius:14px; max-width:520px; width:92%; max-height:80vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,0.22); display:flex; flex-direction:column;">
+        <div class="bt-info-modal-header" style="display:flex; align-items:center; gap:10px; padding:18px 20px 14px; border-bottom:1.5px solid #e2e8f0;">
+          <div id="btInfoModalIcon" style="width:34px; height:34px; border-radius:50%; background:#eff6ff; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i id="btInfoModalIconI" class="fas fa-info" style="color:#3b82f6; font-size:0.9rem;"></i>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div id="btInfoModalTitle" style="font-size:1rem; font-weight:700; color:#0f172a; line-height:1.2;"></div>
+            <div id="btInfoModalSubtitle" style="font-size:0.75rem; color:#64748b; margin-top:2px;"></div>
+          </div>
+          <button onclick="closeBtInfoModal()" type="button" style="background:none; border:none; cursor:pointer; color:#94a3b8; font-size:1.2rem; padding:4px; line-height:1; flex-shrink:0;"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="btInfoModalBody" class="bt-info-modal-body" style="padding:18px 20px; font-size:0.84rem; color:#334155; line-height:1.65;"></div>
+        <div class="bt-info-modal-footer" style="padding:12px 20px 16px; border-top:1.5px solid #f1f5f9; display:flex; justify-content:flex-end; gap:10px;">
+          <button onclick="closeBtInfoModal()" type="button" style="background:#f1f5f9; border:none; border-radius:8px; padding:7px 18px; font-size:0.83rem; font-weight:600; color:#475569; cursor:pointer;">Close</button>
+          <button onclick="closeBtInfoModal();navigateToPage('learnOptionsBacktest')" type="button" style="background:#3b82f6; border:none; border-radius:8px; padding:7px 18px; font-size:0.83rem; font-weight:600; color:#fff; cursor:pointer;"><i class="fas fa-book-open me-1"></i>Learn More</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    const btFieldInfoContent = {
+      backtestName: {
+        icon: 'fa-tag', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Backtest Name',
+        subtitle: 'Identification & organization',
+        body: `<p>Give your backtest a descriptive name so you can easily identify it in your results history.</p>
+               <p><strong>Tips:</strong></p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Include the strategy type and symbol, e.g. <em>"SPY Iron Condor 30DTE"</em>.</li>
+                 <li>Names do not need to be unique — but distinct names help when comparing multiple runs side-by-side.</li>
+               </ul>`
+      },
+      symbolDates: {
+        icon: 'fa-chart-line', iconBg: '#f0fdf4', iconColor: '#22c55e',
+        title: 'Symbol & Date Range',
+        subtitle: 'What to test and when',
+        body: `<p><strong>Symbol</strong> — Enter any valid US equity ticker (e.g. SPY, QQQ, AAPL). The backtester uses end-of-day options chain data sourced via Polygon.io.</p>
+               <p><strong>Start / End Date</strong> — Defines the date window over which trades are simulated. Each eligible calendar day in this range is evaluated as a potential entry date.</p>
+               <p><strong>Best practices:</strong></p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li>Use at least 6–12 months for statistically meaningful results.</li>
+                 <li>Avoid ranges shorter than your DTE target — there won't be enough expirations.</li>
+                 <li>High-liquidity ETFs (SPY, QQQ, IWM) generally produce more reliable data than individual stocks.</li>
+               </ul>`
+      },
+      entryTime: {
+        icon: 'fa-clock', iconBg: '#faf5ff', iconColor: '#a855f7',
+        title: 'Entry Time',
+        subtitle: 'When trades are opened each day',
+        body: `<p>Selects the intraday bar at which an option trade is entered on qualifying days.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>Market Open</strong> — uses the first available quote of the session (typically 9:30–9:35 ET).</li>
+                 <li><strong>Specific time</strong> — enter a custom time (ET) such as 10:00 or 14:30. Useful for strategies that avoid the open-hour volatility spike.</li>
+               </ul>
+               <p style="margin-top:8px; color:#64748b; font-size:0.8rem;">Note: data availability at finer time resolutions depends on your subscription tier.</p>`
+      },
+      strategyType: {
+        icon: 'fa-layer-group', iconBg: '#fff7ed', iconColor: '#f97316',
+        title: 'Strategy Type',
+        subtitle: 'Choose your options structure',
+        body: `<p>Select the multi-leg options spread you want to backtest. Each strategy has a distinct risk/reward profile:</p>
+               <table style="width:100%; border-collapse:collapse; font-size:0.81rem; margin-top:6px;">
+                 <thead><tr style="background:#f8fafc;">
+                   <th style="text-align:left; padding:5px 8px; border-bottom:1.5px solid #e2e8f0;">Strategy</th>
+                   <th style="text-align:left; padding:5px 8px; border-bottom:1.5px solid #e2e8f0;">Legs</th>
+                   <th style="text-align:left; padding:5px 8px; border-bottom:1.5px solid #e2e8f0;">Outlook</th>
+                 </tr></thead>
+                 <tbody>
+                   <tr><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;"><strong>Bull Call Spread</strong></td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Long call + Short call (higher strike)</td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Bullish</td></tr>
+                   <tr><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;"><strong>Bear Put Spread</strong></td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Long put + Short put (lower strike)</td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Bearish</td></tr>
+                   <tr><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;"><strong>Bull Put Spread</strong></td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Short put + Long put (lower strike)</td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Bullish / neutral</td></tr>
+                   <tr><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;"><strong>Bear Call Spread</strong></td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Short call + Long call (higher strike)</td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Bearish / neutral</td></tr>
+                   <tr><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;"><strong>Iron Condor</strong></td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Bull put spread + Bear call spread</td><td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">Neutral (range-bound)</td></tr>
+                   <tr><td style="padding:5px 8px;"><strong>Iron Butterfly</strong></td><td style="padding:5px 8px;">Short ATM straddle + OTM wings</td><td style="padding:5px 8px;">Neutral (low volatility)</td></tr>
+                 </tbody>
+               </table>`
+      },
+      dte: {
+        icon: 'fa-calendar-alt', iconBg: '#eff6ff', iconColor: '#3b82f6',
+        title: 'Days to Expiration (DTE)',
+        subtitle: 'Expiry targeting at entry',
+        body: `<p><strong>Target DTE</strong> — The backtester selects the expiration cycle closest to this number of calendar days away on each entry date.</p>
+               <p><strong>Tolerance</strong> — How many days above or below the target are acceptable. A tolerance of 5 means any expiry within [Target−5, Target+5] DTE qualifies; the closest one is used.</p>
+               <p><strong>Common DTE strategies:</strong></p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>0–7 DTE</strong>: Short-term, high theta, high gamma risk.</li>
+                 <li><strong>14–30 DTE</strong>: Balance between theta decay and time to manage.</li>
+                 <li><strong>45 DTE</strong>: Popular "manage at 21 DTE" framework.</li>
+                 <li><strong>60+ DTE</strong>: Longer-dated, slower decay, less gamma risk.</li>
+               </ul>`
+      },
+      legConfig: {
+        icon: 'fa-sliders-h', iconBg: '#f0fdf4', iconColor: '#22c55e',
+        title: 'Leg Configuration',
+        subtitle: 'Strike selection method for each leg',
+        body: `<p>Each leg of your spread can be targeted using one of three methods:</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>Delta</strong> — target an option with a specific absolute delta (e.g. 0.30 delta = 30Δ). More consistent risk exposure across different price levels and IV environments.</li>
+                 <li><strong>% OTM</strong> — place the strike a fixed percentage out-of-the-money from the current price (e.g. 2% OTM). Simple and intuitive.</li>
+                 <li><strong>Fixed $ offset</strong> — place the strike a fixed dollar amount from the current price or a reference leg. Consistent spacing in nominal terms.</li>
+               </ul>
+               <p>You can mix methods across legs — for example, use delta for the short leg and a fixed dollar offset for the long wing.</p>`
+      },
+      tpsl: {
+        icon: 'fa-shield-alt', iconBg: '#fff1f2', iconColor: '#ef4444',
+        title: 'Take Profit & Stop Loss',
+        subtitle: 'Early exit management rules',
+        body: `<p>Define conditions under which an open trade is closed before expiration.</p>
+               <p><strong>Take Profit (TP)</strong> — closes the position when it reaches a profit target:</p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>% of max profit</strong>: e.g. 50% means close when half the initial credit is captured.</li>
+                 <li><strong>$ amount</strong>: a fixed dollar gain per spread.</li>
+               </ul>
+               <p><strong>Stop Loss (SL)</strong> — closes the position to cap losses:</p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>% of max loss</strong>: e.g. 200% of credit received.</li>
+                 <li><strong>$ amount</strong>: a fixed dollar loss per spread.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem;">Leave either blank to disable that exit rule. Both are checked at each available price bar.</p>`
+      },
+      capital: {
+        icon: 'fa-wallet', iconBg: '#f0fdf4', iconColor: '#22c55e',
+        title: 'Capital & Position Sizing',
+        subtitle: 'How much to allocate per trade',
+        body: `<p><strong>Starting Capital</strong> — the initial portfolio value used to compute returns and percentage-based metrics.</p>
+               <p><strong>Contracts per trade</strong> — how many spread contracts to open on each entry. Each standard options contract represents 100 shares of the underlying.</p>
+               <p style="margin-top:8px;"><strong>Example:</strong> A bull put spread collected for $1.50 credit, with 2 contracts, yields $300 gross credit. Max loss on that trade would be <em>(spread width − credit) × 100 × contracts</em>.</p>
+               <p style="margin-top:8px; color:#64748b; font-size:0.8rem;">Backtest results show both absolute P&L and percentage returns relative to starting capital.</p>`
+      },
+      wingConfig: {
+        icon: 'fa-arrows-alt-h', iconBg: '#fffbeb', iconColor: '#d97706',
+        title: 'Wing Configuration',
+        subtitle: 'Symmetric vs. skewed spreads (Iron strategies)',
+        body: `<p>For <strong>Iron Condor</strong> and <strong>Iron Butterfly</strong> strategies, this controls whether the call-side and put-side wing widths must be equal.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>Balanced wings</strong> — both spreads use the same width. Simpler to manage and more common in practice.</li>
+                 <li><strong>Allow skewed</strong> — the put spread and call spread can have different widths. Useful for directionally-biased neutral strategies or to account for skew in the options market.</li>
+               </ul>
+               <p>When skewed wings are enabled, you can set a separate offset for the call and put sides independently in the leg configuration above.</p>`
+      },
+      tradeRules: {
+        icon: 'fa-cogs', iconBg: '#f8fafc', iconColor: '#64748b',
+        title: 'Trade Rules',
+        subtitle: 'Concurrent trades & PDT compliance',
+        body: `<p><strong>Concurrent Trades</strong> — controls whether the backtester can hold multiple open positions at the same time.</p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>One at a time</strong>: a new trade is only entered after the previous one closes. Simulates a single-position approach.</li>
+                 <li><strong>Allow concurrent</strong>: new trades are entered on each eligible day regardless of open positions.</li>
+               </ul>
+               <p><strong>PDT Rule Avoidance</strong> — the Pattern Day Trader rule prevents accounts under $25,000 from making more than 3 day trades in 5 business days.</p>
+               <ul style="padding-left:18px; margin:4px 0;">
+                 <li>Enable this to skip any trade that would open and close on the same day, keeping the simulated account compliant.</li>
+               </ul>`
+      },
+      entryConds: {
+        icon: 'fa-filter', iconBg: '#faf5ff', iconColor: '#a855f7',
+        title: 'Signal-Based Entry Conditions',
+        subtitle: 'Filter which days to enter trades',
+        body: `<p>Optionally restrict entries to days where the underlying meets a price or momentum condition. Checked at the selected entry time.</p>
+               <p><strong>Presets:</strong></p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>Premarket Change %</strong>: % change from prior close to current premarket price.</li>
+                 <li><strong>Change % from prev close</strong>: intraday change at entry time vs. yesterday's close.</li>
+                 <li><strong>Gap %</strong>: today's open vs. yesterday's close.</li>
+                 <li><strong>Change-Open %</strong>: move from today's open to current price at entry time.</li>
+                 <li><strong>Velocity (Rate of Change)</strong>: % change over a rolling intraday interval.</li>
+               </ul>
+               <p><strong>Custom builder</strong> — combine multiple indicator comparisons with AND logic for more complex entry filters.</p>`
+      },
+      exitConds: {
+        icon: 'fa-door-open', iconBg: '#fff1f2', iconColor: '#ef4444',
+        title: 'Signal-Based Exit Conditions',
+        subtitle: 'Close positions early on a price signal',
+        body: `<p>Optionally exit an open trade early when the underlying meets a price/momentum condition. Evaluated at each available price bar, <em>after</em> TP/SL checks and <em>before</em> expiration.</p>
+               <p>Uses the same condition types as Signal-Based Entry:</p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li>Premarket Change %, Change %, Gap %, Change-Open %, or Velocity.</li>
+               </ul>
+               <p>Example: exit any open position if the underlying drops more than 2% from the prior close — useful to cut losses on gap-down days for bullish spreads.</p>
+               <p style="color:#64748b; font-size:0.8rem; margin-top:8px;">Custom builder supports multi-condition AND logic for advanced exit rules.</p>`
+      },
+      ivFilter: {
+        icon: 'fa-percentage', iconBg: '#faf5ff', iconColor: '#a855f7',
+        title: 'IV% Filter',
+        subtitle: 'Only trade in specific volatility environments',
+        body: `<p>Restrict entries to days where the at-the-money (ATM) implied volatility falls above or below a threshold, measured as an annualized percentage.</p>
+               <p><strong>Common uses:</strong></p>
+               <ul style="padding-left:18px; margin:4px 0 10px;">
+                 <li><strong>Credit spread sellers</strong>: require IV% &gt; 20 to ensure adequate premium collection.</li>
+                 <li><strong>Debit spread buyers</strong>: require IV% &lt; 25 to avoid overpaying for long options.</li>
+                 <li><strong>Volatility expansion trades</strong>: enter only in low-IV environments and exit into high-IV.</li>
+               </ul>
+               <p style="color:#64748b; font-size:0.8rem;">Enter the threshold as a raw percentage — for example, enter <em>25</em> to mean 25% IV.</p>`
+      },
+      premFilter: {
+        icon: 'fa-coins', iconBg: '#f0fdf4', iconColor: '#22c55e',
+        title: 'Net Premium Filter',
+        subtitle: 'Skip trades outside a premium range',
+        body: `<p>Skip any trade where the net premium (credit received or debit paid) falls outside your specified range at entry.</p>
+               <ul style="padding-left:18px; margin:6px 0;">
+                 <li><strong>Min Net Premium</strong>: skip trades that collect less than this credit (or cost less than this debit). Ensures minimum premium quality.</li>
+                 <li><strong>Max Net Premium</strong>: skip trades that collect more than this amount — useful to avoid over-priced, potentially dangerous setups.</li>
+               </ul>
+               <p>Leave either field blank to remove that bound. Premiums are expressed in <strong>dollars per spread</strong> (already multiplied by 100 per contract).</p>`
+      }
+    };
+
+    function openBtInfoModal(key) {
+      const info = btFieldInfoContent[key];
+      if (!info) return;
+      document.getElementById('btInfoModalIcon').style.background = info.iconBg || '#eff6ff';
+      const iconI = document.getElementById('btInfoModalIconI');
+      iconI.className = 'fas ' + (info.icon || 'fa-info');
+      iconI.style.color = info.iconColor || '#3b82f6';
+      document.getElementById('btInfoModalTitle').textContent = info.title || '';
+      document.getElementById('btInfoModalSubtitle').textContent = info.subtitle || '';
+      document.getElementById('btInfoModalBody').innerHTML = info.body || '';
+      const modal = document.getElementById('btFieldInfoModal');
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeBtInfoModal() {
+      document.getElementById('btFieldInfoModal').style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeBtInfoModal();
+    });
     </script>
   </body>
 </html>
