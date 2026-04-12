@@ -666,20 +666,79 @@ class BacktesterEngine:
         candle = candle_930.iloc[0]
         return candle['open'], candle
     
+    def _resolve_bucket(self, day_data: pd.DataFrame, day_offset: int,
+                        candle_type: str, multiplier: int,
+                        current_candle=None) -> pd.DataFrame:
+        """
+        Return the subset of bars in day_data that belong to the N-minute/N-hour
+        bucket that the current_candle falls into.
+
+        Session anchor: 4:00 AM every day.
+        candle_type 'hr'  → bucket size = multiplier * 60 minutes
+        candle_type 'min' → bucket size = multiplier minutes
+
+        For day_offset == 0 (today), day_data should already be truncated to
+        current_candle's timestamp by the caller; we return bars from bucket_start
+        onward (up to the already-truncated end).
+
+        For day_offset != 0 (prior day), we return the full completed bucket.
+        """
+        if 'timestamp' not in day_data.columns or day_data.empty:
+            return day_data
+
+        n_minutes = int(multiplier) * (60 if candle_type == 'hr' else 1)
+
+        # Determine which bucket the current bar belongs to
+        ref_ts = current_candle.get('timestamp') if current_candle is not None else None
+        if ref_ts is None:
+            # No reference → use last bar of this day as a fallback
+            ref_ts = day_data.sort_values('timestamp')['timestamp'].iloc[-1]
+
+        try:
+            # 4:00 AM on the reference (current) candle's date
+            ref_day_open = ref_ts.normalize() + pd.Timedelta(hours=4)
+            elapsed = int((ref_ts - ref_day_open).total_seconds() / 60)
+        except Exception:
+            return day_data
+
+        if elapsed < 0:
+            return pd.DataFrame()   # before 4:00 AM — no valid bucket
+
+        bucket_idx = elapsed // n_minutes
+
+        # Map that bucket index onto the TARGET day
+        sorted_data = day_data.sort_values('timestamp')
+        try:
+            target_day_open = sorted_data['timestamp'].iloc[0].normalize() + pd.Timedelta(hours=4)
+        except Exception:
+            return day_data
+
+        bucket_start = target_day_open + pd.Timedelta(minutes=bucket_idx * n_minutes)
+        bucket_end   = bucket_start    + pd.Timedelta(minutes=n_minutes)
+
+        if day_offset == 0:
+            # Today: data already truncated to current_candle; return from bucket_start
+            return sorted_data[sorted_data['timestamp'] >= bucket_start]
+        else:
+            # Prior day: completed bucket
+            return sorted_data[
+                (sorted_data['timestamp'] >= bucket_start) &
+                (sorted_data['timestamp'] <  bucket_end)
+            ]
+
     def get_candle_value(self, grouped_data: Dict, dates: List, current_date_index: int,
                         day_offset: int, candle_type: str, multiplier: int,
                         price_type: str, current_candle=None) -> Optional[float]:
         """
         Get price/OHLCV value from a specified candle window.
 
-        day_offset : 0=today, -1=yesterday, -2=two days ago, etc.
-        candle_type: 'day'  → full session aggregate (running on day=0)
-                     'hr'   → first N hours from 9:30 (multiplier = N hours)
-                     'min'  → Nth 1-minute candle from 9:30 (multiplier = which candle, 1-indexed)
-        multiplier : size/index as described above
-        price_type : 'open', 'high', 'low', 'close', 'vwap'
-        current_candle : if provided and day_offset==0, data is truncated to this
-                         candle's timestamp to prevent lookahead bias
+        day_offset  : 0=today, -1=yesterday, -2=two days ago, etc.
+        candle_type : 'day' → full session aggregate (running on day=0)
+                      'hr'  → N-hour candle bucket from 4:00 AM (multiplier = hours)
+                      'min' → N-minute candle bucket from 4:00 AM (multiplier = minutes)
+        multiplier  : candle size (hours for 'hr', minutes for 'min')
+        price_type  : 'open', 'high', 'low', 'close', 'vwap'
+        current_candle : determines which bucket we are in and prevents lookahead on day=0
         """
         try:
             target_date_index = current_date_index + day_offset
@@ -713,61 +772,34 @@ class BacktesterEngine:
                     if 'vwap' in df.columns and df['vwap'].notna().any():
                         return float(df['vwap'].mean())
                     return float(df['close'].iloc[-1])
-                else:  # 'close' or anything else
+                else:
                     return float(df['close'].iloc[-1])
 
             if candle_type == 'day':
                 return extract_price(day_data, price_type)
 
-            # For min/hr we need a timestamp column to slice the session correctly
             if 'timestamp' not in day_data.columns:
-                # No timestamps — fall back to full-day value
                 return extract_price(day_data, price_type)
 
-            # Filter to regular session (09:30 – 15:59) and sort ascending
-            regular = day_data[
-                ((day_data['timestamp'].dt.hour == 9) & (day_data['timestamp'].dt.minute >= 30)) |
-                (day_data['timestamp'].dt.hour > 9) & (day_data['timestamp'].dt.hour < 16)
-            ].sort_values('timestamp')
-
-            if regular.empty:
+            # min / hr: resolve the correct N-minute bucket
+            bucket = self._resolve_bucket(day_data, day_offset, candle_type,
+                                          multiplier, current_candle)
+            if bucket.empty:
                 return None
-
-            if candle_type == 'min':
-                # multiplier = which 1-minute candle (1-indexed from session open)
-                # e.g. multiplier=1 → 9:30 candle, multiplier=5 → 9:34 candle
-                idx = max(0, int(multiplier) - 1)
-                if idx >= len(regular):
-                    idx = len(regular) - 1
-                window = regular.iloc[[idx]]
-                return extract_price(window, price_type)
-
-            elif candle_type == 'hr':
-                # multiplier = number of hours from session open to aggregate
-                # e.g. multiplier=1 → 9:30–10:29, multiplier=2 → 9:30–11:29
-                session_open = regular['timestamp'].iloc[0].replace(
-                    hour=9, minute=30, second=0, microsecond=0
-                )
-                cutoff = session_open + pd.Timedelta(hours=int(multiplier))
-                window = regular[regular['timestamp'] < cutoff]
-                if window.empty:
-                    return None
-                return extract_price(window, price_type)
-
-            return None
+            return extract_price(bucket, price_type)
 
         except Exception:
             return None
-    
+
     _INDICATOR_TYPES = {'sma', 'ema', 'rsi', 'macd'}
 
     def _get_volume(self, condition: Dict, side: str, grouped_data: Dict, dates: List,
                     current_date_index: int, current_candle=None) -> Optional[float]:
-        """Get aggregated volume for a specified candle configuration."""
+        """Get aggregated volume for a specified candle bucket."""
         try:
-            day_offset = condition.get(f'{side}_day', 0)
+            day_offset  = condition.get(f'{side}_day', 0)
             candle_type = condition.get(f'{side}_candle', 'day')
-            multiplier = int(condition.get(f'{side}_multiplier', 1))
+            multiplier  = int(condition.get(f'{side}_multiplier', 1))
 
             target_idx = current_date_index + day_offset
             if target_idx < 0 or target_idx >= len(dates):
@@ -780,10 +812,10 @@ class BacktesterEngine:
             if 'volume' not in day_data.columns:
                 return None
 
-            # Truncate to current candle timestamp for today to avoid lookahead
-            if day_offset == 0 and current_candle is not None:
+            # Prevent lookahead for day=0
+            if day_offset == 0 and current_candle is not None and 'timestamp' in day_data.columns:
                 ts = current_candle.get('timestamp')
-                if ts is not None and 'timestamp' in day_data.columns:
+                if ts is not None:
                     day_data = day_data[day_data['timestamp'] <= ts]
             if day_data.empty:
                 return None
@@ -791,36 +823,16 @@ class BacktesterEngine:
             if candle_type == 'day':
                 return float(day_data['volume'].sum())
 
-            elif candle_type == 'hr':
-                if 'timestamp' not in day_data.columns:
-                    return float(day_data['volume'].sum())
-                # Regular session starting at 9:30
-                regular = day_data[
-                    ((day_data['timestamp'].dt.hour == 9) & (day_data['timestamp'].dt.minute >= 30)) |
-                    ((day_data['timestamp'].dt.hour > 9) & (day_data['timestamp'].dt.hour < 16))
-                ].sort_values('timestamp')
-                if regular.empty:
-                    return None
-                first_ts = regular['timestamp'].iloc[0]
-                cutoff_ts = first_ts + pd.Timedelta(hours=multiplier)
-                filtered = regular[regular['timestamp'] < cutoff_ts]
-                if filtered.empty:
-                    return None
-                return float(filtered['volume'].sum())
+            if 'timestamp' not in day_data.columns:
+                return float(day_data['volume'].sum())
 
-            elif candle_type == 'min':
-                if 'timestamp' not in day_data.columns:
-                    return None
-                regular = day_data[
-                    ((day_data['timestamp'].dt.hour == 9) & (day_data['timestamp'].dt.minute >= 30)) |
-                    ((day_data['timestamp'].dt.hour > 9) & (day_data['timestamp'].dt.hour < 16))
-                ].sort_values('timestamp')
-                if regular.empty:
-                    return None
-                selected = regular.iloc[:multiplier]
-                return float(selected['volume'].sum())
+            # min / hr: resolve the correct N-minute bucket
+            bucket = self._resolve_bucket(day_data, day_offset, candle_type,
+                                          multiplier, current_candle)
+            if bucket.empty:
+                return None
+            return float(bucket['volume'].sum())
 
-            return None
         except Exception:
             return None
 
