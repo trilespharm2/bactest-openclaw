@@ -6557,69 +6557,149 @@
     var _tradeLogColumns = {
       options: [
         {
-          col: 'symbol',
-          desc: 'The ticker symbol of the underlying asset traded.',
-          example: 'SPY'
+          col: 'entry_date',
+          desc: 'The calendar date the position was opened.',
+          example: '2025-06-15'
         },
         {
-          col: 'direction',
-          desc: 'Whether the trade was entered as a long (buy) or short (sell) position.',
-          example: 'long'
-        },
-        {
-          col: 'prev_close',
-          desc: 'The prior trading day\'s closing price. Used as the reference value for gap %, premarket change %, and other relative conditions.',
-          example: '$490.25'
-        },
-        {
-          col: 'prev_close_timestamp',
-          desc: 'The exact date and time of the previous day\'s closing candle.',
-          example: '2025-03-14 16:00:00'
+          col: 'entry_time',
+          desc: 'The market time (ET) at which the trade was entered.',
+          example: '09:35'
         },
         {
           col: 'entry_timestamp',
-          desc: 'The date and time the position was opened.',
-          example: '2025-03-15 09:35:00'
+          desc: 'Full entry date and time combined.',
+          example: '2025-06-15 09:35:00'
         },
         {
-          col: 'entry_price',
-          desc: 'The price per share at which the trade was entered.',
-          example: '$495.80'
+          col: 'underlying_price',
+          desc: 'Price of the underlying asset (e.g. SPX, AAPL) at the moment of entry.',
+          example: '5215.40'
+        },
+        {
+          col: 'exit_date',
+          desc: 'The calendar date the position was closed.',
+          example: '2025-06-15'
+        },
+        {
+          col: 'exit_time',
+          desc: 'The market time (ET) at which the trade was exited.',
+          example: '14:30'
         },
         {
           col: 'exit_timestamp',
-          desc: 'The date and time the position was closed.',
-          example: '2025-03-15 14:30:00'
+          desc: 'Full exit date and time combined.',
+          example: '2025-06-15 14:30:00'
         },
         {
-          col: 'exit_price',
-          desc: 'The price per share at which the trade was exited.',
-          example: '$498.20'
+          col: 'underlying_exit_price',
+          desc: 'Price of the underlying asset at the moment of exit.',
+          example: '5230.10'
         },
         {
-          col: 'shares',
-          desc: 'Number of shares held in the position.',
-          example: '10'
+          col: 'strategy',
+          desc: 'The options strategy used for this trade.',
+          example: 'Long Call, Iron Condor, Put Credit Spread'
         },
         {
-          col: 'days_in_trade',
-          desc: 'Number of calendar days the position was held open. A value of 0 means the trade opened and closed within the same trading day (intraday).',
-          example: '0 (intraday) or 2 (multi-day)'
+          col: 'num_contracts',
+          desc: 'Number of option contracts traded (each contract controls 100 shares).',
+          example: '2'
+        },
+        {
+          col: 'net_premium_entry',
+          desc: 'Net premium paid (debit) or received (credit) at entry, expressed per share. Multiply by 100 × num_contracts for total dollar value.',
+          example: '−3.25 (debit) or +1.80 (credit)'
+        },
+        {
+          col: 'net_premium_exit',
+          desc: 'Net premium paid or received when the position was closed, per share.',
+          example: '−1.60 or +0.40'
+        },
+        {
+          col: 'max_risk',
+          desc: 'Maximum possible dollar loss for the trade. For defined-risk strategies this is the width of the spread minus credit received.',
+          example: '$320.00'
+        },
+        {
+          col: 'pnl',
+          desc: 'Net dollar profit or loss for the trade. Positive = win, negative = loss.',
+          example: '$165.00 or −$80.00'
         },
         {
           col: 'exit_reason',
           desc: 'What triggered the trade exit.',
-          example: '<strong>take_profit</strong> — TP target hit<br><strong>stop_loss</strong> — SL target hit<br><strong>signal</strong> — custom exit condition triggered<br><strong>time_exit</strong> — max holding period reached<br><strong>end_of_backtest</strong> — open at end of date range'
+          example: '<strong>take_profit</strong> — TP target reached<br><strong>stop_loss</strong> — SL target reached<br><strong>expiration</strong> — held to expiry<br><strong>end_of_backtest</strong> — still open at end of date range'
         },
         {
-          col: 'pnl',
-          desc: 'Net dollar profit or loss for the trade, calculated as (exit_price − entry_price) × shares for long trades, reversed for short trades.',
-          example: '$24.00 (profit) or −$12.50 (loss)'
+          col: 'dte',
+          desc: 'Days to expiration of the option contracts at the time of entry.',
+          example: '0 (0DTE), 7, 30'
         },
         {
-          col: 'pnl_pct',
-          desc: 'Percentage gain or loss relative to the entry price.',
-          example: '+2.41% or −1.08%'
+          col: 'dit',
+          desc: 'Days in trade — how long the position was held from entry to exit.',
+          example: '0.5 (intraday) or 3.0 (multi-day)'
+        },
+        {
+          col: 'capital_before',
+          desc: 'Total account capital immediately before this trade was opened.',
+          example: '$50,000.00'
+        },
+        {
+          col: 'capital_after',
+          desc: 'Total account capital immediately after this trade was closed, reflecting the P&L.',
+          example: '$50,165.00'
+        },
+        {
+          col: 'leg{N}_symbol',
+          desc: 'Full OCC option contract symbol for leg N (e.g. Leg 1, Leg 2). Contains the underlying, expiration, type and strike encoded.',
+          example: 'SPX250615C05200000'
+        },
+        {
+          col: 'leg{N}_name',
+          desc: 'Human-readable role of leg N within the strategy.',
+          example: 'Long Call, Short Put, Long Put Spread'
+        },
+        {
+          col: 'leg{N}_strike',
+          desc: 'Strike price of the option for leg N.',
+          example: '5200.00'
+        },
+        {
+          col: 'leg{N}_entry_price',
+          desc: 'Per-share premium paid or received for leg N at entry. Positive = received (short), negative = paid (long).',
+          example: '2.85'
+        },
+        {
+          col: 'leg{N}_exit_price',
+          desc: 'Per-share premium paid or received to close leg N.',
+          example: '1.20'
+        },
+        {
+          col: 'leg{N}_iv',
+          desc: 'Implied volatility of leg N at entry, as a decimal (e.g. 0.18 = 18% IV). Empty if data unavailable.',
+          example: '0.1842'
+        },
+        {
+          col: 'leg{N}_delta',
+          desc: 'Delta of leg N at entry — measures sensitivity to a $1 move in the underlying. Range: −1 to +1.',
+          example: '0.3200 (long call) or −0.2800 (short put)'
+        },
+        {
+          col: 'leg{N}_gamma',
+          desc: 'Gamma of leg N at entry — rate of change of delta per $1 move in the underlying.',
+          example: '0.004500'
+        },
+        {
+          col: 'leg{N}_theta',
+          desc: 'Theta of leg N at entry — estimated daily time decay in premium value.',
+          example: '−0.0520 (long) or +0.0480 (short)'
+        },
+        {
+          col: 'leg{N}_vega',
+          desc: 'Vega of leg N at entry — sensitivity to a 1% change in implied volatility.',
+          example: '0.1230'
         }
       ],
       stock: [
@@ -6659,13 +6739,13 @@
           example: '50'
         },
         {
-          col: 'P&L',
+          col: 'P&amp;L',
           desc: 'Net dollar profit or loss for the trade. Positive values are wins; negative are losses.',
           example: '$185.00 (profit) or −$64.00 (loss)'
         },
         {
-          col: 'P&L %',
-          desc: 'Percentage gain or loss relative to the entry price.',
+          col: 'P&amp;L %',
+          desc: 'Percentage gain or loss relative to the entry value of the position.',
           example: '+2.16% or −0.85%'
         },
         {
@@ -6683,15 +6763,27 @@
       if (subtitleEl) subtitleEl.textContent = 'Column definitions for the ' + label + ' trade log table.';
 
       var html = '<div>';
-      cols.forEach(function(c, i) {
-        var bg = i % 2 === 0 ? '#ffffff' : '#f8faff';
-        html += '<div style="display:flex; align-items:flex-start; padding:12px 20px; background:' + bg + '; border-bottom:1px solid #f1f4f9;">'
-          + '<div style="min-width:160px; max-width:160px; padding-right:16px; padding-top:1px;">'
-          + '<code style="font-size:0.82rem; color:#1e40af; background:#eff6ff; padding:2px 7px; border-radius:4px; white-space:nowrap;">' + c.col + '</code>'
+      var legSectionAdded = false;
+      var rowIdx = 0;
+      cols.forEach(function(c) {
+        var isLegCol = c.col.indexOf('{N}') >= 0;
+        if (isLegCol && !legSectionAdded) {
+          legSectionAdded = true;
+          html += '<div style="padding:10px 20px 8px; background:#f1f5f9; border-bottom:1px solid #e2e8f0; border-top:2px solid #cbd5e1;">'
+            + '<span style="font-size:0.78rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.05em;">Per-Leg Columns</span>'
+            + '<span style="font-size:0.75rem; color:#64748b; margin-left:8px;">Repeated for each leg — replace {N} with 1, 2, 3… (e.g. leg1_symbol, leg2_delta)</span>'
+            + '</div>';
+          rowIdx = 0;
+        }
+        var bg = rowIdx % 2 === 0 ? '#ffffff' : '#f8faff';
+        rowIdx++;
+        html += '<div style="display:flex; align-items:flex-start; padding:11px 20px; background:' + bg + '; border-bottom:1px solid #f1f4f9;">'
+          + '<div style="min-width:170px; max-width:170px; padding-right:16px; padding-top:1px; flex-shrink:0;">'
+          + '<code style="font-size:0.8rem; color:#1e40af; background:#eff6ff; padding:2px 7px; border-radius:4px; word-break:break-all;">' + c.col + '</code>'
           + '</div>'
-          + '<div style="flex:1;">'
+          + '<div style="flex:1; min-width:0;">'
           + '<p style="margin:0 0 4px; font-size:0.87rem; color:#374151; line-height:1.5;">' + c.desc + '</p>'
-          + (c.example ? '<p style="margin:0; font-size:0.8rem; color:#6b7280;"><span style="font-weight:600; color:#9ca3af; margin-right:4px;">e.g.</span><span style="font-style:italic;">' + c.example + '</span></p>' : '')
+          + (c.example ? '<p style="margin:0; font-size:0.79rem; color:#6b7280;"><span style="font-weight:600; color:#9ca3af; margin-right:4px;">e.g.</span><span style="font-style:italic;">' + c.example + '</span></p>' : '')
           + '</div>'
           + '</div>';
       });
