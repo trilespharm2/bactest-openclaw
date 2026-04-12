@@ -47,6 +47,7 @@ const OPERATORS = [
 const METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
+    { value: 'volume', label: 'Volume' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
@@ -240,42 +241,73 @@ function addOptExitCondition() {
             <div class="row g-2 mt-2">
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Threshold Unit</label>
-                    <select class="form-select form-select-sm" id="optExitThresholdUnit${n}">
+                    <select class="form-select form-select-sm" id="optExitThresholdUnit${n}" onchange="updateOptConditionSummary(${n}, true)">
                         <option value="percent">Percent (%)</option>
                         <option value="dollar">Dollar ($)</option>
                     </select>
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Threshold Value</label>
-                    <input type="number" class="form-control form-control-sm" id="optExitThresholdValue${n}" step="0.01" placeholder="e.g., 2.5">
+                    <input type="number" class="form-control form-control-sm" id="optExitThresholdValue${n}" step="0.01" placeholder="e.g., 2.5" oninput="updateOptConditionSummary(${n}, true)">
                 </div>
             </div>
         </div>
+
+        <!-- Time Window Restriction -->
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="optExitTimeWindowEnabled${n}"
+                    onchange="toggleOptTimeWindow('optExitTimeWindowFields${n}', this.checked)">
+                <label class="form-check-label small text-muted" for="optExitTimeWindowEnabled${n}">Restrict to time window</label>
+            </div>
+            <div id="optExitTimeWindowFields${n}" style="display:none;" class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Start (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optExitTimeWindowStart${n}" placeholder="09:30" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">End (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optExitTimeWindowEnd${n}" placeholder="16:00" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Summary -->
+        <div id="optExitSummary${n}" class="mt-2 small text-muted fst-italic condition-summary" style="display:none;"></div>
     `;
-    
+
     container.appendChild(conditionDiv);
+
+    // Attach live-update listeners to all selects/inputs in this card
+    conditionDiv.querySelectorAll('select, input').forEach(function(el) {
+        el.addEventListener('change', function() { updateOptConditionSummary(n, true); });
+        el.addEventListener('input',  function() { updateOptConditionSummary(n, true); });
+    });
+
     updateOptExitConditionFields(n);
 }
 
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
     var isCurrentPrice = metric === 'current_price';
+    var isVolume = metric === 'volume';
     var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var showSeries = metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1;
-    
+    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1);
+
     var el;
     el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
-    
+
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
     var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
     if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
-    
+
     updateOptExitComparatorOptions(n);
+    updateOptThresholdUnitOptions(n, metric, true);
 }
 
 function updateOptExitComparatorOptions(n) {
@@ -283,7 +315,9 @@ function updateOptExitComparatorOptions(n) {
     var comp = document.getElementById('optExitComparator' + n);
     if (!comp) return;
     var opts = '<option value="value">Value</option>';
-    if (metric !== 'rsi' && metric !== 'macd') {
+    if (metric === 'volume') {
+        opts += '<option value="compare_volume">Compare Volume</option>';
+    } else if (metric !== 'rsi' && metric !== 'macd') {
         opts += '<option value="compare_price">Compare Price</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
@@ -298,24 +332,33 @@ function updateOptExitRightSide(n) {
     var rightSide = document.getElementById('optExitRightSide' + n);
     var valueGroup = document.getElementById('optExitValueInputGroup' + n);
     var isEquals = (operator === '==');
-    
+
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';
         if (valueGroup) valueGroup.style.display = '';
     } else {
         if (rightSide) rightSide.style.display = 'block';
         if (valueGroup) valueGroup.style.display = 'none';
-        
-        var isComparePrice = comp === 'compare_price';
+
+        var rightType = comp.replace('compare_', '');
         var el;
-        el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
-        el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
-        
+        if (rightType === 'sma' || rightType === 'ema' || rightType === 'rsi') {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+        } else if (rightType === 'volume') {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = 'none';
+        } else {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+        }
+
         var thresholdUnit = document.getElementById('optExitThresholdUnit' + n);
         var thresholdValue = document.getElementById('optExitThresholdValue' + n);
         if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
         if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
+    updateOptConditionSummary(n, true);
 }
 
 function removeOptExitCondition(id) {
@@ -363,7 +406,12 @@ function collectOptExitConditions() {
         if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
             condition.left.window = parseInt((document.getElementById('optExitLeftWindow' + id) || {}).value) || 14;
         }
-        
+
+        if (metric === 'volume') {
+            condition.left_type = 'volume';
+            delete condition.left.series_type;
+        }
+
         if (comparator === 'value') {
             var rawVal = (document.getElementById('optExitCompareValue' + id) || {}).value;
             condition.compare_value = rawVal !== '' && rawVal !== undefined ? parseFloat(rawVal) : null;
@@ -374,6 +422,11 @@ function collectOptExitConditions() {
                 multiplier: parseInt((document.getElementById('optExitRightMultiplier' + id) || {}).value) || 1,
                 series_type: (document.getElementById('optExitRightSeriesType' + id) || {}).value || 'close'
             };
+
+            if (comparator === 'compare_volume') {
+                condition.right_type = 'volume';
+                delete condition.right.series_type;
+            }
             
             if (comparator === 'compare_sma' || comparator === 'compare_ema') {
                 condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
@@ -382,6 +435,15 @@ function collectOptExitConditions() {
             condition.threshold = {
                 unit: (document.getElementById('optExitThresholdUnit' + id) || {}).value || 'percent',
                 value: parseFloat((document.getElementById('optExitThresholdValue' + id) || {}).value) || 0
+            };
+        }
+
+        // Time window restriction
+        var twEnabled = document.getElementById('optExitTimeWindowEnabled' + id);
+        if (twEnabled && twEnabled.checked) {
+            condition.time_window = {
+                start: ((document.getElementById('optExitTimeWindowStart' + id) || {}).value || '').trim(),
+                end:   ((document.getElementById('optExitTimeWindowEnd' + id) || {}).value || '').trim()
             };
         }
         
@@ -555,20 +617,49 @@ function addPriceCondition() {
             <div class="row g-2 mt-2">
                 <div class="col-md-3">
                     <label class="form-label small">Threshold Unit</label>
-                    <select class="form-select form-select-sm" id="thresholdUnit${conditionId}">
+                    <select class="form-select form-select-sm" id="thresholdUnit${conditionId}" onchange="updateOptConditionSummary(${conditionId}, false)">
                         <option value="percent">Percent (%)</option>
                         <option value="dollar">Dollar ($)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Threshold Value</label>
-                    <input type="number" class="form-control form-control-sm" id="thresholdValue${conditionId}" step="0.01" placeholder="e.g., 2.5">
+                    <input type="number" class="form-control form-control-sm" id="thresholdValue${conditionId}" step="0.01" placeholder="e.g., 2.5" oninput="updateOptConditionSummary(${conditionId}, false)">
                 </div>
             </div>
         </div>
+
+        <!-- Time Window Restriction -->
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="optEntryTimeWindowEnabled${conditionId}"
+                    onchange="toggleOptTimeWindow('optEntryTimeWindowFields${conditionId}', this.checked)">
+                <label class="form-check-label small text-muted" for="optEntryTimeWindowEnabled${conditionId}">Restrict to time window</label>
+            </div>
+            <div id="optEntryTimeWindowFields${conditionId}" style="display:none;" class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Start (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optEntryTimeWindowStart${conditionId}" placeholder="09:30" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">End (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optEntryTimeWindowEnd${conditionId}" placeholder="16:00" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Summary -->
+        <div id="optEntrySummary${conditionId}" class="mt-2 small text-muted fst-italic condition-summary" style="display:none;"></div>
     `;
-    
+
     container.appendChild(conditionDiv);
+
+    // Attach live-update listeners to all selects/inputs in this card
+    conditionDiv.querySelectorAll('select, input').forEach(function(el) {
+        el.addEventListener('change', function() { updateOptConditionSummary(conditionId, false); });
+        el.addEventListener('input',  function() { updateOptConditionSummary(conditionId, false); });
+    });
+
     updateConditionFields(conditionId);
 }
 
@@ -649,6 +740,16 @@ function updateConditionFields(conditionId) {
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            break;
+
+        case 'volume':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            updateComparatorOptions(conditionId, ['value', 'compare_volume']);
+            updateOptThresholdUnitOptions(conditionId, 'volume', false);
             break;
             
         case 'sma':
@@ -777,7 +878,8 @@ function updateComparatorOptions(conditionId, options) {
         'compare_price': 'Compare Price',
         'compare_sma': 'Compare SMA',
         'compare_ema': 'Compare EMA',
-        'compare_rsi': 'Compare RSI'
+        'compare_rsi': 'Compare RSI',
+        'compare_volume': 'Compare Volume'
     };
     
     comparatorSelect.innerHTML = options.map(opt => 
@@ -829,6 +931,7 @@ function updateRightSideVisibility(conditionId) {
         if (threshUnitCol) threshUnitCol.style.display = isEquals ? 'none' : '';
         if (threshValCol) threshValCol.style.display = isEquals ? 'none' : '';
     }
+    updateOptConditionSummary(conditionId, false);
 }
 
 function updateRightSideFields(conditionId, comparator) {
@@ -849,6 +952,9 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Price Type';
+    } else if (comparator === 'compare_volume') {
+        if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
     } else if (comparator === 'compare_sma' || comparator === 'compare_ema') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
@@ -863,6 +969,121 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightMacdShortGroup) rightMacdShortGroup.style.display = 'block';
         if (rightMacdLongGroup) rightMacdLongGroup.style.display = 'block';
         if (rightMacdSignalGroup) rightMacdSignalGroup.style.display = 'block';
+    }
+}
+
+// =============================================================================
+// OPTIONS CUSTOM BUILDER — HELPER FUNCTIONS
+// =============================================================================
+
+function toggleOptTimeWindow(fieldId, checked) {
+    var el = document.getElementById(fieldId);
+    if (el) el.style.display = checked ? '' : 'none';
+}
+
+function updateOptThresholdUnitOptions(n, metric, isExit) {
+    var unitId = isExit ? 'optExitThresholdUnit' + n : 'thresholdUnit' + n;
+    var el = document.getElementById(unitId);
+    if (!el) return;
+    var cur = el.value;
+    if (metric === 'volume') {
+        el.innerHTML = '<option value="percent">Percent (%)</option><option value="x">x-Multiplier</option>';
+    } else {
+        el.innerHTML = '<option value="percent">Percent (%)</option><option value="dollar">Dollar ($)</option>';
+    }
+    if (el.querySelector('option[value="' + cur + '"]')) el.value = cur;
+}
+
+function buildOptConditionDesc(n, isExit) {
+    function getVal(id) { return (document.getElementById(id) || {}).value; }
+
+    var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries;
+    var compareValue, rightDay, rightCandle, rightMult, rightSeries, threshUnit, threshVal;
+
+    if (isExit) {
+        metric       = getVal('optExitMetric' + n) || 'current_price';
+        operator     = getVal('optExitOperator' + n) || '>';
+        comparator   = getVal('optExitComparator' + n) || 'value';
+        leftDay      = parseInt(getVal('optExitLeftDay' + n) || '0');
+        leftCandle   = getVal('optExitLeftCandleType' + n) || 'minute';
+        leftMult     = parseInt(getVal('optExitLeftMultiplier' + n) || '1');
+        leftSeries   = getVal('optExitLeftSeriesType' + n) || 'close';
+        compareValue = getVal('optExitCompareValue' + n);
+        rightDay     = parseInt(getVal('optExitRightDay' + n) || '0');
+        rightCandle  = getVal('optExitRightCandleType' + n) || 'minute';
+        rightMult    = parseInt(getVal('optExitRightMultiplier' + n) || '1');
+        rightSeries  = getVal('optExitRightSeriesType' + n) || 'close';
+        threshUnit   = getVal('optExitThresholdUnit' + n) || 'percent';
+        threshVal    = parseFloat(getVal('optExitThresholdValue' + n) || '0') || 0;
+    } else {
+        metric       = getVal('metric' + n) || 'current_price';
+        operator     = getVal('operator' + n) || '>';
+        comparator   = getVal('comparator' + n) || 'value';
+        leftDay      = parseInt(getVal('leftDay' + n) || '0');
+        leftCandle   = getVal('leftCandleType' + n) || 'minute';
+        leftMult     = parseInt(getVal('leftMultiplier' + n) || '1');
+        leftSeries   = getVal('leftSeriesType' + n) || 'close';
+        compareValue = getVal('compareValue' + n);
+        rightDay     = parseInt(getVal('rightDay' + n) || '0');
+        rightCandle  = getVal('rightCandleType' + n) || 'minute';
+        rightMult    = parseInt(getVal('rightMultiplier' + n) || '1');
+        rightSeries  = getVal('rightSeriesType' + n) || 'close';
+        threshUnit   = getVal('thresholdUnit' + n) || 'percent';
+        threshVal    = parseFloat(getVal('thresholdValue' + n) || '0') || 0;
+    }
+
+    function dayLabel(d) {
+        if (d === 0) return 'today';
+        if (d === -1) return 'prev day';
+        return Math.abs(d) + ' days ago';
+    }
+    function candleLabel(c, m) {
+        if (c === 'day') return 'day';
+        if (c === 'hour') return m + '-hr';
+        if (c === 'minute') return m + '-min';
+        if (c === 'week') return 'week';
+        if (c === 'month') return 'month';
+        return c;
+    }
+    function sideDesc(m, day, candle, mult, series) {
+        if (m === 'volume') return candleLabel(candle, mult) + ' vol (' + dayLabel(day) + ')';
+        if (m === 'current_price') return 'current price';
+        if (m === 'price') return candleLabel(candle, mult) + ' ' + series + ' (' + dayLabel(day) + ')';
+        if (m === 'sma' || m === 'ema') return m.toUpperCase() + '(' + series + ') [' + dayLabel(day) + ']';
+        if (m === 'rsi') return 'RSI [' + dayLabel(day) + ']';
+        if (m === 'macd') return 'MACD [' + dayLabel(day) + ']';
+        return m;
+    }
+
+    var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries);
+
+    if (comparator === 'value') {
+        return leftDesc + ' ' + operator + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
+    }
+
+    var rightMetric = comparator.replace('compare_', '');
+    var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries);
+
+    var suffix = '';
+    if (threshVal !== 0) {
+        if (threshUnit === 'percent') suffix = ' ±' + threshVal + '%';
+        else if (threshUnit === 'dollar') suffix = ' ±$' + threshVal;
+        else if (threshUnit === 'x') suffix = ' ×' + threshVal;
+    }
+
+    return leftDesc + ' ' + operator + ' ' + rightDesc + suffix;
+}
+
+function updateOptConditionSummary(n, isExit) {
+    var summaryId = isExit ? 'optExitSummary' + n : 'optEntrySummary' + n;
+    var el = document.getElementById(summaryId);
+    if (!el) return;
+    var desc = buildOptConditionDesc(n, isExit);
+    if (desc) {
+        el.textContent = desc;
+        el.style.display = '';
+    } else {
+        el.style.display = 'none';
     }
 }
 
@@ -894,7 +1115,12 @@ function collectPriceConditions() {
         if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
             condition.left.window = parseInt(document.getElementById(`leftWindow${id}`)?.value) || 14;
         }
-        
+
+        if (metric === 'volume') {
+            condition.left_type = 'volume';
+            delete condition.left.series_type;
+        }
+
         if (metric === 'macd') {
             condition.left.short_window = parseInt(document.getElementById(`leftMacdShort${id}`)?.value) || 12;
             condition.left.long_window = parseInt(document.getElementById(`leftMacdLong${id}`)?.value) || 26;
@@ -912,6 +1138,11 @@ function collectPriceConditions() {
                 multiplier: parseInt(document.getElementById(`rightMultiplier${id}`)?.value) || 1,
                 series_type: document.getElementById(`rightSeriesType${id}`)?.value
             };
+
+            if (comparator === 'compare_volume') {
+                condition.right_type = 'volume';
+                delete condition.right.series_type;
+            }
             
             // Add window for SMA/EMA/RSI comparisons
             if (comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_rsi') {
@@ -928,6 +1159,15 @@ function collectPriceConditions() {
             condition.threshold = {
                 unit: document.getElementById(`thresholdUnit${id}`)?.value || 'percent',
                 value: parseFloat(document.getElementById(`thresholdValue${id}`)?.value) || 0
+            };
+        }
+
+        // Time window restriction
+        var twEnabled = document.getElementById(`optEntryTimeWindowEnabled${id}`);
+        if (twEnabled && twEnabled.checked) {
+            condition.time_window = {
+                start: (document.getElementById(`optEntryTimeWindowStart${id}`)?.value || '').trim(),
+                end:   (document.getElementById(`optEntryTimeWindowEnd${id}`)?.value || '').trim()
             };
         }
         
