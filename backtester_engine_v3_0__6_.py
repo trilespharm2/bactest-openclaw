@@ -815,7 +815,20 @@ class BacktesterEngine:
         """
         if condition.get('type') == 'velocity':
             return self.check_velocity_condition(condition, grouped_data, dates, current_date_index, current_candle)
-        
+
+        # Apply optional time window filter
+        if condition.get('time_window_enabled') and current_candle is not None:
+            ts = current_candle.get('timestamp')
+            if ts is not None:
+                candle_mins = ts.hour * 60 + ts.minute
+                try:
+                    sh, sm = map(int, condition.get('time_window_start', '00:00').split(':'))
+                    eh, em = map(int, condition.get('time_window_end', '23:59').split(':'))
+                    if not (sh * 60 + sm <= candle_mins <= eh * 60 + em):
+                        return False
+                except Exception:
+                    pass
+
         try:
             left_type = condition.get('left_type', 'close')
             right_type = condition.get('right_type', 'close')

@@ -454,6 +454,30 @@ function addCondition() {
                 </div>
             </div>
         </div>
+
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="time-window-enabled-${n}" onchange="toggleTimeWindow(${n}, false)">
+                <label class="form-check-label small" for="time-window-enabled-${n}">
+                    <strong>Restrict to time window</strong> <span class="text-muted">(optional)</span>
+                </label>
+            </div>
+            <div id="time-window-fields-${n}" style="display:none;" class="mt-2">
+                <div class="row g-2">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">From (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="time-window-start-${n}" value="09:30">
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">To (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="time-window-end-${n}" value="16:00">
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">Condition is only evaluated if the candle falls within this time range (e.g. 04:00–09:29 for premarket).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
     container.appendChild(conditionDiv);
@@ -764,6 +788,30 @@ function addExitCondition() {
                 </div>
             </div>
         </div>
+
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="exit-time-window-enabled-${n}" onchange="toggleTimeWindow(${n}, true)">
+                <label class="form-check-label small" for="exit-time-window-enabled-${n}">
+                    <strong>Restrict to time window</strong> <span class="text-muted">(optional)</span>
+                </label>
+            </div>
+            <div id="exit-time-window-fields-${n}" style="display:none;" class="mt-2">
+                <div class="row g-2">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">From (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="exit-time-window-start-${n}" value="09:30">
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">To (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="exit-time-window-end-${n}" value="16:00">
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">Condition is only evaluated if the candle falls within this time range (e.g. 04:00–09:29 for premarket).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
     container.appendChild(conditionDiv);
@@ -852,6 +900,13 @@ function removeExitCondition(id) {
         element.remove();
         renumberExitConditions();
     }
+}
+
+function toggleTimeWindow(n, isExit) {
+    var prefix = isExit ? 'exit-' : '';
+    var cb = document.getElementById(prefix + 'time-window-enabled-' + n);
+    var fields = document.getElementById(prefix + 'time-window-fields-' + n);
+    if (fields) fields.style.display = (cb && cb.checked) ? 'block' : 'none';
 }
 
 function renumberExitConditions() {
@@ -1167,6 +1222,13 @@ async function collectFormData() {
                 condition.threshold_value = parseFloat((document.getElementById(`threshold-value-${id}`) || {}).value) || 0;
             }
 
+            const twCb = document.getElementById(`time-window-enabled-${id}`);
+            condition.time_window_enabled = !!(twCb && twCb.checked);
+            if (condition.time_window_enabled) {
+                condition.time_window_start = (document.getElementById(`time-window-start-${id}`) || {}).value || '09:30';
+                condition.time_window_end = (document.getElementById(`time-window-end-${id}`) || {}).value || '16:00';
+            }
+
             config.custom_conditions.push(condition);
         });
     }
@@ -1248,6 +1310,13 @@ async function collectFormData() {
 
                 condition.threshold_unit = (document.getElementById('exit-threshold-unit-' + id) || {}).value || '%';
                 condition.threshold_value = parseFloat((document.getElementById('exit-threshold-value-' + id) || {}).value) || 0;
+            }
+
+            var exitTwCb = document.getElementById('exit-time-window-enabled-' + id);
+            condition.time_window_enabled = !!(exitTwCb && exitTwCb.checked);
+            if (condition.time_window_enabled) {
+                condition.time_window_start = (document.getElementById('exit-time-window-start-' + id) || {}).value || '09:30';
+                condition.time_window_end = (document.getElementById('exit-time-window-end-' + id) || {}).value || '16:00';
             }
 
             config.exit_custom_conditions.push(condition);
