@@ -1202,6 +1202,10 @@ function initializeBacktesterPage() {
             if (customRadio) { customRadio.disabled = true; }
             var optCustomToggle = document.querySelector('#backtesterPage .bt-toggle-btn[data-val="custom"]');
             if (optCustomToggle) { optCustomToggle.disabled = true; optCustomToggle.style.opacity = '0.5'; optCustomToggle.style.cursor = 'not-allowed'; optCustomToggle.title = 'Custom builder requires Standard or Premium plan'; }
+            var exitCustomRadio = document.querySelector('#backtesterPage input[name="optExitCondType"][value="custom"]');
+            if (exitCustomRadio) { exitCustomRadio.disabled = true; }
+            var exitCustomToggle = document.querySelector('#backtesterPage .bt-toggle-btn[data-radio="optExitCondType"][data-val="custom"]');
+            if (exitCustomToggle) { exitCustomToggle.disabled = true; exitCustomToggle.style.opacity = '0.5'; exitCustomToggle.style.cursor = 'not-allowed'; exitCustomToggle.title = 'Custom exit builder requires Standard or Premium plan'; }
         }
         if (symbolEl) {
             symbolEl.addEventListener('change', function() {
@@ -2803,6 +2807,7 @@ async function handleBacktestSubmit(e) {
         var maxDTE = TierRestrictions.getMaxDTE();
         if (maxDTE !== null && parseInt(config.dte) > maxDTE) { showError('DTE exceeds your plan limit of ' + maxDTE + ' days.'); form.dataset.isSubmitting = 'false'; return; }
         if (TierRestrictions.isFree() && config.entry_type === 'custom') { showError('Custom entry conditions require a Standard or Premium plan.'); form.dataset.isSubmitting = 'false'; return; }
+        if (TierRestrictions.isFree() && config.options_exit_cond_type === 'custom') { showError('Custom exit conditions require a Standard or Premium plan.'); form.dataset.isSubmitting = 'false'; return; }
     }
 
     const configErrors = validateOptionsConfig(config);
