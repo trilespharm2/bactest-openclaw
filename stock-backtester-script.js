@@ -297,6 +297,7 @@ function syncStockToggleUI() {
 const STOCK_METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
+    { value: 'volume', label: 'Volume' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
@@ -454,9 +455,37 @@ function addCondition() {
                 </div>
             </div>
         </div>
+
+        <div id="cond-summary-${n}" class="mt-2 px-2 py-1 rounded" style="background:#e8f4fd;color:#1e40af;font-size:11px;font-family:monospace;display:none;"></div>
+
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="time-window-enabled-${n}" onchange="toggleTimeWindow(${n}, false)">
+                <label class="form-check-label small" for="time-window-enabled-${n}">
+                    <strong>Restrict to time window</strong> <span class="text-muted">(optional)</span>
+                </label>
+            </div>
+            <div id="time-window-fields-${n}" style="display:none;" class="mt-2">
+                <div class="row g-2">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">From (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="time-window-start-${n}" value="09:30">
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">To (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="time-window-end-${n}" value="16:00">
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">Condition is only evaluated if the candle falls within this time range (e.g. 04:00–09:29 for premarket).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
     container.appendChild(conditionDiv);
+    conditionDiv.addEventListener('change', function() { updateConditionSummary(n, false); });
+    conditionDiv.addEventListener('input', function() { updateConditionSummary(n, false); });
     updateStockConditionFields(n);
 }
 
@@ -507,6 +536,13 @@ function updateStockConditionFields(n) {
         if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
         updateStockComparatorOptions(n, ['value']);
+    } else if (val === 'volume') {
+        if (leftDayGroup) leftDayGroup.style.display = 'block';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'block';
+        if (leftMultGroup) leftMultGroup.style.display = 'block';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
+        updateStockComparatorOptions(n, ['value', 'compare_volume']);
     } else if (val === 'macd') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -516,14 +552,26 @@ function updateStockConditionFields(n) {
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
         updateStockComparatorOptions(n, ['value']);
     }
+    updateThresholdUnitOptions(n, val, false);
     updateStockRightSide(n);
 }
 
 function updateStockComparatorOptions(n, options) {
     var sel = document.getElementById('comparator-' + n);
     if (!sel) return;
-    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA' };
+    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume' };
     sel.innerHTML = options.map(function(o) { return '<option value="' + o + '">' + (labels[o] || o) + '</option>'; }).join('');
+}
+
+function updateThresholdUnitOptions(n, metric, isExit) {
+    var p = isExit ? 'exit-' : '';
+    var sel = document.getElementById(p + 'threshold-unit-' + n);
+    if (!sel) return;
+    if (metric === 'volume') {
+        sel.innerHTML = '<option value="%">Percent (%)</option><option value="x">x-Multiplier</option>';
+    } else {
+        sel.innerHTML = '<option value="%">Percent (%)</option><option value="$">Dollar ($)</option>';
+    }
 }
 
 function updateStockRightSide(n) {
@@ -542,12 +590,19 @@ function updateStockRightSide(n) {
         rightSide.style.display = 'block';
         valueGroup.style.display = 'none';
 
-        var rightWindowGroup = document.getElementById('right-window-group-' + n);
         var rightType = comp.replace('compare_', '');
+        var rightWindowGroup = document.getElementById('right-window-group-' + n);
+        var rightSeriesGroup = document.getElementById('right-series-group-' + n);
+
         if (rightType === 'sma' || rightType === 'ema') {
             if (rightWindowGroup) rightWindowGroup.style.display = 'block';
+            if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
+        } else if (rightType === 'volume') {
+            if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+            if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
         } else {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+            if (rightSeriesGroup) rightSeriesGroup.style.display = 'block';
         }
 
         var thresholdUnit = document.getElementById('threshold-unit-' + n);
@@ -555,6 +610,7 @@ function updateStockRightSide(n) {
         if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
         if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
+    updateConditionSummary(n, false);
 }
 
 // Remove a condition
@@ -610,26 +666,14 @@ async function readCSV(file) {
 
 function updateExitCondType() {
     const type = document.querySelector('input[name="exit_cond_type"]:checked').value;
-    document.getElementById('exitPresetSection').style.display = 'none';
     document.getElementById('exitCustomSection').style.display = 'none';
 
-    if (type === 'preset') {
-        document.getElementById('exitPresetSection').style.display = 'block';
-    } else {
+    if (type === 'custom') {
         document.getElementById('exitCustomSection').style.display = 'block';
         if (document.getElementById('exitConditionsContainer').children.length === 0) {
             addExitCondition();
         }
     }
-}
-
-function updateExitPresetFields() {
-    var sel = document.getElementById('exitPresetCondition');
-    var val = sel ? sel.value : '';
-    var isVelocity = val === '5';
-    var hasVal = val !== '';
-    document.getElementById('exitStandardPresetFields').style.display = (hasVal && !isVelocity) ? 'flex' : 'none';
-    document.getElementById('exitVelocityFields').style.display = (hasVal && isVelocity) ? 'flex' : 'none';
 }
 
 function addExitCondition() {
@@ -776,9 +820,37 @@ function addExitCondition() {
                 </div>
             </div>
         </div>
+
+        <div id="exit-cond-summary-${n}" class="mt-2 px-2 py-1 rounded" style="background:#e8f4fd;color:#1e40af;font-size:11px;font-family:monospace;display:none;"></div>
+
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="exit-time-window-enabled-${n}" onchange="toggleTimeWindow(${n}, true)">
+                <label class="form-check-label small" for="exit-time-window-enabled-${n}">
+                    <strong>Restrict to time window</strong> <span class="text-muted">(optional)</span>
+                </label>
+            </div>
+            <div id="exit-time-window-fields-${n}" style="display:none;" class="mt-2">
+                <div class="row g-2">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">From (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="exit-time-window-start-${n}" value="09:30">
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small">To (HH:MM)</label>
+                        <input type="time" class="form-control form-control-sm" id="exit-time-window-end-${n}" value="16:00">
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">Condition is only evaluated if the candle falls within this time range (e.g. 04:00–09:29 for premarket).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
 
     container.appendChild(conditionDiv);
+    conditionDiv.addEventListener('change', function() { updateConditionSummary(n, true); });
+    conditionDiv.addEventListener('input', function() { updateConditionSummary(n, true); });
     updateExitConditionFields(n);
 }
 
@@ -786,6 +858,7 @@ function updateExitConditionFields(n) {
     var metric = (document.getElementById('exit-metric-' + n) || {}).value || 'current_price';
     var isCurrentPrice = metric === 'current_price';
     var isPrice = metric === 'price';
+    var isVolume = metric === 'volume';
     var isIndicator = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
     var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
 
@@ -793,7 +866,7 @@ function updateExitConditionFields(n) {
     var showCandle = !isCurrentPrice;
     var showMult = !isCurrentPrice;
     var showWindow = needsWindow;
-    var showSeries = isPrice || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1;
+    var showSeries = !isVolume && (isPrice || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1);
 
     var el;
     el = document.getElementById('exit-left-day-group-' + n); if (el) el.style.display = showDay ? '' : 'none';
@@ -823,12 +896,15 @@ function updateExitComparatorOptions(n) {
     var comp = document.getElementById('exit-comparator-' + n);
     if (!comp) return;
     var opts = '<option value="value">Value</option>';
-    if (metric !== 'rsi' && metric !== 'macd') {
+    if (metric === 'volume') {
+        opts += '<option value="compare_volume">Compare Volume</option>';
+    } else if (metric !== 'rsi' && metric !== 'macd') {
         opts += '<option value="compare_price">Compare Price</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
     }
     comp.innerHTML = opts;
+    updateThresholdUnitOptions(n, metric, true);
     updateExitRightSide(n);
 }
 
@@ -846,16 +922,25 @@ function updateExitRightSide(n) {
         if (rightSide) rightSide.style.display = 'block';
         if (valueGroup) valueGroup.style.display = 'none';
 
-        var isComparePrice = comp === 'compare_price';
+        var rightType = comp.replace('compare_', '');
         var el;
-        el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
-        el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
+        if (rightType === 'sma' || rightType === 'ema') {
+            el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = '';
+            el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
+        } else if (rightType === 'volume') {
+            el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
+        } else {
+            el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = '';
+        }
 
         var thresholdUnit = document.getElementById('exit-threshold-unit-' + n);
         var thresholdValue = document.getElementById('exit-threshold-value-' + n);
         if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
         if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
+    updateConditionSummary(n, true);
 }
 
 function removeExitCondition(id) {
@@ -863,6 +948,90 @@ function removeExitCondition(id) {
     if (element) {
         element.remove();
         renumberExitConditions();
+    }
+}
+
+function toggleTimeWindow(n, isExit) {
+    var prefix = isExit ? 'exit-' : '';
+    var cb = document.getElementById(prefix + 'time-window-enabled-' + n);
+    var fields = document.getElementById(prefix + 'time-window-fields-' + n);
+    if (fields) fields.style.display = (cb && cb.checked) ? 'block' : 'none';
+}
+
+function buildConditionDesc(n, isExit) {
+    var p = isExit ? 'exit-' : '';
+    var metric = (document.getElementById(p + 'metric-' + n) || {}).value || 'current_price';
+    var operator = (document.getElementById(p + 'operator-' + n) || {}).value || '>';
+    var comparator = (document.getElementById(p + 'comparator-' + n) || {}).value || 'value';
+    var threshUnit = (document.getElementById(p + 'threshold-unit-' + n) || {}).value || '%';
+    var threshVal = parseFloat((document.getElementById(p + 'threshold-value-' + n) || {}).value) || 0;
+
+    function dayLabel(d) {
+        if (d === '0' || d === 0) return 'today';
+        if (d === '-1' || d === -1) return 'prev day';
+        return d + ' days ago';
+    }
+    function candleLabel(c, m) {
+        if (c === 'day') return 'daily';
+        if (c === 'hr') return (m || 1) + '-hr';
+        return (m || 1) + '-min';
+    }
+    function sideDesc(side) {
+        var sp = p + side + '-';
+        var dayEl = document.getElementById(sp + 'day-' + n);
+        var day = dayEl ? dayEl.value : '0';
+        if (day === 'custom') { var cx = document.getElementById(sp + 'day-custom-' + n); day = cx ? cx.value : '0'; }
+        var candle = (document.getElementById(sp + 'candle-' + n) || {}).value || 'min';
+        var mult = (document.getElementById(sp + 'mult-' + n) || {}).value || '1';
+        var series = (document.getElementById(sp + 'series-' + n) || {}).value || 'close';
+        var win = (document.getElementById(sp + 'window-' + n) || {}).value || '14';
+        return { day: day, candle: candle, mult: mult, series: series, win: win };
+    }
+    function metricDesc(m, s) {
+        if (m === 'current_price') return 'current price';
+        if (m === 'volume') return candleLabel(s.candle, s.mult) + ' volume (' + dayLabel(s.day) + ')';
+        if (m === 'price') return candleLabel(s.candle, s.mult) + ' ' + s.series + ' (' + dayLabel(s.day) + ')';
+        if (m === 'sma') return 'SMA(' + s.win + ') (' + dayLabel(s.day) + ')';
+        if (m === 'ema') return 'EMA(' + s.win + ') (' + dayLabel(s.day) + ')';
+        if (m === 'rsi') return 'RSI(' + s.win + ') (' + dayLabel(s.day) + ')';
+        if (m === 'macd') return 'MACD (' + dayLabel(s.day) + ')';
+        return m;
+    }
+
+    var left = sideDesc('left');
+    var leftDesc = metricDesc(metric, left);
+    var opSym = { '>': '>', '<': '<', '>=': '≥', '<=': '≤', '=': '=' }[operator] || operator;
+
+    if (comparator === 'value') {
+        var fixedVal = (document.getElementById(p + 'compare-value-' + n) || {}).value;
+        var numStr = fixedVal ? Number(fixedVal).toLocaleString() : '?';
+        return leftDesc + ' ' + opSym + ' ' + numStr;
+    } else {
+        var rightMetric = comparator.replace('compare_', '');
+        var right = sideDesc('right');
+        var rightDesc = metricDesc(rightMetric, right);
+        var threshStr = '';
+        if (threshUnit === 'x' && threshVal !== 0) {
+            threshStr = ' × ' + threshVal + 'x';
+        } else if (threshUnit === '%' && threshVal !== 0) {
+            threshStr = ' by ' + threshVal + '%';
+        } else if (threshUnit === '$' && threshVal !== 0) {
+            threshStr = ' by $' + threshVal;
+        }
+        return leftDesc + ' ' + opSym + ' ' + rightDesc + threshStr;
+    }
+}
+
+function updateConditionSummary(n, isExit) {
+    var p = isExit ? 'exit-' : '';
+    var el = document.getElementById(p + 'cond-summary-' + n);
+    if (!el) return;
+    try {
+        var desc = buildConditionDesc(n, isExit);
+        el.textContent = desc;
+        el.style.display = 'block';
+    } catch(e) {
+        el.style.display = 'none';
     }
 }
 
@@ -930,11 +1099,7 @@ function buildStockConfigSummaryHtml(config) {
     const slLabel = config.stop_loss_value ? (config.stop_loss_type === 'percent' ? `${config.stop_loss_value}%` : `$${config.stop_loss_value}`) : 'None';
 
     let exitCondHtml = '';
-    if (config.exit_cond_type === 'preset' && config.exit_preset_condition) {
-        const exitPresetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
-        exitCondHtml = exitPresetNames[config.exit_preset_condition] || 'Preset #' + config.exit_preset_condition;
-        exitCondHtml += ' ' + (config.exit_preset_operator || '') + ' ' + (config.exit_preset_threshold || '');
-    } else if (config.exit_custom_conditions && config.exit_custom_conditions.length > 0) {
+    if (config.exit_custom_conditions && config.exit_custom_conditions.length > 0) {
         const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
         exitCondHtml = config.exit_custom_conditions.map(function(c, i) {
             var met = c.metric || 'price';
@@ -1183,6 +1348,13 @@ async function collectFormData() {
                 condition.threshold_value = parseFloat((document.getElementById(`threshold-value-${id}`) || {}).value) || 0;
             }
 
+            const twCb = document.getElementById(`time-window-enabled-${id}`);
+            condition.time_window_enabled = !!(twCb && twCb.checked);
+            if (condition.time_window_enabled) {
+                condition.time_window_start = (document.getElementById(`time-window-start-${id}`) || {}).value || '09:30';
+                condition.time_window_end = (document.getElementById(`time-window-end-${id}`) || {}).value || '16:00';
+            }
+
             config.custom_conditions.push(condition);
         });
     }
@@ -1205,20 +1377,7 @@ async function collectFormData() {
     // Exit conditions (signal-based)
     config.exit_cond_type = document.querySelector('input[name="exit_cond_type"]:checked').value;
 
-    if (config.exit_cond_type === 'preset') {
-        var exitPresetVal = document.getElementById('exitPresetCondition').value;
-        if (exitPresetVal) {
-            config.exit_preset_condition = exitPresetVal;
-            if (exitPresetVal === '5') {
-                config.exit_velocity_lookback = document.getElementById('exitVelocityLookback').value;
-                config.exit_preset_operator = document.getElementById('exitVelocityOperator').value;
-                config.exit_preset_threshold = document.getElementById('exitVelocityThreshold').value;
-            } else {
-                config.exit_preset_operator = document.getElementById('exitPresetOperator').value;
-                config.exit_preset_threshold = document.getElementById('exitPresetThreshold').value;
-            }
-        }
-    } else {
+    if (config.exit_cond_type === 'custom') {
         config.exit_custom_conditions = [];
         var exitConds = document.querySelectorAll('.exit-condition-item');
         exitConds.forEach(function(condItem) {
@@ -1277,6 +1436,13 @@ async function collectFormData() {
 
                 condition.threshold_unit = (document.getElementById('exit-threshold-unit-' + id) || {}).value || '%';
                 condition.threshold_value = parseFloat((document.getElementById('exit-threshold-value-' + id) || {}).value) || 0;
+            }
+
+            var exitTwCb = document.getElementById('exit-time-window-enabled-' + id);
+            condition.time_window_enabled = !!(exitTwCb && exitTwCb.checked);
+            if (condition.time_window_enabled) {
+                condition.time_window_start = (document.getElementById('exit-time-window-start-' + id) || {}).value || '09:30';
+                condition.time_window_end = (document.getElementById('exit-time-window-end-' + id) || {}).value || '16:00';
             }
 
             config.exit_custom_conditions.push(condition);
@@ -1351,27 +1517,11 @@ function validateConfig(config) {
     var hasTP = config.take_profit_value && parseFloat(config.take_profit_value) > 0;
     var hasSL = config.stop_loss_value && parseFloat(config.stop_loss_value) > 0;
     var hasMaxDays = config.max_days && parseInt(config.max_days) > 0;
-    var hasExitPreset = config.exit_cond_type === 'preset' && config.exit_preset_condition;
     var hasExitCustom = config.exit_cond_type === 'custom' && config.exit_custom_conditions && config.exit_custom_conditions.length > 0;
 
-    if (!hasTP && !hasSL && !hasMaxDays && !hasExitPreset && !hasExitCustom) {
-        appAlert('At least one exit condition is required (Take Profit, Stop Loss, Max Days, or a custom/preset exit condition).');
+    if (!hasTP && !hasSL && !hasMaxDays && !hasExitCustom) {
+        appAlert('At least one exit condition is required (Take Profit, Stop Loss, Max Days, or a Custom Builder exit condition).');
         return false;
-    }
-
-    if (hasExitPreset) {
-        var threshVal = parseFloat(config.exit_preset_threshold);
-        if (isNaN(threshVal)) {
-            appAlert('Exit preset threshold must be a valid number.');
-            return false;
-        }
-        if (config.exit_preset_condition === '5') {
-            var lookbackVal = parseInt(config.exit_velocity_lookback);
-            if (isNaN(lookbackVal) || lookbackVal < 1) {
-                appAlert('Exit velocity lookback must be a positive integer.');
-                return false;
-            }
-        }
     }
 
     if (hasExitCustom) {

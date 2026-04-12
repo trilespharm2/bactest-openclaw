@@ -47,6 +47,7 @@ const OPERATORS = [
 const METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
+    { value: 'volume', label: 'Volume' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
@@ -88,13 +89,16 @@ function updateOptionsPresetFields() {
 // =============================================================================
 
 function updateOptExitCondType() {
-    const type = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'preset';
+    const type = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'none';
     const presetSection = document.getElementById('optExitPresetSection');
     const customSection = document.getElementById('optExitCustomSection');
     
     if (presetSection) presetSection.style.display = type === 'preset' ? 'block' : 'none';
     if (customSection) customSection.style.display = type === 'custom' ? 'block' : 'none';
     
+    if (type === 'preset') {
+        updateOptExitPresetFields();
+    }
     if (type === 'custom') {
         const container = document.getElementById('optExitConditionsContainer');
         if (container && container.querySelectorAll('.opt-exit-condition-row').length === 0) {
@@ -237,42 +241,73 @@ function addOptExitCondition() {
             <div class="row g-2 mt-2">
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Threshold Unit</label>
-                    <select class="form-select form-select-sm" id="optExitThresholdUnit${n}">
+                    <select class="form-select form-select-sm" id="optExitThresholdUnit${n}" onchange="updateOptConditionSummary(${n}, true)">
                         <option value="percent">Percent (%)</option>
                         <option value="dollar">Dollar ($)</option>
                     </select>
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Threshold Value</label>
-                    <input type="number" class="form-control form-control-sm" id="optExitThresholdValue${n}" step="0.01" placeholder="e.g., 2.5">
+                    <input type="number" class="form-control form-control-sm" id="optExitThresholdValue${n}" step="0.01" placeholder="e.g., 2.5" oninput="updateOptConditionSummary(${n}, true)">
                 </div>
             </div>
         </div>
+
+        <!-- Time Window Restriction -->
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="optExitTimeWindowEnabled${n}"
+                    onchange="toggleOptTimeWindow('optExitTimeWindowFields${n}', this.checked)">
+                <label class="form-check-label small text-muted" for="optExitTimeWindowEnabled${n}">Restrict to time window</label>
+            </div>
+            <div id="optExitTimeWindowFields${n}" style="display:none;" class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Start (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optExitTimeWindowStart${n}" placeholder="09:30" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">End (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optExitTimeWindowEnd${n}" placeholder="16:00" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Summary -->
+        <div id="optExitSummary${n}" class="mt-2 small text-muted fst-italic condition-summary" style="display:none;"></div>
     `;
-    
+
     container.appendChild(conditionDiv);
+
+    // Attach live-update listeners to all selects/inputs in this card
+    conditionDiv.querySelectorAll('select, input').forEach(function(el) {
+        el.addEventListener('change', function() { updateOptConditionSummary(n, true); });
+        el.addEventListener('input',  function() { updateOptConditionSummary(n, true); });
+    });
+
     updateOptExitConditionFields(n);
 }
 
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
     var isCurrentPrice = metric === 'current_price';
+    var isVolume = metric === 'volume';
     var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var showSeries = metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1;
-    
+    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1);
+
     var el;
     el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
-    
+
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
     var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
     if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
-    
+
     updateOptExitComparatorOptions(n);
+    updateOptThresholdUnitOptions(n, metric, true);
 }
 
 function updateOptExitComparatorOptions(n) {
@@ -280,7 +315,9 @@ function updateOptExitComparatorOptions(n) {
     var comp = document.getElementById('optExitComparator' + n);
     if (!comp) return;
     var opts = '<option value="value">Value</option>';
-    if (metric !== 'rsi' && metric !== 'macd') {
+    if (metric === 'volume') {
+        opts += '<option value="compare_volume">Compare Volume</option>';
+    } else if (metric !== 'rsi' && metric !== 'macd') {
         opts += '<option value="compare_price">Compare Price</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
@@ -295,24 +332,33 @@ function updateOptExitRightSide(n) {
     var rightSide = document.getElementById('optExitRightSide' + n);
     var valueGroup = document.getElementById('optExitValueInputGroup' + n);
     var isEquals = (operator === '==');
-    
+
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';
         if (valueGroup) valueGroup.style.display = '';
     } else {
         if (rightSide) rightSide.style.display = 'block';
         if (valueGroup) valueGroup.style.display = 'none';
-        
-        var isComparePrice = comp === 'compare_price';
+
+        var rightType = comp.replace('compare_', '');
         var el;
-        el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = isComparePrice ? 'none' : '';
-        el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = isComparePrice ? '' : 'none';
-        
+        if (rightType === 'sma' || rightType === 'ema' || rightType === 'rsi') {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+        } else if (rightType === 'volume') {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = 'none';
+        } else {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+        }
+
         var thresholdUnit = document.getElementById('optExitThresholdUnit' + n);
         var thresholdValue = document.getElementById('optExitThresholdValue' + n);
         if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
         if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
     }
+    updateOptConditionSummary(n, true);
 }
 
 function removeOptExitCondition(id) {
@@ -360,7 +406,12 @@ function collectOptExitConditions() {
         if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
             condition.left.window = parseInt((document.getElementById('optExitLeftWindow' + id) || {}).value) || 14;
         }
-        
+
+        if (metric === 'volume') {
+            condition.left_type = 'volume';
+            delete condition.left.series_type;
+        }
+
         if (comparator === 'value') {
             var rawVal = (document.getElementById('optExitCompareValue' + id) || {}).value;
             condition.compare_value = rawVal !== '' && rawVal !== undefined ? parseFloat(rawVal) : null;
@@ -371,6 +422,11 @@ function collectOptExitConditions() {
                 multiplier: parseInt((document.getElementById('optExitRightMultiplier' + id) || {}).value) || 1,
                 series_type: (document.getElementById('optExitRightSeriesType' + id) || {}).value || 'close'
             };
+
+            if (comparator === 'compare_volume') {
+                condition.right_type = 'volume';
+                delete condition.right.series_type;
+            }
             
             if (comparator === 'compare_sma' || comparator === 'compare_ema') {
                 condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
@@ -379,6 +435,15 @@ function collectOptExitConditions() {
             condition.threshold = {
                 unit: (document.getElementById('optExitThresholdUnit' + id) || {}).value || 'percent',
                 value: parseFloat((document.getElementById('optExitThresholdValue' + id) || {}).value) || 0
+            };
+        }
+
+        // Time window restriction
+        var twEnabled = document.getElementById('optExitTimeWindowEnabled' + id);
+        if (twEnabled && twEnabled.checked) {
+            condition.time_window = {
+                start: ((document.getElementById('optExitTimeWindowStart' + id) || {}).value || '').trim(),
+                end:   ((document.getElementById('optExitTimeWindowEnd' + id) || {}).value || '').trim()
             };
         }
         
@@ -552,20 +617,49 @@ function addPriceCondition() {
             <div class="row g-2 mt-2">
                 <div class="col-md-3">
                     <label class="form-label small">Threshold Unit</label>
-                    <select class="form-select form-select-sm" id="thresholdUnit${conditionId}">
+                    <select class="form-select form-select-sm" id="thresholdUnit${conditionId}" onchange="updateOptConditionSummary(${conditionId}, false)">
                         <option value="percent">Percent (%)</option>
                         <option value="dollar">Dollar ($)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small">Threshold Value</label>
-                    <input type="number" class="form-control form-control-sm" id="thresholdValue${conditionId}" step="0.01" placeholder="e.g., 2.5">
+                    <input type="number" class="form-control form-control-sm" id="thresholdValue${conditionId}" step="0.01" placeholder="e.g., 2.5" oninput="updateOptConditionSummary(${conditionId}, false)">
                 </div>
             </div>
         </div>
+
+        <!-- Time Window Restriction -->
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="optEntryTimeWindowEnabled${conditionId}"
+                    onchange="toggleOptTimeWindow('optEntryTimeWindowFields${conditionId}', this.checked)">
+                <label class="form-check-label small text-muted" for="optEntryTimeWindowEnabled${conditionId}">Restrict to time window</label>
+            </div>
+            <div id="optEntryTimeWindowFields${conditionId}" style="display:none;" class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Start (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optEntryTimeWindowStart${conditionId}" placeholder="09:30" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">End (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optEntryTimeWindowEnd${conditionId}" placeholder="16:00" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Summary -->
+        <div id="optEntrySummary${conditionId}" class="mt-2 small text-muted fst-italic condition-summary" style="display:none;"></div>
     `;
-    
+
     container.appendChild(conditionDiv);
+
+    // Attach live-update listeners to all selects/inputs in this card
+    conditionDiv.querySelectorAll('select, input').forEach(function(el) {
+        el.addEventListener('change', function() { updateOptConditionSummary(conditionId, false); });
+        el.addEventListener('input',  function() { updateOptConditionSummary(conditionId, false); });
+    });
+
     updateConditionFields(conditionId);
 }
 
@@ -646,6 +740,16 @@ function updateConditionFields(conditionId) {
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            break;
+
+        case 'volume':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            updateComparatorOptions(conditionId, ['value', 'compare_volume']);
+            updateOptThresholdUnitOptions(conditionId, 'volume', false);
             break;
             
         case 'sma':
@@ -774,7 +878,8 @@ function updateComparatorOptions(conditionId, options) {
         'compare_price': 'Compare Price',
         'compare_sma': 'Compare SMA',
         'compare_ema': 'Compare EMA',
-        'compare_rsi': 'Compare RSI'
+        'compare_rsi': 'Compare RSI',
+        'compare_volume': 'Compare Volume'
     };
     
     comparatorSelect.innerHTML = options.map(opt => 
@@ -826,6 +931,7 @@ function updateRightSideVisibility(conditionId) {
         if (threshUnitCol) threshUnitCol.style.display = isEquals ? 'none' : '';
         if (threshValCol) threshValCol.style.display = isEquals ? 'none' : '';
     }
+    updateOptConditionSummary(conditionId, false);
 }
 
 function updateRightSideFields(conditionId, comparator) {
@@ -846,6 +952,9 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Price Type';
+    } else if (comparator === 'compare_volume') {
+        if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
     } else if (comparator === 'compare_sma' || comparator === 'compare_ema') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
@@ -860,6 +969,121 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightMacdShortGroup) rightMacdShortGroup.style.display = 'block';
         if (rightMacdLongGroup) rightMacdLongGroup.style.display = 'block';
         if (rightMacdSignalGroup) rightMacdSignalGroup.style.display = 'block';
+    }
+}
+
+// =============================================================================
+// OPTIONS CUSTOM BUILDER — HELPER FUNCTIONS
+// =============================================================================
+
+function toggleOptTimeWindow(fieldId, checked) {
+    var el = document.getElementById(fieldId);
+    if (el) el.style.display = checked ? '' : 'none';
+}
+
+function updateOptThresholdUnitOptions(n, metric, isExit) {
+    var unitId = isExit ? 'optExitThresholdUnit' + n : 'thresholdUnit' + n;
+    var el = document.getElementById(unitId);
+    if (!el) return;
+    var cur = el.value;
+    if (metric === 'volume') {
+        el.innerHTML = '<option value="percent">Percent (%)</option><option value="x">x-Multiplier</option>';
+    } else {
+        el.innerHTML = '<option value="percent">Percent (%)</option><option value="dollar">Dollar ($)</option>';
+    }
+    if (el.querySelector('option[value="' + cur + '"]')) el.value = cur;
+}
+
+function buildOptConditionDesc(n, isExit) {
+    function getVal(id) { return (document.getElementById(id) || {}).value; }
+
+    var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries;
+    var compareValue, rightDay, rightCandle, rightMult, rightSeries, threshUnit, threshVal;
+
+    if (isExit) {
+        metric       = getVal('optExitMetric' + n) || 'current_price';
+        operator     = getVal('optExitOperator' + n) || '>';
+        comparator   = getVal('optExitComparator' + n) || 'value';
+        leftDay      = parseInt(getVal('optExitLeftDay' + n) || '0');
+        leftCandle   = getVal('optExitLeftCandleType' + n) || 'minute';
+        leftMult     = parseInt(getVal('optExitLeftMultiplier' + n) || '1');
+        leftSeries   = getVal('optExitLeftSeriesType' + n) || 'close';
+        compareValue = getVal('optExitCompareValue' + n);
+        rightDay     = parseInt(getVal('optExitRightDay' + n) || '0');
+        rightCandle  = getVal('optExitRightCandleType' + n) || 'minute';
+        rightMult    = parseInt(getVal('optExitRightMultiplier' + n) || '1');
+        rightSeries  = getVal('optExitRightSeriesType' + n) || 'close';
+        threshUnit   = getVal('optExitThresholdUnit' + n) || 'percent';
+        threshVal    = parseFloat(getVal('optExitThresholdValue' + n) || '0') || 0;
+    } else {
+        metric       = getVal('metric' + n) || 'current_price';
+        operator     = getVal('operator' + n) || '>';
+        comparator   = getVal('comparator' + n) || 'value';
+        leftDay      = parseInt(getVal('leftDay' + n) || '0');
+        leftCandle   = getVal('leftCandleType' + n) || 'minute';
+        leftMult     = parseInt(getVal('leftMultiplier' + n) || '1');
+        leftSeries   = getVal('leftSeriesType' + n) || 'close';
+        compareValue = getVal('compareValue' + n);
+        rightDay     = parseInt(getVal('rightDay' + n) || '0');
+        rightCandle  = getVal('rightCandleType' + n) || 'minute';
+        rightMult    = parseInt(getVal('rightMultiplier' + n) || '1');
+        rightSeries  = getVal('rightSeriesType' + n) || 'close';
+        threshUnit   = getVal('thresholdUnit' + n) || 'percent';
+        threshVal    = parseFloat(getVal('thresholdValue' + n) || '0') || 0;
+    }
+
+    function dayLabel(d) {
+        if (d === 0) return 'today';
+        if (d === -1) return 'prev day';
+        return Math.abs(d) + ' days ago';
+    }
+    function candleLabel(c, m) {
+        if (c === 'day') return 'day';
+        if (c === 'hour') return m + '-hr';
+        if (c === 'minute') return m + '-min';
+        if (c === 'week') return 'week';
+        if (c === 'month') return 'month';
+        return c;
+    }
+    function sideDesc(m, day, candle, mult, series) {
+        if (m === 'volume') return candleLabel(candle, mult) + ' vol (' + dayLabel(day) + ')';
+        if (m === 'current_price') return 'current price';
+        if (m === 'price') return candleLabel(candle, mult) + ' ' + series + ' (' + dayLabel(day) + ')';
+        if (m === 'sma' || m === 'ema') return m.toUpperCase() + '(' + series + ') [' + dayLabel(day) + ']';
+        if (m === 'rsi') return 'RSI [' + dayLabel(day) + ']';
+        if (m === 'macd') return 'MACD [' + dayLabel(day) + ']';
+        return m;
+    }
+
+    var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries);
+
+    if (comparator === 'value') {
+        return leftDesc + ' ' + operator + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
+    }
+
+    var rightMetric = comparator.replace('compare_', '');
+    var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries);
+
+    var suffix = '';
+    if (threshVal !== 0) {
+        if (threshUnit === 'percent') suffix = ' ±' + threshVal + '%';
+        else if (threshUnit === 'dollar') suffix = ' ±$' + threshVal;
+        else if (threshUnit === 'x') suffix = ' ×' + threshVal;
+    }
+
+    return leftDesc + ' ' + operator + ' ' + rightDesc + suffix;
+}
+
+function updateOptConditionSummary(n, isExit) {
+    var summaryId = isExit ? 'optExitSummary' + n : 'optEntrySummary' + n;
+    var el = document.getElementById(summaryId);
+    if (!el) return;
+    var desc = buildOptConditionDesc(n, isExit);
+    if (desc) {
+        el.textContent = desc;
+        el.style.display = '';
+    } else {
+        el.style.display = 'none';
     }
 }
 
@@ -891,7 +1115,12 @@ function collectPriceConditions() {
         if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
             condition.left.window = parseInt(document.getElementById(`leftWindow${id}`)?.value) || 14;
         }
-        
+
+        if (metric === 'volume') {
+            condition.left_type = 'volume';
+            delete condition.left.series_type;
+        }
+
         if (metric === 'macd') {
             condition.left.short_window = parseInt(document.getElementById(`leftMacdShort${id}`)?.value) || 12;
             condition.left.long_window = parseInt(document.getElementById(`leftMacdLong${id}`)?.value) || 26;
@@ -909,6 +1138,11 @@ function collectPriceConditions() {
                 multiplier: parseInt(document.getElementById(`rightMultiplier${id}`)?.value) || 1,
                 series_type: document.getElementById(`rightSeriesType${id}`)?.value
             };
+
+            if (comparator === 'compare_volume') {
+                condition.right_type = 'volume';
+                delete condition.right.series_type;
+            }
             
             // Add window for SMA/EMA/RSI comparisons
             if (comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_rsi') {
@@ -925,6 +1159,15 @@ function collectPriceConditions() {
             condition.threshold = {
                 unit: document.getElementById(`thresholdUnit${id}`)?.value || 'percent',
                 value: parseFloat(document.getElementById(`thresholdValue${id}`)?.value) || 0
+            };
+        }
+
+        // Time window restriction
+        var twEnabled = document.getElementById(`optEntryTimeWindowEnabled${id}`);
+        if (twEnabled && twEnabled.checked) {
+            condition.time_window = {
+                start: (document.getElementById(`optEntryTimeWindowStart${id}`)?.value || '').trim(),
+                end:   (document.getElementById(`optEntryTimeWindowEnd${id}`)?.value || '').trim()
             };
         }
         
@@ -1140,8 +1383,7 @@ function setupStrategySelection() {
             
             // Show/hide wing configuration for Iron strategies
             const isIronStrategy = strategy.includes('Iron');
-            if (wingConfigSection) wingConfigSection.style.display = isIronStrategy ? 'flex' : 'none';
-            if (wingConfigForm) wingConfigForm.style.display = isIronStrategy ? 'block' : 'none';
+            if (wingConfigSection) wingConfigSection.style.display = isIronStrategy ? 'block' : 'none';
             
             // Gray out global DTE for calendar/diagonal strategies
             const isCalDiag = isCalendarDiagonalStrategy(strategy);
@@ -1161,7 +1403,6 @@ function setupStrategySelection() {
         } else {
             // Reset if no strategy selected
             if (wingConfigSection) wingConfigSection.style.display = 'none';
-            if (wingConfigForm) wingConfigForm.style.display = 'none';
             if (dteInput) { dteInput.disabled = false; dteInput.style.opacity = '1'; }
             if (dteCalendarNotice) dteCalendarNotice.style.display = 'none';
             if (legConfigSection) {
@@ -1824,9 +2065,13 @@ function topologicalSortLegs(legs) {
         });
     }
     
-    // Check for circular dependencies
+    // Check for circular dependencies — identify which legs are stuck in the cycle
     if (sorted.length !== legs.length) {
-        return null;  // Circular dependency detected
+        const sortedSet = new Set(sorted);
+        const cycleLegs = legs
+            .filter((_, idx) => !sortedSet.has(idx))
+            .map(leg => leg.name);
+        return { error: 'circular', cycleLegs };
     }
     
     // Build new legs array in sorted order
@@ -1911,7 +2156,29 @@ function validateStrikeConfiguration(strategy, legs) {
     function findLeg(position, type) {
         return legs.find(l => l.position === position && l.type === type);
     }
-    
+
+    // Helper: check if legA directly references legB and return direction ('above'/'below'), or null
+    function getLegToLegRelation(legA, legB) {
+        if ((legA.config_type === 'pct_leg' || legA.config_type === 'dollar_leg') &&
+            legA.params && legA.params.reference !== undefined) {
+            const refIdx = parseInt(legA.params.reference);
+            if (legs[refIdx] === legB) {
+                return legA.params.direction; // 'above' or 'below'
+            }
+        }
+        return null;
+    }
+
+    // Helper: build a readable leg description for error messages
+    function legDesc(leg) {
+        if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') {
+            const unit = leg.config_type === 'pct_leg' ? '%' : '$';
+            const ref = legs[parseInt(leg.params.reference)];
+            return `${leg.params.direction} the ${ref ? ref.name : 'reference leg'} by ${leg.params.pct || leg.params.amount}${unit}`;
+        }
+        return `${leg.params.direction} by ${leg.params.pct || leg.params.amount}`;
+    }
+
     // Validation rules by strategy
     const rules = {
         'Short Iron Condor': () => {
@@ -1919,152 +2186,184 @@ function validateStrikeConfiguration(strategy, legs) {
             const shortPut = findLeg('short', 'P');
             const shortCall = findLeg('short', 'C');
             const longCall = findLeg('long', 'C');
-            
-            // Validate put spread (if comparable)
-            if (shortPut && longPut && canCompare(shortPut, longPut)) {
-                const shortStrike = getRelativeStrike(shortPut);
-                const longStrike = getRelativeStrike(longPut);
-                
-                if (shortStrike <= longStrike) {
-                    return {
-                        valid: false, 
-                        error: `Short Iron Condor: Short Put must be ABOVE Long Put. Your config: Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}`
-                    };
+
+            // Put spread: Long Put must be BELOW Short Put
+            if (shortPut && longPut) {
+                if (canCompare(shortPut, longPut)) {
+                    if (getRelativeStrike(shortPut) <= getRelativeStrike(longPut)) {
+                        return { valid: false, error: `Short Iron Condor (put spread): Short Put must be ABOVE Long Put — Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'above') {
+                    return { valid: false, error: `Short Iron Condor (put spread): Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'below') {
+                    return { valid: false, error: `Short Iron Condor (put spread): Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
                 }
             }
-            
-            // Validate call spread (if comparable)
-            if (shortCall && longCall && canCompare(shortCall, longCall)) {
-                const shortStrike = getRelativeStrike(shortCall);
-                const longStrike = getRelativeStrike(longCall);
-                
-                if (shortStrike >= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Short Iron Condor: Short Call must be BELOW Long Call. Your config: Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}`
-                    };
+
+            // Call spread: Long Call must be ABOVE Short Call
+            if (shortCall && longCall) {
+                if (canCompare(shortCall, longCall)) {
+                    if (getRelativeStrike(shortCall) >= getRelativeStrike(longCall)) {
+                        return { valid: false, error: `Short Iron Condor (call spread): Short Call must be BELOW Long Call — Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'below') {
+                    return { valid: false, error: `Short Iron Condor (call spread): Long Call is set BELOW Short Call (${legDesc(longCall)}), but Long Call must be ABOVE Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'above') {
+                    return { valid: false, error: `Short Iron Condor (call spread): Short Call is set ABOVE Long Call (${legDesc(shortCall)}), but Short Call must be BELOW Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Short Iron Butterfly': () => {
-            return rules['Short Iron Condor'](); // Same rules
+            return rules['Short Iron Condor']();
         },
-        
+
         'Long Iron Condor': () => {
             const longPut = findLeg('long', 'P');
             const shortPut = findLeg('short', 'P');
             const shortCall = findLeg('short', 'C');
             const longCall = findLeg('long', 'C');
-            
-            // Validate put spread (if comparable)
-            if (shortPut && longPut && canCompare(shortPut, longPut)) {
-                const shortStrike = getRelativeStrike(shortPut);
-                const longStrike = getRelativeStrike(longPut);
-                
-                if (shortStrike >= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Iron Condor: Short Put must be BELOW Long Put. Your config: Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}`
-                    };
+
+            // Put spread: Short Put must be BELOW Long Put
+            if (shortPut && longPut) {
+                if (canCompare(shortPut, longPut)) {
+                    if (getRelativeStrike(shortPut) >= getRelativeStrike(longPut)) {
+                        return { valid: false, error: `Long Iron Condor (put spread): Short Put must be BELOW Long Put — Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'below') {
+                    return { valid: false, error: `Long Iron Condor (put spread): Long Put is set BELOW Short Put (${legDesc(longPut)}), but Long Put must be ABOVE Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'above') {
+                    return { valid: false, error: `Long Iron Condor (put spread): Short Put is set ABOVE Long Put (${legDesc(shortPut)}), but Short Put must be BELOW Long Put.` };
                 }
             }
-            
-            // Validate call spread (if comparable)
-            if (shortCall && longCall && canCompare(shortCall, longCall)) {
-                const shortStrike = getRelativeStrike(shortCall);
-                const longStrike = getRelativeStrike(longCall);
-                
-                if (shortStrike <= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Iron Condor: Short Call must be ABOVE Long Call. Your config: Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}`
-                    };
+
+            // Call spread: Short Call must be ABOVE Long Call
+            if (shortCall && longCall) {
+                if (canCompare(shortCall, longCall)) {
+                    if (getRelativeStrike(shortCall) <= getRelativeStrike(longCall)) {
+                        return { valid: false, error: `Long Iron Condor (call spread): Short Call must be ABOVE Long Call — Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'above') {
+                    return { valid: false, error: `Long Iron Condor (call spread): Long Call is set ABOVE Short Call (${legDesc(longCall)}), but Long Call must be BELOW Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'below') {
+                    return { valid: false, error: `Long Iron Condor (call spread): Short Call is set BELOW Long Call (${legDesc(shortCall)}), but Short Call must be ABOVE Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Long Iron Butterfly': () => {
-            return rules['Long Iron Condor'](); // Same rules
+            return rules['Long Iron Condor']();
         },
-        
+
         'Short Put Spread': () => {
             const longPut = findLeg('long', 'P');
             const shortPut = findLeg('short', 'P');
-            
-            if (shortPut && longPut && canCompare(shortPut, longPut)) {
-                const shortStrike = getRelativeStrike(shortPut);
-                const longStrike = getRelativeStrike(longPut);
-                
-                if (shortStrike <= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Short Put Spread: Short Put must be ABOVE Long Put. Your config: Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}`
-                    };
+
+            if (shortPut && longPut) {
+                if (canCompare(shortPut, longPut)) {
+                    if (getRelativeStrike(shortPut) <= getRelativeStrike(longPut)) {
+                        return { valid: false, error: `Short Put Spread: Short Put must be ABOVE Long Put — Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}, Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'above') {
+                    return { valid: false, error: `Short Put Spread: Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'below') {
+                    return { valid: false, error: `Short Put Spread: Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Short Call Spread': () => {
             const longCall = findLeg('long', 'C');
             const shortCall = findLeg('short', 'C');
-            
-            if (shortCall && longCall && canCompare(shortCall, longCall)) {
-                const shortStrike = getRelativeStrike(shortCall);
-                const longStrike = getRelativeStrike(longCall);
-                
-                if (shortStrike >= longStrike) {
-                    return {
-                        valid: false,
-                        error: `Short Call Spread: Short Call must be BELOW Long Call. Your config: Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}`
-                    };
+
+            if (shortCall && longCall) {
+                if (canCompare(shortCall, longCall)) {
+                    if (getRelativeStrike(shortCall) >= getRelativeStrike(longCall)) {
+                        return { valid: false, error: `Short Call Spread: Short Call must be BELOW Long Call — Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}, Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'below') {
+                    return { valid: false, error: `Short Call Spread: Long Call is set BELOW Short Call (${legDesc(longCall)}), but Long Call must be ABOVE Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'above') {
+                    return { valid: false, error: `Short Call Spread: Short Call is set ABOVE Long Call (${legDesc(shortCall)}), but Short Call must be BELOW Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Long Put Spread': () => {
             const longPut = findLeg('long', 'P');
             const shortPut = findLeg('short', 'P');
-            
-            if (longPut && shortPut && canCompare(longPut, shortPut)) {
-                const longStrike = getRelativeStrike(longPut);
-                const shortStrike = getRelativeStrike(shortPut);
-                
-                if (longStrike >= shortStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Put Spread: Long Put must be BELOW Short Put. Your config: Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}`
-                    };
+
+            if (longPut && shortPut) {
+                if (canCompare(longPut, shortPut)) {
+                    if (getRelativeStrike(longPut) >= getRelativeStrike(shortPut)) {
+                        return { valid: false, error: `Long Put Spread: Long Put must be BELOW Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
+                    }
+                }
+                const lpToSp = getLegToLegRelation(longPut, shortPut);
+                if (lpToSp === 'above') {
+                    return { valid: false, error: `Long Put Spread: Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                }
+                const spToLp = getLegToLegRelation(shortPut, longPut);
+                if (spToLp === 'below') {
+                    return { valid: false, error: `Long Put Spread: Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
                 }
             }
-            
+
             return {valid: true};
         },
-        
+
         'Long Call Spread': () => {
             const longCall = findLeg('long', 'C');
             const shortCall = findLeg('short', 'C');
-            
-            if (longCall && shortCall && canCompare(longCall, shortCall)) {
-                const longStrike = getRelativeStrike(longCall);
-                const shortStrike = getRelativeStrike(shortCall);
-                
-                if (longStrike >= shortStrike) {
-                    return {
-                        valid: false,
-                        error: `Long Call Spread: Long Call must be BELOW Short Call. Your config: Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}, Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}`
-                    };
+
+            if (longCall && shortCall) {
+                if (canCompare(longCall, shortCall)) {
+                    if (getRelativeStrike(longCall) >= getRelativeStrike(shortCall)) {
+                        return { valid: false, error: `Long Call Spread: Long Call must be BELOW Short Call — Long Call ${longCall.params.direction} ${longCall.params.pct || longCall.params.amount}, Short Call ${shortCall.params.direction} ${shortCall.params.pct || shortCall.params.amount}.` };
+                    }
+                }
+                const lcToSc = getLegToLegRelation(longCall, shortCall);
+                if (lcToSc === 'above') {
+                    return { valid: false, error: `Long Call Spread: Long Call is set ABOVE Short Call (${legDesc(longCall)}), but Long Call must be BELOW Short Call.` };
+                }
+                const scToLc = getLegToLegRelation(shortCall, longCall);
+                if (scToLc === 'below') {
+                    return { valid: false, error: `Long Call Spread: Short Call is set BELOW Long Call (${legDesc(shortCall)}), but Short Call must be ABOVE Long Call.` };
                 }
             }
-            
+
             return {valid: true};
         },
         
@@ -2516,7 +2815,15 @@ async function handleBacktestSubmit(e) {
     const config = collectFormData();
     
     if (!config) {
-        showError('Please complete all required fields');
+        const missing = window._lastMissingFields || [];
+        if (missing.length > 0) {
+            const fieldLinks = missing.map(f => {
+                const scrollJs = `document.getElementById('${f.id}').scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('${f.id}').focus();`;
+                return `<a href="#" onclick="event.preventDefault();${scrollJs}" style="color:#fff;font-weight:700;text-decoration:underline;">${f.label}</a>`;
+            }).join(', ');
+            showError(`The following fields need attention: ${fieldLinks}`);
+        }
+        // else: collectFormData already showed a specific error internally — don't overwrite it
         form.dataset.isSubmitting = 'false';
         return;
     }
@@ -2624,9 +2931,24 @@ function collectFormData() {
     const startingCapital = parseFloat(document.getElementById('startingCapital').value);
     
     // Validate required fields (backtest_name is optional)
-    if (!symbol || !startDate || !endDate || !entryTime || dte === undefined || !strategy || !startingCapital) {
+    const _missingFields = [];
+    const _dteRaw = document.getElementById('dte').value;
+    if (!symbol) _missingFields.push({label: 'Symbol', id: 'symbol'});
+    if (!startDate) _missingFields.push({label: 'Start Date', id: 'startDate'});
+    if (!endDate) _missingFields.push({label: 'End Date', id: 'endDate'});
+    if (!entryTime) {
+        _missingFields.push({label: 'Entry Time', id: 'entryTime'});
+    } else if (entryTime < '09:30' || entryTime > '16:00') {
+        _missingFields.push({label: 'Entry Time (must be between 09:30 and 16:00)', id: 'entryTime'});
+    }
+    if (_dteRaw === '' || isNaN(dte)) _missingFields.push({label: 'Days to Expiration (DTE)', id: 'dte'});
+    if (!strategy) _missingFields.push({label: 'Strategy', id: 'strategy'});
+    if (!startingCapital || isNaN(startingCapital)) _missingFields.push({label: 'Starting Capital', id: 'startingCapital'});
+    if (_missingFields.length > 0) {
+        window._lastMissingFields = _missingFields;
         return null;
     }
+    window._lastMissingFields = [];
     
     // Collect leg configurations
     const legDefinitions = getStrategyLegs(strategy);
@@ -2677,12 +2999,14 @@ function collectFormData() {
     // CRITICAL: Sort legs by dependencies
     // Legs that DON'T reference others must come BEFORE legs that DO reference others
     // This ensures calculated_strikes array is built in the right order
-    const sortedLegs = topologicalSortLegs(legs);
+    const sortResult = topologicalSortLegs(legs);
     
-    if (!sortedLegs) {
-        showError('Circular dependency detected in leg configuration!');
+    if (!sortResult || sortResult.error === 'circular') {
+        const cycleNames = sortResult && sortResult.cycleLegs ? sortResult.cycleLegs.join(' ↔ ') : 'unknown legs';
+        showError(`Circular reference detected between ${cycleNames}. Each leg must reference a leg that does not reference it back.`);
         return null;
     }
+    const sortedLegs = sortResult;
     
     // Collect take profit/stop loss
     const takeProfitType = document.querySelector('input[name="takeProfitType"]:checked').value;
@@ -2772,7 +3096,7 @@ function collectFormData() {
     }
     
     // Collect exit conditions (signal-based)
-    const optExitCondType = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'preset';
+    const optExitCondType = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'none';
     config.options_exit_cond_type = optExitCondType;
     
     if (optExitCondType === 'preset') {
@@ -2979,8 +3303,7 @@ function resetForm() {
     const resultsDiv = document.getElementById('backtestResults');
     
     if (wingConfigSection) wingConfigSection.style.display = 'none';
-    if (wingConfigForm) wingConfigForm.style.display = 'none';
-    
+
     if (legConfigSection) {
         legConfigSection.innerHTML = `
             <div class="info-box">
