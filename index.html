@@ -3196,7 +3196,7 @@
 
                 <div class="card mb-3">
                   <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="card-title mb-0">Trade Log</h4>
+                    <h4 class="card-title mb-0">Trade Log <button type="button" class="btn btn-link p-0 ms-1 align-baseline" onclick="showTradeLogInfoModal('options')" title="Column guide" style="color:#6c757d; font-size:1rem; vertical-align:middle; line-height:1;"><i class="fas fa-info-circle"></i></button></h4>
                     <button class="btn btn-sm btn-outline-primary" id="optDetailDownloadCsv">
                       <i class="fas fa-download me-1"></i>Download CSV
                     </button>
@@ -3349,7 +3349,7 @@
 
                 <div class="card mb-3">
                   <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="card-title mb-0">Trade Log</h4>
+                    <h4 class="card-title mb-0">Trade Log <button type="button" class="btn btn-link p-0 ms-1 align-baseline" onclick="showTradeLogInfoModal('stock')" title="Column guide" style="color:#6c757d; font-size:1rem; vertical-align:middle; line-height:1;"><i class="fas fa-info-circle"></i></button></h4>
                     <button class="btn btn-sm btn-outline-primary" id="stkDetailDownloadCsv">
                       <i class="fas fa-download me-1"></i>Download CSV
                     </button>
@@ -3704,6 +3704,22 @@
               </div>
 
               <!-- Email Change Modal -->
+              <!-- Trade Log Info Modal -->
+              <div class="modal fade" id="tradeLogInfoModal" tabindex="-1" aria-labelledby="tradeLogInfoModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                  <div class="modal-content">
+                    <div class="modal-header" style="background:linear-gradient(135deg,#f8faff,#eef2ff); border-bottom:1px solid #dee2e6;">
+                      <h5 class="modal-title" id="tradeLogInfoModalLabel"><i class="fas fa-table me-2 text-primary"></i>Trade Log Column Guide</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-0" id="tradeLogInfoModalBody"></div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div id="emailChangeModal" class="modal fade" tabindex="-1" style="display: none;">
                 <div class="modal-dialog">
                   <div class="modal-content">
@@ -6530,6 +6546,156 @@
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') closeBtInfoModal();
     });
+
+    var _tradeLogColumns = {
+      options: [
+        {
+          col: 'symbol',
+          desc: 'The ticker symbol of the underlying asset traded.',
+          example: 'SPY'
+        },
+        {
+          col: 'direction',
+          desc: 'Whether the trade was entered as a long (buy) or short (sell) position.',
+          example: 'long'
+        },
+        {
+          col: 'prev_close',
+          desc: 'The prior trading day\'s closing price. Used as the reference value for gap %, premarket change %, and other relative conditions.',
+          example: '$490.25'
+        },
+        {
+          col: 'prev_close_timestamp',
+          desc: 'The exact date and time of the previous day\'s closing candle.',
+          example: '2025-03-14 16:00:00'
+        },
+        {
+          col: 'entry_timestamp',
+          desc: 'The date and time the position was opened.',
+          example: '2025-03-15 09:35:00'
+        },
+        {
+          col: 'entry_price',
+          desc: 'The price per share at which the trade was entered.',
+          example: '$495.80'
+        },
+        {
+          col: 'exit_timestamp',
+          desc: 'The date and time the position was closed.',
+          example: '2025-03-15 14:30:00'
+        },
+        {
+          col: 'exit_price',
+          desc: 'The price per share at which the trade was exited.',
+          example: '$498.20'
+        },
+        {
+          col: 'shares',
+          desc: 'Number of shares held in the position.',
+          example: '10'
+        },
+        {
+          col: 'days_in_trade',
+          desc: 'Number of calendar days the position was held open. A value of 0 means the trade opened and closed within the same trading day (intraday).',
+          example: '0 (intraday) or 2 (multi-day)'
+        },
+        {
+          col: 'exit_reason',
+          desc: 'What triggered the trade exit.',
+          example: '<strong>take_profit</strong> — TP target hit<br><strong>stop_loss</strong> — SL target hit<br><strong>signal</strong> — custom exit condition triggered<br><strong>time_exit</strong> — max holding period reached<br><strong>end_of_backtest</strong> — open at end of date range'
+        },
+        {
+          col: 'pnl',
+          desc: 'Net dollar profit or loss for the trade, calculated as (exit_price − entry_price) × shares for long trades, reversed for short trades.',
+          example: '$24.00 (profit) or −$12.50 (loss)'
+        },
+        {
+          col: 'pnl_pct',
+          desc: 'Percentage gain or loss relative to the entry price.',
+          example: '+2.41% or −1.08%'
+        }
+      ],
+      stock: [
+        {
+          col: '#',
+          desc: 'Sequential trade number within the backtest, starting from 1.',
+          example: '1, 2, 3 …'
+        },
+        {
+          col: 'Symbol',
+          desc: 'The ticker symbol of the stock or ETF traded.',
+          example: 'AAPL'
+        },
+        {
+          col: 'Entry Date',
+          desc: 'The date the position was opened.',
+          example: '2025-04-01'
+        },
+        {
+          col: 'Entry Price',
+          desc: 'The price per share at which the trade was entered.',
+          example: '$171.50'
+        },
+        {
+          col: 'Exit Date',
+          desc: 'The date the position was closed.',
+          example: '2025-04-03'
+        },
+        {
+          col: 'Exit Price',
+          desc: 'The price per share at which the trade was exited.',
+          example: '$175.20'
+        },
+        {
+          col: 'Shares',
+          desc: 'Number of shares held in the position.',
+          example: '50'
+        },
+        {
+          col: 'P&L',
+          desc: 'Net dollar profit or loss for the trade. Positive values are wins; negative are losses.',
+          example: '$185.00 (profit) or −$64.00 (loss)'
+        },
+        {
+          col: 'P&L %',
+          desc: 'Percentage gain or loss relative to the entry price.',
+          example: '+2.16% or −0.85%'
+        },
+        {
+          col: 'Exit Reason',
+          desc: 'What triggered the trade exit.',
+          example: '<strong>take_profit</strong> — TP target hit<br><strong>stop_loss</strong> — SL target hit<br><strong>signal</strong> — custom exit condition triggered<br><strong>time_exit</strong> — max holding period reached<br><strong>end_of_backtest</strong> — open at end of date range'
+        }
+      ]
+    };
+
+    function showTradeLogInfoModal(type) {
+      var cols = _tradeLogColumns[type] || [];
+      var label = type === 'options' ? 'Options Backtester' : 'Stock Backtester';
+      var html = '<div style="padding:0;">'
+        + '<div style="padding:14px 20px 10px; background:#f8faff; border-bottom:1px solid #e9ecef;">'
+        + '<p class="mb-0" style="color:#64748b; font-size:0.85rem;">Column definitions for the <strong>' + label + '</strong> trade log table.</p>'
+        + '</div>'
+        + '<div style="padding:4px 0;">';
+
+      cols.forEach(function(c, i) {
+        var bg = i % 2 === 0 ? '#ffffff' : '#f8faff';
+        html += '<div style="display:flex; align-items:flex-start; padding:12px 20px; background:' + bg + '; border-bottom:1px solid #f1f4f9;">'
+          + '<div style="min-width:170px; max-width:170px; padding-right:16px;">'
+          + '<code style="font-size:0.82rem; color:#1e40af; background:#eff6ff; padding:2px 7px; border-radius:4px; white-space:nowrap;">' + c.col + '</code>'
+          + '</div>'
+          + '<div style="flex:1;">'
+          + '<p style="margin:0 0 4px; font-size:0.88rem; color:#374151;">' + c.desc + '</p>'
+          + (c.example ? '<p style="margin:0; font-size:0.8rem; color:#6b7280;"><span style="font-weight:600; color:#9ca3af;">e.g.</span> <span style="font-style:italic;">' + c.example + '</span></p>' : '')
+          + '</div>'
+          + '</div>';
+      });
+
+      html += '</div></div>';
+      document.getElementById('tradeLogInfoModalBody').innerHTML = html;
+      var modal = new bootstrap.Modal(document.getElementById('tradeLogInfoModal'));
+      modal.show();
+    }
     </script>
   </body>
 </html>
