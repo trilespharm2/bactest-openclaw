@@ -721,11 +721,17 @@ function loadScript(src, pageName) {
 function viewOptionsResultDetail(backtestId) {
     window._pendingOptDetailId = backtestId;
     navigateToPage('optionsResultDetail');
+    // Persist ID in URL so page survives a refresh
+    history.replaceState({ page: 'optionsResultDetail', id: backtestId }, '',
+        '/dashboard?section=optionsResultDetail&id=' + encodeURIComponent(backtestId));
 }
 
 function viewStockResultDetail(backtestId) {
     window._pendingStkDetailId = backtestId;
     navigateToPage('stockResultDetail');
+    // Persist ID in URL so page survives a refresh
+    history.replaceState({ page: 'stockResultDetail', id: backtestId }, '',
+        '/dashboard?section=stockResultDetail&id=' + encodeURIComponent(backtestId));
 }
 
 // Initialize Page

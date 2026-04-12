@@ -413,7 +413,7 @@ async function navigateToPage(pageName, skipPushState = false) {
     if (_msb) _msb.classList.remove('mobile-open');
     if (_mov) _mov.classList.remove('active');
 
-    if (pageName === currentPage && !skipPushState) return;
+    if (pageName === currentPage && !skipPushState && pageName !== 'optionsResultDetail' && pageName !== 'stockResultDetail') return;
 
     if (currentPage === 'simTradingActive' && pageName !== 'simTradingActive') {
         if (window._simGuestSession && typeof simCurrentSymbol !== 'undefined' && simCurrentSymbol) {
@@ -497,7 +497,10 @@ async function navigateToPage(pageName, skipPushState = false) {
         'faq': 'FAQ',
         'contact': 'Contact Us',
         'simResults': 'Simulated Trading Results',
-        'simResultDetail': 'Simulated Trading Analysis'
+        'simResultDetail': 'Simulated Trading Analysis',
+        'strategyGuide': 'Information Guide',
+        'optionsResultDetail': 'Options Backtest Analysis',
+        'stockResultDetail': 'Stock Backtest Analysis'
     };
     if (pageTitle) {
         pageTitle.textContent = pageTitles[pageName] || 'Dashboard';
@@ -585,6 +588,17 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
                 }
+                if (pageName === 'strategyGuide') {
+                    fileName = 'strategy-guide';
+                    scriptName = 'static/js/strategy-guide-script.js';
+                }
+                if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
+                    scriptName = 'backtest-result-detail-script.js';
+                    if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
+                        loadedScripts.add(pageName);
+                        scriptName = null;
+                    }
+                }
                 
                 const response = await fetch(`${fileName}.html`);
                 
@@ -619,7 +633,7 @@ async function loadPageContent(pageName) {
         } else {
             console.log('Content already loaded for:', pageName);
             // Pages with inline scripts (no separate script file needed)
-            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings'];
+            const inlineScriptPages = ['optionsResults', 'stockResults', 'subscription', 'settings', 'learnOptionsBacktest', 'learnStockBacktest', 'learnSimTrading', 'learnScreener', 'learnNotifications'];
             
             if (inlineScriptPages.includes(pageName)) {
                 // These pages have their init functions defined inline or in pre-loaded scripts
@@ -646,9 +660,20 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = 'static/js/notifications-script.js';
                 }
+                if (pageName === 'strategyGuide') {
+                    scriptName = 'static/js/strategy-guide-script.js';
+                }
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
                     scriptName = 'simulated-results-script.js';
                     if (loadedScripts.has('simResults') || loadedScripts.has('simResultDetail')) {
+                        loadedScripts.add(pageName);
+                        initializePage(pageName);
+                        scriptName = null;
+                    }
+                }
+                if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
+                    scriptName = 'backtest-result-detail-script.js';
+                    if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
                         scriptName = null;
@@ -691,6 +716,22 @@ function loadScript(src, pageName) {
         };
         document.body.appendChild(script);
     });
+}
+
+function viewOptionsResultDetail(backtestId) {
+    window._pendingOptDetailId = backtestId;
+    navigateToPage('optionsResultDetail');
+    // Persist ID in URL so page survives a refresh
+    history.replaceState({ page: 'optionsResultDetail', id: backtestId }, '',
+        '/dashboard?section=optionsResultDetail&id=' + encodeURIComponent(backtestId));
+}
+
+function viewStockResultDetail(backtestId) {
+    window._pendingStkDetailId = backtestId;
+    navigateToPage('stockResultDetail');
+    // Persist ID in URL so page survives a refresh
+    history.replaceState({ page: 'stockResultDetail', id: backtestId }, '',
+        '/dashboard?section=stockResultDetail&id=' + encodeURIComponent(backtestId));
 }
 
 // Initialize Page
@@ -737,6 +778,12 @@ function initializePage(pageName) {
             initSimResultsPage();
         } else if (pageName === 'simResultDetail' && typeof initSimResultDetailPage === 'function') {
             initSimResultDetailPage();
+        } else if (pageName === 'strategyGuide' && typeof initStrategyGuide === 'function') {
+            initStrategyGuide();
+        } else if (pageName === 'optionsResultDetail' && typeof initOptionsResultDetailPage === 'function') {
+            initOptionsResultDetailPage();
+        } else if (pageName === 'stockResultDetail' && typeof initStockResultDetailPage === 'function') {
+            initStockResultDetailPage();
         }
     } catch (error) {
         console.error(`Error initializing ${pageName} page:`, error);
