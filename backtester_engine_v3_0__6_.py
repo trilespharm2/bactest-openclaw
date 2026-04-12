@@ -667,59 +667,96 @@ class BacktesterEngine:
         return candle['open'], candle
     
     def get_candle_value(self, grouped_data: Dict, dates: List, current_date_index: int,
-                        day_offset: int, candle_type: str, multiplier: int, 
-                        price_type: str) -> Optional[float]:
+                        day_offset: int, candle_type: str, multiplier: int,
+                        price_type: str, current_candle=None) -> Optional[float]:
         """
-        NEW v3.0: Get price value from specified candle
-        
-        day_offset: 0=today, -1=yesterday, -2=day before, etc.
-        candle_type: 'min', 'hr', 'day'
-        multiplier: number of candles
-        price_type: 'open', 'high', 'low', 'close', 'vwap'
+        Get price/OHLCV value from a specified candle window.
+
+        day_offset : 0=today, -1=yesterday, -2=two days ago, etc.
+        candle_type: 'day'  → full session aggregate (running on day=0)
+                     'hr'   → first N hours from 9:30 (multiplier = N hours)
+                     'min'  → Nth 1-minute candle from 9:30 (multiplier = which candle, 1-indexed)
+        multiplier : size/index as described above
+        price_type : 'open', 'high', 'low', 'close', 'vwap'
+        current_candle : if provided and day_offset==0, data is truncated to this
+                         candle's timestamp to prevent lookahead bias
         """
         try:
-            # Get target date
             target_date_index = current_date_index + day_offset
             if target_date_index < 0 or target_date_index >= len(dates):
                 return None
-            
+
             target_date = dates[target_date_index]
             if target_date not in grouped_data.groups:
                 return None
-            
-            day_data = grouped_data.get_group(target_date)
-            
-            # Get candle based on type
+
+            day_data = grouped_data.get_group(target_date).copy()
+
+            # Prevent lookahead: for day=0, only use bars up to the current candle
+            if day_offset == 0 and current_candle is not None and 'timestamp' in day_data.columns:
+                ts = current_candle.get('timestamp')
+                if ts is not None:
+                    day_data = day_data[day_data['timestamp'] <= ts]
+            if day_data.empty:
+                return None
+
+            def extract_price(df: pd.DataFrame, pt: str) -> Optional[float]:
+                if df.empty:
+                    return None
+                if pt == 'high':
+                    return float(df['high'].max())
+                elif pt == 'low':
+                    return float(df['low'].min())
+                elif pt == 'open':
+                    return float(df['open'].iloc[0])
+                elif pt == 'vwap':
+                    if 'vwap' in df.columns and df['vwap'].notna().any():
+                        return float(df['vwap'].mean())
+                    return float(df['close'].iloc[-1])
+                else:  # 'close' or anything else
+                    return float(df['close'].iloc[-1])
+
             if candle_type == 'day':
-                # For day candle, return the price_type for that day
-                if price_type == 'high':
-                    return day_data['high'].max()
-                elif price_type == 'low':
-                    return day_data['low'].min()
-                elif price_type == 'open':
-                    return day_data['open'].iloc[0]
-                elif price_type == 'close':
-                    return day_data['close'].iloc[-1]
-                elif price_type == 'vwap':
-                    # Weighted average VWAP
-                    if 'vwap' in day_data.columns and day_data['vwap'].notna().any():
-                        return day_data['vwap'].mean()
-                    return day_data['close'].iloc[-1]
-            
-            elif candle_type == 'min':
-                # For minute candles, this is handled per-candle in check loop
-                # This function is for prior conditions (day-level data)
-                # Return close of day as fallback
-                return day_data['close'].iloc[-1]
-            
+                return extract_price(day_data, price_type)
+
+            # For min/hr we need a timestamp column to slice the session correctly
+            if 'timestamp' not in day_data.columns:
+                # No timestamps — fall back to full-day value
+                return extract_price(day_data, price_type)
+
+            # Filter to regular session (09:30 – 15:59) and sort ascending
+            regular = day_data[
+                ((day_data['timestamp'].dt.hour == 9) & (day_data['timestamp'].dt.minute >= 30)) |
+                (day_data['timestamp'].dt.hour > 9) & (day_data['timestamp'].dt.hour < 16)
+            ].sort_values('timestamp')
+
+            if regular.empty:
+                return None
+
+            if candle_type == 'min':
+                # multiplier = which 1-minute candle (1-indexed from session open)
+                # e.g. multiplier=1 → 9:30 candle, multiplier=5 → 9:34 candle
+                idx = max(0, int(multiplier) - 1)
+                if idx >= len(regular):
+                    idx = len(regular) - 1
+                window = regular.iloc[[idx]]
+                return extract_price(window, price_type)
+
             elif candle_type == 'hr':
-                # For hour candles, aggregate by hour
-                # This is simplified - would need hourly aggregation
-                return day_data['close'].iloc[-1]
-            
+                # multiplier = number of hours from session open to aggregate
+                # e.g. multiplier=1 → 9:30–10:29, multiplier=2 → 9:30–11:29
+                session_open = regular['timestamp'].iloc[0].replace(
+                    hour=9, minute=30, second=0, microsecond=0
+                )
+                cutoff = session_open + pd.Timedelta(hours=int(multiplier))
+                window = regular[regular['timestamp'] < cutoff]
+                if window.empty:
+                    return None
+                return extract_price(window, price_type)
+
             return None
-            
-        except Exception as e:
+
+        except Exception:
             return None
     
     _INDICATOR_TYPES = {'sma', 'ema', 'rsi', 'macd'}
@@ -906,7 +943,8 @@ class BacktesterEngine:
                 left_value = self.get_candle_value(
                     grouped_data, dates, current_date_index,
                     condition['left_day'], condition['left_candle'],
-                    condition['left_multiplier'], left_type
+                    condition['left_multiplier'], left_type,
+                    current_candle=current_candle
                 )
 
             if right_type == 'value':
@@ -921,7 +959,8 @@ class BacktesterEngine:
                 right_value = self.get_candle_value(
                     grouped_data, dates, current_date_index,
                     condition['right_day'], condition['right_candle'],
-                    condition['right_multiplier'], right_type
+                    condition['right_multiplier'], right_type,
+                    current_candle=current_candle
                 )
             
             if left_value is None or right_value is None:
@@ -1456,7 +1495,8 @@ class BacktesterEngine:
                                                                      condition['left_day'],
                                                                      condition['left_candle'],
                                                                      condition['left_multiplier'],
-                                                                     lt)
+                                                                     lt,
+                                                                     current_candle=candle)
                                     left_idx = i + condition['left_day']
                                     left_date = dates[left_idx] if 0 <= left_idx < len(dates) else None
                                     left_time = None
@@ -1478,7 +1518,8 @@ class BacktesterEngine:
                                                                       condition['right_day'],
                                                                       condition['right_candle'],
                                                                       condition['right_multiplier'],
-                                                                      rt)
+                                                                      rt,
+                                                                      current_candle=candle)
                                     right_idx = i + condition['right_day']
                                     right_date = dates[right_idx] if 0 <= right_idx < len(dates) else None
                                     right_time = None
