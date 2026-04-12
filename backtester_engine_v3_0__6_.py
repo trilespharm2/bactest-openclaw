@@ -724,6 +724,69 @@ class BacktesterEngine:
     
     _INDICATOR_TYPES = {'sma', 'ema', 'rsi', 'macd'}
 
+    def _get_volume(self, condition: Dict, side: str, grouped_data: Dict, dates: List,
+                    current_date_index: int, current_candle=None) -> Optional[float]:
+        """Get aggregated volume for a specified candle configuration."""
+        try:
+            day_offset = condition.get(f'{side}_day', 0)
+            candle_type = condition.get(f'{side}_candle', 'day')
+            multiplier = int(condition.get(f'{side}_multiplier', 1))
+
+            target_idx = current_date_index + day_offset
+            if target_idx < 0 or target_idx >= len(dates):
+                return None
+            target_date = dates[target_idx]
+            if target_date not in grouped_data.groups:
+                return None
+
+            day_data = grouped_data.get_group(target_date).copy()
+            if 'volume' not in day_data.columns:
+                return None
+
+            # Truncate to current candle timestamp for today to avoid lookahead
+            if day_offset == 0 and current_candle is not None:
+                ts = current_candle.get('timestamp')
+                if ts is not None and 'timestamp' in day_data.columns:
+                    day_data = day_data[day_data['timestamp'] <= ts]
+            if day_data.empty:
+                return None
+
+            if candle_type == 'day':
+                return float(day_data['volume'].sum())
+
+            elif candle_type == 'hr':
+                if 'timestamp' not in day_data.columns:
+                    return float(day_data['volume'].sum())
+                # Regular session starting at 9:30
+                regular = day_data[
+                    ((day_data['timestamp'].dt.hour == 9) & (day_data['timestamp'].dt.minute >= 30)) |
+                    ((day_data['timestamp'].dt.hour > 9) & (day_data['timestamp'].dt.hour < 16))
+                ].sort_values('timestamp')
+                if regular.empty:
+                    return None
+                first_ts = regular['timestamp'].iloc[0]
+                cutoff_ts = first_ts + pd.Timedelta(hours=multiplier)
+                filtered = regular[regular['timestamp'] < cutoff_ts]
+                if filtered.empty:
+                    return None
+                return float(filtered['volume'].sum())
+
+            elif candle_type == 'min':
+                if 'timestamp' not in day_data.columns:
+                    return None
+                regular = day_data[
+                    ((day_data['timestamp'].dt.hour == 9) & (day_data['timestamp'].dt.minute >= 30)) |
+                    ((day_data['timestamp'].dt.hour > 9) & (day_data['timestamp'].dt.hour < 16))
+                ].sort_values('timestamp')
+                if regular.empty:
+                    return None
+                selected = regular.iloc[:multiplier]
+                return float(selected['volume'].sum())
+
+            return None
+        except Exception:
+            return None
+
     def _get_price_series(self, grouped_data, dates, current_date_index, day_offset,
                           series_type='close', current_candle=None):
         """Build a price series from grouped_data up to and including the target day.
@@ -833,7 +896,9 @@ class BacktesterEngine:
             left_type = condition.get('left_type', 'close')
             right_type = condition.get('right_type', 'close')
 
-            if left_type in self._INDICATOR_TYPES:
+            if left_type == 'volume':
+                left_value = self._get_volume(condition, 'left', grouped_data, dates, current_date_index, current_candle)
+            elif left_type in self._INDICATOR_TYPES:
                 left_value = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, current_candle)
             elif condition['left_day'] == 0 and condition['left_candle'] == 'min' and current_candle is not None:
                 left_value = current_candle[left_type]
@@ -846,6 +911,8 @@ class BacktesterEngine:
 
             if right_type == 'value':
                 right_value = condition.get('right_fixed_value', 0)
+            elif right_type == 'volume':
+                right_value = self._get_volume(condition, 'right', grouped_data, dates, current_date_index, current_candle)
             elif right_type in self._INDICATOR_TYPES:
                 right_value = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, current_candle)
             elif condition['right_day'] == 0 and condition['right_candle'] == 'min' and current_candle is not None:
@@ -862,31 +929,37 @@ class BacktesterEngine:
             
             if pd.isna(left_value) or pd.isna(right_value):
                 return False
-            
+
+            threshold_unit = condition.get('threshold_unit', '%')
+            threshold_value = float(condition.get('threshold_value', 0) or 0)
+            operation = condition['operation']
+
+            # x-Multiplier: left vs right * multiplier (direct comparison, no change %)
+            if threshold_unit == 'x':
+                adjusted_right = right_value * threshold_value if threshold_value else right_value
+                return self._compare(left_value, operation, adjusted_right)
+
             # Calculate comparison
-            if condition['threshold_unit'] == '%':
+            if threshold_unit == '%':
                 if right_value == 0:
                     change = left_value - right_value
                 else:
                     change = ((left_value / right_value) - 1) * 100
-                threshold = condition['threshold_value']
             else:  # '$'
                 change = left_value - right_value
-                threshold = condition['threshold_value']
-            
+
             # Evaluate operation
-            operation = condition['operation']
             if operation == '>':
-                return change > threshold
+                return change > threshold_value
             elif operation == '<':
-                return change < threshold
+                return change < threshold_value
             elif operation == '>=':
-                return change >= threshold
+                return change >= threshold_value
             elif operation == '<=':
-                return change <= threshold
+                return change <= threshold_value
             elif operation == '=':
-                return abs(change - threshold) < 0.01
-            
+                return abs(change - threshold_value) < 0.01
+
             return False
             
         except Exception as e:
