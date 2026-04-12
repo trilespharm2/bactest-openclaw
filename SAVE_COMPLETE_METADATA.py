@@ -68,7 +68,7 @@ def save_complete_metadata(backtest_id, request_params, summary_stats):
         
         # ========== DETECTION SETTINGS ==========
         # 14. Detection Bar Size
-        'detection_bar_size': request_params.get('detection', {}).get('bars', 5),
+        'detection_bar_size': request_params.get('detection', {}).get('bars', 1),
         
         # 15. PDT Rule
         'pdt_rule': request_params.get('detection', {}).get('pdtRule', 'avoid'),

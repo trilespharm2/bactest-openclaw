@@ -26,7 +26,7 @@ def load_config_from_json(json_path):
         'dte': web_config.get('dte', 0),
         'strategy': web_config.get('strategy', ''),
         'legs': web_config.get('legs', []),
-        'detection_bar_size': web_config.get('detection_bar_size') or web_config.get('detectionBarSize', 5),
+        'detection_bar_size': web_config.get('detection_bar_size') or web_config.get('detectionBarSize', 1),
         'concurrent_trades': web_config.get('concurrent_trades') or web_config.get('concurrentTrades', False),
         'avoid_pdt': web_config.get('avoid_pdt') or web_config.get('avoidPdt', False),
         'starting_capital': web_config.get('starting_capital') or web_config.get('startingCapital', 100000),

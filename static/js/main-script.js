@@ -103,6 +103,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for URL parameters to navigate to specific section
     const urlParams = new URLSearchParams(window.location.search);
     const section = urlParams.get('section');
+    const urlId = urlParams.get('id');
+
+    // Stash the ID now — navigateToPage will push a new URL that strips &id=
+    if (urlId) {
+        if (section === 'optionsResultDetail') window._pendingOptDetailId = urlId;
+        if (section === 'stockResultDetail')   window._pendingStkDetailId = urlId;
+    }
     
     if (section) {
         await navigateToPage(section);
