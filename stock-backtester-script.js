@@ -33,12 +33,8 @@ function initializeStockBacktesterPage() {
         var endEl = document.getElementById('stockEndDate');
         TierRestrictions.applyDateConstraints(startEl, endEl);
         if (TierRestrictions.isFree()) {
-            var customRadio = document.querySelector('#stockBacktesterPage input[name="entry_type"][value="custom"]');
-            if (customRadio) { customRadio.disabled = true; }
             var multiRadio = document.querySelector('#stockBacktesterPage input[name="symbol_mode"][value="multiple"]');
             if (multiRadio) { multiRadio.disabled = true; }
-            var customToggleBtn = document.querySelector('#stockBacktesterPage .bt-toggle-btn[data-val="custom"]');
-            if (customToggleBtn) { customToggleBtn.disabled = true; customToggleBtn.style.opacity = '0.5'; customToggleBtn.style.cursor = 'not-allowed'; customToggleBtn.title = 'Custom builder requires Standard or Premium plan'; }
             var multiToggleBtn = document.querySelector('#stockBacktesterPage .bt-toggle-btn[data-val="multiple"]');
             if (multiToggleBtn) { multiToggleBtn.disabled = true; multiToggleBtn.style.opacity = '0.5'; multiToggleBtn.style.cursor = 'not-allowed'; multiToggleBtn.title = 'Multiple symbols requires Standard or Premium plan'; }
         }
@@ -55,16 +51,6 @@ function initializeStockBacktesterPage() {
     setTimeout(applyStockTierRestrictions, 600);
 
     try {
-        const today = new Date();
-        const oneMonthAgo = new Date(today);
-        oneMonthAgo.setMonth(today.getMonth() - 1);
-        
-        const startDateEl = document.getElementById('stockStartDate');
-        const endDateEl = document.getElementById('stockEndDate');
-        
-        if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
-        if (endDateEl) endDateEl.valueAsDate = today;
-        
         console.log('Default dates set');
         
         // Initialize with one condition if custom is selected
@@ -244,16 +230,6 @@ function resetStockBacktestForm() {
     const form = document.getElementById('stockBacktestForm');
     if (form) {
         form.reset();
-        
-        // Reset dates to defaults
-        const today = new Date();
-        const oneMonthAgo = new Date(today);
-        oneMonthAgo.setMonth(today.getMonth() - 1);
-        
-        const startDateEl = document.getElementById('stockStartDate');
-        const endDateEl = document.getElementById('stockEndDate');
-        if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
-        if (endDateEl) endDateEl.valueAsDate = today;
         
         // Reset dynamic sections
         updateSymbolMode();
@@ -1185,7 +1161,6 @@ async function handleSubmit(e) {
             var symErr = TierRestrictions.getSymbolError(sym);
             if (symErr) throw new Error(symErr);
             if (!TierRestrictions.isDateAllowed(config.start_date) || !TierRestrictions.isDateAllowed(config.end_date)) { var dMin = TierRestrictions.getDateMin(); var dMax = TierRestrictions.getDateMax(); var rangeStr = (dMin && dMax) ? ' Allowed range: ' + dMin + ' to ' + dMax + '.' : ''; throw new Error('Date is outside your plan\'s allowed range.' + rangeStr + ' Upgrade for wider date access.'); }
-            if (TierRestrictions.isFree() && config.entry_type === 'custom') throw new Error('Custom entry conditions require a Standard or Premium plan.');
             if (!TierRestrictions.canUseMultipleSymbols() && config.symbol_mode === 'multiple') throw new Error('Multiple symbols require a Standard or Premium plan.');
         }
 
