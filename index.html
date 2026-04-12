@@ -6693,7 +6693,8 @@
 
       html += '</div></div>';
       document.getElementById('tradeLogInfoModalBody').innerHTML = html;
-      var modal = new bootstrap.Modal(document.getElementById('tradeLogInfoModal'));
+      var modalEl = document.getElementById('tradeLogInfoModal');
+      var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
       modal.show();
     }
     </script>
