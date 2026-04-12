@@ -29,7 +29,7 @@
     font-size: 0.9rem;
 }
 
-.stock-backtester-builder .condition-item label {
+.stock-backtester-builder .condition-item label:not(.form-check-label) {
     display: block;
     font-weight: 500;
     font-size: 0.85rem;
@@ -38,7 +38,7 @@
 }
 
 .stock-backtester-builder .condition-item select,
-.stock-backtester-builder .condition-item input {
+.stock-backtester-builder .condition-item input:not([type="checkbox"]) {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid #e5e9f2;
@@ -47,7 +47,7 @@
 }
 
 .stock-backtester-builder .condition-item select:focus,
-.stock-backtester-builder .condition-item input:focus {
+.stock-backtester-builder .condition-item input:not([type="checkbox"]):focus {
     outline: none;
     border-color: #3b7cff;
 }
