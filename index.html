@@ -2065,7 +2065,7 @@
                         <div id="velocityFields" class="row" style="display:none;">
                           <div class="col-md-4 mb-3">
                             <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
-                            <input type="number" class="form-control" id="velocityLookback" placeholder="5" value="5">
+                            <input type="number" class="form-control" id="velocityLookback" placeholder="5">
                           </div>
                           <div class="col-md-4 mb-3">
                             <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
@@ -2190,6 +2190,7 @@
                         <input type="number" class="form-control" id="maxDays" min="1" placeholder="5">
                         <div class="field-hint">Auto-close after this many trading days.</div>
                       </div>
+                      <div id="exitCondGroupErrorAnchor"></div>
                     </div>
 
                     <!-- OPTIONAL SECTIONS DIVIDER -->
@@ -5729,14 +5730,7 @@
       }
       
       function setStockDefaultDates() {
-        const today = new Date();
-        const oneMonthAgo = new Date(today);
-        oneMonthAgo.setMonth(today.getMonth() - 1);
-        
-        const startDateEl = document.getElementById('stockStartDate');
-        const endDateEl = document.getElementById('stockEndDate');
-        if (startDateEl) startDateEl.valueAsDate = oneMonthAgo;
-        if (endDateEl) endDateEl.valueAsDate = today;
+        // Dates left blank — user fills them in
       }
       
       function setupStockSymbolMode() {

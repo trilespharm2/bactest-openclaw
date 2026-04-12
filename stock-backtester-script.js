@@ -1149,6 +1149,7 @@ async function handleSubmit(e) {
     console.log('=== FORM SUBMIT STARTED ===');
     
     try {
+        clearStockFieldErrors();
         const errorEl = document.getElementById('stockErrorMessage');
         if (errorEl) errorEl.style.display = 'none';
         
@@ -1166,7 +1167,8 @@ async function handleSubmit(e) {
 
         console.log('Validating config...');
         if (!validateConfig(config)) {
-            throw new Error('Please fill in all required fields');
+            form.dataset.isSubmitting = 'false';
+            return;
         }
         console.log('Validation passed');
         
@@ -1437,83 +1439,157 @@ async function collectFormData() {
     return config;
 }
 
-// Validate configuration
+// ============================================================================
+// FIELD-LEVEL ERROR HELPERS
+// ============================================================================
+
+function clearStockFieldErrors() {
+    document.querySelectorAll('#stockBacktestForm .stock-field-error').forEach(el => el.remove());
+    document.querySelectorAll('#stockBacktestForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
+}
+
+function showStockFieldError(elementId, message) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.classList.add('is-invalid');
+    const existing = el.parentElement.querySelector('.stock-field-error');
+    if (existing) existing.remove();
+    if (message) {
+        const err = document.createElement('div');
+        err.className = 'stock-field-error invalid-feedback';
+        err.style.display = 'block';
+        err.textContent = message;
+        el.parentElement.appendChild(err);
+    }
+}
+
+function showStockGroupError(anchorId, message) {
+    const anchor = document.getElementById(anchorId);
+    if (!anchor) return;
+    const existing = anchor.querySelector('.stock-field-error');
+    if (existing) existing.remove();
+    const err = document.createElement('div');
+    err.className = 'stock-field-error';
+    err.style.cssText = 'color:#dc3545; font-size:0.82rem; margin-top:8px; font-weight:500;';
+    err.textContent = message;
+    anchor.appendChild(err);
+}
+
+function scrollToField(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => { try { el.focus(); } catch(e) {} }, 350);
+}
+
+// Validate configuration — shows inline per-field errors and scrolls to first issue
 function validateConfig(config) {
+    clearStockFieldErrors();
+
     // Auto-generate name if not provided
     if (!config.name) {
         const symbol = config.symbol || (config.symbols && config.symbols[0]) || 'Multi';
         config.name = `${symbol} Backtest ${new Date().toLocaleDateString()}`;
     }
-    
-    // Check required date fields
-    if (!config.start_date || !config.end_date) {
-        return false;
+
+    let firstErrorId = null;
+    function addError(elementId, message) {
+        showStockFieldError(elementId, message);
+        if (!firstErrorId) firstErrorId = elementId;
     }
-    
-    // Check symbols
+
+    // Date fields
+    if (!config.start_date) addError('stockStartDate', 'Start date is required.');
+    if (!config.end_date)   addError('stockEndDate',   'End date is required.');
+    if (config.start_date && config.end_date && config.start_date >= config.end_date) {
+        addError('stockEndDate', 'End date must be after start date.');
+    }
+
+    // Symbol
     if (config.symbol_mode === 'single' && !config.symbol) {
-        return false;
+        addError('singleSymbol', 'Please enter a ticker symbol (e.g. SPY).');
     }
     if (config.symbol_mode === 'multiple' && (!config.symbols || config.symbols.length === 0)) {
-        return false;
+        addError('multipleSymbols', 'Please enter at least one symbol.');
     }
-    
-    // Check entry conditions
+
+    // Preset entry threshold
     if (config.entry_type === 'preset') {
-        if (!config.preset_operator || !config.preset_threshold) {
-            return false;
+        const thresholdVal = parseFloat(config.preset_threshold);
+        if (config.preset_condition !== '5' && (config.preset_threshold === '' || config.preset_threshold === undefined || isNaN(thresholdVal))) {
+            addError('presetThreshold', 'Threshold value is required.');
+        }
+        if (config.preset_condition === '5') {
+            if (!config.velocity_lookback || parseInt(config.velocity_lookback) <= 0) {
+                addError('velocityLookback', 'Interval is required.');
+            }
+            const velThresh = parseFloat(config.preset_threshold);
+            if (config.preset_threshold === '' || config.preset_threshold === undefined || isNaN(velThresh)) {
+                addError('velocityThreshold', 'Threshold is required.');
+            }
         }
     } else {
-        if (!config.custom_conditions || config.custom_conditions.length === 0) {
-            return false;
-        }
-        for (const cond of config.custom_conditions) {
+        // Custom builder day-0 closed-bar checks
+        for (const cond of (config.custom_conditions || [])) {
             if (cond.left_candle === 'day' && cond.left_day === 0 && ['close', 'high', 'low', 'vwap'].includes(cond.left_type)) {
                 appAlert(`Invalid condition: cannot use day candle "${cond.left_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
-                return false;
+                if (!firstErrorId) firstErrorId = 'addConditionBtn';
+                break;
             }
             if (cond.right_candle === 'day' && cond.right_day === 0 && ['close', 'high', 'low', 'vwap'].includes(cond.right_type)) {
                 appAlert(`Invalid condition: cannot use day candle "${cond.right_type}" on day 0 — the current day has not closed yet. Use "open" or a negative day offset.`);
-                return false;
+                if (!firstErrorId) firstErrorId = 'addConditionBtn';
+                break;
             }
         }
     }
-    
-    // Check sizing - sizing_value should be a number > 0
+
+    // Sizing value
     const sizingVal = parseFloat(config.sizing_value);
     if (isNaN(sizingVal) || sizingVal <= 0) {
-        const sizingLabels = { shares: 'number of shares', dollars: 'dollar amount', percent: 'percentage' };
-        appAlert(`Please enter a valid ${sizingLabels[config.sizing_type] || 'sizing value'}.`);
-        return false;
+        const sizingInputId = config.sizing_type === 'shares' ? 'stockSizingShares'
+                            : config.sizing_type === 'dollars' ? 'stockSizingDollars'
+                            : 'stockSizingPercent';
+        const sizingLabels = { shares: 'Number of shares', dollars: 'Dollar amount', percent: 'Percentage' };
+        addError(sizingInputId, `${sizingLabels[config.sizing_type] || 'Sizing value'} is required.`);
     }
-    if (config.sizing_type === 'percent' && !config.starting_capital) {
-        return false;
-    }
-    
-    // Check that at least one exit mechanism exists
-    var hasTP = config.take_profit_value && parseFloat(config.take_profit_value) > 0;
-    var hasSL = config.stop_loss_value && parseFloat(config.stop_loss_value) > 0;
-    var hasMaxDays = config.max_days && parseInt(config.max_days) > 0;
-    var hasExitCustom = config.exit_cond_type === 'custom' && config.exit_custom_conditions && config.exit_custom_conditions.length > 0;
-
-    if (!hasTP && !hasSL && !hasMaxDays && !hasExitCustom) {
-        appAlert('At least one exit condition is required (Take Profit, Stop Loss, Max Days, or a Custom Builder exit condition).');
-        return false;
+    if (config.sizing_type === 'percent' && (!config.starting_capital || parseFloat(config.starting_capital) <= 0)) {
+        addError('stockStartingCapital', 'Starting capital is required for percentage sizing.');
     }
 
-    if (hasExitCustom) {
-        for (var ec of config.exit_custom_conditions) {
+    // At least one exit mechanism
+    const hasTP       = config.take_profit_value && parseFloat(config.take_profit_value) > 0;
+    const hasSL       = config.stop_loss_value && parseFloat(config.stop_loss_value) > 0;
+    const hasMaxDays  = config.max_days && parseInt(config.max_days) > 0;
+    const hasExitCust = config.exit_cond_type === 'custom' && config.exit_custom_conditions && config.exit_custom_conditions.length > 0;
+
+    if (!hasTP && !hasSL && !hasMaxDays && !hasExitCust) {
+        ['takeProfitValue', 'stopLossValue', 'maxDays'].forEach(id => showStockFieldError(id, ''));
+        showStockGroupError('exitCondGroupErrorAnchor', 'At least one exit condition is required — enter a Take Profit, Stop Loss, or Max Days value.');
+        if (!firstErrorId) firstErrorId = 'takeProfitValue';
+    }
+
+    // Exit custom day-0 checks
+    if (hasExitCust) {
+        for (const ec of config.exit_custom_conditions) {
             if (ec.left_candle === 'day' && ec.left_day === 0 && ['close', 'high', 'low', 'vwap'].includes(ec.left_type)) {
                 appAlert('Invalid exit condition: cannot use day candle "' + ec.left_type + '" on day 0.');
-                return false;
+                if (!firstErrorId) firstErrorId = 'addExitConditionBtn';
+                break;
             }
             if (ec.right_candle === 'day' && ec.right_day === 0 && ['close', 'high', 'low', 'vwap'].includes(ec.right_type)) {
                 appAlert('Invalid exit condition: cannot use day candle "' + ec.right_type + '" on day 0.');
-                return false;
+                if (!firstErrorId) firstErrorId = 'addExitConditionBtn';
+                break;
             }
         }
     }
-    
+
+    if (firstErrorId) {
+        scrollToField(firstErrorId);
+        return false;
+    }
+
     return true;
 }
 
