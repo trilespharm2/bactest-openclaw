@@ -1741,55 +1741,10 @@
                         <div class="mb-3">
                           <div style="display:flex; gap:8px; margin-bottom:12px;">
                             <button type="button" class="bt-toggle-btn on" data-radio="optExitCondType" data-val="none" onclick="btToggle(this); updateOptExitCondType();">None</button>
-                            <button type="button" class="bt-toggle-btn" data-radio="optExitCondType" data-val="preset" onclick="btToggle(this); updateOptExitCondType();">Preset condition</button>
                             <button type="button" class="bt-toggle-btn" data-radio="optExitCondType" data-val="custom" onclick="btToggle(this); updateOptExitCondType();">Custom builder</button>
                           </div>
                           <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitNone" value="none" checked onchange="updateOptExitCondType()">
-                          <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitPreset" value="preset" onchange="updateOptExitCondType()">
                           <input class="bt-hidden-radio" type="radio" name="optExitCondType" id="optExitCustom" value="custom" onchange="updateOptExitCondType()">
-                        </div>
-                        <div id="optExitPresetSection" style="display:none;">
-                          <div class="mb-3">
-                            <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Exit Signal:</label>
-                            <select class="form-select" id="optExitPresetCondition" onchange="updateOptExitPresetFields()">
-                              <option value="1">Premarket Change %</option>
-                              <option value="2">Change % (from prev close)</option>
-                              <option value="3">Gap % (open vs prev close)</option>
-                              <option value="4">Change-Open % (from today's open)</option>
-                              <option value="5">Velocity (Rate of Change)</option>
-                            </select>
-                          </div>
-                          <div id="optExitStandardPresetFields" class="row" style="display:none;">
-                            <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
-                              <select class="form-select" id="optExitPresetOperator">
-                                <option value=">">></option><option value="<"><</option>
-                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                                <option value="=">=</option>
-                              </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
-                              <input type="number" class="form-control" id="optExitPresetThreshold" step="0.01" placeholder="e.g., 2.5">
-                            </div>
-                          </div>
-                          <div id="optExitVelocityFields" class="row" style="display:none;">
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Interval (min):</label>
-                              <input type="number" class="form-control" id="optExitVelocityLookback" placeholder="5" value="5" min="1">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Operator:</label>
-                              <select class="form-select" id="optExitVelocityOperator">
-                                <option value=">">></option><option value="<"><</option>
-                                <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                              </select>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                              <label class="form-label" style="font-size:0.8rem; color:#1e293b; font-weight:600;">Threshold (%):</label>
-                              <input type="number" class="form-control" id="optExitVelocityThreshold" step="0.01" placeholder="1.5">
-                            </div>
-                          </div>
                         </div>
                         <div id="optExitCustomSection" style="display:none;">
                           <div class="alert alert-info py-2 mb-2" style="font-size:0.8rem;"><i class="fas fa-tools me-2"></i>Custom Exit Condition Builder — compare price indicators to define exit triggers</div>

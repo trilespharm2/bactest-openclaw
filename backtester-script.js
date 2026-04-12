@@ -90,30 +90,16 @@ function updateOptionsPresetFields() {
 
 function updateOptExitCondType() {
     const type = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'none';
-    const presetSection = document.getElementById('optExitPresetSection');
     const customSection = document.getElementById('optExitCustomSection');
-    
-    if (presetSection) presetSection.style.display = type === 'preset' ? 'block' : 'none';
+
     if (customSection) customSection.style.display = type === 'custom' ? 'block' : 'none';
-    
-    if (type === 'preset') {
-        updateOptExitPresetFields();
-    }
+
     if (type === 'custom') {
         const container = document.getElementById('optExitConditionsContainer');
         if (container && container.querySelectorAll('.opt-exit-condition-row').length === 0) {
             addOptExitCondition();
         }
     }
-}
-
-function updateOptExitPresetFields() {
-    var sel = document.getElementById('optExitPresetCondition');
-    var val = sel ? sel.value : '';
-    var isVelocity = val === '5';
-    var hasVal = val !== '';
-    document.getElementById('optExitStandardPresetFields').style.display = (hasVal && !isVelocity) ? 'flex' : 'none';
-    document.getElementById('optExitVelocityFields').style.display = (hasVal && isVelocity) ? 'flex' : 'none';
 }
 
 function addOptExitCondition() {
@@ -2518,14 +2504,7 @@ function buildOptConfigSummaryHtml(config) {
     }
 
     let exitCondHtml = '<span style="color:#94a3b8;">None</span>';
-    if (config.options_exit_cond_type === 'preset' && config.exit_preset_condition) {
-        const exitCondName = presetNames[config.exit_preset_condition] || `Preset #${config.exit_preset_condition}`;
-        if (config.exit_preset_condition === '5') {
-            exitCondHtml = `${exitCondName}: ${config.exit_preset_operator || '>'} ${config.exit_preset_threshold || 0}% over ${config.exit_velocity_lookback || 5} min`;
-        } else {
-            exitCondHtml = `${exitCondName}: ${config.exit_preset_operator || '>'} ${config.exit_preset_threshold || 0}%`;
-        }
-    } else if (config.exit_price_conditions && config.exit_price_conditions.length > 0) {
+    if (config.exit_price_conditions && config.exit_price_conditions.length > 0) {
         exitCondHtml = config.exit_price_conditions.map(function(pc) {
             var metric = (pc.metric || 'price').toUpperCase();
             var op = pc.operator || '>';
@@ -2766,17 +2745,6 @@ function validateOptionsConfig(config) {
         }
     }
     
-    if (config.options_exit_cond_type === 'preset' && config.exit_preset_condition) {
-        if (!config.exit_preset_operator || config.exit_preset_threshold === undefined || config.exit_preset_threshold === '') {
-            errors.push('Exit preset condition requires an operator and threshold');
-        }
-        if (config.exit_preset_condition === '5') {
-            const lookback = parseInt(config.exit_velocity_lookback);
-            if (!lookback || lookback < 1 || lookback > 120) {
-                errors.push('Exit velocity lookback must be between 1 and 120 minutes');
-            }
-        }
-    }
     if (config.options_exit_cond_type === 'custom') {
         if (!config.exit_price_conditions || config.exit_price_conditions.length === 0) {
             errors.push('Custom exit conditions selected but no conditions added');
@@ -3099,20 +3067,7 @@ function collectFormData() {
     const optExitCondType = document.querySelector('input[name="optExitCondType"]:checked')?.value || 'none';
     config.options_exit_cond_type = optExitCondType;
     
-    if (optExitCondType === 'preset') {
-        var exitPresetVal = document.getElementById('optExitPresetCondition')?.value || '';
-        if (exitPresetVal) {
-            config.exit_preset_condition = exitPresetVal;
-            if (exitPresetVal === '5') {
-                config.exit_velocity_lookback = document.getElementById('optExitVelocityLookback')?.value;
-                config.exit_preset_operator = document.getElementById('optExitVelocityOperator')?.value;
-                config.exit_preset_threshold = document.getElementById('optExitVelocityThreshold')?.value;
-            } else {
-                config.exit_preset_operator = document.getElementById('optExitPresetOperator')?.value;
-                config.exit_preset_threshold = document.getElementById('optExitPresetThreshold')?.value;
-            }
-        }
-    } else if (optExitCondType === 'custom') {
+    if (optExitCondType === 'custom') {
         var exitPriceConditions = collectOptExitConditions();
         if (exitPriceConditions && exitPriceConditions.length > 0) {
             config.exit_price_conditions = exitPriceConditions;
