@@ -6,7 +6,7 @@ var TierRestrictions = (function() {
 
     var FREE_SYMBOLS = ['SPY', 'GLD', 'QQQ'];
     var FREE_DATE_MIN = '2025-03-01';
-    var FREE_DATE_MAX = '2026-03-31';
+    var FREE_DATE_MAX = _today;
     var FREE_MAX_DTE = 3;
 
     var STANDARD_DATE_MIN = '2023-03-01';

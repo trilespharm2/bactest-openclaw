@@ -1137,7 +1137,7 @@ function closeConfigSummary() {
 
 async function handleSubmit(e) {
     e.preventDefault();
-    e.stopPropagation();
+    e.stopImmediatePropagation();
     
     const form = e.target;
     if (form.dataset.isSubmitting === 'true') {
@@ -1149,7 +1149,7 @@ async function handleSubmit(e) {
     console.log('=== FORM SUBMIT STARTED ===');
     
     try {
-        const errorEl = document.getElementById('errorMessage');
+        const errorEl = document.getElementById('stockErrorMessage');
         if (errorEl) errorEl.style.display = 'none';
         
         console.log('Collecting form data...');
@@ -1174,7 +1174,7 @@ async function handleSubmit(e) {
 
         document.getElementById('confirmRunBacktestBtn').onclick = async function() {
             closeConfigSummary();
-            const loadingEl = document.getElementById('loadingMessage');
+            const loadingEl = document.getElementById('stockLoadingMessage');
             if (loadingEl) loadingEl.style.display = 'block';
 
             try {
@@ -1189,7 +1189,7 @@ async function handleSubmit(e) {
                 if (!response.ok) {
                     const error = await response.json();
                     if (response.status === 429) {
-                        const loadingEl = document.getElementById('loadingMessage');
+                        const loadingEl = document.getElementById('stockLoadingMessage');
                         if (loadingEl) loadingEl.style.display = 'none';
                         form.dataset.isSubmitting = 'false';
                         appAlert(error.error || 'A backtest is already running.');
@@ -1205,8 +1205,8 @@ async function handleSubmit(e) {
                 viewStockResultDetail(result.backtest_id);
             } catch (err) {
                 console.error('Error running backtest:', err);
-                const errorEl = document.getElementById('errorMessage');
-                const loadingEl = document.getElementById('loadingMessage');
+                const errorEl = document.getElementById('stockErrorMessage');
+                const loadingEl = document.getElementById('stockLoadingMessage');
                 if (errorEl) { errorEl.textContent = `Error: ${err.message}`; errorEl.style.display = 'block'; }
                 if (loadingEl) loadingEl.style.display = 'none';
                 form.dataset.isSubmitting = 'false';
@@ -1217,7 +1217,7 @@ async function handleSubmit(e) {
     } catch (error) {
         console.error('=== ERROR IN FORM SUBMISSION ===');
         console.error('Error:', error);
-        const errorEl = document.getElementById('errorMessage');
+        const errorEl = document.getElementById('stockErrorMessage');
         if (errorEl) { errorEl.textContent = `Error: ${error.message}`; errorEl.style.display = 'block'; }
         form.dataset.isSubmitting = 'false';
         appAlert(`Error: ${error.message}`);
@@ -1231,7 +1231,7 @@ async function collectFormData() {
     const config = {};
     
     // Basic info
-    config.name = document.getElementById('backtestName').value;
+    config.name = document.getElementById('stockBacktestName').value;
     config.start_date = document.getElementById('stockStartDate').value;
     config.end_date = document.getElementById('stockEndDate').value;
     
@@ -1341,12 +1341,12 @@ async function collectFormData() {
     config.sizing_type = document.querySelector('input[name="sizing_type"]:checked').value;
     
     if (config.sizing_type === 'shares') {
-        config.sizing_value = document.getElementById('stockSizingShares')?.value || document.getElementById('sizingShares')?.value || '';
+        config.sizing_value = document.getElementById('stockSizingShares')?.value || '';
     } else if (config.sizing_type === 'dollars') {
-        config.sizing_value = document.getElementById('stockSizingDollars')?.value || document.getElementById('sizingDollars')?.value || '';
+        config.sizing_value = document.getElementById('stockSizingDollars')?.value || '';
     } else {
         config.starting_capital = document.getElementById('startingCapital')?.value || '50000';
-        config.sizing_value = document.getElementById('stockSizingPercent')?.value || document.getElementById('sizingPercent')?.value || '';
+        config.sizing_value = document.getElementById('stockSizingPercent')?.value || '';
     }
     
     // Exit conditions (signal-based)
@@ -1479,9 +1479,11 @@ function validateConfig(config) {
         }
     }
     
-    // Check sizing - sizing_value should be a number, not a string like 'shares'
+    // Check sizing - sizing_value should be a number > 0
     const sizingVal = parseFloat(config.sizing_value);
     if (isNaN(sizingVal) || sizingVal <= 0) {
+        const sizingLabels = { shares: 'number of shares', dollars: 'dollar amount', percent: 'percentage' };
+        appAlert(`Please enter a valid ${sizingLabels[config.sizing_type] || 'sizing value'}.`);
         return false;
     }
     if (config.sizing_type === 'percent' && !config.starting_capital) {

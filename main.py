@@ -1131,7 +1131,7 @@ TIER_RESTRICTIONS = {
     'free': {
         'allowed_symbols': ['SPY', 'GLD', 'QQQ'],
         'min_date': '2025-03-01',
-        'max_date': '2026-03-31',
+        'max_date': datetime.today().strftime('%Y-%m-%d'),
         'max_dte': 3,
         'allow_custom_builder': False,
         'allow_multiple_symbols': False,
@@ -1143,7 +1143,7 @@ TIER_RESTRICTIONS = {
         'allowed_symbols': None,
         'blocked_symbol_types': ['index', 'forex'],
         'min_date': '2023-03-01',
-        'max_date': '2026-03-31',
+        'max_date': datetime.today().strftime('%Y-%m-%d'),
         'max_dte': 10,
         'allow_custom_builder': True,
         'allow_multiple_symbols': True,

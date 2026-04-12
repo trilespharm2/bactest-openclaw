@@ -2856,7 +2856,7 @@
               </div>
 
               <div id="stockErrorSection" class="alert alert-danger" style="display: none;">
-                <strong>Error:</strong> <span id="stockErrorMessage"></span>
+                <strong>Error:</strong> <span id="stockResultsErrorMessage"></span>
               </div>
 
               <div class="card" id="stockTableCard" style="display: none;">
@@ -5241,7 +5241,7 @@
         } catch (error) {
           document.getElementById('stockLoadingSection').style.display = 'none';
           document.getElementById('stockErrorSection').style.display = 'block';
-          document.getElementById('stockErrorMessage').textContent = error.message;
+          document.getElementById('stockResultsErrorMessage').textContent = error.message;
         }
       }
 
@@ -5724,7 +5724,6 @@
         setupStockPresetCondition();
         setupExitCondType();
         setupExitPresetCondition();
-        setupStockFormSubmit();
         setupStockResetBtn();
         setStockDefaultDates();
       }
@@ -5838,83 +5837,6 @@
         }
       }
       
-      function setupStockFormSubmit() {
-        const form = document.getElementById('stockBacktestForm');
-        if (!form) return;
-        
-        form.addEventListener('submit', async function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          
-          const loadingEl = document.getElementById('stockLoadingMessage');
-          const errorEl = document.getElementById('stockErrorMessage');
-          
-          if (loadingEl) loadingEl.style.display = 'block';
-          if (errorEl) errorEl.style.display = 'none';
-          
-          try {
-            const config = collectStockFormData();
-            
-            const response = await authFetch('/api/stocks-backtest-v3/start', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(config)
-            });
-            
-            if (!response.ok) {
-              const error = await response.json();
-              throw new Error(error.error || 'Backtest failed to start');
-            }
-            
-            const result = await response.json();
-            sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
-            viewStockResultDetail(result.backtest_id);
-            
-          } catch (error) {
-            if (loadingEl) loadingEl.style.display = 'none';
-            if (errorEl) {
-              errorEl.style.display = 'block';
-              errorEl.textContent = error.message;
-            }
-          }
-        });
-      }
-      
-      function collectStockFormData() {
-        const config = {};
-        config.name = document.getElementById('stockBacktestName')?.value || '';
-        config.start_date = document.getElementById('stockStartDate')?.value || '';
-        config.end_date = document.getElementById('stockEndDate')?.value || '';
-        config.symbol_mode = document.querySelector('input[name="symbol_mode"]:checked')?.value || 'single';
-        
-        if (config.symbol_mode === 'single') {
-          config.symbols = [document.getElementById('singleSymbol')?.value?.toUpperCase() || ''];
-        } else if (config.symbol_mode === 'multiple') {
-          const symbolsText = document.getElementById('multipleSymbols')?.value || '';
-          config.symbols = symbolsText.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-        }
-        
-        config.entry_type = document.querySelector('input[name="entry_type"]:checked')?.value || 'preset';
-        config.preset_condition = document.getElementById('presetCondition')?.value || '1';
-        config.preset_operator = document.getElementById('presetOperator')?.value || '>';
-        config.preset_threshold = parseFloat(document.getElementById('presetThreshold')?.value) || 0;
-        
-        config.direction = document.querySelector('input[name="direction"]:checked')?.value || 'long';
-        config.sizing_type = document.querySelector('input[name="sizing_type"]:checked')?.value || 'shares';
-        config.sizing_shares = parseInt(document.getElementById('stockSizingShares')?.value) || 100;
-        config.sizing_dollars = parseFloat(document.getElementById('stockSizingDollars')?.value) || 5000;
-        config.sizing_percent = parseFloat(document.getElementById('stockSizingPercent')?.value) || 10;
-        config.starting_capital = parseFloat(document.getElementById('stockStartingCapital')?.value) || 50000;
-        
-        config.take_profit_type = document.querySelector('input[name="take_profit_type"]:checked')?.value || 'percent';
-        config.take_profit_value = parseFloat(document.getElementById('takeProfitValue')?.value) || 5;
-        config.stop_loss_type = document.querySelector('input[name="stop_loss_type"]:checked')?.value || 'percent';
-        config.stop_loss_value = parseFloat(document.getElementById('stopLossValue')?.value) || 3;
-        config.max_days = parseInt(document.getElementById('maxDays')?.value) || 5;
-        config.allow_consecutive_trades = document.getElementById('allowConsecutive')?.checked || false;
-        
-        return config;
-      }
       
       // Initialize backtester pages when shown
       function initBacktesterPages() {
