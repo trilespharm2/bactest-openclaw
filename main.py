@@ -1133,7 +1133,7 @@ TIER_RESTRICTIONS = {
         'min_date': '2025-03-01',
         'max_date': datetime.today().strftime('%Y-%m-%d'),
         'max_dte': 3,
-        'allow_custom_builder': False,
+        'allow_custom_builder': True,
         'allow_multiple_symbols': False,
         'allow_csv': False,
         'allow_csv_download': False,
@@ -3212,8 +3212,6 @@ def start_backtest_async():
             end_date=params.get('end_date'),
             dte=params.get('dte')
         )
-        if tier == 'free' and params.get('entry_type') == 'custom':
-            tier_errors.append('Custom entry conditions are not available on the Free plan.')
         if tier_errors:
             return jsonify({'error': tier_errors[0]}), 403
 
@@ -4446,8 +4444,6 @@ def start_stocks_backtest_v3_async():
             end_date=config.get('end_date')
         )
         restrictions = TIER_RESTRICTIONS.get(tier, TIER_RESTRICTIONS['free'])
-        if not restrictions.get('allow_custom_builder') and config.get('entry_type') == 'custom':
-            tier_errors.append('Custom entry conditions are not available on your plan.')
         if not restrictions.get('allow_multiple_symbols') and config.get('symbol_mode') == 'multiple':
             tier_errors.append('Multiple symbols are not available on your plan.')
         if not restrictions.get('allow_csv') and config.get('symbol_mode') == 'csv':
