@@ -1378,6 +1378,65 @@ class BacktesterEngine:
         sl_str = f"-{sl_val}%" if sl_type == 'percent' else f"-${sl_val}"
         return f"TP: {tp_str} | SL: {sl_str} | Max Days: {max_d}"
 
+    def _get_human_side_label(self, condition, side):
+        """Human-readable label for one side of a custom condition."""
+        pt = condition.get(f'{side}_type', 'close')
+        if side == 'right' and pt == 'value':
+            return 'Fixed Value'
+        day     = condition.get(f'{side}_day', 0)
+        candle  = condition.get(f'{side}_candle', 'min')
+        mult    = condition.get(f'{side}_multiplier', 1)
+        day_str    = 'Current Day' if day == 0 else ('Prev Day' if day == -1 else f'{abs(day)} Days Ago')
+        candle_str = ('Day' if candle == 'day' else (f'{mult}m' if candle == 'min' else f'{mult}h'))
+        return f'{day_str} {candle_str} {pt.capitalize()}'
+
+    def _compute_side_value(self, condition, side, grouped, dates, i, sample_candle=None):
+        """Compute the numeric value for one side of a condition."""
+        pt      = condition.get(f'{side}_type', 'close')
+        day     = condition.get(f'{side}_day', 0)
+        candle  = condition.get(f'{side}_candle', 'min')
+        mult    = condition.get(f'{side}_multiplier', 1)
+        if pt == 'value':
+            return float(condition.get('right_fixed_value', 0))
+        if pt in self._INDICATOR_TYPES:
+            try:
+                return self._compute_indicator(condition, side, grouped, dates, i, sample_candle)
+            except Exception:
+                return None
+        if day == 0 and candle == 'min' and sample_candle is not None:
+            v = sample_candle.get(pt)
+            return float(v) if v is not None and not pd.isna(v) else None
+        v = self.get_candle_value(grouped, dates, i, day, candle, mult, pt, current_candle=sample_candle)
+        return float(v) if v is not None else None
+
+    def _compute_entry_condition_metrics(self, grouped, dates, i, current_data):
+        """Return metric info for the entry condition (index 0) — used in skip/no-signal log."""
+        conds = self.config.get('custom_conditions', [])
+        if not conds:
+            return None
+        cond = conds[0]
+        # Use first candle as a safe sample (no lookahead — we only fetch prev-day refs)
+        sample = current_data.iloc[0] if len(current_data) > 0 else None
+        right_val = self._compute_side_value(cond, 'right', grouped, dates, i, sample)
+        right_label = self._get_human_side_label(cond, 'right')
+        threshold       = float(cond.get('threshold_value', 0) or 0)
+        threshold_unit  = cond.get('threshold_unit', '%')
+        effective_right = None
+        if right_val is not None and threshold != 0:
+            if threshold_unit == '%':
+                effective_right = round(right_val * (1 + threshold / 100), 4)
+            elif threshold_unit == '$':
+                effective_right = round(right_val + threshold, 4)
+            elif threshold_unit == 'x':
+                effective_right = round(right_val * threshold, 4)
+        return {
+            'right_label':      right_label,
+            'right_value':      round(right_val, 4) if right_val is not None else None,
+            'threshold':        threshold,
+            'threshold_unit':   threshold_unit,
+            'effective_right':  effective_right if effective_right is not None else (round(right_val, 4) if right_val is not None else None),
+        }
+
     def _compute_condition_value_for_candle(self, candle, prev_close, open_930_price):
         entry_type = self.config.get('entry_type', 'preset')
         if entry_type == 'preset':
@@ -1566,12 +1625,40 @@ class BacktesterEngine:
                             'trade_num': trade_num
                         }
                         
+                        # Build enriched metric summary for the condition_met event
+                        cond_met_metrics = None
+                        if self.config.get('entry_type') == 'custom' and condition_values:
+                            cv0 = condition_values[0]
+                            cond0 = cv0.get('condition', {})
+                            right_label = self._get_human_side_label(cond0, 'right')
+                            left_label  = self._get_human_side_label(cond0, 'left')
+                            threshold       = float(cond0.get('threshold_value', 0) or 0)
+                            threshold_unit  = cond0.get('threshold_unit', '%')
+                            rv = cv0.get('right_value')
+                            effective_right = None
+                            if rv is not None and threshold != 0:
+                                if threshold_unit == '%':
+                                    effective_right = round(rv * (1 + threshold / 100), 4)
+                                elif threshold_unit == '$':
+                                    effective_right = round(rv + threshold, 4)
+                                elif threshold_unit == 'x':
+                                    effective_right = round(rv * threshold, 4)
+                            cond_met_metrics = {
+                                'right_label':     right_label,
+                                'right_value':     round(rv, 4) if rv is not None else None,
+                                'left_label':      left_label,
+                                'left_value':      round(cv0['left_value'], 4) if cv0.get('left_value') is not None else None,
+                                'threshold':       threshold,
+                                'threshold_unit':  threshold_unit,
+                                'effective_right': effective_right if effective_right is not None else (round(rv, 4) if rv is not None else None),
+                            }
                         day_entry['events'].append({
                             'type': 'condition_met',
                             'price': round(entry_price, 2),
                             'price_point': price_point,
                             'time': str(entry_time),
-                            'computed_value': computed_val
+                            'computed_value': computed_val,
+                            'entry_metrics': cond_met_metrics,
                         })
                         day_entry['events'].append({
                             'type': 'entry',
@@ -1654,22 +1741,39 @@ class BacktesterEngine:
                             break
 
                 if not entry_found:
+                    day_high = float(current_data['high'].max()) if len(current_data) > 0 else None
+                    day_low  = float(current_data['low'].min())  if len(current_data) > 0 else None
                     if not prior_conditions_met:
                         day_entry['events'].append({
                             'type': 'no_signal',
-                            'reason': f'Prior conditions not met for: {condition_desc}'
+                            'reason': f'Prior conditions not met for: {condition_desc}',
+                            'day_high': round(day_high, 2) if day_high is not None else None,
+                            'day_low':  round(day_low,  2) if day_low  is not None else None,
                         })
                     else:
+                        entry_metrics = None
+                        if self.config.get('entry_type') == 'custom':
+                            try:
+                                entry_metrics = self._compute_entry_condition_metrics(grouped, dates, i, current_data)
+                            except Exception:
+                                pass
                         day_entry['events'].append({
                             'type': 'no_signal',
-                            'reason': f'No instance of {condition_desc}'
+                            'reason': f'No instance of {condition_desc}',
+                            'day_high':      round(day_high, 2) if day_high is not None else None,
+                            'day_low':       round(day_low,  2) if day_low  is not None else None,
+                            'entry_metrics': entry_metrics,
                         })
                     day_entry['status'] = 'SKIPPED'
             
             elif position is None and current_date <= end_date and not prior_conditions_met:
+                day_high = float(current_data['high'].max()) if len(current_data) > 0 else None
+                day_low  = float(current_data['low'].min())  if len(current_data) > 0 else None
                 day_entry['events'].append({
                     'type': 'no_signal',
-                    'reason': f'Prior conditions not met for: {condition_desc}'
+                    'reason': f'Prior conditions not met for: {condition_desc}',
+                    'day_high': round(day_high, 2) if day_high is not None else None,
+                    'day_low':  round(day_low,  2) if day_low  is not None else None,
                 })
                 day_entry['status'] = 'SKIPPED'
             

@@ -693,9 +693,30 @@ function _renderStkDtPage(config) {
         flowHtml += '<div style="border-left:2px solid #e2e8f0;margin-left:16px;padding-left:12px;">';
         (day.events || []).forEach(function(evt) {
             if (evt.type === 'no_signal') {
-                flowHtml += '<div style="padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;border-left:3px solid #94a3b8;font-size:12px;color:#64748b;">NO TRADE: ' + (evt.reason || 'Condition not met') + '</div>';
+                var noSigExtra = '';
+                if (evt.entry_metrics) {
+                    var em = evt.entry_metrics;
+                    var thrStr = '';
+                    if (em.threshold && em.threshold !== 0) {
+                        thrStr = ' (+' + em.threshold + (em.threshold_unit || '%') + ' = $' + (em.effective_right != null ? em.effective_right.toFixed(2) : '?') + ')';
+                    }
+                    noSigExtra += ' &mdash; <strong>' + (em.right_label || 'Ref') + ':</strong> ' + (em.right_value != null ? '$' + em.right_value.toFixed(2) : 'N/A') + thrStr;
+                }
+                if (evt.day_high != null) noSigExtra += ' | <strong>Day high:</strong> $' + evt.day_high.toFixed(2);
+                if (evt.day_low  != null) noSigExtra += ' | <strong>Day low:</strong> $'  + evt.day_low.toFixed(2);
+                flowHtml += '<div style="padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;border-left:3px solid #94a3b8;font-size:12px;color:#64748b;">NO TRADE: ' + (evt.reason || 'Condition not met') + noSigExtra + '</div>';
             } else if (evt.type === 'condition_met') {
-                flowHtml += '<div style="padding:6px 10px;background:#ecfdf5;border-radius:6px;margin-bottom:4px;border-left:3px solid #10b981;font-size:12px;color:#065f46;">CONDITION MET - Price $' + (evt.price != null ? evt.price.toFixed(2) : 'N/A') + (evt.computed_value != null ? ' (' + evt.computed_value + '%)' : '') + '</div>';
+                var cmExtra = '';
+                if (evt.entry_metrics) {
+                    var em = evt.entry_metrics;
+                    var thrStr = '';
+                    if (em.threshold && em.threshold !== 0) {
+                        thrStr = ' (+' + em.threshold + (em.threshold_unit || '%') + ' = $' + (em.effective_right != null ? em.effective_right.toFixed(2) : '?') + ')';
+                    }
+                    cmExtra += ' &mdash; <strong>' + (em.right_label || 'Ref') + ':</strong> ' + (em.right_value != null ? '$' + em.right_value.toFixed(2) : 'N/A') + thrStr;
+                }
+                var cmTime = evt.time ? ' at ' + evt.time.substring(11, 16) : '';
+                flowHtml += '<div style="padding:6px 10px;background:#ecfdf5;border-radius:6px;margin-bottom:4px;border-left:3px solid #10b981;font-size:12px;color:#065f46;">CONDITION MET' + cmTime + ' — $' + (evt.price != null ? evt.price.toFixed(2) : 'N/A') + (evt.computed_value != null ? ' (' + evt.computed_value + '%)' : '') + cmExtra + '</div>';
             } else if (evt.type === 'entry' || evt.type === 're_entry') {
                 flowHtml += '<div style="padding:6px 10px;background:#f0fdf4;border-radius:6px;margin-bottom:4px;border-left:3px solid #10b981;font-size:12px;"><strong>' + (evt.type === 're_entry' ? 'RE-ENTRY' : 'ENTRY') + '</strong> Trade #' + (evt.trade_num || '?') + ' | ' + dir + ' ' + (evt.shares || '') + ' shares @ $' + (evt.price != null ? evt.price.toFixed(2) : 'N/A') + '</div>';
             } else if (evt.type === 'holding') {
