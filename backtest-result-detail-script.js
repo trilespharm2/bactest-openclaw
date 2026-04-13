@@ -575,21 +575,6 @@ function _displayStkDetail(data) {
 
     if (data.decision_log && data.decision_log.length > 0) {
         _buildStkDetailDecisionTree(data.decision_log, config);
-    } else {
-        // Show a helpful empty-state notice inside the decision tree card
-        var dtCard = document.getElementById('stkDetailDecisionTreeCard');
-        if (dtCard) {
-            dtCard.style.display = '';
-            var dtBody = document.getElementById('stkDetailDtBody');
-            if (dtBody) {
-                dtBody.style.display = '';
-                dtBody.innerHTML = '<div style="padding:24px; text-align:center; color:#64748b;">' +
-                    '<i class="fas fa-info-circle" style="font-size:28px; margin-bottom:12px; color:#94a3b8;"></i>' +
-                    '<div style="font-size:14px; font-weight:600; margin-bottom:6px;">No Decision Log Available</div>' +
-                    '<div style="font-size:12px;">No trading days were scanned. This usually means market data could not be fetched for the selected symbol and date range. Verify that your Polygon API key is configured and that the selected dates fall within a valid trading period.</div>' +
-                    '</div>';
-            }
-        }
     }
 
     if (typeof TierRestrictions !== 'undefined') TierRestrictions.disableCsvButtons();

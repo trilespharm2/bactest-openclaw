@@ -1040,51 +1040,31 @@ function buildStockConfigSummaryHtml(config) {
             entryHtml += ` (${config.velocity_lookback} min lookback)`;
         }
     } else if (config.custom_conditions && config.custom_conditions.length > 0) {
-        const _dayStr = (d) => {
-            d = parseInt(d) || 0;
-            if (d === 0) return 'Current Day';
-            if (d === -1) return 'Prev Day';
-            return Math.abs(d) + ' Days Ago';
-        };
-        const _candleStr = (candle, mult) => {
-            const m = parseInt(mult) || 1;
-            if (candle === 'day') return 'Day';
-            if (candle === 'hr') return m + 'hr';
-            return m + 'min';
-        };
-        const _leftDesc = (c) => {
-            var met = c.metric || 'price';
-            if (met === 'current_price') {
-                var series = c.left_series || c.left_type || 'close';
-                return 'Current ' + series.charAt(0).toUpperCase() + series.slice(1);
-            }
-            if (met === 'sma') return 'SMA(' + (c.left_window || 14) + ') [' + _dayStr(c.left_day) + ' ' + _candleStr(c.left_candle, c.left_multiplier) + ']';
-            if (met === 'ema') return 'EMA(' + (c.left_window || 14) + ') [' + _dayStr(c.left_day) + ' ' + _candleStr(c.left_candle, c.left_multiplier) + ']';
-            if (met === 'rsi') return 'RSI(' + (c.left_window || 14) + ') [' + _dayStr(c.left_day) + ' ' + _candleStr(c.left_candle, c.left_multiplier) + ']';
-            if (met === 'macd') return 'MACD [' + _dayStr(c.left_day) + ' ' + _candleStr(c.left_candle, c.left_multiplier) + ']';
-            if (met === 'volume') return _dayStr(c.left_day) + ' ' + _candleStr(c.left_candle, c.left_multiplier) + ' Volume';
-            // price
-            var s = c.left_series || c.left_type || 'close';
-            return _dayStr(c.left_day) + ' ' + _candleStr(c.left_candle, c.left_multiplier) + ' ' + s.charAt(0).toUpperCase() + s.slice(1);
-        };
-        const _rightDesc = (c) => {
-            if (c.comparator === 'value' || c.right_type === 'value') {
-                return String(c.right_fixed_value != null ? c.right_fixed_value : 0);
-            }
-            var comp = (c.comparator || 'compare_price').replace('compare_', '');
-            var s = c.right_series || c.right_type || 'close';
-            var base = '';
-            if (comp === 'sma') base = 'SMA(' + (c.right_window || 14) + ') [' + _dayStr(c.right_day) + ' ' + _candleStr(c.right_candle, c.right_multiplier) + ']';
-            else if (comp === 'ema') base = 'EMA(' + (c.right_window || 14) + ') [' + _dayStr(c.right_day) + ' ' + _candleStr(c.right_candle, c.right_multiplier) + ']';
-            else if (comp === 'volume') base = _dayStr(c.right_day) + ' ' + _candleStr(c.right_candle, c.right_multiplier) + ' Volume';
-            else base = _dayStr(c.right_day) + ' ' + _candleStr(c.right_candle, c.right_multiplier) + ' ' + s.charAt(0).toUpperCase() + s.slice(1);
-            var thresh = '';
-            if (c.threshold_value) thresh = ' +' + c.threshold_value + (c.threshold_unit || '%');
-            return base + thresh;
-        };
         entryHtml = config.custom_conditions.map((c, i) => {
+            const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
+            const dayLabel = (d) => d === 0 ? 'Today' : `Day(${d})`;
+            const candleFmt = (candle, mult) => {
+                const m = parseInt(mult) || 1;
+                if (candle === 'min') return m + 'min';
+                if (candle === 'hr') return m + 'hr';
+                if (candle === 'day') return m > 1 ? m + 'day' : 'day';
+                return candle || 'day';
+            };
+            var met = c.metric || 'price';
+            var leftDesc = metricLabels[met] || met;
+            if (met !== 'current_price') {
+                leftDesc += ' [' + dayLabel(c.left_day) + ' ' + candleFmt(c.left_candle, c.left_multiplier) + ']';
+            }
+            var rightDesc = '';
+            if (c.comparator === 'value' || c.right_type === 'value') {
+                rightDesc = String(c.right_fixed_value || 0);
+            } else {
+                var compLabel = (c.comparator || '').replace('compare_', '').toUpperCase();
+                rightDesc = compLabel + ' [' + dayLabel(c.right_day) + ' ' + candleFmt(c.right_candle, c.right_multiplier) + ']';
+                if (c.threshold_value) rightDesc += ' ±' + c.threshold_value + (c.threshold_unit || '%');
+            }
             const prefix = i === 0 ? '<span style="color:#3b7cff; font-weight:600;">Entry:</span>' : '<span style="color:#64748b; font-weight:600;">Prior:</span>';
-            return `<div style="margin-bottom:4px;">${prefix} ${_leftDesc(c)} ${c.operation || '>'} ${_rightDesc(c)}</div>`;
+            return `<div style="margin-bottom:4px;">${prefix} ${leftDesc} ${c.operation} ${rightDesc}</div>`;
         }).join('');
     }
 
@@ -1224,8 +1204,6 @@ async function handleSubmit(e) {
                 const result = await response.json();
                 console.log('Backtest started! ID:', result.backtest_id);
                 sessionStorage.setItem('stockBacktestConfig_' + result.backtest_id, JSON.stringify(config));
-                if (loadingEl) loadingEl.style.display = 'none';
-                form.dataset.isSubmitting = 'false';
                 viewStockResultDetail(result.backtest_id);
             } catch (err) {
                 console.error('Error running backtest:', err);
@@ -2124,9 +2102,6 @@ function applyStockConfig(config) {
 
             var thresholdValEl = document.getElementById('threshold-value-' + id);
             if (thresholdValEl && cond.threshold_value != null) thresholdValEl.value = cond.threshold_value;
-
-            // Refresh the inline condition summary after all fields are set
-            if (typeof updateConditionSummary === 'function') updateConditionSummary(id, false);
         });
     }
 
