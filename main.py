@@ -404,6 +404,8 @@ def bootstrap_admin_user():
 
 
 def seed_test_accounts():
+    if not env_bool('SEED_TEST_ACCOUNTS', False):
+        return
     with app.app_context():
         test_accounts = [
             {'email': 'standard@gmail.com', 'name': 'StandardUser', 'plan': 'standard', 'password': 'Standard123!@#'},

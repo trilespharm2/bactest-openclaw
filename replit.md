@@ -85,3 +85,8 @@ The architecture employs a Wrapper Pattern for API-to-engine communication, Lazy
 
 ### Database
 -   **PostgreSQL**: User data, saved filters, and backtest metadata.
+
+## Replit Migration Notes
+- The app runs as a Flask/Gunicorn web service on port 5000 in Replit.
+- Development defaults to the local SQLite database path when `DATABASE_URL` is not provided.
+- Demo/test accounts are no longer seeded automatically; set `SEED_TEST_ACCOUNTS=1` only when that behavior is intentionally needed.
