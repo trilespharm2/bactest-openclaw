@@ -3440,21 +3440,13 @@ def run_backtest(config: Dict, client: RESTClient):
             entry_time_start = config['entry_time']
             entry_time_end = config.get('entry_time_end') or config.get('entry_time_max') or entry_time_start
             
-            # Get detection bars within entry time range for condition scanning
+            # Entry condition scanning always uses 1-minute bars so that rolling
+            # window presets (e.g. Velocity) are evaluated at every minute.
+            # detection_bar_size controls only the monitoring interval after entry.
             candidate_bars = []
-            for bar in sorted(bars_detection_today, key=lambda x: x['time']):
+            for bar in sorted(bars_1min_today, key=lambda x: x['time']):
                 if entry_time_start <= bar['time'] <= entry_time_end:
                     candidate_bars.append(bar)
-            
-            if not candidate_bars:
-                # Fallback: try 1-min bars if no detection bars in range
-                for bar in sorted(bars_1min_today, key=lambda x: x['time']):
-                    if bar['time'] >= entry_time_start:
-                        candidate_bars.append(bar)
-                        if not entry_time_end or entry_time_end == entry_time_start:
-                            break  # Single entry time, take first bar
-                        if bar['time'] >= entry_time_end:
-                            break
             
             if not candidate_bars:
                 day_entry['events'].append({'type': 'no_data', 'reason': 'No market bars available in entry time range'})
