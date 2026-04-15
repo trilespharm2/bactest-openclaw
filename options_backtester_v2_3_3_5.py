@@ -3843,7 +3843,7 @@ def run_backtest(config: Dict, client: RESTClient):
         
             # Display entry
             leg_summary = ", ".join([f"{leg['name']}@{leg['strike']}" for leg in legs_info])
-            print(f"  ENTRY: {num_contracts} contracts | Premium: {net_credit:.2f} | Max Risk: {max_risk:.2f}")
+            print(f"  ENTRY: {num_contracts} contracts | Premium: {net_credit:.4f} | Max Risk: {max_risk:.4f}")
             print(f"  Legs: {leg_summary}")
             
             day_entry['status'] = 'ENTRY'
