@@ -1725,6 +1725,50 @@ def get_bars_for_period(client: RESTClient, symbol: str, start_date: datetime,
         print(f"  Error fetching {symbol}: {e}")
         return {}
 
+def get_daily_closes_for_period(client: RESTClient, symbol: str, start_date: datetime, 
+                                end_date: datetime) -> Dict[str, float]:
+    from_str = start_date.strftime("%Y-%m-%d")
+    to_str = end_date.strftime("%Y-%m-%d")
+    
+    try:
+        rate_limit_option_request()
+        aggs = list(client.list_aggs(
+            ticker=symbol,
+            multiplier=1,
+            timespan="day",
+            from_=from_str,
+            to=to_str,
+            adjusted="true",
+            sort="asc",
+            limit=50000
+        ))
+        
+        closes = {}
+        eastern = pytz.timezone('US/Eastern')
+        for agg in aggs:
+            bar_datetime = datetime.fromtimestamp(agg.timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
+            closes[bar_datetime.date().strftime("%Y-%m-%d")] = agg.close
+        
+        return closes
+    
+    except Exception as e:
+        print(f"  Error fetching daily closes for {symbol}: {e}")
+        return {}
+
+def get_cached_underlying_close(daily_closes: Dict[str, float], bars_by_date: Dict, 
+                                exp_date: datetime) -> Optional[float]:
+    exp_date_str = exp_date.strftime("%Y-%m-%d")
+    
+    if exp_date_str in daily_closes:
+        return daily_closes[exp_date_str]
+    
+    exp_underlying_bars = bars_by_date.get(exp_date_str, [])
+    if exp_underlying_bars:
+        last_bar = max(exp_underlying_bars, key=lambda x: x['time'])
+        return last_bar['close']
+    
+    return None
+
 # ==================== USER INPUT ====================
 
 def get_user_config() -> Dict[str, Any]:
@@ -3137,8 +3181,9 @@ def get_underlying_close_at_expiration(client: RESTClient, underlying_sym: str,
     try:
         # Fetch day bar for expiration date
         from_str = exp_date.strftime("%Y-%m-%d")
-        to_str = (exp_date + timedelta(days=1)).strftime("%Y-%m-%d")
+        to_str = exp_date.strftime("%Y-%m-%d")
         
+        rate_limit_option_request()
         aggs = list(client.list_aggs(
             ticker=underlying_sym,
             multiplier=1,
@@ -3305,6 +3350,13 @@ def run_backtest(config: Dict, client: RESTClient):
         datetime.strptime(config['start_date'], "%Y-%m-%d"),
         latest_exp,
         1  # Always 1-minute for entry
+    )
+    
+    print(f"\nFetching {config['symbol']} daily closes for expiration pricing...")
+    underlying_daily_closes = get_daily_closes_for_period(
+        client, underlying_sym,
+        datetime.strptime(config['start_date'], "%Y-%m-%d"),
+        latest_exp
     )
     
     # Monitoring uses detection_bar_size
@@ -3913,7 +3965,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 if exit_hit:
                     # Get timestamp and underlying price at exit
                     underlying_bars_mon = underlying_bars_detection.get(mon_date_str, [])
-                    exit_underlying_price = underlying_price  # Default to entry price
+                    exit_underlying_price = None
                 
                     # Find the exit bar in aligned_bars to get timestamp
                     for bar in aligned_bars:
@@ -3945,7 +3997,13 @@ def run_backtest(config: Dict, client: RESTClient):
                             exit_underlying_price = closest_bar.get('vw', closest_bar['close'])
                             print(f"  ⚠ Exit underlying: {exit_underlying_price:.2f} (nearest bar, delta: {min_diff/1000:.0f}s)")
                         else:
-                            print(f"  ⚠ No underlying bars found, using entry price: {exit_underlying_price:.2f}")
+                            print(f"  ⚠ No underlying bars found for exit time")
+                    if exit_underlying_price is None:
+                        exit_underlying_price = get_cached_underlying_close(
+                            underlying_daily_closes,
+                            underlying_bars_detection,
+                            monitoring_date
+                        )
                     break
         
             # Calculate P&L
@@ -3958,25 +4016,22 @@ def run_backtest(config: Dict, client: RESTClient):
                 exit_time = "16:00"
                 exit_timestamp = 0
             
-                # Get underlying price at expiration using day bar (official close)
-                underlying_sym = f"I:{config['symbol']}" if config['symbol'] == "SPX" else config['symbol']
-                expiration_underlying_price = get_underlying_close_at_expiration(
-                    client, underlying_sym, monitoring_exp
+                expiration_underlying_price = get_cached_underlying_close(
+                    underlying_daily_closes,
+                    underlying_bars_detection,
+                    monitoring_exp
                 )
             
                 if expiration_underlying_price is None:
-                    # Fallback: try last available detection bar
-                    mon_exp_str = monitoring_exp.strftime("%Y-%m-%d")
-                    exp_underlying_bars = underlying_bars_detection.get(mon_exp_str, [])
-                
-                    if exp_underlying_bars:
-                        last_bar = max(exp_underlying_bars, key=lambda x: x['time'])
-                        expiration_underlying_price = last_bar['close']
-                        print(f"  Warning: Using detection bar close (day bar unavailable)")
-                    else:
-                        # Last resort: use entry price
-                        expiration_underlying_price = underlying_price
-                        print(f"  Warning: No expiration data available, using entry price")
+                    underlying_sym = f"I:{config['symbol']}" if config['symbol'] == "SPX" else config['symbol']
+                    expiration_underlying_price = get_underlying_close_at_expiration(
+                        client, underlying_sym, monitoring_exp
+                    )
+            
+                if expiration_underlying_price is None:
+                    raise ValueError(
+                        f"No underlying expiration close available for {config['symbol']} on {monitoring_exp.strftime('%Y-%m-%d')}"
+                    )
             
                 # Set exit underlying price to expiration price
                 exit_underlying_price = expiration_underlying_price
@@ -4553,7 +4608,7 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
                 'exit_date': trade['exit_date'],
                 'exit_time': trade['exit_time'],
                 'exit_timestamp': trade['exit_timestamp'],
-                'underlying_exit_price': f"{trade['underlying_exit_price']:.2f}",
+                'underlying_exit_price': f"{trade['underlying_exit_price']:.2f}" if trade.get('underlying_exit_price') is not None else '',
                 'strategy': trade['strategy'],
                 'num_contracts': trade['num_contracts'],
                 'net_premium_entry': f"{trade['net_premium_entry']:.4f}",

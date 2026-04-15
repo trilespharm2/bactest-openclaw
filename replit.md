@@ -90,3 +90,4 @@ The architecture employs a Wrapper Pattern for API-to-engine communication, Lazy
 - The app runs as a Flask/Gunicorn web service on port 5000 in Replit.
 - Development defaults to the local SQLite database path when `DATABASE_URL` is not provided.
 - Demo/test accounts are no longer seeded automatically; set `SEED_TEST_ACCOUNTS=1` only when that behavior is intentionally needed.
+- Options backtests now prefetch underlying daily closes for expiration pricing and no longer use the entry price as a silent fallback when expiration close data is unavailable.
