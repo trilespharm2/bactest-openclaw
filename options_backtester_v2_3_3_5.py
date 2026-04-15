@@ -1730,8 +1730,11 @@ def get_daily_closes_for_period(client: RESTClient, symbol: str, start_date: dat
     from_str = start_date.strftime("%Y-%m-%d")
     to_str = end_date.strftime("%Y-%m-%d")
     
+    # Do NOT call rate_limit_option_request() here — this is a plain stock/index
+    # daily bar fetch, not an option contract request. Applying the option rate
+    # limiter here was incorrectly counting it against the 4-calls/min option budget
+    # and adding unnecessary latency.
     try:
-        rate_limit_option_request()
         aggs = list(client.list_aggs(
             ticker=symbol,
             multiplier=1,
