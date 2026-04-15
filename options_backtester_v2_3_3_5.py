@@ -3381,6 +3381,10 @@ def run_backtest(config: Dict, client: RESTClient):
             detection_seconds,
             timespan="second"
         )
+    elif int(config['detection_bar_size']) == 1:
+        # 1-minute monitoring is identical to the entry data already fetched — reuse it
+        print(f"\nReusing 1-minute entry data for monitoring (no extra API call needed).")
+        underlying_bars_detection = underlying_bars_1min
     else:
         # Use minutes
         print(f"\nFetching {config['symbol']} {config['detection_bar_size']}-minute data for monitoring...")
