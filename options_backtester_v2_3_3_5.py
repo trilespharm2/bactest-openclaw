@@ -1607,6 +1607,28 @@ def find_nearest_available_strike(client: RESTClient, underlying: str, exp_date:
 
 # ==================== DATA FETCHING ====================
 
+def fetch_aggs_with_retry(client: RESTClient, max_retries: int = 5, **kwargs) -> list:
+    """
+    Call client.list_aggs with exponential-backoff retry on 429 responses.
+    Underlying stock/index bar fetches can hit burst limits even on unlimited plans
+    when multiple paginated requests are fired in quick succession.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            return list(client.list_aggs(**kwargs))
+        except Exception as e:
+            err = str(e).lower()
+            if "429" in err or "too many" in err or "rate" in err:
+                wait = 15 * attempt  # 15 s, 30 s, 45 s …
+                print(f"  [429] Rate-limited by Polygon (attempt {attempt}/{max_retries}). "
+                      f"Waiting {wait}s before retry...", flush=True)
+                time.sleep(wait)
+            else:
+                raise  # Non-429 error — propagate immediately
+    raise RuntimeError(f"fetch_aggs_with_retry: still getting 429 after {max_retries} attempts "
+                       f"for ticker={kwargs.get('ticker')}")
+
+
 def get_bars_for_period(client: RESTClient, symbol: str, start_date: datetime, 
                         end_date: datetime, multiplier: int, timespan: str = "minute") -> Dict:
     """Get bars for a symbol over a date range"""
@@ -1618,7 +1640,8 @@ def get_bars_for_period(client: RESTClient, symbol: str, start_date: datetime,
         rate_limit_option_request()
     
     try:
-        aggs = list(client.list_aggs(
+        aggs = fetch_aggs_with_retry(
+            client,
             ticker=symbol,
             multiplier=multiplier,
             timespan=timespan,
@@ -1627,7 +1650,7 @@ def get_bars_for_period(client: RESTClient, symbol: str, start_date: datetime,
             adjusted="true",
             sort="asc",
             limit=50000
-        ))
+        )
         
         if not aggs:
             return {}
@@ -1710,12 +1733,9 @@ def get_daily_closes_for_period(client: RESTClient, symbol: str, start_date: dat
     from_str = start_date.strftime("%Y-%m-%d")
     to_str = end_date.strftime("%Y-%m-%d")
     
-    # Do NOT call rate_limit_option_request() here — this is a plain stock/index
-    # daily bar fetch, not an option contract request. Applying the option rate
-    # limiter here was incorrectly counting it against the 4-calls/min option budget
-    # and adding unnecessary latency.
     try:
-        aggs = list(client.list_aggs(
+        aggs = fetch_aggs_with_retry(
+            client,
             ticker=symbol,
             multiplier=1,
             timespan="day",
@@ -1724,7 +1744,7 @@ def get_daily_closes_for_period(client: RESTClient, symbol: str, start_date: dat
             adjusted="true",
             sort="asc",
             limit=50000
-        ))
+        )
         
         closes = {}
         eastern = pytz.timezone('US/Eastern')
@@ -3166,8 +3186,8 @@ def get_underlying_close_at_expiration(client: RESTClient, underlying_sym: str,
         from_str = exp_date.strftime("%Y-%m-%d")
         to_str = exp_date.strftime("%Y-%m-%d")
         
-        rate_limit_option_request()
-        aggs = list(client.list_aggs(
+        aggs = fetch_aggs_with_retry(
+            client,
             ticker=underlying_sym,
             multiplier=1,
             timespan="day",
@@ -3176,7 +3196,7 @@ def get_underlying_close_at_expiration(client: RESTClient, underlying_sym: str,
             adjusted="true",
             sort="asc",
             limit=1
-        ))
+        )
         
         if aggs:
             return aggs[0].close
