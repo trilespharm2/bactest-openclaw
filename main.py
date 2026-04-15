@@ -448,7 +448,27 @@ def initialize_app_runtime(enable_scheduler=False):
     }
 
 
+def cleanup_orphaned_backtests():
+    """
+    Any backtest left in 'running' status when the app starts was killed mid-run
+    (e.g. by a restart or crash). Mark them as failed so the UI doesn't show
+    them as permanently pending.
+    """
+    with app.app_context():
+        try:
+            result = db.session.execute(
+                text("UPDATE backtest_results SET status='error' WHERE status='running'")
+            )
+            if result.rowcount:
+                print(f"  ⚠ Marked {result.rowcount} orphaned backtest(s) as failed (process was killed)")
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"  Warning: could not clean up orphaned backtests: {e}")
+
+
 ensure_database_schema()
+cleanup_orphaned_backtests()
 bootstrap_admin_user()
 seed_test_accounts()
 
@@ -7750,6 +7770,7 @@ start_dashboard_cache()
 
 # Bootstrap admin user and ensure schema for gunicorn/wsgi
 ensure_database_schema()
+cleanup_orphaned_backtests()
 bootstrap_admin_user()
 seed_test_accounts()
 
