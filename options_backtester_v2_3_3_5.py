@@ -226,28 +226,8 @@ _options_chain_cache = {}  # Cache options chains to avoid repeated API calls
 # ==================== RATE LIMITING ====================
 
 def rate_limit_option_request():
-    """Implement rate limiting for option API requests - adds delay between requests"""
-    global _option_request_count, _last_option_request_time
-    
-    current_time = time.time()
-    
-    # Add delay between each request to prevent 429 errors
-    time_since_last = current_time - _last_option_request_time
-    if time_since_last < 0.5:  # Minimum 500ms between requests
-        time.sleep(0.5 - time_since_last)
-    
-    if current_time - _last_option_request_time > 60:
-        _option_request_count = 0
-    
-    if _option_request_count >= OPTION_REQUESTS_PER_MINUTE:
-        wait_time = 60 - (current_time - _last_option_request_time)
-        if wait_time > 0:
-            print(f"  [Rate limit: waiting {wait_time:.1f}s]")
-            time.sleep(wait_time)
-            _option_request_count = 0
-    
-    _last_option_request_time = time.time()
-    _option_request_count += 1
+    """No-op: unlimited API calls available on current Polygon plan."""
+    pass
 
 # ==================== PRICE CONDITIONS EVALUATION ====================
 
