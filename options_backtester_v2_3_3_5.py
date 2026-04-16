@@ -3792,7 +3792,24 @@ def run_backtest(config: Dict, client: RESTClient):
                     max_val = params['max']
                     if not (min_val <= entry_price <= max_val):
                         print(f"  {leg['symbol']} price {entry_price:.2f} outside range [{min_val}, {max_val}]")
+                        leg['entry_price'] = None
                         break
+
+                # Validate actual delta against configured range (for delta-based 'between' legs)
+                if config_type == 'delta' and params.get('method') == 'between' and leg.get('delta') is not None:
+                    try:
+                        d_min = params.get('delta_min')
+                        d_max = params.get('delta_max')
+                        if d_min is not None and d_max is not None:
+                            d_min = float(d_min)
+                            d_max = float(d_max)
+                            actual_delta = leg['delta']
+                            if not (d_min <= actual_delta <= d_max):
+                                print(f"  ⚠ {leg['name']}: Actual entry delta {actual_delta:.4f} outside configured range [{d_min}, {d_max}], skipping trade")
+                                leg['entry_price'] = None
+                                break
+                    except (ValueError, TypeError):
+                        pass
         
             # Check if all legs priced successfully
             if any(leg['entry_price'] is None for leg in legs_info):
