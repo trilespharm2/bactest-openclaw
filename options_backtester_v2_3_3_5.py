@@ -223,6 +223,25 @@ _option_request_count = 0
 _last_option_request_time = 0
 _options_chain_cache = {}  # Cache options chains to avoid repeated API calls
 
+# Map config symbols to Polygon's bar-data ticker format.
+# Indices require the "I:" prefix; SPXW options share the SPX cash index.
+_INDEX_TICKER_MAP = {
+    "SPX":  "I:SPX",
+    "SPXW": "I:SPX",   # SPXW are weekly SPX options; underlying is SPX cash index
+    "NDX":  "I:NDX",
+    "RUT":  "I:RUT",
+    "XSP":  "I:XSP",
+}
+
+def get_underlying_ticker(symbol: str) -> str:
+    """Return the Polygon bar-data ticker for the given config symbol.
+
+    Index symbols need the 'I:' prefix (e.g. 'I:SPX').
+    SPXW shares the SPX cash index so it maps to 'I:SPX'.
+    All other symbols (SPY, QQQ, AAPL …) are returned unchanged.
+    """
+    return _INDEX_TICKER_MAP.get(symbol.upper(), symbol)
+
 # ==================== RATE LIMITING ====================
 
 def rate_limit_option_request():
@@ -353,7 +372,7 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
         return True, ""  # No conditions = always pass
     
     symbol = config['symbol']
-    underlying_sym = f"I:{symbol}" if symbol == "SPX" else symbol
+    underlying_sym = get_underlying_ticker(symbol)
     
     for idx, condition in enumerate(price_conditions):
         try:
@@ -436,7 +455,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     
     api_key = config.get('api_key') or os.environ.get('POLYGON_API_KEY') or API_KEY
     symbol = config['symbol']
-    underlying_sym = f"I:{symbol}" if symbol == "SPX" else symbol
+    underlying_sym = get_underlying_ticker(symbol)
     price_conditions = config.get('price_conditions', [])
     exit_price_conditions = config.get('exit_price_conditions', [])
     all_conditions = list(price_conditions) + list(exit_price_conditions)
@@ -3344,7 +3363,7 @@ def run_backtest(config: Dict, client: RESTClient):
         return [], [config['starting_capital']], []
     
     # Fetch underlying data
-    underlying_sym = f"I:{config['symbol']}" if config['symbol'] == "SPX" else config['symbol']
+    underlying_sym = get_underlying_ticker(config['symbol'])
     
     # Index options (SPX, SPXW, XSP, NDX, RUT) expire at 16:00 using intrinsic value.
     # Stock options (SPY, QQQ, AAPL, etc.) expire at 16:15 using the last traded market price.
@@ -4030,7 +4049,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 )
             
                 if expiration_underlying_price is None:
-                    underlying_sym = f"I:{config['symbol']}" if config['symbol'] == "SPX" else config['symbol']
+                    underlying_sym = get_underlying_ticker(config['symbol'])
                     expiration_underlying_price = get_underlying_close_at_expiration(
                         client, underlying_sym, monitoring_exp
                     )
