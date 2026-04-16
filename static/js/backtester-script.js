@@ -2317,17 +2317,20 @@ function validateStrikeConfiguration(strategy, legs) {
 
             if (longPut && shortPut) {
                 if (canCompare(longPut, shortPut)) {
-                    if (getRelativeStrike(longPut) >= getRelativeStrike(shortPut)) {
-                        return { valid: false, error: `Long Put Spread: Long Put must be BELOW Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
+                    // Long Put must be closer to ATM (higher strike) than Short Put
+                    if (getRelativeStrike(longPut) <= getRelativeStrike(shortPut)) {
+                        return { valid: false, error: `Long Put Spread: Long Put must be ABOVE Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
                     }
                 }
+                // Long Put configured as below Short Put via leg reference — invalid
                 const lpToSp = getLegToLegRelation(longPut, shortPut);
-                if (lpToSp === 'above') {
-                    return { valid: false, error: `Long Put Spread: Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                if (lpToSp === 'below') {
+                    return { valid: false, error: `Long Put Spread: Long Put is set BELOW Short Put (${legDesc(longPut)}), but Long Put must be ABOVE Short Put.` };
                 }
+                // Short Put configured as above Long Put via leg reference — invalid
                 const spToLp = getLegToLegRelation(shortPut, longPut);
-                if (spToLp === 'below') {
-                    return { valid: false, error: `Long Put Spread: Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
+                if (spToLp === 'above') {
+                    return { valid: false, error: `Long Put Spread: Short Put is set ABOVE Long Put (${legDesc(shortPut)}), but Short Put must be BELOW Long Put.` };
                 }
             }
 
