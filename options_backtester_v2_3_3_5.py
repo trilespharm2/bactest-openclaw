@@ -3689,30 +3689,23 @@ def run_backtest(config: Dict, client: RESTClient):
                 decision_log.append(day_entry)
                 continue
         
-            # Filter for timestamps >= entry time (in US/Eastern)
+            # Filter for timestamps that fall within the exact entry minute
             eastern = pytz.timezone('US/Eastern')
             entry_dt_est = eastern.localize(datetime.strptime(f"{date_str} {entry_time}", "%Y-%m-%d %H:%M"))
             entry_timestamp_cutoff = int(entry_dt_est.timestamp() * 1000)
-            valid_timestamps = sorted([ts for ts in common_timestamps if ts >= entry_timestamp_cutoff])
-        
+            entry_timestamp_ceiling = entry_timestamp_cutoff + 60_000  # end of that 1-minute bar
+            valid_timestamps = sorted([
+                ts for ts in common_timestamps
+                if entry_timestamp_cutoff <= ts < entry_timestamp_ceiling
+            ])
+
             if len(valid_timestamps) < 1:
-                print(f"  Skipping - need at least 1 common timestamp >= entry time")
-                day_entry['events'].append({'type': 'skip', 'reason': 'No common timestamps at or after entry time'})
+                print(f"  Skipping - no common option bar at exactly {entry_time}")
+                day_entry['events'].append({'type': 'skip', 'reason': f'No common option bar at entry time {entry_time}'})
                 decision_log.append(day_entry)
                 continue
-        
-            # For 0-DTE, use first timestamp (market closes soon)
-            # For DTE > 0, use 2nd timestamp (ensures active trading)
-            effective_dte = min((leg.get('dte', config['dte']) for leg in config['legs']), default=config['dte']) if has_per_leg_dte else config['dte']
-            if effective_dte == 0:
-                entry_timestamp = valid_timestamps[0]
-            else:
-                if len(valid_timestamps) < 2:
-                    print(f"  Skipping - need 2 consecutive timestamps for DTE > 0")
-                    day_entry['events'].append({'type': 'skip', 'reason': 'Need 2 consecutive timestamps for DTE > 0'})
-                    decision_log.append(day_entry)
-                    continue
-                entry_timestamp = valid_timestamps[1]
+
+            entry_timestamp = valid_timestamps[0]
         
             # Update entry_time to match the actual entry_timestamp
             # Convert UTC timestamp to US/Eastern timezone (market hours)
@@ -3726,8 +3719,8 @@ def run_backtest(config: Dict, client: RESTClient):
                 bars_dict = {bar['timestamp']: bar for bar in all_leg_bars[i]}
                 entry_bar = bars_dict[entry_timestamp]
             
-                # Use VWAP for entry price
-                entry_price = entry_bar.get('vw', entry_bar['close'])
+                # Use open price at entry bar (same basis as underlying_price)
+                entry_price = entry_bar['open']
                 leg['entry_price'] = entry_price
                 
                 # Calculate Greeks at entry
