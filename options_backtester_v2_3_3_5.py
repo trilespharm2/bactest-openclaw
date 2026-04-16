@@ -3821,7 +3821,14 @@ def run_backtest(config: Dict, client: RESTClient):
             # Calculate position metrics
             net_credit = sum(leg['entry_price'] if leg['position'] == 'short' else -leg['entry_price'] 
                             for leg in legs_info)
-        
+
+            # Skip trades with zero net premium — no meaningful trade to evaluate
+            if net_credit == 0:
+                print(f"  ❌ SKIPPING - Net premium is $0.00 (no tradeable premium)")
+                day_entry['events'].append({'type': 'skip', 'reason': 'Net premium is $0.00'})
+                decision_log.append(day_entry)
+                continue
+
             # Check net premium filter
             min_premium = config.get('net_premium_min')
             max_premium = config.get('net_premium_max')
