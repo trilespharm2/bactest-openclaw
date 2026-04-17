@@ -2805,8 +2805,8 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             aggs = []
             for a in client.list_aggs(
                 symbol,
-                1,
-                "minute",
+                10,
+                "second",
                 trade_date.strftime("%Y-%m-%d"),
                 leg_exp.strftime("%Y-%m-%d"),
                 adjusted="true",
@@ -2817,7 +2817,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             
             if len(aggs) > 0:
                 option_data[symbol] = aggs
-                print(f"  ✓ {symbol}: {len(aggs)} bars")
+                print(f"  ✓ {symbol}: {len(aggs)} 10-sec bars")
             else:
                 missing_indices.append(i)
                 print(f"  ✗ {symbol}: No OHLCV data")
@@ -2898,8 +2898,8 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             aggs = []
             for a in client.list_aggs(
                 adjusted_symbol,
-                1,
-                "minute",
+                10,
+                "second",
                 trade_date.strftime("%Y-%m-%d"),
                 leg_exp.strftime("%Y-%m-%d"),
                 adjusted="true",
@@ -2910,7 +2910,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             
             if len(aggs) > 0:
                 option_data[adjusted_symbol] = aggs
-                print(f"  ✓ {adjusted_symbol}: {len(aggs)} bars")
+                print(f"  ✓ {adjusted_symbol}: {len(aggs)} 10-sec bars")
             else:
                 print(f"  ✗ {adjusted_symbol}: Still no OHLCV data")
                 return False, [], []  # SKIP TRADE
@@ -3629,57 +3629,22 @@ def run_backtest(config: Dict, client: RESTClient):
                         'date': date_key,
                         'datetime': dt,
                         'timestamp': agg.timestamp,
-                        'time': dt.strftime("%H:%M"),
+                        'time': dt.strftime("%H:%M:%S"),  # HH:MM:SS for 10-sec resolution
                         'open': agg.open,
                         'high': agg.high,
                         'low': agg.low,
                         'close': agg.close,
                         'volume': getattr(agg, 'volume', 0),
-                        'vw': getattr(agg, 'vwap', agg.close)  # Use VWAP if available
+                        'vw': getattr(agg, 'vwap', agg.close)
                     }
                     bars_dict[date_key].append(bar)
             
+                # All three caches share the same 10-sec bar data — no second API call needed
                 option_cache_1min[symbol] = bars_dict
-
-                # Fetch 10-second bars for precise entry pricing and TP/SL monitoring
-                rate_limit_option_request()
-                try:
-                    from_str_10sec = trade_date.strftime("%Y-%m-%d")
-                    to_str_10sec   = (exp_date + timedelta(days=1)).strftime("%Y-%m-%d")
-                    aggs_10sec = fetch_aggs_with_retry(
-                        client, ticker=symbol, multiplier=10, timespan='second',
-                        from_=from_str_10sec, to=to_str_10sec,
-                        adjusted="true", sort="asc", limit=50000
-                    )
-                    if aggs_10sec:
-                        bd10 = {}
-                        for agg in aggs_10sec:
-                            dt = datetime.fromtimestamp(agg.timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
-                            h, m = dt.hour, dt.minute
-                            if not (9*60+30 <= h*60+m <= 16*60+15):
-                                continue
-                            dk = dt.strftime("%Y-%m-%d")
-                            if dk not in bd10:
-                                bd10[dk] = []
-                            bd10[dk].append({
-                                'date': dk, 'datetime': dt, 'timestamp': agg.timestamp,
-                                'time': dt.strftime("%H:%M:%S"),
-                                'open': agg.open, 'high': agg.high, 'low': agg.low,
-                                'close': agg.close, 'volume': getattr(agg, 'volume', 0),
-                                'vw': getattr(agg, 'vwap', agg.close)
-                            })
-                        option_cache_10sec[symbol] = bd10
-                        option_cache_detection[symbol] = bd10
-                        total_bars_10sec = sum(len(v) for v in bd10.values())
-                        print(f"  [10sec] {symbol}: cached {total_bars_10sec} 10-sec bars across {len(bd10)} day(s)")
-                    else:
-                        option_cache_10sec[symbol] = {}
-                        option_cache_detection[symbol] = bars_dict  # fallback to 1-min
-                        print(f"  [10sec] No 10-sec data for {symbol}, using 1-min fallback")
-                except Exception as e_10sec:
-                    print(f"  ⚠ 10-sec fetch failed for {symbol}: {e_10sec}")
-                    option_cache_10sec[symbol] = {}
-                    option_cache_detection[symbol] = bars_dict  # fallback to 1-min
+                option_cache_10sec[symbol] = bars_dict
+                option_cache_detection[symbol] = bars_dict
+                total_10sec = sum(len(v) for v in bars_dict.values())
+                print(f"  [10sec] {symbol}: {total_10sec} bars across {len(bars_dict)} day(s)")
         
             # Build legs_info from fetched data
             legs_info = []
@@ -3778,10 +3743,11 @@ def run_backtest(config: Dict, client: RESTClient):
                 symbol_i = leg['symbol']
                 bars_10sec_today = option_cache_10sec.get(symbol_i, {}).get(date_str, [])
 
-                # First 3 × 10-sec bars whose timestamp falls inside the entry minute
+                # First 3 × 10-sec bars AFTER the entry-minute open bar (:10, :20, :30).
+                # Strictly greater-than so the :00 bar (minute open) is excluded.
                 window_bars = sorted(
                     [b for b in bars_10sec_today
-                     if entry_timestamp <= b['timestamp'] < entry_timestamp + 60_000],
+                     if entry_timestamp < b['timestamp'] < entry_timestamp + 60_000],
                     key=lambda x: x['timestamp']
                 )[:3]
 
