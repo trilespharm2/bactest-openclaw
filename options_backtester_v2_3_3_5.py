@@ -3658,11 +3658,13 @@ def run_backtest(config: Dict, client: RESTClient):
                     'name': leg_data['name']
                 })
         
-            # NOW: Find common timestamps and get entry prices at SAME moment
-            # This prevents negative net premium from timing mismatches
-            print(f"  Finding common entry timestamp for all {len(legs_info)} legs...")
-        
-            # Get 1-min bars for all legs on entry date
+            # Find the entry minute by matching at MINUTE granularity across all legs.
+            # 10-sec bars from illiquid options rarely share an exact 10-sec timestamp,
+            # so we match at the minute level (a minute is "available" if the leg has
+            # at least one 10-sec bar anywhere inside it). This mirrors the old 1-min
+            # behaviour while keeping 10-sec precision for pricing.
+            print(f"  Finding common entry minute for all {len(legs_info)} legs...")
+
             all_leg_bars = []
             for leg in legs_info:
                 leg_bars = option_cache_1min[leg['symbol']].get(date_str, [])
@@ -3670,70 +3672,58 @@ def run_backtest(config: Dict, client: RESTClient):
                     print(f"  No bars for {leg['symbol']} on entry date")
                     break
                 all_leg_bars.append(leg_bars)
-        
+
             if len(all_leg_bars) != len(legs_info):
                 print(f"  Skipping - missing bars for some legs")
                 day_entry['events'].append({'type': 'skip', 'reason': 'Missing option bars for some legs on entry date'})
                 decision_log.append(day_entry)
                 continue
-        
-            # Find common timestamps across ALL legs
-            timestamp_sets = [set(bar['timestamp'] for bar in bars) for bars in all_leg_bars]
-            common_timestamps = set.intersection(*timestamp_sets)
-        
-            if not common_timestamps:
-                print(f"  Skipping - no common timestamps across all legs")
-                day_entry['events'].append({'type': 'skip', 'reason': 'No common timestamps across all option legs'})
+
+            # Build per-leg minute sets (HH:MM) from their 10-sec bars
+            minute_sets = [set(b['time'][:5] for b in bars) for bars in all_leg_bars]
+            common_minutes = set.intersection(*minute_sets) if minute_sets else set()
+
+            if not common_minutes:
+                print(f"  Skipping - no common minute across all legs")
+                day_entry['events'].append({'type': 'skip', 'reason': 'No common minute across all option legs'})
                 decision_log.append(day_entry)
                 continue
-        
-            # Filter for the first common option bar within the valid entry window.
-            # - Single fixed time (no window): require bar at exactly that minute.
-            # - Time window: scan forward through the window minute by minute.
+
+            # Filter to the configured entry window
             eastern = pytz.timezone('US/Eastern')
-            entry_dt_est = eastern.localize(datetime.strptime(f"{date_str} {entry_time}", "%Y-%m-%d %H:%M"))
-            entry_timestamp_cutoff = int(entry_dt_est.timestamp() * 1000)
-
             has_entry_window = entry_time_start != entry_time_end
-            if has_entry_window:
-                # Window mode: accept any common bar from entry_time up to entry_time_end (inclusive)
-                window_end_dt = eastern.localize(datetime.strptime(f"{date_str} {entry_time_end}", "%Y-%m-%d %H:%M"))
-                entry_timestamp_ceiling = int(window_end_dt.timestamp() * 1000) + 60_000
-            else:
-                # Single fixed time: require bar to fall within this exact minute only
-                entry_timestamp_ceiling = entry_timestamp_cutoff + 60_000
+            window_start = entry_time_start if has_entry_window else entry_time
+            window_end   = entry_time_end   if has_entry_window else entry_time
 
-            valid_timestamps = sorted([
-                ts for ts in common_timestamps
-                if entry_timestamp_cutoff <= ts < entry_timestamp_ceiling
-            ])
+            valid_minutes = sorted([m for m in common_minutes if window_start <= m <= window_end])
 
-            if len(valid_timestamps) < 1:
-                reason = (f'No common option bar found in window {entry_time_start}–{entry_time_end}'
-                          if has_entry_window else f'No common option bar at entry time {entry_time}')
+            if not valid_minutes:
+                reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
+                          if has_entry_window else f'No common option minute at {entry_time}')
                 print(f"  Skipping - {reason}")
                 day_entry['events'].append({'type': 'skip', 'reason': reason})
                 decision_log.append(day_entry)
                 continue
 
-            entry_timestamp = valid_timestamps[0]
+            common_minute = valid_minutes[0]
 
-            # If the option bar landed at a later minute than the underlying entry bar,
-            # update underlying_price to the open of that actual minute's underlying bar.
-            actual_entry_dt = datetime.fromtimestamp(entry_timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
-            actual_entry_time_str = actual_entry_dt.strftime("%H:%M")
-            if actual_entry_time_str != entry_time:
+            # Compute entry_timestamp as the :00 boundary of the chosen minute.
+            # Pricing uses bars strictly AFTER this (i.e. :10, :20, :30 within the minute).
+            entry_dt_est = eastern.localize(
+                datetime.strptime(f"{date_str} {common_minute}:00", "%Y-%m-%d %H:%M:%S")
+            )
+            entry_timestamp = int(entry_dt_est.timestamp() * 1000)
+
+            # If the common minute is later than the configured entry time,
+            # sync underlying_price to that minute's open.
+            if common_minute != entry_time:
                 bars_1min_dict = {bar['time']: bar for bar in bars_1min_today}
-                matched_bar = bars_1min_dict.get(actual_entry_time_str)
+                matched_bar = bars_1min_dict.get(common_minute)
                 if matched_bar:
                     underlying_price = matched_bar['open']
-                    print(f"  ↳ Option bar found at {actual_entry_time_str} (not {entry_time}); underlying price updated to {underlying_price:.2f}")
-        
-            # Update entry_time to match the actual entry_timestamp
-            # Convert UTC timestamp to US/Eastern timezone (market hours)
-            eastern = pytz.timezone('US/Eastern')
-            entry_datetime = datetime.fromtimestamp(entry_timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
-            entry_time = entry_datetime.strftime("%H:%M")
+                    print(f"  ↳ First common minute is {common_minute} (not {entry_time}); underlying updated to {underlying_price:.2f}")
+
+            entry_time = common_minute
         
             # Get entry prices using first 3 consecutive 10-sec bars at the entry minute.
             # Short (credit) legs → LOWEST price across the 3 bars (conservative: least credit).
@@ -3760,11 +3750,17 @@ def run_backtest(config: Dict, client: RESTClient):
                     fill_tag = 'min' if leg['position'] == 'short' else 'max'
                     print(f"  [{leg['name']}] 10-sec entry ({len(window_bars)} bars, {fill_tag}): ${entry_price:.4f}")
                 else:
-                    # Fallback to 1-min bar open
-                    bars_dict_1min = {bar['timestamp']: bar for bar in all_leg_bars[i]}
-                    entry_bar = bars_dict_1min.get(entry_timestamp)
-                    entry_price = entry_bar['open'] if entry_bar else 0.0
-                    print(f"  [{leg['name']}] Fallback to 1-min open: ${entry_price:.4f}")
+                    # No bars strictly after :00 — use the first available 10-sec bar in the minute
+                    first_bars_in_min = sorted(
+                        [b for b in bars_10sec_today if b['time'][:5] == common_minute],
+                        key=lambda x: x['timestamp']
+                    )
+                    if first_bars_in_min:
+                        entry_price = first_bars_in_min[0]['close']
+                        print(f"  [{leg['name']}] First 10-sec bar in {common_minute}: ${entry_price:.4f}")
+                    else:
+                        entry_price = 0.0
+                        print(f"  [{leg['name']}] No 10-sec bars found for minute {common_minute}")
 
                 leg['entry_price'] = entry_price
                 
