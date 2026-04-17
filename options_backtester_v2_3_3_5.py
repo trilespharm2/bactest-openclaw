@@ -3420,6 +3420,7 @@ def run_backtest(config: Dict, client: RESTClient):
     trades = []
     option_cache_1min = {}
     option_cache_detection = {}
+    option_cache_10sec = {}  # 10-second option bars for precise entry pricing and TP/SL monitoring
     
     price_conditions = config.get('price_conditions', [])
     exit_price_conditions = config.get('exit_price_conditions', [])
@@ -3639,14 +3640,46 @@ def run_backtest(config: Dict, client: RESTClient):
                     bars_dict[date_key].append(bar)
             
                 option_cache_1min[symbol] = bars_dict
-            
-                # For 1-minute or sub-minute detection, use same data
-                # For larger intervals, we'd need to resample (TODO for optimization)
-                if config['detection_bar_size'] <= 1:
-                    option_cache_detection[symbol] = bars_dict
-                else:
-                    # TODO: Could fetch detection bar data separately if needed
-                    option_cache_detection[symbol] = bars_dict
+
+                # Fetch 10-second bars for precise entry pricing and TP/SL monitoring
+                rate_limit_option_request()
+                try:
+                    from_str_10sec = trade_date.strftime("%Y-%m-%d")
+                    to_str_10sec   = (exp_date + timedelta(days=1)).strftime("%Y-%m-%d")
+                    aggs_10sec = fetch_aggs_with_retry(
+                        client, ticker=symbol, multiplier=10, timespan='second',
+                        from_=from_str_10sec, to=to_str_10sec,
+                        adjusted="true", sort="asc", limit=50000
+                    )
+                    if aggs_10sec:
+                        bd10 = {}
+                        for agg in aggs_10sec:
+                            dt = datetime.fromtimestamp(agg.timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
+                            h, m = dt.hour, dt.minute
+                            if not (9*60+30 <= h*60+m <= 16*60+15):
+                                continue
+                            dk = dt.strftime("%Y-%m-%d")
+                            if dk not in bd10:
+                                bd10[dk] = []
+                            bd10[dk].append({
+                                'date': dk, 'datetime': dt, 'timestamp': agg.timestamp,
+                                'time': dt.strftime("%H:%M:%S"),
+                                'open': agg.open, 'high': agg.high, 'low': agg.low,
+                                'close': agg.close, 'volume': getattr(agg, 'volume', 0),
+                                'vw': getattr(agg, 'vwap', agg.close)
+                            })
+                        option_cache_10sec[symbol] = bd10
+                        option_cache_detection[symbol] = bd10
+                        total_bars_10sec = sum(len(v) for v in bd10.values())
+                        print(f"  [10sec] {symbol}: cached {total_bars_10sec} 10-sec bars across {len(bd10)} day(s)")
+                    else:
+                        option_cache_10sec[symbol] = {}
+                        option_cache_detection[symbol] = bars_dict  # fallback to 1-min
+                        print(f"  [10sec] No 10-sec data for {symbol}, using 1-min fallback")
+                except Exception as e_10sec:
+                    print(f"  ⚠ 10-sec fetch failed for {symbol}: {e_10sec}")
+                    option_cache_10sec[symbol] = {}
+                    option_cache_detection[symbol] = bars_dict  # fallback to 1-min
         
             # Build legs_info from fetched data
             legs_info = []
@@ -3737,14 +3770,36 @@ def run_backtest(config: Dict, client: RESTClient):
             entry_datetime = datetime.fromtimestamp(entry_timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
             entry_time = entry_datetime.strftime("%H:%M")
         
-            # Get entry prices from THIS timestamp for ALL legs
+            # Get entry prices using first 3 consecutive 10-sec bars at the entry minute.
+            # Short (credit) legs → LOWEST price across the 3 bars (conservative: least credit).
+            # Long (debit) legs  → HIGHEST price across the 3 bars (conservative: most debit).
+            # Falls back to the 1-min bar open if no 10-sec data is available.
             for i, leg in enumerate(legs_info):
-                # Find bar with this timestamp
-                bars_dict = {bar['timestamp']: bar for bar in all_leg_bars[i]}
-                entry_bar = bars_dict[entry_timestamp]
-            
-                # Use open price at entry bar (same basis as underlying_price)
-                entry_price = entry_bar['open']
+                symbol_i = leg['symbol']
+                bars_10sec_today = option_cache_10sec.get(symbol_i, {}).get(date_str, [])
+
+                # First 3 × 10-sec bars whose timestamp falls inside the entry minute
+                window_bars = sorted(
+                    [b for b in bars_10sec_today
+                     if entry_timestamp <= b['timestamp'] < entry_timestamp + 60_000],
+                    key=lambda x: x['timestamp']
+                )[:3]
+
+                if window_bars:
+                    prices = [b['close'] for b in window_bars]
+                    if leg['position'] == 'short':
+                        entry_price = min(prices)   # lowest credit received
+                    else:
+                        entry_price = max(prices)   # highest debit paid
+                    fill_tag = 'min' if leg['position'] == 'short' else 'max'
+                    print(f"  [{leg['name']}] 10-sec entry ({len(window_bars)} bars, {fill_tag}): ${entry_price:.4f}")
+                else:
+                    # Fallback to 1-min bar open
+                    bars_dict_1min = {bar['timestamp']: bar for bar in all_leg_bars[i]}
+                    entry_bar = bars_dict_1min.get(entry_timestamp)
+                    entry_price = entry_bar['open'] if entry_bar else 0.0
+                    print(f"  [{leg['name']}] Fallback to 1-min open: ${entry_price:.4f}")
+
                 leg['entry_price'] = entry_price
                 
                 # Calculate Greeks at entry
@@ -3846,12 +3901,23 @@ def run_backtest(config: Dict, client: RESTClient):
             net_credit = sum(leg['entry_price'] if leg['position'] == 'short' else -leg['entry_price'] 
                             for leg in legs_info)
 
-            # Skip trades with zero net premium — no meaningful trade to evaluate
-            if net_credit == 0:
-                print(f"  ❌ SKIPPING - Net premium is $0.00 (no tradeable premium)")
-                day_entry['events'].append({'type': 'skip', 'reason': 'Net premium is $0.00'})
-                decision_log.append(day_entry)
-                continue
+            # Filter based on expected premium direction for the strategy type.
+            # Credit strategies collect premium  → net_credit must be > 0.
+            # Debit strategies pay premium       → net_credit must be < 0 (net debit).
+            _strat_name_lower = config.get('strategy', '').lower()
+            _is_debit_strat = _strat_name_lower.startswith('long')
+            if _is_debit_strat:
+                if net_credit >= 0:
+                    print(f"  ❌ SKIPPING - Debit strategy but net premium ${net_credit:.4f} >= 0 (no debit paid)")
+                    day_entry['events'].append({'type': 'skip', 'reason': f'Debit strategy with non-negative premium ${net_credit:.4f}'})
+                    decision_log.append(day_entry)
+                    continue
+            else:
+                if net_credit <= 0:
+                    print(f"  ❌ SKIPPING - Credit strategy but net premium ${net_credit:.4f} <= 0 (no credit received)")
+                    day_entry['events'].append({'type': 'skip', 'reason': f'Credit strategy with non-positive premium ${net_credit:.4f}'})
+                    decision_log.append(day_entry)
+                    continue
 
             # Check net premium filter
             min_premium = config.get('net_premium_min')
@@ -3960,9 +4026,10 @@ def run_backtest(config: Dict, client: RESTClient):
                     take_profit_dollar = config.get('take_profit_dollar')
                     stop_loss_pct = config.get('stop_loss_pct')
                     stop_loss_dollar = config.get('stop_loss_dollar')
-                    tp_met_prev = False
-                    sl_met_prev = False
-                    
+                    # TP requires 3 consecutive 10-sec bars meeting the condition.
+                    # SL fires at the first bar where the condition is met.
+                    tp_consecutive_count = 0
+
                     underlying_bars_mon_1min = underlying_bars_1min.get(mon_date_str, []) if has_exit_signal else []
                     _mon_prev_day_bars = []
                     if has_exit_signal:
@@ -3975,7 +4042,10 @@ def run_backtest(config: Dict, client: RESTClient):
                     
                     for abar in aligned_bars:
                         bar_time_str = abar['time']
-                        if is_entry_day and bar_time_str <= entry_time:
+                        # Skip the entry bar and any bars before it.
+                        # Use timestamp comparison so both HH:MM (1-min fallback) and
+                        # HH:MM:SS (10-sec) bar formats work correctly.
+                        if is_entry_day and abar['timestamp'] <= entry_timestamp:
                             continue
                         
                         current_premium = calculate_net_premium(abar, legs_info)
@@ -3996,15 +4066,21 @@ def run_backtest(config: Dict, client: RESTClient):
                         
                         bar_leg_prices = [lp.get('vw', lp['close']) for lp in abar['leg_prices']]
                         
-                        if tp_met and tp_met_prev:
-                            exit_hit = True
-                            exit_reason = "TAKE_PROFIT"
-                            exit_time = bar_time_str
-                            exit_premium = current_premium
-                            exit_leg_prices = bar_leg_prices
-                            break
-                        
-                        if sl_met and sl_met_prev:
+                        # TP: accumulate consecutive bars; exit after 3 in a row
+                        if tp_met:
+                            tp_consecutive_count += 1
+                            if tp_consecutive_count >= 3:
+                                exit_hit = True
+                                exit_reason = "TAKE_PROFIT"
+                                exit_time = bar_time_str
+                                exit_premium = current_premium
+                                exit_leg_prices = bar_leg_prices
+                                break
+                        else:
+                            tp_consecutive_count = 0
+
+                        # SL: close immediately at first bar meeting the condition
+                        if sl_met:
                             exit_hit = True
                             exit_reason = "STOP_LOSS"
                             exit_time = bar_time_str
@@ -4013,9 +4089,11 @@ def run_backtest(config: Dict, client: RESTClient):
                             break
                         
                         if has_exit_signal:
+                            # Truncate to HH:MM so 10-sec bar times match 1-min underlying bars
+                            sig_bar_time = bar_time_str[:5]
                             sig_exit, sig_reason = check_exit_signal_conditions(
                                 config, underlying_bars_mon_1min, _mon_prev_day_bars,
-                                bar_time_str, indicators_cache, monitoring_date
+                                sig_bar_time, indicators_cache, monitoring_date
                             )
                             if sig_exit:
                                 exit_hit = True
@@ -4025,9 +4103,6 @@ def run_backtest(config: Dict, client: RESTClient):
                                 exit_leg_prices = bar_leg_prices
                                 print(f"  🚪 Exit signal triggered @ {bar_time_str}: {sig_reason}")
                                 break
-                        
-                        tp_met_prev = tp_met
-                        sl_met_prev = sl_met
                 
                 if exit_hit:
                     # Get timestamp and underlying price at exit
