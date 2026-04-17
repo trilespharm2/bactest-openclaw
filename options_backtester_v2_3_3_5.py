@@ -3689,23 +3689,47 @@ def run_backtest(config: Dict, client: RESTClient):
                 decision_log.append(day_entry)
                 continue
         
-            # Filter for timestamps that fall within the exact entry minute
+            # Filter for the first common option bar within the valid entry window.
+            # - Single fixed time (no window): require bar at exactly that minute.
+            # - Time window: scan forward through the window minute by minute.
             eastern = pytz.timezone('US/Eastern')
             entry_dt_est = eastern.localize(datetime.strptime(f"{date_str} {entry_time}", "%Y-%m-%d %H:%M"))
             entry_timestamp_cutoff = int(entry_dt_est.timestamp() * 1000)
-            entry_timestamp_ceiling = entry_timestamp_cutoff + 60_000  # end of that 1-minute bar
+
+            has_entry_window = entry_time_start != entry_time_end
+            if has_entry_window:
+                # Window mode: accept any common bar from entry_time up to entry_time_end (inclusive)
+                window_end_dt = eastern.localize(datetime.strptime(f"{date_str} {entry_time_end}", "%Y-%m-%d %H:%M"))
+                entry_timestamp_ceiling = int(window_end_dt.timestamp() * 1000) + 60_000
+            else:
+                # Single fixed time: require bar to fall within this exact minute only
+                entry_timestamp_ceiling = entry_timestamp_cutoff + 60_000
+
             valid_timestamps = sorted([
                 ts for ts in common_timestamps
                 if entry_timestamp_cutoff <= ts < entry_timestamp_ceiling
             ])
 
             if len(valid_timestamps) < 1:
-                print(f"  Skipping - no common option bar at exactly {entry_time}")
-                day_entry['events'].append({'type': 'skip', 'reason': f'No common option bar at entry time {entry_time}'})
+                reason = (f'No common option bar found in window {entry_time_start}–{entry_time_end}'
+                          if has_entry_window else f'No common option bar at entry time {entry_time}')
+                print(f"  Skipping - {reason}")
+                day_entry['events'].append({'type': 'skip', 'reason': reason})
                 decision_log.append(day_entry)
                 continue
 
             entry_timestamp = valid_timestamps[0]
+
+            # If the option bar landed at a later minute than the underlying entry bar,
+            # update underlying_price to the open of that actual minute's underlying bar.
+            actual_entry_dt = datetime.fromtimestamp(entry_timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
+            actual_entry_time_str = actual_entry_dt.strftime("%H:%M")
+            if actual_entry_time_str != entry_time:
+                bars_1min_dict = {bar['time']: bar for bar in bars_1min_today}
+                matched_bar = bars_1min_dict.get(actual_entry_time_str)
+                if matched_bar:
+                    underlying_price = matched_bar['open']
+                    print(f"  ↳ Option bar found at {actual_entry_time_str} (not {entry_time}); underlying price updated to {underlying_price:.2f}")
         
             # Update entry_time to match the actual entry_timestamp
             # Convert UTC timestamp to US/Eastern timezone (market hours)
