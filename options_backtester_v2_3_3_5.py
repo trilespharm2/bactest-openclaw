@@ -4011,6 +4011,12 @@ def run_backtest(config: Dict, client: RESTClient):
                             continue
                         
                         current_premium = calculate_net_premium(abar, legs_info)
+                        # For credit strategies the closing cost cannot be negative —
+                        # VWAP timing differences between legs can momentarily invert
+                        # the spread value. Floor at 0 so realised profit never exceeds
+                        # the original credit received.
+                        if not _is_debit_strat:
+                            current_premium = max(current_premium, 0.0)
                         pnl = net_credit - current_premium
                         pnl_pct = (pnl / abs(net_credit)) * 100 if net_credit != 0 else 0
                         
