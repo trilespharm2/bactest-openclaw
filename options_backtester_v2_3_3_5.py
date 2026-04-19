@@ -2775,7 +2775,65 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     # Add delay after delta-based selection to prevent rate limiting before OHLCV fetch
     if delta_leg_data:
         time.sleep(0.5)  # 500ms delay before OHLCV fetch
-    
+
+    # STEP 1b: Auto-correct strike collisions caused by rounding.
+    # When dollar_underlying amounts are close together (e.g. $4 vs $5 above SPX),
+    # both legs can round to the same 5-pt increment, or the long can land below the
+    # short. Detect and fix this before symbol formatting so no API call is wasted.
+    _sym = config['symbol']
+    _inc = 1 if _sym in ("SPY", "QQQ", "IWM") else 5
+    _strategy = config.get('strategy', '')
+    _is_long_strat = 'Long' in _strategy
+
+    # Gather legs with index so we can patch calculated_strikes in-place
+    _call_legs = [(i, config['legs'][i]) for i in range(len(config['legs']))
+                  if config['legs'][i]['type'] == 'C']
+    _put_legs  = [(i, config['legs'][i]) for i in range(len(config['legs']))
+                  if config['legs'][i]['type'] == 'P']
+
+    def _correct_pair(short_idx, long_idx, option_type):
+        s = calculated_strikes[short_idx]
+        l = calculated_strikes[long_idx]
+        if option_type == 'C':
+            if _is_long_strat:
+                # Long Call Spread: long BELOW short
+                if l >= s:
+                    corrected = s - _inc
+                    print(f"  ⚠ Strike collision ({option_type}): long={l} >= short={s} "
+                          f"→ auto-correcting long to {corrected}")
+                    calculated_strikes[long_idx] = corrected
+            else:
+                # Short Call Spread: long ABOVE short
+                if l <= s:
+                    corrected = s + _inc
+                    print(f"  ⚠ Strike collision ({option_type}): long={l} <= short={s} "
+                          f"→ auto-correcting long to {corrected}")
+                    calculated_strikes[long_idx] = corrected
+        else:  # P
+            if _is_long_strat:
+                # Long Put Spread: long ABOVE short
+                if l <= s:
+                    corrected = s + _inc
+                    print(f"  ⚠ Strike collision ({option_type}): long={l} <= short={s} "
+                          f"→ auto-correcting long to {corrected}")
+                    calculated_strikes[long_idx] = corrected
+            else:
+                # Short Put Spread: long BELOW short
+                if l >= s:
+                    corrected = s - _inc
+                    print(f"  ⚠ Strike collision ({option_type}): long={l} >= short={s} "
+                          f"→ auto-correcting long to {corrected}")
+                    calculated_strikes[long_idx] = corrected
+
+    for _legs_group in (_call_legs, _put_legs):
+        if len(_legs_group) == 2:
+            _shorts = [(i, lc) for i, lc in _legs_group if lc['position'] == 'short']
+            _longs  = [(i, lc) for i, lc in _legs_group if lc['position'] == 'long']
+            if len(_shorts) == 1 and len(_longs) == 1:
+                _s_idx, _s_lc = _shorts[0]
+                _l_idx, _l_lc = _longs[0]
+                _correct_pair(_s_idx, _l_idx, _s_lc['type'])
+
     # STEP 2: Format ALL option symbols (using per-leg exp_date when available)
     option_symbols = []
     leg_exp_dates = []
