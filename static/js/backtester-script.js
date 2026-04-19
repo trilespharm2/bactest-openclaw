@@ -3151,6 +3151,12 @@ function displayResults(result) {
     setTextContent('statTotalPL', formatCurrency(result.total_pnl));
     setTextContent('statAvgWin', formatCurrency(result.avg_win));
     setTextContent('statAvgLoss', formatCurrency(result.avg_loss));
+    const awpcEl = document.getElementById('statAvgWinPerContract');
+    if (awpcEl) awpcEl.textContent = result.avg_win_per_contract != null
+        ? `${formatCurrency(result.avg_win_per_contract)} per contract` : '';
+    const alpcEl = document.getElementById('statAvgLossPerContract');
+    if (alpcEl) alpcEl.textContent = result.avg_loss_per_contract != null && result.avg_loss_per_contract !== 0
+        ? `${formatCurrency(result.avg_loss_per_contract)} per contract` : '';
     setTextContent('statProfitFactor', result.profit_factor ? result.profit_factor.toFixed(2) : 'N/A');
     setTextContent('statMaxDrawdown', result.max_drawdown ? `${result.max_drawdown.toFixed(2)}%` : 'N/A');
     setTextContent('statTotalReturn', result.total_return ? `${result.total_return.toFixed(2)}%` : 'N/A');
@@ -3382,6 +3388,8 @@ async function loadLastBacktestIfExists() {
             total_pnl: lastBacktest.summary.total_pnl,
             avg_win: lastBacktest.summary.avg_win,
             avg_loss: lastBacktest.summary.avg_loss,
+            avg_win_per_contract: lastBacktest.summary.avg_win_per_contract,
+            avg_loss_per_contract: lastBacktest.summary.avg_loss_per_contract,
             profit_factor: lastBacktest.summary.profit_factor,
             max_drawdown: lastBacktest.summary.max_drawdown,
             total_return: lastBacktest.summary.total_return,

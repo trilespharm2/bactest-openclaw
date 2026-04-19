@@ -4125,7 +4125,13 @@ def run_backtester_script(config, api_key):
             win_rate = len(winners) / total_trades * 100 if total_trades > 0 else 0
             avg_win = sum(t['pnl'] for t in winners) / len(winners) if winners else 0
             avg_loss = sum(t['pnl'] for t in losers) / len(losers) if losers else 0
-            
+            avg_win_per_contract = (
+                sum(t['pnl'] / t['num_contracts'] for t in winners) / len(winners)
+            ) if winners else 0
+            avg_loss_per_contract = (
+                sum(t['pnl'] / t['num_contracts'] for t in losers) / len(losers)
+            ) if losers else 0
+
             gross_profit = sum(t['pnl'] for t in winners) if winners else 0
             gross_loss = abs(sum(t['pnl'] for t in losers)) if losers else 0
             profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
@@ -4154,6 +4160,8 @@ def run_backtester_script(config, api_key):
             total_pnl = 0
             avg_win = 0
             avg_loss = 0
+            avg_win_per_contract = 0
+            avg_loss_per_contract = 0
             profit_factor = 0
             max_dd = 0
             total_return = 0
@@ -4227,6 +4235,8 @@ def run_backtester_script(config, api_key):
                 'profit_factor': profit_factor if profit_factor != float('inf') else 999.99,
                 'avg_win': avg_win if avg_win != float('inf') else 0,
                 'avg_loss': avg_loss if avg_loss != float('inf') else 0,
+                'avg_win_per_contract': round(avg_win_per_contract, 2),
+                'avg_loss_per_contract': round(avg_loss_per_contract, 2),
                 'final_capital': (config.get('starting_capital') or config.get('startingCapital', 100000)) + total_pnl
             },
             'files': {
@@ -4278,6 +4288,8 @@ def run_backtester_script(config, api_key):
             'total_pnl': total_pnl,
             'avg_win': avg_win,
             'avg_loss': avg_loss,
+            'avg_win_per_contract': round(avg_win_per_contract, 2),
+            'avg_loss_per_contract': round(avg_loss_per_contract, 2),
             'profit_factor': profit_factor if profit_factor != float('inf') else 999.99,
             'max_drawdown': max_dd,
             'total_return': total_return,
