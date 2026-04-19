@@ -4669,15 +4669,26 @@ def calculate_stats(trades: List[Dict], config: Dict):
         return
     
     total = len(trades)
-    winners = [t for t in trades if t['pnl'] > 0]
-    losers = [t for t in trades if t['pnl'] < 0]
-    
+    # Round to cents before classifying to avoid floating-point -0.00 ghosts
+    winners = [t for t in trades if round(t['pnl'], 2) > 0]
+    losers = [t for t in trades if round(t['pnl'], 2) < 0]
+    breakevens = [t for t in trades if round(t['pnl'], 2) == 0]
+
     total_pnl = sum(t['pnl'] for t in trades)
     win_rate = len(winners) / total * 100
-    
+
+    # Dollar average per trade
     avg_win = np.mean([t['pnl'] for t in winners]) if winners else 0
     avg_loss = np.mean([t['pnl'] for t in losers]) if losers else 0
-    
+
+    # Per-contract average (normalised for position sizing / compounding)
+    avg_win_per_contract = (
+        np.mean([t['pnl'] / t['num_contracts'] for t in winners]) if winners else 0
+    )
+    avg_loss_per_contract = (
+        np.mean([t['pnl'] / t['num_contracts'] for t in losers]) if losers else 0
+    )
+
     gross_profit = sum(t['pnl'] for t in winners)
     gross_loss = abs(sum(t['pnl'] for t in losers))
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
@@ -4707,8 +4718,10 @@ def calculate_stats(trades: List[Dict], config: Dict):
     print(f"Total Trades:         {total:>12,}")
     print(f"Winning Trades:       {len(winners):>12,}  ({win_rate:>6.2f}%)")
     print(f"Losing Trades:        {len(losers):>12,}")
-    print(f"\nAverage Win:          ${avg_win:>12,.2f}")
-    print(f"Average Loss:         ${avg_loss:>12,.2f}")
+    if breakevens:
+        print(f"Breakeven Trades:     {len(breakevens):>12,}")
+    print(f"\nAverage Win:          ${avg_win:>12,.2f}  (${avg_win_per_contract:>8,.2f} per contract)")
+    print(f"Average Loss:         ${avg_loss:>12,.2f}  (${avg_loss_per_contract:>8,.2f} per contract)")
     print(f"Profit Factor:        {profit_factor:>12.2f}")
     print(f"Max Drawdown:         {max_dd:>12.2f}%")
     print("="*80 + "\n")

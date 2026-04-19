@@ -3347,8 +3347,8 @@ def start_backtest_async():
                                 if trades:
                                     total_pnl = sum(float(t.get('pnl', 0) or 0) for t in trades)
                                     initial_cap = params.get('starting_capital', 50000)
-                                    winners_list = [t for t in trades if float(t.get('pnl', 0) or 0) > 0]
-                                    losers_list = [t for t in trades if float(t.get('pnl', 0) or 0) < 0]
+                                    winners_list = [t for t in trades if round(float(t.get('pnl', 0) or 0), 2) > 0]
+                                    losers_list = [t for t in trades if round(float(t.get('pnl', 0) or 0), 2) < 0]
                                     avg_win_val = round(sum(float(t.get('pnl', 0) or 0) for t in winners_list) / len(winners_list), 2) if winners_list else 0
                                     avg_loss_val = round(sum(float(t.get('pnl', 0) or 0) for t in losers_list) / len(losers_list), 2) if losers_list else 0
                                     
@@ -3663,8 +3663,8 @@ def list_backtests():
                                         reader = csv_mod.DictReader(csvf)
                                         tlog = list(reader)
                                     if tlog:
-                                        w = [t for t in tlog if float(t.get('pnl', 0) or 0) > 0]
-                                        l = [t for t in tlog if float(t.get('pnl', 0) or 0) < 0]
+                                        w = [t for t in tlog if round(float(t.get('pnl', 0) or 0), 2) > 0]
+                                        l = [t for t in tlog if round(float(t.get('pnl', 0) or 0), 2) < 0]
                                         summary['avg_win'] = round(sum(float(t.get('pnl', 0) or 0) for t in w) / len(w), 2) if w else 0
                                         summary['avg_loss'] = round(sum(float(t.get('pnl', 0) or 0) for t in l) / len(l), 2) if l else 0
                                         metadata['summary'] = summary
@@ -3924,8 +3924,8 @@ def get_metadata(backtest_id):
                         reader = csv_mod.DictReader(csvf)
                         tlog = list(reader)
                     if tlog:
-                        w = [t for t in tlog if float(t.get('pnl', 0) or 0) > 0]
-                        l = [t for t in tlog if float(t.get('pnl', 0) or 0) < 0]
+                        w = [t for t in tlog if round(float(t.get('pnl', 0) or 0), 2) > 0]
+                        l = [t for t in tlog if round(float(t.get('pnl', 0) or 0), 2) < 0]
                         summary['avg_win'] = round(sum(float(t.get('pnl', 0) or 0) for t in w) / len(w), 2) if w else 0
                         summary['avg_loss'] = round(sum(float(t.get('pnl', 0) or 0) for t in l) / len(l), 2) if l else 0
                         metadata['summary'] = summary
@@ -4117,9 +4117,10 @@ def run_backtester_script(config, api_key):
         # Calculate statistics
         if trades:
             total_trades = len(trades)
-            winners = [t for t in trades if t['pnl'] > 0]
-            losers = [t for t in trades if t['pnl'] < 0]
-            
+            winners = [t for t in trades if round(t['pnl'], 2) > 0]
+            losers = [t for t in trades if round(t['pnl'], 2) < 0]
+            breakevens = [t for t in trades if round(t['pnl'], 2) == 0]
+
             total_pnl = sum(t['pnl'] for t in trades)
             win_rate = len(winners) / total_trades * 100 if total_trades > 0 else 0
             avg_win = sum(t['pnl'] for t in winners) / len(winners) if winners else 0
@@ -4722,8 +4723,8 @@ def list_stocks_backtests_v3():
                         if raw_trades:
                             starting_capital = config.get('starting_capital', 50000)
                             total_pnl = sum(float(t.get('pnl', 0) or 0) for t in raw_trades)
-                            winners = [t for t in raw_trades if float(t.get('pnl', 0) or 0) > 0]
-                            losers = [t for t in raw_trades if float(t.get('pnl', 0) or 0) < 0]
+                            winners = [t for t in raw_trades if round(float(t.get('pnl', 0) or 0), 2) > 0]
+                            losers = [t for t in raw_trades if round(float(t.get('pnl', 0) or 0), 2) < 0]
                             total_wins_val = sum(float(t.get('pnl', 0)) for t in winners)
                             total_losses_val = abs(sum(float(t.get('pnl', 0)) for t in losers))
                             n = len(raw_trades)
