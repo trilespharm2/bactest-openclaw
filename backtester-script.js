@@ -2914,7 +2914,7 @@ function collectFormData() {
     } else if (entryTime < '09:30' || entryTime > '16:00') {
         _missingFields.push({label: 'Entry Time (must be between 09:30 and 16:00)', id: 'entryTime'});
     }
-    if (_dteRaw === '' || isNaN(dte)) _missingFields.push({label: 'Days to Expiration (DTE)', id: 'dte'});
+    if (!isCalendarDiagonalStrategy(strategy) && (_dteRaw === '' || isNaN(dte))) _missingFields.push({label: 'Days to Expiration (DTE)', id: 'dte'});
     if (!strategy) _missingFields.push({label: 'Strategy', id: 'strategy'});
     if (!startingCapital || isNaN(startingCapital)) _missingFields.push({label: 'Starting Capital', id: 'startingCapital'});
     if (_missingFields.length > 0) {
@@ -3284,7 +3284,7 @@ function showError(message) {
         appAlert(message); // Fallback to alert
         return;
     }
-    errorDiv.textContent = message;
+    errorDiv.innerHTML = message;
     errorDiv.style.display = 'block';
     setTimeout(() => {
         if (errorDiv) {
