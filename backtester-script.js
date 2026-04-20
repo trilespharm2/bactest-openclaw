@@ -2163,8 +2163,10 @@ function validateStrikeConfiguration(strategy, legs) {
     function legDesc(leg) {
         if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') {
             const unit = leg.config_type === 'pct_leg' ? '%' : '$';
-            const ref = legs[parseInt(leg.params.reference)];
-            return `${leg.params.direction} the ${ref ? ref.name : 'reference leg'} by ${leg.params.pct || leg.params.amount}${unit}`;
+            const refIdx = parseInt(leg.params.reference);
+            const ref = legs[refIdx];
+            const refLabel = ref ? (ref.name || `Leg ${refIdx + 1}`) : 'reference leg';
+            return `${leg.params.direction} ${refLabel} by ${leg.params.pct || leg.params.amount}${unit}`;
         }
         return `${leg.params.direction} by ${leg.params.pct || leg.params.amount}`;
     }
@@ -2316,18 +2318,20 @@ function validateStrikeConfiguration(strategy, legs) {
             const shortPut = findLeg('short', 'P');
 
             if (longPut && shortPut) {
+                // Long Put Spread (Bear Put Spread): buy higher-strike put, sell lower-strike put.
+                // Long Put must be ABOVE Short Put (higher strike = less OTM = less negative relative strike).
                 if (canCompare(longPut, shortPut)) {
-                    if (getRelativeStrike(longPut) >= getRelativeStrike(shortPut)) {
-                        return { valid: false, error: `Long Put Spread: Long Put must be BELOW Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
+                    if (getRelativeStrike(longPut) <= getRelativeStrike(shortPut)) {
+                        return { valid: false, error: `Long Put Spread: Long Put must be ABOVE Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
                     }
                 }
                 const lpToSp = getLegToLegRelation(longPut, shortPut);
-                if (lpToSp === 'above') {
-                    return { valid: false, error: `Long Put Spread: Long Put is set ABOVE Short Put (${legDesc(longPut)}), but Long Put must be BELOW Short Put.` };
+                if (lpToSp === 'below') {
+                    return { valid: false, error: `Long Put Spread: Long Put is set BELOW Short Put (${legDesc(longPut)}), but Long Put must be ABOVE Short Put.` };
                 }
                 const spToLp = getLegToLegRelation(shortPut, longPut);
-                if (spToLp === 'below') {
-                    return { valid: false, error: `Long Put Spread: Short Put is set BELOW Long Put (${legDesc(shortPut)}), but Short Put must be ABOVE Long Put.` };
+                if (spToLp === 'above') {
+                    return { valid: false, error: `Long Put Spread: Short Put is set ABOVE Long Put (${legDesc(shortPut)}), but Short Put must be BELOW Long Put.` };
                 }
             }
 
