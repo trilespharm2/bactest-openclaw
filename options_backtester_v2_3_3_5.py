@@ -4019,10 +4019,13 @@ def run_backtest(config: Dict, client: RESTClient):
                 else:
                     print(f"  ✓ Net premium ${net_credit:.4f} <= maximum ${max_premium:.2f}")
         
-            # Calendar/diagonal spreads: max risk is undefined (legs expire at different times,
-            # so the vertical-spread formula does not apply; dividend liability can further
-            # influence P&L on stock-option variants). Display N/A instead.
-            max_risk = None if has_per_leg_dte else calculate_max_risk(legs_info, net_credit)
+            # Calendar/diagonal spreads on STOCK options: max risk is undefined because
+            # dividend liability and early-assignment dynamics on American-style options
+            # can cause actual losses to exceed the vertical-spread formula
+            # (strike_diff - net_credit). For INDEX options (European, cash-settled, no
+            # dividend), the intrinsic floor is enforced at mark-to-market time so the
+            # vertical-spread formula remains valid.
+            max_risk = None if (has_per_leg_dte and not is_index) else calculate_max_risk(legs_info, net_credit)
             num_contracts = calculate_position_size(capital, config, max_risk)
         
             if num_contracts <= 0:
@@ -4306,19 +4309,28 @@ def run_backtest(config: Dict, client: RESTClient):
                         else:
                             # Far-term leg: still has time value, use last market price
                             leg_bars = option_cache_1min.get(leg['symbol'], {}).get(mon_exp_str, [])
+                            if leg['type'] == 'C':
+                                intrinsic_floor = max(0, expiration_underlying_price - leg['strike'])
+                            else:
+                                intrinsic_floor = max(0, leg['strike'] - expiration_underlying_price)
                             if leg_bars:
                                 last_bar = max(leg_bars, key=lambda x: x['time'])
-                                mtm_price = last_bar.get('vw', last_bar['close'])
+                                raw_mtm = last_bar.get('vw', last_bar['close'])
+                                if is_index and raw_mtm < intrinsic_floor:
+                                    # European index options cannot trade below intrinsic.
+                                    # Stale Polygon last-trade prices can show below-intrinsic
+                                    # values when the underlying closed higher than the last
+                                    # option trade — apply intrinsic floor.
+                                    mtm_price = intrinsic_floor
+                                    print(f"    {leg['name']} (far leg): MTM {raw_mtm:.4f} below intrinsic floor {intrinsic_floor:.4f}, using floor")
+                                else:
+                                    mtm_price = raw_mtm
                                 final_leg_prices.append(mtm_price)
                                 print(f"    {leg['name']} (far leg): mark-to-market = {mtm_price:.4f}")
                             else:
                                 # Fallback to intrinsic if no market data
-                                if leg['type'] == 'C':
-                                    intrinsic = max(0, expiration_underlying_price - leg['strike'])
-                                else:
-                                    intrinsic = max(0, leg['strike'] - expiration_underlying_price)
-                                final_leg_prices.append(intrinsic)
-                                print(f"    {leg['name']} (far leg): no market data, using intrinsic = {intrinsic:.4f}")
+                                final_leg_prices.append(intrinsic_floor)
+                                print(f"    {leg['name']} (far leg): no market data, using intrinsic = {intrinsic_floor:.4f}")
                     
                     final_premium = sum(final_leg_prices[i] if legs_info[i]['position'] == 'short' else -final_leg_prices[i]
                                        for i in range(len(legs_info)))
