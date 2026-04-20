@@ -4047,8 +4047,11 @@ def run_backtest(config: Dict, client: RESTClient):
          
         
             # Display entry
+            # Calendar/diagonal: convention is net DEBIT (long - short), so flip sign for display
+            _entry_display = -net_credit if has_per_leg_dte else net_credit
+            _entry_label   = "Net Debit" if has_per_leg_dte else "Premium"
             leg_summary = ", ".join([f"{leg['name']}@{leg['strike']}" for leg in legs_info])
-            print(f"  ENTRY: {num_contracts} contracts | Premium: {net_credit:.4f} | Max Risk: {max_risk:.4f}")
+            print(f"  ENTRY: {num_contracts} contracts | {_entry_label}: {_entry_display:.4f} | Max Risk: {max_risk:.4f}")
             print(f"  Legs: {leg_summary}")
             
             day_entry['status'] = 'ENTRY'
@@ -4057,7 +4060,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 'time': entry_time,
                 'underlying_price': underlying_price,
                 'num_contracts': num_contracts,
-                'net_premium': round(net_credit, 4),
+                'net_premium': round(_entry_display, 4),
                 'max_risk': round(max_risk, 2),
                 'legs': [{'name': l['name'], 'strike': l['strike'], 'type': l['type'], 'position': l['position'], 'entry_price': round(l['entry_price'], 4)} for l in legs_info],
                 'expiration': exp_date.strftime("%Y-%m-%d")
@@ -4350,20 +4353,24 @@ def run_backtest(config: Dict, client: RESTClient):
                         final_premium = net_prem
             
                 # Log values for each leg
-                print(f"  Expiration: Underlying = {expiration_underlying_price:.2f}, Net Premium = {final_premium:.4f}")
+                _exit_display = -final_premium if has_per_leg_dte else final_premium
+                _exit_label   = "Net Debit" if has_per_leg_dte else "Net Premium"
+                print(f"  Expiration: Underlying = {expiration_underlying_price:.2f}, {_exit_label} = {_exit_display:.4f}")
                 for i, leg in enumerate(legs_info):
                     print(f"    {leg['name']} @ {leg['strike']}: Value = {final_leg_prices[i]:.4f}")
         
             pnl = (net_credit - final_premium) * num_contracts * 100
             capital += pnl
             
+            # For display/storage, calendar/diagonal uses debit convention (long - short)
+            _exit_store = round(-final_premium if has_per_leg_dte else final_premium, 4)
             exit_date_str = mon_date_str if exit_hit else exp_date.strftime("%Y-%m-%d")
             day_entry['events'].append({
                 'type': 'exit',
                 'exit_date': exit_date_str,
                 'exit_time': exit_time,
                 'exit_reason': exit_reason,
-                'net_premium_exit': round(final_premium, 4),
+                'net_premium_exit': _exit_store,
                 'pnl': round(pnl, 2),
                 'capital_after': round(capital, 2),
                 'trade_num': len(trades) + 1
@@ -4429,8 +4436,8 @@ def run_backtest(config: Dict, client: RESTClient):
                 'underlying_exit_price': exit_underlying_price,
                 'strategy': config['strategy'],
                 'num_contracts': num_contracts,
-                'net_premium_entry': net_credit,
-                'net_premium_exit': final_premium,
+                'net_premium_entry': -net_credit if has_per_leg_dte else net_credit,
+                'net_premium_exit': -final_premium if has_per_leg_dte else final_premium,
                 'max_risk': max_risk,
                 'pnl': pnl,
                 'exit_reason': exit_reason,
