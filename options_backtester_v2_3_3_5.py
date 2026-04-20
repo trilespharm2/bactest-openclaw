@@ -4307,30 +4307,23 @@ def run_backtest(config: Dict, client: RESTClient):
                                     intrinsic = max(0, leg['strike'] - expiration_underlying_price)
                                 final_leg_prices.append(intrinsic)
                         else:
-                            # Far-term leg: still has time value, use last market price
+                            # Far-term leg: still has time value — use actual last market price.
+                            # This reflects real-world execution: the leg is sold at the
+                            # prevailing bid/ask, which includes remaining extrinsic (time) value.
                             leg_bars = option_cache_1min.get(leg['symbol'], {}).get(mon_exp_str, [])
-                            if leg['type'] == 'C':
-                                intrinsic_floor = max(0, expiration_underlying_price - leg['strike'])
-                            else:
-                                intrinsic_floor = max(0, leg['strike'] - expiration_underlying_price)
                             if leg_bars:
                                 last_bar = max(leg_bars, key=lambda x: x['time'])
-                                raw_mtm = last_bar.get('vw', last_bar['close'])
-                                if is_index and raw_mtm < intrinsic_floor:
-                                    # European index options cannot trade below intrinsic.
-                                    # Stale Polygon last-trade prices can show below-intrinsic
-                                    # values when the underlying closed higher than the last
-                                    # option trade — apply intrinsic floor.
-                                    mtm_price = intrinsic_floor
-                                    print(f"    {leg['name']} (far leg): MTM {raw_mtm:.4f} below intrinsic floor {intrinsic_floor:.4f}, using floor")
-                                else:
-                                    mtm_price = raw_mtm
+                                mtm_price = last_bar.get('vw', last_bar['close'])
                                 final_leg_prices.append(mtm_price)
                                 print(f"    {leg['name']} (far leg): mark-to-market = {mtm_price:.4f}")
                             else:
-                                # Fallback to intrinsic if no market data
-                                final_leg_prices.append(intrinsic_floor)
-                                print(f"    {leg['name']} (far leg): no market data, using intrinsic = {intrinsic_floor:.4f}")
+                                # Fallback to intrinsic when no market data available
+                                if leg['type'] == 'C':
+                                    intrinsic = max(0, expiration_underlying_price - leg['strike'])
+                                else:
+                                    intrinsic = max(0, leg['strike'] - expiration_underlying_price)
+                                final_leg_prices.append(intrinsic)
+                                print(f"    {leg['name']} (far leg): no market data, using intrinsic = {intrinsic:.4f}")
                     
                     final_premium = sum(final_leg_prices[i] if legs_info[i]['position'] == 'short' else -final_leg_prices[i]
                                        for i in range(len(legs_info)))
