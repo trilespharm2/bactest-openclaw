@@ -9,10 +9,13 @@ function _btFmt(value) {
 
 function _btPnlClass(val) { return val >= 0 ? 'text-success' : 'text-danger'; }
 
-function _btStatRow(label, value, cls) {
-    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f0f0f0;">' +
+function _btStatRow(label, value, cls, sub) {
+    return '<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0f0f0;">' +
         '<span style="color:#6a6d78; font-size:13px;">' + label + '</span>' +
-        '<span style="font-weight:600; font-size:13px;' + (cls ? ' color:' + (cls === 'positive' ? '#089981' : '#f23645') : '') + ';">' + value + '</span></div>';
+        '<span style="text-align:right;">' +
+            '<span style="font-weight:600; font-size:13px;' + (cls ? ' color:' + (cls === 'positive' ? '#089981' : '#f23645') : '') + ';">' + value + '</span>' +
+            (sub ? '<br><span style="font-size:10px; color:#aaa;">' + sub + '</span>' : '') +
+        '</span></div>';
 }
 
 function _btConfigCard(label, value) {
@@ -202,7 +205,12 @@ async function _displayOptDetail(metadata) {
     statsHtml += _btStatRow('Return %', (summary.total_return || 0).toFixed(2) + '%', (summary.total_return || 0) > 0 ? 'positive' : (summary.total_return || 0) < 0 ? 'negative' : null);
     statsHtml += _btStatRow('Profit Factor', (summary.profit_factor || 0).toFixed(2), (summary.profit_factor || 0) > 1 ? 'positive' : 'negative');
     statsHtml += _btStatRow('Max Drawdown', (summary.max_drawdown || 0).toFixed(2) + '%', (summary.max_drawdown || 0) < 0 ? 'negative' : null);
-    statsHtml += _btStatRow('Avg Trade', _btFmt((summary.avg_win || 0) + (summary.avg_loss || 0)));
+    var awSub = summary.avg_win_per_contract != null && summary.avg_win_per_contract !== 0
+        ? _btFmt(summary.avg_win_per_contract) + ' per contract' : null;
+    statsHtml += _btStatRow('Avg Win', _btFmt(summary.avg_win || 0), (summary.avg_win || 0) > 0 ? 'positive' : null, awSub);
+    var alSub = summary.avg_loss_per_contract != null && summary.avg_loss_per_contract !== 0
+        ? _btFmt(summary.avg_loss_per_contract) + ' per contract' : null;
+    statsHtml += _btStatRow('Avg Loss', _btFmt(summary.avg_loss || 0), (summary.avg_loss || 0) < 0 ? 'negative' : null, alSub);
     statsHtml += _btStatRow('Final Capital', summary.final_capital ? '$' + summary.final_capital.toLocaleString() : 'N/A');
     document.getElementById('optDetailStatsBody').innerHTML = statsHtml;
 

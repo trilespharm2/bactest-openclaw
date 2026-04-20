@@ -484,14 +484,27 @@ function displayStatistics(metadata) {
         totalPL.classList.add('negative');
     }
     
-    // Average Trade (calculate from avg win/loss)
-    const avgTrade = (summary.avg_win || 0) + (summary.avg_loss || 0);
-    const avgTradeEl = document.getElementById('statAvgTrade');
-    avgTradeEl.textContent = `$${avgTrade.toFixed(2)}`;
-    if (avgTrade > 0) {
-        avgTradeEl.classList.add('positive');
-    } else if (avgTrade < 0) {
-        avgTradeEl.classList.add('negative');
+    // Avg Win
+    const avgWinEl = document.getElementById('statAvgWin');
+    if (avgWinEl) {
+        const aw = summary.avg_win || 0;
+        avgWinEl.textContent = `$${aw.toFixed(2)}`;
+        avgWinEl.className = 'stat-value' + (aw > 0 ? ' positive' : '');
+        const awpc = document.getElementById('statAvgWinPerContract');
+        if (awpc && summary.avg_win_per_contract != null) {
+            awpc.textContent = `$${summary.avg_win_per_contract.toFixed(2)} per contract`;
+        }
+    }
+    // Avg Loss
+    const avgLossEl = document.getElementById('statAvgLoss');
+    if (avgLossEl) {
+        const al = summary.avg_loss || 0;
+        avgLossEl.textContent = al !== 0 ? `$${al.toFixed(2)}` : '$0.00';
+        avgLossEl.className = 'stat-value' + (al < 0 ? ' negative' : '');
+        const alpc = document.getElementById('statAvgLossPerContract');
+        if (alpc && summary.avg_loss_per_contract != null) {
+            alpc.textContent = al !== 0 ? `$${summary.avg_loss_per_contract.toFixed(2)} per contract` : '';
+        }
     }
     
     // Max Drawdown
