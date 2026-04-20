@@ -3997,19 +3997,26 @@ def run_backtest(config: Dict, client: RESTClient):
                     decision_log.append(day_entry)
                     continue
 
-            # For 2-leg vertical spreads, the debit paid cannot exceed the spread width.
-            # A debit >= spread width means the trade has zero or negative max profit —
-            # it is structurally unwinnable and must not be entered.
-            if _is_debit_strat and len(legs_info) == 2:
+            # For 2-leg vertical spreads, the premium collected/paid cannot exceed the
+            # spread width — that would imply a negative max risk, which is impossible.
+            # Debit:  debit > spread_width  → max profit is negative → skip.
+            # Credit: credit > spread_width → max loss is negative   → skip.
+            if len(legs_info) == 2:
                 _strikes = [leg.get('strike', 0) for leg in legs_info]
                 if all(s > 0 for s in _strikes):
                     _spread_width = abs(_strikes[0] - _strikes[1])
-                    if _spread_width > 0 and net_credit < -_spread_width:
-                        _debit = -net_credit
-                        print(f"  ❌ SKIPPING - Debit ${_debit:.4f} exceeds spread width ${_spread_width:.2f} (max possible profit is negative — trade unwinnable)")
-                        day_entry['events'].append({'type': 'skip', 'reason': f'Debit ${_debit:.4f} exceeds spread width ${_spread_width:.2f}'})
-                        decision_log.append(day_entry)
-                        continue
+                    if _spread_width > 0:
+                        if _is_debit_strat and net_credit < -_spread_width:
+                            _debit = -net_credit
+                            print(f"  ❌ SKIPPING - Debit ${_debit:.4f} exceeds spread width ${_spread_width:.2f} (max possible profit is negative — trade unwinnable)")
+                            day_entry['events'].append({'type': 'skip', 'reason': f'Debit ${_debit:.4f} exceeds spread width ${_spread_width:.2f}'})
+                            decision_log.append(day_entry)
+                            continue
+                        elif not _is_debit_strat and net_credit > _spread_width:
+                            print(f"  ❌ SKIPPING - Credit ${net_credit:.4f} exceeds spread width ${_spread_width:.2f} (max possible loss is negative — trade unwinnable)")
+                            day_entry['events'].append({'type': 'skip', 'reason': f'Credit ${net_credit:.4f} exceeds spread width ${_spread_width:.2f}'})
+                            decision_log.append(day_entry)
+                            continue
 
             # Check net premium filter
             min_premium = config.get('net_premium_min')
