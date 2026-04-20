@@ -3400,7 +3400,7 @@ def run_backtest(config: Dict, client: RESTClient):
             td_str = td.strftime("%Y-%m-%d")
             leg_exps = []
             for leg in config['legs']:
-                leg_dte = leg.get('dte', config['dte'])
+                leg_dte = leg.get('dte', config.get('dte') or 0) or 0
                 leg_exp = find_expiration_date(td, leg_dte)
                 leg_exps.append(leg_exp)
                 if latest_exp is None or leg_exp > latest_exp:
@@ -4374,9 +4374,10 @@ def run_backtest(config: Dict, client: RESTClient):
         
             # Calculate DTE (Days to Expiration at entry)
             if has_per_leg_dte:
-                dte_days = min((leg.get('dte', config['dte']) for leg in config['legs']), default=config['dte'])
+                _dte_fb2 = config.get('dte') or 0
+                dte_days = min((leg.get('dte', _dte_fb2) or 0 for leg in config['legs']), default=_dte_fb2)
             else:
-                dte_days = config['dte']
+                dte_days = config.get('dte') or 0
         
             # Calculate DIT (Days in Trade with 1 decimal precision)
             # Use US/Eastern timezone for all datetime calculations
