@@ -4315,7 +4315,6 @@ def run_backtest(config: Dict, client: RESTClient):
                     
                     final_premium = sum(final_leg_prices[i] if legs_info[i]['position'] == 'short' else -final_leg_prices[i]
                                        for i in range(len(legs_info)))
-                    final_premium = -final_premium
                 else:
                     if is_index:
                         # Index options: intrinsic value from 16:00 underlying close
