@@ -3741,12 +3741,6 @@ def run_backtest(config: Dict, client: RESTClient):
             minute_sets = [set(b['time'][:5] for b in bars) for bars in all_leg_bars]
             common_minutes = set.intersection(*minute_sets) if minute_sets else set()
 
-            if not common_minutes:
-                print(f"  Skipping - no common minute across all legs")
-                day_entry['events'].append({'type': 'skip', 'reason': 'No common minute across all option legs'})
-                decision_log.append(day_entry)
-                continue
-
             # Filter to the configured entry window
             eastern = pytz.timezone('US/Eastern')
             has_entry_window = entry_time_start != entry_time_end
@@ -3755,13 +3749,77 @@ def run_backtest(config: Dict, client: RESTClient):
 
             valid_minutes = sorted([m for m in common_minutes if window_start <= m <= window_end])
 
+            # --- Fallback: 10-sec → 30-sec → 1-min when no common minute found ---
             if not valid_minutes:
-                reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
-                          if has_entry_window else f'No common option minute at {entry_time}')
-                print(f"  Skipping - {reason}")
-                day_entry['events'].append({'type': 'skip', 'reason': reason})
-                decision_log.append(day_entry)
-                continue
+                def _fetch_coarser_bars_for_date(mult, tspan_str):
+                    result = []
+                    for leg in legs_info:
+                        leg_exp_fb = exp_date
+                        for lc in config['legs']:
+                            if lc.get('name') == leg['name']:
+                                leg_exp_fb = lc.get('_exp_date', exp_date)
+                                break
+                        try:
+                            aggs = list(client.list_aggs(
+                                leg['symbol'], mult, tspan_str,
+                                trade_date.strftime("%Y-%m-%d"),
+                                leg_exp_fb.strftime("%Y-%m-%d"),
+                                adjusted="true", sort="asc", limit=50000
+                            ))
+                            bars_fb = []
+                            for agg in aggs:
+                                dt_fb = datetime.fromtimestamp(agg.timestamp / 1000, tz=pytz.UTC).astimezone(eastern)
+                                if dt_fb.strftime("%Y-%m-%d") != date_str:
+                                    continue
+                                h, m_ = dt_fb.hour, dt_fb.minute
+                                if not (9*60+30 <= h*60+m_ <= 16*60+15):
+                                    continue
+                                bars_fb.append({
+                                    'date': date_str,
+                                    'datetime': dt_fb,
+                                    'timestamp': agg.timestamp,
+                                    'time': dt_fb.strftime("%H:%M:%S"),
+                                    'open': agg.open, 'high': agg.high,
+                                    'low': agg.low, 'close': agg.close,
+                                    'volume': getattr(agg, 'volume', 0),
+                                    'vw': getattr(agg, 'vwap', agg.close)
+                                })
+                            result.append(bars_fb)
+                        except Exception as fb_err:
+                            print(f"  ✗ Fallback fetch error for {leg['symbol']}: {fb_err}")
+                            result.append([])
+                    return result
+
+                found_fallback = False
+                for (fb_mult, fb_tspan, fb_label) in [(30, 'second', '30-sec'), (1, 'minute', '1-min')]:
+                    print(f"  ↳ No common minute via 10-sec — retrying with {fb_label} bars...")
+                    fb_bars = _fetch_coarser_bars_for_date(fb_mult, fb_tspan)
+                    if len(fb_bars) != len(legs_info) or any(len(b) == 0 for b in fb_bars):
+                        print(f"  ↳ {fb_label}: insufficient data for one or more legs")
+                        continue
+                    fb_minute_sets = [set(b['time'][:5] for b in bars) for bars in fb_bars]
+                    fb_common = set.intersection(*fb_minute_sets) if fb_minute_sets else set()
+                    fb_valid = sorted([m for m in fb_common if window_start <= m <= window_end])
+                    if fb_valid:
+                        print(f"  ↳ Common minute found via {fb_label}: {fb_valid[0]}")
+                        valid_minutes = fb_valid
+                        # Update caches so entry pricing uses this resolution
+                        for i, leg in enumerate(legs_info):
+                            option_cache_1min[leg['symbol']][date_str] = fb_bars[i]
+                            option_cache_10sec[leg['symbol']][date_str] = fb_bars[i]
+                        found_fallback = True
+                        break
+                    else:
+                        print(f"  ↳ {fb_label}: still no common minute in window {window_start}–{window_end}")
+
+                if not found_fallback:
+                    reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
+                              if has_entry_window else f'No common option minute at {entry_time}')
+                    print(f"  Skipping - {reason}")
+                    day_entry['events'].append({'type': 'skip', 'reason': reason})
+                    decision_log.append(day_entry)
+                    continue
+            # --- End fallback ---
 
             common_minute = valid_minutes[0]
 
@@ -3979,7 +4037,8 @@ def run_backtest(config: Dict, client: RESTClient):
                 far_exp = exp_date
             
             # Check PDT - Set flag for 0-DTE + avoid_pdt mode
-            min_dte_val = min((leg.get('dte', config['dte']) for leg in config['legs']), default=config['dte'])
+            _dte_fallback = config.get('dte') or 0
+            min_dte_val = min((leg.get('dte', _dte_fallback) or 0 for leg in config['legs']), default=_dte_fallback)
             pdt_0dte_mode = config['avoid_pdt'] and min_dte_val == 0
         
             if pdt_0dte_mode:
