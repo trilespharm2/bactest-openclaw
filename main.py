@@ -4102,7 +4102,7 @@ def run_backtester_script(config, api_key):
                     'num_contracts': int(row['num_contracts']),
                     'net_premium_entry': float(row['net_premium_entry']),
                     'net_premium_exit': float(row['net_premium_exit']),
-                    'max_risk': float(row['max_risk']),
+                    'max_risk': None if row['max_risk'] == 'N/A' else float(row['max_risk']),
                     'pnl': float(row['pnl']),
                     'exit_reason': row['exit_reason'],
                     'dte': int(row['dte']),

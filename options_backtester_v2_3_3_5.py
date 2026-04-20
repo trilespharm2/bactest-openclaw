@@ -3060,7 +3060,7 @@ def calculate_strike(underlying_price: float, leg_config: Dict, calculated_strik
 
 # ==================== POSITION SIZING ====================
 
-def calculate_position_size(capital: float, config: Dict, max_risk: float) -> int:
+def calculate_position_size(capital: float, config: Dict, max_risk) -> int:
     """Calculate number of contracts"""
     
     if config['allocation_type'] == 'contracts':
@@ -3068,12 +3068,12 @@ def calculate_position_size(capital: float, config: Dict, max_risk: float) -> in
     
     elif config['allocation_type'] == 'pct':
         amount = capital * (config['allocation_value'] / 100.0)
-        if max_risk > 0:
+        if max_risk is not None and max_risk > 0:
             return max(1, int(amount / (abs(max_risk) * 100)))
         return 0
     
     elif config['allocation_type'] == 'fixed':
-        if max_risk > 0:
+        if max_risk is not None and max_risk > 0:
             return max(1, int(config['allocation_value'] / (abs(max_risk) * 100)))
         return 0
     
@@ -4019,7 +4019,10 @@ def run_backtest(config: Dict, client: RESTClient):
                 else:
                     print(f"  ✓ Net premium ${net_credit:.4f} <= maximum ${max_premium:.2f}")
         
-            max_risk = calculate_max_risk(legs_info, net_credit)
+            # Calendar/diagonal spreads: max risk is undefined (legs expire at different times,
+            # so the vertical-spread formula does not apply; dividend liability can further
+            # influence P&L on stock-option variants). Display N/A instead.
+            max_risk = None if has_per_leg_dte else calculate_max_risk(legs_info, net_credit)
             num_contracts = calculate_position_size(capital, config, max_risk)
         
             if num_contracts <= 0:
@@ -4051,7 +4054,8 @@ def run_backtest(config: Dict, client: RESTClient):
             _entry_display = -net_credit if has_per_leg_dte else net_credit
             _entry_label   = "Net Debit" if has_per_leg_dte else "Premium"
             leg_summary = ", ".join([f"{leg['name']}@{leg['strike']}" for leg in legs_info])
-            print(f"  ENTRY: {num_contracts} contracts | {_entry_label}: {_entry_display:.4f} | Max Risk: {max_risk:.4f}")
+            _max_risk_str = "N/A" if max_risk is None else f"{max_risk:.4f}"
+            print(f"  ENTRY: {num_contracts} contracts | {_entry_label}: {_entry_display:.4f} | Max Risk: {_max_risk_str}")
             print(f"  Legs: {leg_summary}")
             
             day_entry['status'] = 'ENTRY'
@@ -4061,7 +4065,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 'underlying_price': underlying_price,
                 'num_contracts': num_contracts,
                 'net_premium': round(_entry_display, 4),
-                'max_risk': round(max_risk, 2),
+                'max_risk': None if max_risk is None else round(max_risk, 2),
                 'legs': [{'name': l['name'], 'strike': l['strike'], 'type': l['type'], 'position': l['position'], 'entry_price': round(l['entry_price'], 4)} for l in legs_info],
                 'expiration': exp_date.strftime("%Y-%m-%d")
             })
@@ -4906,7 +4910,7 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
                 'num_contracts': trade['num_contracts'],
                 'net_premium_entry': f"{trade['net_premium_entry']:.4f}",
                 'net_premium_exit': f"{trade['net_premium_exit']:.4f}",
-                'max_risk': f"{trade['max_risk']:.2f}",
+                'max_risk': "N/A" if trade['max_risk'] is None else f"{trade['max_risk']:.2f}",
                 'pnl': f"{trade['pnl']:.2f}",
                 'exit_reason': trade['exit_reason'],
                 'dte': trade['dte'],

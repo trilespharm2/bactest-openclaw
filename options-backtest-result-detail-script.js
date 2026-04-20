@@ -979,7 +979,7 @@ function renderOptDtPageFromLog() {
                     <i class="fas fa-sign-in-alt" style="color:#10b981; margin-top:2px;"></i>
                     <div>
                         <div style="font-weight:600; color:#1e293b; font-size:13px;">ENTRY @ ${evt.time || ''}</div>
-                        <div style="color:#475569; font-size:12px;">${evt.num_contracts} contract${evt.num_contracts > 1 ? 's' : ''} | Net Premium: $${evt.net_premium.toFixed(4)} | Max Risk: $${evt.max_risk.toFixed(2)}</div>
+                        <div style="color:#475569; font-size:12px;">${evt.num_contracts} contract${evt.num_contracts > 1 ? 's' : ''} | Net Premium: $${evt.net_premium.toFixed(4)} | Max Risk: ${evt.max_risk != null ? '$' + evt.max_risk.toFixed(2) : 'N/A'}</div>
                         <div style="color:#64748b; font-size:11px; margin-top:2px;">Exp: ${evt.expiration || 'N/A'}</div>
                         ${legsHtml}
                     </div>
