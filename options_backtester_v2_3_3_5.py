@@ -723,7 +723,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             left_day_offset = int(left_params.get('day', 0))
             left_series_type = left_params.get('series_type', 'close')
             
-            if left_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and left_day_offset == 0 and left_series_type in ['close', 'high', 'low']:
+            if metric == 'price' and left_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and left_day_offset == 0 and left_series_type in ['close', 'high', 'low']:
                 return False, f"Invalid: cannot use day candle '{left_series_type}' on day 0 — current day has not closed"
 
             # Get left side value
@@ -757,7 +757,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 right_day_offset = int(right_params.get('day', 0))
                 right_series_type = right_params.get('series_type', 'close')
                 
-                if right_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and right_day_offset == 0 and right_series_type in ['close', 'high', 'low']:
+                if right_metric == 'price' and right_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and right_day_offset == 0 and right_series_type in ['close', 'high', 'low']:
                     return False, f"Invalid: cannot use day candle '{right_series_type}' on right side day 0 — current day has not closed"
 
                 if right_metric == 'price':

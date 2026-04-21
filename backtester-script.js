@@ -290,7 +290,7 @@ function updateOptExitConditionFields(n) {
         var dayEl = document.getElementById('optExitLeftDay' + n);
         var candleEl = document.getElementById('optExitLeftCandleType' + n);
         var multEl = document.getElementById('optExitLeftMultiplier' + n);
-        if (dayEl) dayEl.value = '-1';
+        if (dayEl) dayEl.value = '0';
         if (candleEl) candleEl.value = 'day';
         if (multEl) multEl.value = '1';
     }
@@ -348,7 +348,7 @@ function updateOptExitRightSide(n) {
             var rd = document.getElementById('optExitRightDay' + n);
             var rc = document.getElementById('optExitRightCandleType' + n);
             var rm = document.getElementById('optExitRightMultiplier' + n);
-            if (rd) rd.value = '-1';
+            if (rd) rd.value = '0';
             if (rc) rc.value = 'day';
             if (rm) rm.value = '1';
         } else if (rightType === 'rsi') {
@@ -770,12 +770,12 @@ function updateConditionFields(conditionId) {
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
-            // Fix hidden defaults so backend always gets day=-1, candle=day, multiplier=1
+            // Fix hidden defaults so backend always gets day=0, candle=day, multiplier=1
             (function() {
                 var d = document.getElementById('leftDay' + conditionId);
                 var c = document.getElementById('leftCandleType' + conditionId);
                 var m = document.getElementById('leftMultiplier' + conditionId);
-                if (d) d.value = '-1';
+                if (d) d.value = '0';
                 if (c) c.value = 'day';
                 if (m) m.value = '1';
             })();
@@ -987,7 +987,7 @@ function updateRightSideFields(conditionId, comparator) {
         var rd = document.getElementById('rightDay' + conditionId);
         var rc = document.getElementById('rightCandleType' + conditionId);
         var rm = document.getElementById('rightMultiplier' + conditionId);
-        if (rd) rd.value = '-1';
+        if (rd) rd.value = '0';
         if (rc) rc.value = 'day';
         if (rm) rm.value = '1';
     } else if (comparator === 'compare_rsi') {
