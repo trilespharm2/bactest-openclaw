@@ -565,9 +565,15 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
             
             elif metric in ['sma', 'ema', 'rsi']:
                 window = params.get('window', 14)
-                timespan = params.get('candle_type', 'day')
                 series_type = params.get('series_type', 'close')
-                ind_multiplier = int(params.get('multiplier', 1) or 1)
+                # For SMA/EMA the candle type and multiplier are always fixed to
+                # daily bars (multiplier=1) to match simulated-trading behaviour.
+                if metric in ['sma', 'ema']:
+                    timespan = 'day'
+                    ind_multiplier = 1
+                else:
+                    timespan = params.get('candle_type', 'day')
+                    ind_multiplier = int(params.get('multiplier', 1) or 1)
                 
                 url = f"https://api.polygon.io/v1/indicators/{metric}/{underlying_sym}"
                 query_params = {

@@ -276,14 +276,24 @@ function addOptExitCondition() {
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
     var isCurrentPrice = metric === 'current_price';
+    var isIndicator = ['sma', 'ema'].indexOf(metric) !== -1;
     var isVolume = metric === 'volume';
     var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1);
+    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || isIndicator);
+    var hideNavFields = isCurrentPrice || isIndicator;
 
     var el;
-    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
-    el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
-    el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
+    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    if (isIndicator) {
+        var dayEl = document.getElementById('optExitLeftDay' + n);
+        var candleEl = document.getElementById('optExitLeftCandleType' + n);
+        var multEl = document.getElementById('optExitLeftMultiplier' + n);
+        if (dayEl) dayEl.value = '0';
+        if (candleEl) candleEl.value = 'day';
+        if (multEl) multEl.value = '1';
+    }
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
 
@@ -328,7 +338,20 @@ function updateOptExitRightSide(n) {
 
         var rightType = comp.replace('compare_', '');
         var el;
-        if (rightType === 'sma' || rightType === 'ema' || rightType === 'rsi') {
+        if (rightType === 'sma' || rightType === 'ema') {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+            // Hide day/candle/multiplier — fixed defaults for SMA/EMA
+            el = document.getElementById('optExitRightDayGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightCandleTypeGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightMultiplierGroup' + n); if (el) el.style.display = 'none';
+            var rd = document.getElementById('optExitRightDay' + n);
+            var rc = document.getElementById('optExitRightCandleType' + n);
+            var rm = document.getElementById('optExitRightMultiplier' + n);
+            if (rd) rd.value = '0';
+            if (rc) rc.value = 'day';
+            if (rm) rm.value = '1';
+        } else if (rightType === 'rsi') {
             el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
             el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
         } else if (rightType === 'volume') {
@@ -558,13 +581,13 @@ function addPriceCondition() {
         <div class="condition-right-side mb-3" id="rightSide${conditionId}" style="display: none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
             <div class="row g-2">
-                <div class="col-md-4 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="rightDayGroup${conditionId}">
                     <label class="form-label small">Day</label>
                     <select class="form-select form-select-sm" id="rightDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-4 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="rightCandleTypeGroup${conditionId}">
                     <label class="form-label small">Candle Type</label>
                     <select class="form-select form-select-sm" id="rightCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
@@ -740,13 +763,22 @@ function updateConditionFields(conditionId) {
             
         case 'sma':
         case 'ema':
-            if (leftDayGroup) leftDayGroup.style.display = 'block';
-            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
-            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+            // Fix hidden defaults so backend always gets day=0, candle=day, multiplier=1
+            (function() {
+                var d = document.getElementById('leftDay' + conditionId);
+                var c = document.getElementById('leftCandleType' + conditionId);
+                var m = document.getElementById('leftMultiplier' + conditionId);
+                if (d) d.value = '0';
+                if (c) c.value = 'day';
+                if (m) m.value = '1';
+            })();
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
             break;
             
@@ -945,6 +977,19 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Series Type';
+        // Hide day/candle/multiplier — fixed defaults, not needed for SMA/EMA
+        var rDayGrp = document.getElementById('rightDayGroup' + conditionId);
+        var rCandleGrp = document.getElementById('rightCandleTypeGroup' + conditionId);
+        var rMultGrp = document.getElementById('rightMultiplierGroup' + conditionId);
+        if (rDayGrp) rDayGrp.style.display = 'none';
+        if (rCandleGrp) rCandleGrp.style.display = 'none';
+        if (rMultGrp) rMultGrp.style.display = 'none';
+        var rd = document.getElementById('rightDay' + conditionId);
+        var rc = document.getElementById('rightCandleType' + conditionId);
+        var rm = document.getElementById('rightMultiplier' + conditionId);
+        if (rd) rd.value = '0';
+        if (rc) rc.value = 'day';
+        if (rm) rm.value = '1';
     } else if (comparator === 'compare_rsi') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
