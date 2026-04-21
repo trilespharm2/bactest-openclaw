@@ -3352,15 +3352,17 @@ def align_bars(leg_bars_list: List[List[Dict]]) -> List[Dict]:
 
 def calculate_net_premium(aligned_bar: Dict, legs_info: List[Dict]) -> float:
     """
-    Calculate net premium for a position using VWAP
-    
-    VWAP (volume-weighted average price) provides more accurate pricing
-    than simple close prices, especially for options with varying liquidity
+    Calculate net premium for a position using the bar open price.
+
+    The open is applied identically to all legs regardless of position direction
+    (long or short), so opposite strategies on the same strikes always receive
+    exactly inverse net premiums.
     """
     net = 0
     for i, leg_info in enumerate(legs_info):
-        # Use VWAP if available, fallback to close
-        price = aligned_bar['leg_prices'][i].get('vw', aligned_bar['leg_prices'][i]['close'])
+        # Use the bar's open price — neutral and position-agnostic so that
+        # opposite strategies on the same strikes get exactly inverse fills.
+        price = aligned_bar['leg_prices'][i].get('open', aligned_bar['leg_prices'][i]['close'])
         
         if leg_info['position'] == 'short':
             net += price
@@ -3858,22 +3860,22 @@ def run_backtest(config: Dict, client: RESTClient):
                 )[:3]
 
                 if window_bars:
-                    prices = [b['close'] for b in window_bars]
-                    if leg['position'] == 'short':
-                        entry_price = min(prices)   # lowest credit received
-                    else:
-                        entry_price = max(prices)   # highest debit paid
-                    fill_tag = 'min' if leg['position'] == 'short' else 'max'
-                    print(f"  [{leg['name']}] 10-sec entry ({len(window_bars)} bars, {fill_tag}): ${entry_price:.4f}")
+                    # Use the open of the first 10-sec bar after the entry minute open.
+                    # A single neutral price is applied to ALL legs regardless of position
+                    # (long or short), so opposite strategies on the same strikes at the
+                    # same timestamp always receive exactly inverse fills.
+                    entry_price = window_bars[0]['open']
+                    print(f"  [{leg['name']}] 10-sec entry (first bar open): ${entry_price:.4f}")
                 else:
-                    # No bars strictly after :00 — use the first available 10-sec bar in the minute
+                    # No bars strictly after :00 — use the open of the first available
+                    # 10-sec bar in the minute (same neutral, position-agnostic logic).
                     first_bars_in_min = sorted(
                         [b for b in bars_10sec_today if b['time'][:5] == common_minute],
                         key=lambda x: x['timestamp']
                     )
                     if first_bars_in_min:
-                        entry_price = first_bars_in_min[0]['close']
-                        print(f"  [{leg['name']}] First 10-sec bar in {common_minute}: ${entry_price:.4f}")
+                        entry_price = first_bars_in_min[0]['open']
+                        print(f"  [{leg['name']}] First 10-sec bar open in {common_minute}: ${entry_price:.4f}")
                     else:
                         entry_price = 0.0
                         print(f"  [{leg['name']}] No 10-sec bars found for minute {common_minute}")
