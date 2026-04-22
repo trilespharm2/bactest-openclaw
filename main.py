@@ -597,11 +597,6 @@ def faq_page():
     """Serve the FAQ page"""
     return send_from_directory('.', 'faq.html')
 
-@app.route('/vwap-comparison')
-def vwap_comparison_page():
-    """Serve the VWAP comparison table page"""
-    return send_from_directory('.', 'vwap-comparison.html')
-
 @app.route('/contact')
 def contact_page():
     """Serve the contact page"""
