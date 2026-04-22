@@ -471,6 +471,12 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     needs_day_price = False
     needs_minute_price = False
     
+    def _sma_ema_key(m, params):
+        """Build composite cache key for SMA/EMA: sma_w14_t5 etc."""
+        w  = int(params.get('window', 14))
+        tf = int(params.get('timeframe_minutes', 5))
+        return f'{m}_w{w}_t{tf}'
+
     for condition in all_conditions:
         metric = condition.get('metric', 'price')
         left_params = condition.get('left', {})
@@ -485,6 +491,10 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 needs_minute_price = True
                 if 'price' not in metrics_config:
                     metrics_config['price'] = left_params
+        elif metric in ('sma', 'ema'):
+            key = _sma_ema_key(metric, left_params)
+            if key not in metrics_config:
+                metrics_config[key] = dict(left_params, _metric_type=metric)
         elif metric not in metrics_config:
             metrics_config[metric] = left_params
         
@@ -503,6 +513,10 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     needs_minute_price = True
                     if 'price' not in metrics_config:
                         metrics_config['price'] = right_params
+            elif comp_metric in ('sma', 'ema'):
+                key = _sma_ema_key(comp_metric, right_params)
+                if key not in metrics_config:
+                    metrics_config[key] = dict(right_params, _metric_type=comp_metric)
             elif comp_metric not in metrics_config:
                 metrics_config[comp_metric] = right_params
     
@@ -520,6 +534,28 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     print(f"[Prefetch] Symbol: {underlying_sym}", flush=True)
     print(f"{'='*60}\n", flush=True)
     
+    # Pre-pass: if any SMA/EMA conditions exist, fetch 1-min bars ONCE.
+    # All SMA/EMA computations share this single fetch; no duplicate API calls.
+    sma_ema_keys = [k for k in metrics_config if k.startswith('sma_') or k.startswith('ema_')]
+    if sma_ema_keys:
+        max_window = max(int(metrics_config[k].get('window', 14)) for k in sma_ema_keys)
+        buffer_days = max(5, (max_window // 390 + 2) * 3)
+        extended_start = start_date - timedelta(days=buffer_days)
+        extended_start_str = extended_start.strftime("%Y-%m-%d")
+        url_1min = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/minute/{extended_start_str}/{end_str}"
+        print(f"[Prefetch] Fetching shared 1-min bars for {len(sma_ema_keys)} SMA/EMA key(s): window up to {max_window}, from {extended_start_str}...", flush=True)
+        try:
+            resp = requests.get(url_1min, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'})
+            if resp.status_code == 200:
+                indicators['_1min_raw'] = resp.json().get('results', [])
+                print(f"[Prefetch] 1-min raw bars: {len(indicators['_1min_raw'])} bars loaded", flush=True)
+            else:
+                indicators['_1min_raw'] = []
+                print(f"[Prefetch] 1-min raw bars error: {resp.status_code}", flush=True)
+        except Exception as e:
+            indicators['_1min_raw'] = []
+            print(f"[Prefetch] 1-min raw bars exception: {e}", flush=True)
+
     for metric, params in metrics_config.items():
         try:
             if metric == 'price':
@@ -563,49 +599,58 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 else:
                     print(f"[Prefetch] PRICE_DAY error: {response.status_code}", flush=True)
             
-            elif metric in ['sma', 'ema']:
+            elif metric.startswith('sma_') or metric.startswith('ema_'):
+                # Composite key: sma_w14_t5 or ema_w20_t1
+                # Uses shared _1min_raw bars fetched in the pre-pass above
+                metric_type = params.get('_metric_type', metric.split('_')[0])
                 window = int(params.get('window', 14))
+                timeframe_minutes = int(params.get('timeframe_minutes', 5))
                 series_type = params.get('series_type', 'close')
 
-                # Fetch 1-minute bars — identical data source and bar type as simulated trading.
-                # Buffer = enough calendar days so that at least `window` minute bars exist
-                # before the backtest start (1 trading day ≈ 390 min bars; add 2-day safety margin).
-                buffer_days = max(5, (window // 390 + 2) * 3)
-                extended_start = start_date - timedelta(days=buffer_days)
-                extended_start_str = extended_start.strftime("%Y-%m-%d")
+                raw_bars = indicators.get('_1min_raw', [])
+                if not raw_bars:
+                    print(f"[Prefetch] {metric}: no 1-min raw bars available — skipping", flush=True)
+                    continue
 
-                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/minute/{extended_start_str}/{end_str}"
-                print(f"[Prefetch] Fetching {metric.upper()} via 1-min bars: window={window}, series={series_type}, from {extended_start_str}...", flush=True)
+                field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
+                field = field_map.get(series_type, 'c')
 
-                response = requests.get(url, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'})
-                if response.status_code == 200:
-                    data = response.json()
-                    results = data.get('results', [])
-
-                    field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
-                    field = field_map.get(series_type, 'c')
-                    timestamps = [bar.get('t') for bar in results]
-                    prices = [bar.get(field) for bar in results]
-
-                    price_series = pd.Series(prices, dtype=float)
-
-                    # Same formula as simulated trading engine:
-                    #   SMA → series.rolling(window, min_periods=window).mean()
-                    #   EMA → series.ewm(span=window, adjust=False).mean()
-                    if metric == 'sma':
-                        rolled = price_series.rolling(window=window, min_periods=window).mean()
-                    else:
-                        rolled = price_series.ewm(span=window, adjust=False).mean()
-
-                    indicator_data = {}
-                    for ts, val in zip(timestamps, rolled.values):
-                        if ts is not None and not pd.isna(val):
-                            indicator_data[int(ts)] = float(val)
-
-                    indicators[metric] = indicator_data
-                    print(f"[Prefetch] {metric.upper()}: computed {len(indicator_data)} values from {len(results)} 1-min bars", flush=True)
+                if timeframe_minutes <= 1:
+                    # Use 1-min bars directly
+                    timestamps = [bar.get('t') for bar in raw_bars]
+                    prices = [bar.get(field) for bar in raw_bars]
                 else:
-                    print(f"[Prefetch] {metric.upper()} error: {response.status_code} - {response.text[:200]}", flush=True)
+                    # Aggregate 1-min bars to the user's chosen timeframe
+                    df = pd.DataFrame(raw_bars)
+                    if df.empty:
+                        print(f"[Prefetch] {metric}: empty raw bar DataFrame — skipping", flush=True)
+                        continue
+                    df['_ts'] = pd.to_datetime(df['t'], unit='ms', utc=True)
+                    df = df.set_index('_ts').sort_index()
+                    agg_map = {'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}
+                    if 'vw' in df.columns:
+                        agg_map['vw'] = 'mean'
+                    agg_map = {k: v for k, v in agg_map.items() if k in df.columns}
+                    resampled = df.resample(f'{timeframe_minutes}min').agg(agg_map).dropna(subset=['c'])
+                    timestamps = [int(ts.timestamp() * 1000) for ts in resampled.index]
+                    prices = resampled[field].tolist() if field in resampled.columns else resampled['c'].tolist()
+
+                price_series = pd.Series(prices, dtype=float)
+
+                # Same formula as simulated trading engine
+                if metric_type == 'sma':
+                    rolled = price_series.rolling(window=window, min_periods=window).mean()
+                else:
+                    rolled = price_series.ewm(span=window, adjust=False).mean()
+
+                indicator_data = {}
+                for ts, val in zip(timestamps, rolled.values):
+                    if ts is not None and not pd.isna(val):
+                        indicator_data[int(ts)] = float(val)
+
+                indicators[metric] = indicator_data
+                print(f"[Prefetch] {metric}: computed {len(indicator_data)} values "
+                      f"(window={window}, tf={timeframe_minutes}min, series={series_type})", flush=True)
 
             elif metric == 'rsi':
                 window = params.get('window', 14)
@@ -776,10 +821,16 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     # Use current bar's price
                     left_value = bar_price
             else:
-                indicator_data = indicators_cache.get(metric, {})
+                if metric in ('sma', 'ema'):
+                    # Composite key: sma_w{window}_t{timeframe_minutes}
+                    _w  = int(left_params.get('window', 14))
+                    _tf = int(left_params.get('timeframe_minutes', 5))
+                    _ind_key = f'{metric}_w{_w}_t{_tf}'
+                    indicator_data = indicators_cache.get(_ind_key, {})
+                else:
+                    indicator_data = indicators_cache.get(metric, {})
                 if indicator_data:
-                    if metric in ['sma', 'ema']:
-                        # Minute-bar indicator: look up by exact bar timestamp (same as simulated trading)
+                    if metric in ('sma', 'ema'):
                         left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                     elif trade_date:
                         left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
@@ -812,9 +863,15 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     else:
                         right_value = bar_price
                 else:
-                    indicator_data = indicators_cache.get(right_metric, {})
+                    if right_metric in ('sma', 'ema'):
+                        _rw  = int(right_params.get('window', 14))
+                        _rtf = int(right_params.get('timeframe_minutes', 5))
+                        _rind_key = f'{right_metric}_w{_rw}_t{_rtf}'
+                        indicator_data = indicators_cache.get(_rind_key, {})
+                    else:
+                        indicator_data = indicators_cache.get(right_metric, {})
                     if indicator_data:
-                        if right_metric in ['sma', 'ema']:
+                        if right_metric in ('sma', 'ema'):
                             right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                         elif trade_date:
                             right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)

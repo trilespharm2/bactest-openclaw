@@ -35,6 +35,18 @@ const DAY_OPTIONS = [
     { value: '-5', label: '5 days ago (-5)' }
 ];
 
+const TIMEFRAME_OPTIONS = [
+    { value: '1',   label: '1 min' },
+    { value: '3',   label: '3 min' },
+    { value: '5',   label: '5 min' },
+    { value: '10',  label: '10 min' },
+    { value: '15',  label: '15 min' },
+    { value: '30',  label: '30 min' },
+    { value: '60',  label: '1 hr' },
+    { value: '120', label: '2 hr' },
+    { value: '240', label: '4 hr' }
+];
+
 const OPERATORS = [
     { value: '>', label: '>' },
     { value: '<', label: '<' },
@@ -163,6 +175,12 @@ function addOptExitCondition() {
                         ${SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
                     </select>
                 </div>
+                <div class="col-md-3 col-sm-6" id="optExitLeftTimeframeGroup${n}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="optExitLeftTimeframe${n}">
+                        ${TIMEFRAME_OPTIONS.map(t => '<option value="' + t.value + '"' + (t.value === '5' ? ' selected' : '') + '>' + t.label + '</option>').join('')}
+                    </select>
+                </div>
             </div>
         </div>
         
@@ -221,6 +239,12 @@ function addOptExitCondition() {
                     <label class="form-label small">Series Type</label>
                     <select class="form-select form-select-sm" id="optExitRightSeriesType${n}">
                         ${SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitRightTimeframeGroup${n}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="optExitRightTimeframe${n}">
+                        ${TIMEFRAME_OPTIONS.map(t => '<option value="' + t.value + '"' + (t.value === '5' ? ' selected' : '') + '>' + t.label + '</option>').join('')}
                     </select>
                 </div>
             </div>
@@ -296,6 +320,7 @@ function updateOptExitConditionFields(n) {
     }
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
+    el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema') ? '' : 'none';
 
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
@@ -341,6 +366,7 @@ function updateOptExitRightSide(n) {
         if (rightType === 'sma' || rightType === 'ema') {
             el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
             el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+            el = document.getElementById('optExitRightTimeframeGroup' + n); if (el) el.style.display = '';
             // Hide day/candle/multiplier — fixed defaults for SMA/EMA
             el = document.getElementById('optExitRightDayGroup' + n); if (el) el.style.display = 'none';
             el = document.getElementById('optExitRightCandleTypeGroup' + n); if (el) el.style.display = 'none';
@@ -351,6 +377,11 @@ function updateOptExitRightSide(n) {
             if (rd) rd.value = '0';
             if (rc) rc.value = 'minute';
             if (rm) rm.value = '1';
+        } else {
+            el = document.getElementById('optExitRightTimeframeGroup' + n); if (el) el.style.display = 'none';
+        }
+        if (rightType === 'sma' || rightType === 'ema') {
+            // window/series already shown in block above
         } else if (rightType === 'rsi') {
             el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
             el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
@@ -415,6 +446,9 @@ function collectOptExitConditions() {
         if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
             condition.left.window = parseInt((document.getElementById('optExitLeftWindow' + id) || {}).value) || 14;
         }
+        if (metric === 'sma' || metric === 'ema') {
+            condition.left.timeframe_minutes = parseInt((document.getElementById('optExitLeftTimeframe' + id) || {}).value) || 5;
+        }
 
         if (metric === 'volume') {
             condition.left_type = 'volume';
@@ -439,6 +473,7 @@ function collectOptExitConditions() {
             
             if (comparator === 'compare_sma' || comparator === 'compare_ema') {
                 condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
+                condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 5;
             }
             
             condition.threshold = {
@@ -527,6 +562,12 @@ function addPriceCondition() {
                         ${SERIES_TYPES.map(s => `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`).join('')}
                     </select>
                 </div>
+                <div class="col-md-3 col-sm-6" id="leftTimeframeGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="leftTimeframe${conditionId}">
+                        ${TIMEFRAME_OPTIONS.map(t => `<option value="${t.value}"${t.value === '5' ? ' selected' : ''}>${t.label}</option>`).join('')}
+                    </select>
+                </div>
                 <!-- MACD specific fields -->
                 <div class="col-md-3 col-sm-6" id="leftMacdShortGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Short Window</label>
@@ -605,6 +646,12 @@ function addPriceCondition() {
                     <label class="form-label small" id="rightSeriesLabel${conditionId}">Series Type</label>
                     <select class="form-select form-select-sm" id="rightSeriesType${conditionId}">
                         ${SERIES_TYPES.map(s => `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="rightTimeframeGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="rightTimeframe${conditionId}">
+                        ${TIMEFRAME_OPTIONS.map(t => `<option value="${t.value}"${t.value === '5' ? ' selected' : ''}>${t.label}</option>`).join('')}
                     </select>
                 </div>
                 <!-- MACD specific fields for right side -->
@@ -723,7 +770,10 @@ function updateConditionFields(conditionId) {
     if (leftMacdLongGroup) leftMacdLongGroup.style.display = 'none';
     if (leftMacdSignalGroup) leftMacdSignalGroup.style.display = 'none';
     if (leftMacdComponentGroup) leftMacdComponentGroup.style.display = 'none';
-    
+    // Hide timeframe group by default; shown only for SMA/EMA
+    var leftTimeframeGrp = document.getElementById(`leftTimeframeGroup${conditionId}`);
+    if (leftTimeframeGrp) leftTimeframeGrp.style.display = 'none';
+
     var leftDayGroup = document.getElementById(`leftDayGroup${conditionId}`);
     var leftCandleTypeGroup = document.getElementById(`leftCandleTypeGroup${conditionId}`);
     var leftMultiplierGroup = document.getElementById(`leftMultiplierGroup${conditionId}`);
@@ -770,8 +820,9 @@ function updateConditionFields(conditionId) {
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
-            // minute bars, day=0: matches simulated trading (rolling over N 1-min candles)
             (function() {
+                var tfGrp = document.getElementById('leftTimeframeGroup' + conditionId);
+                if (tfGrp) tfGrp.style.display = 'block';
                 var d = document.getElementById('leftDay' + conditionId);
                 var c = document.getElementById('leftCandleType' + conditionId);
                 var m = document.getElementById('leftMultiplier' + conditionId);
@@ -958,11 +1009,13 @@ function updateRightSideFields(conditionId, comparator) {
     const rightMacdShortGroup = document.getElementById(`rightMacdShortGroup${conditionId}`);
     const rightMacdLongGroup = document.getElementById(`rightMacdLongGroup${conditionId}`);
     const rightMacdSignalGroup = document.getElementById(`rightMacdSignalGroup${conditionId}`);
+    const rightTimeframeGroup = document.getElementById(`rightTimeframeGroup${conditionId}`);
     
-    // Hide all MACD groups first
+    // Hide all MACD groups first; hide timeframe by default
     if (rightMacdShortGroup) rightMacdShortGroup.style.display = 'none';
     if (rightMacdLongGroup) rightMacdLongGroup.style.display = 'none';
     if (rightMacdSignalGroup) rightMacdSignalGroup.style.display = 'none';
+    if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'none';
     
     const rightSeriesLabel = document.getElementById(`rightSeriesLabel${conditionId}`);
     
@@ -977,6 +1030,7 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Series Type';
+        if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'block';
         // Hide day/candle/multiplier — fixed defaults, not needed for SMA/EMA
         var rDayGrp = document.getElementById('rightDayGroup' + conditionId);
         var rCandleGrp = document.getElementById('rightCandleTypeGroup' + conditionId);
@@ -1028,39 +1082,43 @@ function updateOptThresholdUnitOptions(n, metric, isExit) {
 function buildOptConditionDesc(n, isExit) {
     function getVal(id) { return (document.getElementById(id) || {}).value; }
 
-    var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries;
-    var compareValue, rightDay, rightCandle, rightMult, rightSeries, threshUnit, threshVal;
+    var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe;
+    var compareValue, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
 
     if (isExit) {
-        metric       = getVal('optExitMetric' + n) || 'current_price';
-        operator     = getVal('optExitOperator' + n) || '>';
-        comparator   = getVal('optExitComparator' + n) || 'value';
-        leftDay      = parseInt(getVal('optExitLeftDay' + n) || '0');
-        leftCandle   = getVal('optExitLeftCandleType' + n) || 'minute';
-        leftMult     = parseInt(getVal('optExitLeftMultiplier' + n) || '1');
-        leftSeries   = getVal('optExitLeftSeriesType' + n) || 'close';
-        compareValue = getVal('optExitCompareValue' + n);
-        rightDay     = parseInt(getVal('optExitRightDay' + n) || '0');
-        rightCandle  = getVal('optExitRightCandleType' + n) || 'minute';
-        rightMult    = parseInt(getVal('optExitRightMultiplier' + n) || '1');
-        rightSeries  = getVal('optExitRightSeriesType' + n) || 'close';
-        threshUnit   = getVal('optExitThresholdUnit' + n) || 'percent';
-        threshVal    = parseFloat(getVal('optExitThresholdValue' + n) || '0') || 0;
+        metric         = getVal('optExitMetric' + n) || 'current_price';
+        operator       = getVal('optExitOperator' + n) || '>';
+        comparator     = getVal('optExitComparator' + n) || 'value';
+        leftDay        = parseInt(getVal('optExitLeftDay' + n) || '0');
+        leftCandle     = getVal('optExitLeftCandleType' + n) || 'minute';
+        leftMult       = parseInt(getVal('optExitLeftMultiplier' + n) || '1');
+        leftSeries     = getVal('optExitLeftSeriesType' + n) || 'close';
+        leftTimeframe  = parseInt(getVal('optExitLeftTimeframe' + n) || '5') || 5;
+        compareValue   = getVal('optExitCompareValue' + n);
+        rightDay       = parseInt(getVal('optExitRightDay' + n) || '0');
+        rightCandle    = getVal('optExitRightCandleType' + n) || 'minute';
+        rightMult      = parseInt(getVal('optExitRightMultiplier' + n) || '1');
+        rightSeries    = getVal('optExitRightSeriesType' + n) || 'close';
+        rightTimeframe = parseInt(getVal('optExitRightTimeframe' + n) || '5') || 5;
+        threshUnit     = getVal('optExitThresholdUnit' + n) || 'percent';
+        threshVal      = parseFloat(getVal('optExitThresholdValue' + n) || '0') || 0;
     } else {
-        metric       = getVal('metric' + n) || 'current_price';
-        operator     = getVal('operator' + n) || '>';
-        comparator   = getVal('comparator' + n) || 'value';
-        leftDay      = parseInt(getVal('leftDay' + n) || '0');
-        leftCandle   = getVal('leftCandleType' + n) || 'minute';
-        leftMult     = parseInt(getVal('leftMultiplier' + n) || '1');
-        leftSeries   = getVal('leftSeriesType' + n) || 'close';
-        compareValue = getVal('compareValue' + n);
-        rightDay     = parseInt(getVal('rightDay' + n) || '0');
-        rightCandle  = getVal('rightCandleType' + n) || 'minute';
-        rightMult    = parseInt(getVal('rightMultiplier' + n) || '1');
-        rightSeries  = getVal('rightSeriesType' + n) || 'close';
-        threshUnit   = getVal('thresholdUnit' + n) || 'percent';
-        threshVal    = parseFloat(getVal('thresholdValue' + n) || '0') || 0;
+        metric         = getVal('metric' + n) || 'current_price';
+        operator       = getVal('operator' + n) || '>';
+        comparator     = getVal('comparator' + n) || 'value';
+        leftDay        = parseInt(getVal('leftDay' + n) || '0');
+        leftCandle     = getVal('leftCandleType' + n) || 'minute';
+        leftMult       = parseInt(getVal('leftMultiplier' + n) || '1');
+        leftSeries     = getVal('leftSeriesType' + n) || 'close';
+        leftTimeframe  = parseInt(getVal('leftTimeframe' + n) || '5') || 5;
+        compareValue   = getVal('compareValue' + n);
+        rightDay       = parseInt(getVal('rightDay' + n) || '0');
+        rightCandle    = getVal('rightCandleType' + n) || 'minute';
+        rightMult      = parseInt(getVal('rightMultiplier' + n) || '1');
+        rightSeries    = getVal('rightSeriesType' + n) || 'close';
+        rightTimeframe = parseInt(getVal('rightTimeframe' + n) || '5') || 5;
+        threshUnit     = getVal('thresholdUnit' + n) || 'percent';
+        threshVal      = parseFloat(getVal('thresholdValue' + n) || '0') || 0;
     }
 
     function dayLabel(d) {
@@ -1076,24 +1134,27 @@ function buildOptConditionDesc(n, isExit) {
         if (c === 'month') return 'month';
         return c;
     }
-    function sideDesc(m, day, candle, mult, series) {
+    function sideDesc(m, day, candle, mult, series, timeframe) {
         if (m === 'volume') return candleLabel(candle, mult) + ' vol (' + dayLabel(day) + ')';
         if (m === 'current_price') return 'current price';
         if (m === 'price') return candleLabel(candle, mult) + ' ' + series + ' (' + dayLabel(day) + ')';
-        if (m === 'sma' || m === 'ema') return m.toUpperCase() + '(' + series + ') [' + dayLabel(day) + ']';
+        if (m === 'sma' || m === 'ema') {
+            var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 5) + 'min';
+            return m.toUpperCase() + '(' + series + ', ' + tf + ')';
+        }
         if (m === 'rsi') return 'RSI [' + dayLabel(day) + ']';
         if (m === 'macd') return 'MACD [' + dayLabel(day) + ']';
         return m;
     }
 
-    var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries);
+    var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe);
 
     if (comparator === 'value') {
         return leftDesc + ' ' + operator + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
     var rightMetric = comparator.replace('compare_', '');
-    var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries);
+    var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
     var suffix = '';
     if (threshVal !== 0) {
@@ -1146,6 +1207,9 @@ function collectPriceConditions() {
         if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
             condition.left.window = parseInt(document.getElementById(`leftWindow${id}`)?.value) || 14;
         }
+        if (metric === 'sma' || metric === 'ema') {
+            condition.left.timeframe_minutes = parseInt(document.getElementById(`leftTimeframe${id}`)?.value) || 5;
+        }
 
         if (metric === 'volume') {
             condition.left_type = 'volume';
@@ -1178,6 +1242,9 @@ function collectPriceConditions() {
             // Add window for SMA/EMA/RSI comparisons
             if (comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_rsi') {
                 condition.right.window = parseInt(document.getElementById(`rightWindow${id}`)?.value) || 14;
+            }
+            if (comparator === 'compare_sma' || comparator === 'compare_ema') {
+                condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 5;
             }
             
             // Add MACD fields for MACD comparisons
