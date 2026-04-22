@@ -20,10 +20,11 @@ const CANDLE_TYPES = [
 ];
 
 const SERIES_TYPES = [
-    { value: 'open', label: 'Open' },
-    { value: 'high', label: 'High' },
-    { value: 'low', label: 'Low' },
-    { value: 'close', label: 'Close' }
+    { value: 'open',  label: 'Open' },
+    { value: 'high',  label: 'High' },
+    { value: 'low',   label: 'Low' },
+    { value: 'close', label: 'Close' },
+    { value: 'vwap',  label: 'VWAP' }
 ];
 
 const DAY_OPTIONS = [
@@ -33,6 +34,18 @@ const DAY_OPTIONS = [
     { value: '-3', label: '3 days ago (-3)' },
     { value: '-4', label: '4 days ago (-4)' },
     { value: '-5', label: '5 days ago (-5)' }
+];
+
+const TIMEFRAME_OPTIONS = [
+    { value: '1',   label: '1 min' },
+    { value: '3',   label: '3 min' },
+    { value: '5',   label: '5 min' },
+    { value: '10',  label: '10 min' },
+    { value: '15',  label: '15 min' },
+    { value: '30',  label: '30 min' },
+    { value: '60',  label: '1 hr' },
+    { value: '120', label: '2 hr' },
+    { value: '240', label: '4 hr' }
 ];
 
 const OPERATORS = [
@@ -47,6 +60,7 @@ const OPERATORS = [
 const METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
+    { value: 'vwap', label: 'VWAP' },
     { value: 'volume', label: 'Volume' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
@@ -163,6 +177,12 @@ function addOptExitCondition() {
                         ${SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
                     </select>
                 </div>
+                <div class="col-md-3 col-sm-6" id="optExitLeftTimeframeGroup${n}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="optExitLeftTimeframe${n}">
+                        ${TIMEFRAME_OPTIONS.map(t => '<option value="' + t.value + '"' + (t.value === '5' ? ' selected' : '') + '>' + t.label + '</option>').join('')}
+                    </select>
+                </div>
             </div>
         </div>
         
@@ -183,6 +203,7 @@ function addOptExitCondition() {
                     <select class="form-select" id="optExitComparator${n}" onchange="updateOptExitRightSide(${n})">
                         <option value="value">Value</option>
                         <option value="compare_price">Compare Price</option>
+                        <option value="compare_vwap">Compare VWAP</option>
                         <option value="compare_sma">Compare SMA</option>
                         <option value="compare_ema">Compare EMA</option>
                     </select>
@@ -221,6 +242,12 @@ function addOptExitCondition() {
                     <label class="form-label small">Series Type</label>
                     <select class="form-select form-select-sm" id="optExitRightSeriesType${n}">
                         ${SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="optExitRightTimeframeGroup${n}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="optExitRightTimeframe${n}">
+                        ${TIMEFRAME_OPTIONS.map(t => '<option value="' + t.value + '"' + (t.value === '5' ? ' selected' : '') + '>' + t.label + '</option>').join('')}
                     </select>
                 </div>
             </div>
@@ -276,19 +303,32 @@ function addOptExitCondition() {
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
     var isCurrentPrice = metric === 'current_price';
+    var isVwap = metric === 'vwap';
+    var isIndicator = ['sma', 'ema'].indexOf(metric) !== -1;
+    var isIndicatorOrVwap = isIndicator || isVwap;
     var isVolume = metric === 'volume';
-    var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1);
+    var needsWindow = ['sma', 'ema', 'rsi', 'macd', 'vwap'].indexOf(metric) !== -1;
+    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || isIndicatorOrVwap);
+    var hideNavFields = isCurrentPrice || isIndicatorOrVwap;
 
     var el;
-    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
-    el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
-    el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = isCurrentPrice ? 'none' : '';
+    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    if (isIndicatorOrVwap) {
+        var dayEl = document.getElementById('optExitLeftDay' + n);
+        var candleEl = document.getElementById('optExitLeftCandleType' + n);
+        var multEl = document.getElementById('optExitLeftMultiplier' + n);
+        if (dayEl) dayEl.value = '0';
+        if (candleEl) candleEl.value = 'minute';
+        if (multEl) multEl.value = '1';
+    }
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
+    el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema' || isVwap) ? '' : 'none';
 
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
-    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
+    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : (metric === 'sma' || metric === 'ema' || metric === 'vwap') ? 'Period' : 'Window';
     var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
     if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
 
@@ -305,6 +345,7 @@ function updateOptExitComparatorOptions(n) {
         opts += '<option value="compare_volume">Compare Volume</option>';
     } else if (metric !== 'rsi' && metric !== 'macd') {
         opts += '<option value="compare_price">Compare Price</option>';
+        opts += '<option value="compare_vwap">Compare VWAP</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
     }
@@ -328,7 +369,26 @@ function updateOptExitRightSide(n) {
 
         var rightType = comp.replace('compare_', '');
         var el;
-        if (rightType === 'sma' || rightType === 'ema' || rightType === 'rsi') {
+        if (rightType === 'sma' || rightType === 'ema') {
+            el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
+            el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
+            el = document.getElementById('optExitRightTimeframeGroup' + n); if (el) el.style.display = '';
+            // Hide day/candle/multiplier — fixed defaults for SMA/EMA
+            el = document.getElementById('optExitRightDayGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightCandleTypeGroup' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('optExitRightMultiplierGroup' + n); if (el) el.style.display = 'none';
+            var rd = document.getElementById('optExitRightDay' + n);
+            var rc = document.getElementById('optExitRightCandleType' + n);
+            var rm = document.getElementById('optExitRightMultiplier' + n);
+            if (rd) rd.value = '0';
+            if (rc) rc.value = 'minute';
+            if (rm) rm.value = '1';
+        } else {
+            el = document.getElementById('optExitRightTimeframeGroup' + n); if (el) el.style.display = 'none';
+        }
+        if (rightType === 'sma' || rightType === 'ema') {
+            // window/series already shown in block above
+        } else if (rightType === 'rsi') {
             el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
             el = document.getElementById('optExitRightSeriesTypeGroup' + n); if (el) el.style.display = '';
         } else if (rightType === 'volume') {
@@ -381,16 +441,21 @@ function collectOptExitConditions() {
             metric: effectiveMetric,
             left: {
                 day: metric === 'current_price' ? '0' : ((document.getElementById('optExitLeftDay' + id) || {}).value || '0'),
-                candle_type: metric === 'current_price' ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
-                multiplier: metric === 'current_price' ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
+                candle_type: (metric === 'current_price' || metric === 'vwap') ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
+                multiplier: (metric === 'current_price' || metric === 'vwap') ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
             },
             operator: (document.getElementById('optExitOperator' + id) || {}).value || '>',
             comparator: comparator
         };
         
-        if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
+        if (metric === 'sma' || metric === 'ema' || metric === 'rsi' || metric === 'vwap') {
             condition.left.window = parseInt((document.getElementById('optExitLeftWindow' + id) || {}).value) || 14;
+        }
+        if (metric === 'sma' || metric === 'ema' || metric === 'vwap') {
+            condition.left.timeframe_minutes = parseInt((document.getElementById('optExitLeftTimeframe' + id) || {}).value) || 5;
+            condition.left.candle_type = 'minute';
+            condition.left.multiplier = 1;
         }
 
         if (metric === 'volume') {
@@ -416,6 +481,14 @@ function collectOptExitConditions() {
             
             if (comparator === 'compare_sma' || comparator === 'compare_ema') {
                 condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
+                condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 5;
+            }
+            if (comparator === 'compare_vwap') {
+                condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
+                condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 5;
+                condition.right.candle_type = 'minute';
+                condition.right.multiplier = 1;
+                condition.right.day = '0';
             }
             
             condition.threshold = {
@@ -504,6 +577,12 @@ function addPriceCondition() {
                         ${SERIES_TYPES.map(s => `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`).join('')}
                     </select>
                 </div>
+                <div class="col-md-3 col-sm-6" id="leftTimeframeGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="leftTimeframe${conditionId}">
+                        ${TIMEFRAME_OPTIONS.map(t => `<option value="${t.value}"${t.value === '5' ? ' selected' : ''}>${t.label}</option>`).join('')}
+                    </select>
+                </div>
                 <!-- MACD specific fields -->
                 <div class="col-md-3 col-sm-6" id="leftMacdShortGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Short Window</label>
@@ -543,6 +622,7 @@ function addPriceCondition() {
                     <select class="form-select" id="comparator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
                         <option value="value">Value</option>
                         <option value="compare_price">Compare Price</option>
+                        <option value="compare_vwap">Compare VWAP</option>
                         <option value="compare_sma">Compare SMA</option>
                         <option value="compare_ema">Compare EMA</option>
                     </select>
@@ -558,13 +638,13 @@ function addPriceCondition() {
         <div class="condition-right-side mb-3" id="rightSide${conditionId}" style="display: none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
             <div class="row g-2">
-                <div class="col-md-4 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="rightDayGroup${conditionId}">
                     <label class="form-label small">Day</label>
                     <select class="form-select form-select-sm" id="rightDay${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
                     </select>
                 </div>
-                <div class="col-md-4 col-sm-6">
+                <div class="col-md-4 col-sm-6" id="rightCandleTypeGroup${conditionId}">
                     <label class="form-label small">Candle Type</label>
                     <select class="form-select form-select-sm" id="rightCandleType${conditionId}" onchange="handleCandleTypeChange(${conditionId})">
                         ${CANDLE_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
@@ -582,6 +662,12 @@ function addPriceCondition() {
                     <label class="form-label small" id="rightSeriesLabel${conditionId}">Series Type</label>
                     <select class="form-select form-select-sm" id="rightSeriesType${conditionId}">
                         ${SERIES_TYPES.map(s => `<option value="${s.value}"${s.value === 'close' ? ' selected' : ''}>${s.label}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6" id="rightTimeframeGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Timeframe</label>
+                    <select class="form-select form-select-sm" id="rightTimeframe${conditionId}">
+                        ${TIMEFRAME_OPTIONS.map(t => `<option value="${t.value}"${t.value === '5' ? ' selected' : ''}>${t.label}</option>`).join('')}
                     </select>
                 </div>
                 <!-- MACD specific fields for right side -->
@@ -700,7 +786,10 @@ function updateConditionFields(conditionId) {
     if (leftMacdLongGroup) leftMacdLongGroup.style.display = 'none';
     if (leftMacdSignalGroup) leftMacdSignalGroup.style.display = 'none';
     if (leftMacdComponentGroup) leftMacdComponentGroup.style.display = 'none';
-    
+    // Hide timeframe group by default; shown only for SMA/EMA
+    var leftTimeframeGrp = document.getElementById(`leftTimeframeGroup${conditionId}`);
+    if (leftTimeframeGrp) leftTimeframeGrp.style.display = 'none';
+
     var leftDayGroup = document.getElementById(`leftDayGroup${conditionId}`);
     var leftCandleTypeGroup = document.getElementById(`leftCandleTypeGroup${conditionId}`);
     var leftMultiplierGroup = document.getElementById(`leftMultiplierGroup${conditionId}`);
@@ -716,7 +805,7 @@ function updateConditionFields(conditionId) {
             if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
             if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
             if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
             break;
         case 'price':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -725,7 +814,28 @@ function updateConditionFields(conditionId) {
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            break;
+
+        case 'vwap':
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'block';
+            if (leftWindowLabel) leftWindowLabel.textContent = 'Period';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
+            if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+            (function() {
+                var tfGrp = document.getElementById('leftTimeframeGroup' + conditionId);
+                if (tfGrp) tfGrp.style.display = 'block';
+                var d = document.getElementById('leftDay' + conditionId);
+                var c = document.getElementById('leftCandleType' + conditionId);
+                var m = document.getElementById('leftMultiplier' + conditionId);
+                if (d) d.value = '0';
+                if (c) c.value = 'minute';
+                if (m) m.value = '1';
+            })();
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
             break;
 
         case 'volume':
@@ -740,14 +850,24 @@ function updateConditionFields(conditionId) {
             
         case 'sma':
         case 'ema':
-            if (leftDayGroup) leftDayGroup.style.display = 'block';
-            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'block';
-            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'block';
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
-            if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
+            if (leftWindowLabel) leftWindowLabel.textContent = 'Period';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            (function() {
+                var tfGrp = document.getElementById('leftTimeframeGroup' + conditionId);
+                if (tfGrp) tfGrp.style.display = 'block';
+                var d = document.getElementById('leftDay' + conditionId);
+                var c = document.getElementById('leftCandleType' + conditionId);
+                var m = document.getElementById('leftMultiplier' + conditionId);
+                if (d) d.value = '0';
+                if (c) c.value = 'minute';
+                if (m) m.value = '1';
+            })();
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
             break;
             
         case 'rsi':
@@ -862,6 +982,7 @@ function updateComparatorOptions(conditionId, options) {
     const optionLabels = {
         'value': 'Value',
         'compare_price': 'Compare Price',
+        'compare_vwap': 'Compare VWAP',
         'compare_sma': 'Compare SMA',
         'compare_ema': 'Compare EMA',
         'compare_rsi': 'Compare RSI',
@@ -926,11 +1047,13 @@ function updateRightSideFields(conditionId, comparator) {
     const rightMacdShortGroup = document.getElementById(`rightMacdShortGroup${conditionId}`);
     const rightMacdLongGroup = document.getElementById(`rightMacdLongGroup${conditionId}`);
     const rightMacdSignalGroup = document.getElementById(`rightMacdSignalGroup${conditionId}`);
+    const rightTimeframeGroup = document.getElementById(`rightTimeframeGroup${conditionId}`);
     
-    // Hide all MACD groups first
+    // Hide all MACD groups first; hide timeframe by default
     if (rightMacdShortGroup) rightMacdShortGroup.style.display = 'none';
     if (rightMacdLongGroup) rightMacdLongGroup.style.display = 'none';
     if (rightMacdSignalGroup) rightMacdSignalGroup.style.display = 'none';
+    if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'none';
     
     const rightSeriesLabel = document.getElementById(`rightSeriesLabel${conditionId}`);
     
@@ -938,6 +1061,23 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Price Type';
+    } else if (comparator === 'compare_vwap') {
+        if (rightWindowGroup) rightWindowGroup.style.display = 'block';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
+        if (rightSeriesLabel) rightSeriesLabel.textContent = 'Series Type';
+        if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'block';
+        var rDayGrp2 = document.getElementById('rightDayGroup' + conditionId);
+        var rCandleGrp2 = document.getElementById('rightCandleTypeGroup' + conditionId);
+        var rMultGrp2 = document.getElementById('rightMultiplierGroup' + conditionId);
+        if (rDayGrp2) rDayGrp2.style.display = 'none';
+        if (rCandleGrp2) rCandleGrp2.style.display = 'none';
+        if (rMultGrp2) rMultGrp2.style.display = 'none';
+        var rd2 = document.getElementById('rightDay' + conditionId);
+        var rc2 = document.getElementById('rightCandleType' + conditionId);
+        var rm2 = document.getElementById('rightMultiplier' + conditionId);
+        if (rd2) rd2.value = '0';
+        if (rc2) rc2.value = 'minute';
+        if (rm2) rm2.value = '1';
     } else if (comparator === 'compare_volume') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
@@ -945,6 +1085,20 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Series Type';
+        if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'block';
+        // Hide day/candle/multiplier — fixed defaults, not needed for SMA/EMA
+        var rDayGrp = document.getElementById('rightDayGroup' + conditionId);
+        var rCandleGrp = document.getElementById('rightCandleTypeGroup' + conditionId);
+        var rMultGrp = document.getElementById('rightMultiplierGroup' + conditionId);
+        if (rDayGrp) rDayGrp.style.display = 'none';
+        if (rCandleGrp) rCandleGrp.style.display = 'none';
+        if (rMultGrp) rMultGrp.style.display = 'none';
+        var rd = document.getElementById('rightDay' + conditionId);
+        var rc = document.getElementById('rightCandleType' + conditionId);
+        var rm = document.getElementById('rightMultiplier' + conditionId);
+        if (rd) rd.value = '0';
+        if (rc) rc.value = 'minute';
+        if (rm) rm.value = '1';
     } else if (comparator === 'compare_rsi') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
@@ -983,39 +1137,43 @@ function updateOptThresholdUnitOptions(n, metric, isExit) {
 function buildOptConditionDesc(n, isExit) {
     function getVal(id) { return (document.getElementById(id) || {}).value; }
 
-    var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries;
-    var compareValue, rightDay, rightCandle, rightMult, rightSeries, threshUnit, threshVal;
+    var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe;
+    var compareValue, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
 
     if (isExit) {
-        metric       = getVal('optExitMetric' + n) || 'current_price';
-        operator     = getVal('optExitOperator' + n) || '>';
-        comparator   = getVal('optExitComparator' + n) || 'value';
-        leftDay      = parseInt(getVal('optExitLeftDay' + n) || '0');
-        leftCandle   = getVal('optExitLeftCandleType' + n) || 'minute';
-        leftMult     = parseInt(getVal('optExitLeftMultiplier' + n) || '1');
-        leftSeries   = getVal('optExitLeftSeriesType' + n) || 'close';
-        compareValue = getVal('optExitCompareValue' + n);
-        rightDay     = parseInt(getVal('optExitRightDay' + n) || '0');
-        rightCandle  = getVal('optExitRightCandleType' + n) || 'minute';
-        rightMult    = parseInt(getVal('optExitRightMultiplier' + n) || '1');
-        rightSeries  = getVal('optExitRightSeriesType' + n) || 'close';
-        threshUnit   = getVal('optExitThresholdUnit' + n) || 'percent';
-        threshVal    = parseFloat(getVal('optExitThresholdValue' + n) || '0') || 0;
+        metric         = getVal('optExitMetric' + n) || 'current_price';
+        operator       = getVal('optExitOperator' + n) || '>';
+        comparator     = getVal('optExitComparator' + n) || 'value';
+        leftDay        = parseInt(getVal('optExitLeftDay' + n) || '0');
+        leftCandle     = getVal('optExitLeftCandleType' + n) || 'minute';
+        leftMult       = parseInt(getVal('optExitLeftMultiplier' + n) || '1');
+        leftSeries     = getVal('optExitLeftSeriesType' + n) || 'close';
+        leftTimeframe  = parseInt(getVal('optExitLeftTimeframe' + n) || '5') || 5;
+        compareValue   = getVal('optExitCompareValue' + n);
+        rightDay       = parseInt(getVal('optExitRightDay' + n) || '0');
+        rightCandle    = getVal('optExitRightCandleType' + n) || 'minute';
+        rightMult      = parseInt(getVal('optExitRightMultiplier' + n) || '1');
+        rightSeries    = getVal('optExitRightSeriesType' + n) || 'close';
+        rightTimeframe = parseInt(getVal('optExitRightTimeframe' + n) || '5') || 5;
+        threshUnit     = getVal('optExitThresholdUnit' + n) || 'percent';
+        threshVal      = parseFloat(getVal('optExitThresholdValue' + n) || '0') || 0;
     } else {
-        metric       = getVal('metric' + n) || 'current_price';
-        operator     = getVal('operator' + n) || '>';
-        comparator   = getVal('comparator' + n) || 'value';
-        leftDay      = parseInt(getVal('leftDay' + n) || '0');
-        leftCandle   = getVal('leftCandleType' + n) || 'minute';
-        leftMult     = parseInt(getVal('leftMultiplier' + n) || '1');
-        leftSeries   = getVal('leftSeriesType' + n) || 'close';
-        compareValue = getVal('compareValue' + n);
-        rightDay     = parseInt(getVal('rightDay' + n) || '0');
-        rightCandle  = getVal('rightCandleType' + n) || 'minute';
-        rightMult    = parseInt(getVal('rightMultiplier' + n) || '1');
-        rightSeries  = getVal('rightSeriesType' + n) || 'close';
-        threshUnit   = getVal('thresholdUnit' + n) || 'percent';
-        threshVal    = parseFloat(getVal('thresholdValue' + n) || '0') || 0;
+        metric         = getVal('metric' + n) || 'current_price';
+        operator       = getVal('operator' + n) || '>';
+        comparator     = getVal('comparator' + n) || 'value';
+        leftDay        = parseInt(getVal('leftDay' + n) || '0');
+        leftCandle     = getVal('leftCandleType' + n) || 'minute';
+        leftMult       = parseInt(getVal('leftMultiplier' + n) || '1');
+        leftSeries     = getVal('leftSeriesType' + n) || 'close';
+        leftTimeframe  = parseInt(getVal('leftTimeframe' + n) || '5') || 5;
+        compareValue   = getVal('compareValue' + n);
+        rightDay       = parseInt(getVal('rightDay' + n) || '0');
+        rightCandle    = getVal('rightCandleType' + n) || 'minute';
+        rightMult      = parseInt(getVal('rightMultiplier' + n) || '1');
+        rightSeries    = getVal('rightSeriesType' + n) || 'close';
+        rightTimeframe = parseInt(getVal('rightTimeframe' + n) || '5') || 5;
+        threshUnit     = getVal('thresholdUnit' + n) || 'percent';
+        threshVal      = parseFloat(getVal('thresholdValue' + n) || '0') || 0;
     }
 
     function dayLabel(d) {
@@ -1031,24 +1189,31 @@ function buildOptConditionDesc(n, isExit) {
         if (c === 'month') return 'month';
         return c;
     }
-    function sideDesc(m, day, candle, mult, series) {
+    function sideDesc(m, day, candle, mult, series, timeframe) {
         if (m === 'volume') return candleLabel(candle, mult) + ' vol (' + dayLabel(day) + ')';
         if (m === 'current_price') return 'current price';
         if (m === 'price') return candleLabel(candle, mult) + ' ' + series + ' (' + dayLabel(day) + ')';
-        if (m === 'sma' || m === 'ema') return m.toUpperCase() + '(' + series + ') [' + dayLabel(day) + ']';
+        if (m === 'vwap') {
+            var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 1) + 'min';
+            return 'VWAP(' + series + ', ' + tf + ')';
+        }
+        if (m === 'sma' || m === 'ema') {
+            var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 5) + 'min';
+            return m.toUpperCase() + '(' + series + ', ' + tf + ')';
+        }
         if (m === 'rsi') return 'RSI [' + dayLabel(day) + ']';
         if (m === 'macd') return 'MACD [' + dayLabel(day) + ']';
         return m;
     }
 
-    var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries);
+    var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe);
 
     if (comparator === 'value') {
         return leftDesc + ' ' + operator + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
     var rightMetric = comparator.replace('compare_', '');
-    var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries);
+    var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
     var suffix = '';
     if (threshVal !== 0) {
@@ -1091,15 +1256,20 @@ function collectPriceConditions() {
                 day: metric === 'current_price' ? '0' : (document.getElementById(`leftDay${id}`)?.value || '0'),
                 candle_type: metric === 'current_price' ? 'minute' : (document.getElementById(`leftCandleType${id}`)?.value || 'minute'),
                 multiplier: metric === 'current_price' ? 1 : (parseInt(document.getElementById(`leftMultiplier${id}`)?.value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
             },
             operator: document.getElementById(`operator${id}`)?.value,
             comparator: comparator
         };
         
         // Add metric-specific fields
-        if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
+        if (metric === 'sma' || metric === 'ema' || metric === 'rsi' || metric === 'vwap') {
             condition.left.window = parseInt(document.getElementById(`leftWindow${id}`)?.value) || 14;
+        }
+        if (metric === 'sma' || metric === 'ema' || metric === 'vwap') {
+            condition.left.timeframe_minutes = parseInt(document.getElementById(`leftTimeframe${id}`)?.value) || 5;
+            condition.left.candle_type = 'minute';
+            condition.left.multiplier = 1;
         }
 
         if (metric === 'volume') {
@@ -1133,6 +1303,16 @@ function collectPriceConditions() {
             // Add window for SMA/EMA/RSI comparisons
             if (comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_rsi') {
                 condition.right.window = parseInt(document.getElementById(`rightWindow${id}`)?.value) || 14;
+            }
+            if (comparator === 'compare_sma' || comparator === 'compare_ema') {
+                condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 5;
+            }
+            if (comparator === 'compare_vwap') {
+                condition.right.window = parseInt(document.getElementById(`rightWindow${id}`)?.value) || 14;
+                condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 5;
+                condition.right.candle_type = 'minute';
+                condition.right.multiplier = 1;
+                condition.right.day = '0';
             }
             
             // Add MACD fields for MACD comparisons
@@ -2163,8 +2343,10 @@ function validateStrikeConfiguration(strategy, legs) {
     function legDesc(leg) {
         if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') {
             const unit = leg.config_type === 'pct_leg' ? '%' : '$';
-            const ref = legs[parseInt(leg.params.reference)];
-            return `${leg.params.direction} the ${ref ? ref.name : 'reference leg'} by ${leg.params.pct || leg.params.amount}${unit}`;
+            const refIdx = parseInt(leg.params.reference);
+            const ref = legs[refIdx];
+            const refLabel = ref ? (ref.name || `Leg ${refIdx + 1}`) : 'reference leg';
+            return `${leg.params.direction} ${refLabel} by ${leg.params.pct || leg.params.amount}${unit}`;
         }
         return `${leg.params.direction} by ${leg.params.pct || leg.params.amount}`;
     }
@@ -2316,18 +2498,17 @@ function validateStrikeConfiguration(strategy, legs) {
             const shortPut = findLeg('short', 'P');
 
             if (longPut && shortPut) {
+                // Long Put Spread (Bear Put Spread): buy higher-strike put, sell lower-strike put.
+                // Long Put must be ABOVE Short Put (higher strike = less OTM = less negative relative strike).
                 if (canCompare(longPut, shortPut)) {
-                    // Long Put must be closer to ATM (higher strike) than Short Put
                     if (getRelativeStrike(longPut) <= getRelativeStrike(shortPut)) {
                         return { valid: false, error: `Long Put Spread: Long Put must be ABOVE Short Put — Long Put ${longPut.params.direction} ${longPut.params.pct || longPut.params.amount}, Short Put ${shortPut.params.direction} ${shortPut.params.pct || shortPut.params.amount}.` };
                     }
                 }
-                // Long Put configured as below Short Put via leg reference — invalid
                 const lpToSp = getLegToLegRelation(longPut, shortPut);
                 if (lpToSp === 'below') {
                     return { valid: false, error: `Long Put Spread: Long Put is set BELOW Short Put (${legDesc(longPut)}), but Long Put must be ABOVE Short Put.` };
                 }
-                // Short Put configured as above Long Put via leg reference — invalid
                 const spToLp = getLegToLegRelation(shortPut, longPut);
                 if (spToLp === 'above') {
                     return { valid: false, error: `Long Put Spread: Short Put is set ABOVE Long Put (${legDesc(shortPut)}), but Short Put must be BELOW Long Put.` };
@@ -3151,12 +3332,6 @@ function displayResults(result) {
     setTextContent('statTotalPL', formatCurrency(result.total_pnl));
     setTextContent('statAvgWin', formatCurrency(result.avg_win));
     setTextContent('statAvgLoss', formatCurrency(result.avg_loss));
-    const awpcEl = document.getElementById('statAvgWinPerContract');
-    if (awpcEl) awpcEl.textContent = result.avg_win_per_contract != null
-        ? `${formatCurrency(result.avg_win_per_contract)} per contract` : '';
-    const alpcEl = document.getElementById('statAvgLossPerContract');
-    if (alpcEl) alpcEl.textContent = result.avg_loss_per_contract != null && result.avg_loss_per_contract !== 0
-        ? `${formatCurrency(result.avg_loss_per_contract)} per contract` : '';
     setTextContent('statProfitFactor', result.profit_factor ? result.profit_factor.toFixed(2) : 'N/A');
     setTextContent('statMaxDrawdown', result.max_drawdown ? `${result.max_drawdown.toFixed(2)}%` : 'N/A');
     setTextContent('statTotalReturn', result.total_return ? `${result.total_return.toFixed(2)}%` : 'N/A');
@@ -3388,8 +3563,6 @@ async function loadLastBacktestIfExists() {
             total_pnl: lastBacktest.summary.total_pnl,
             avg_win: lastBacktest.summary.avg_win,
             avg_loss: lastBacktest.summary.avg_loss,
-            avg_win_per_contract: lastBacktest.summary.avg_win_per_contract,
-            avg_loss_per_contract: lastBacktest.summary.avg_loss_per_contract,
             profit_factor: lastBacktest.summary.profit_factor,
             max_drawdown: lastBacktest.summary.max_drawdown,
             total_return: lastBacktest.summary.total_return,

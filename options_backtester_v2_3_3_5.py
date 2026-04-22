@@ -3731,6 +3731,7 @@ def run_backtest(config: Dict, client: RESTClient):
             # Scan through candidate bars to find first one where conditions are met
             entry_bar = None
             last_condition_reason = None
+            _entry_snap = {}
             for bar in candidate_bars:
                 underlying_price = bar['open']
                 bar_time = bar['time']
@@ -3778,6 +3779,21 @@ def run_backtest(config: Dict, client: RESTClient):
                 
                 # Conditions met (or no conditions), use this bar for entry
                 entry_bar = bar
+                # Snapshot indicator values at entry for trade log
+                _entry_snap = {}
+                _entry_bar_ts = bar.get('timestamp')
+                for _cond in price_conditions:
+                    _m = _cond.get('metric', 'price')
+                    _lp = _cond.get('left', {})
+                    if _m in ('sma', 'ema', 'vwap'):
+                        _w = int(_lp.get('window', 14))
+                        _tf = int(_lp.get('timeframe_minutes', 5))
+                        _ik = f'{_m}_w{_w}_t{_tf}'
+                        _id = indicators_cache.get(_ik, {})
+                        if _id:
+                            _v = find_closest_indicator_value(_id, _entry_bar_ts)
+                            if _v is not None:
+                                _entry_snap[f'{_m.upper()}({_w},{_tf}min)'] = round(_v, 4)
                 break
             
             if not entry_bar:
@@ -4645,6 +4661,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 'capital_after': capital,
                 'dte': dte_days,
                 'dit': round(dit_days, 1),  # 1 decimal precision
+                'indicator_snapshot': _entry_snap,
                 'legs': []
             }
         
@@ -5073,6 +5090,14 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
             'pnl', 'exit_reason', 'dte', 'dit', 'capital_before', 'capital_after'
         ]
         
+        # Add indicator snapshot columns (SMA/EMA/VWAP values at entry)
+        all_indicator_keys = []
+        for t in trades:
+            for k in (t.get('indicator_snapshot') or {}).keys():
+                if k not in all_indicator_keys:
+                    all_indicator_keys.append(k)
+        fieldnames.extend(all_indicator_keys)
+
         # Add leg-specific fields dynamically based on max number of legs
         max_legs = max(len(t['legs']) for t in trades)
         for i in range(max_legs):
@@ -5115,6 +5140,11 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
                 'capital_after': f"{trade['capital_after']:.2f}"
             }
             
+            # Add indicator snapshot values
+            snap = trade.get('indicator_snapshot') or {}
+            for k in all_indicator_keys:
+                row[k] = f"{snap[k]:.4f}" if k in snap else ''
+
             # Add leg details
             for i, leg in enumerate(trade['legs']):
                 row[f'leg{i+1}_symbol'] = leg['symbol']

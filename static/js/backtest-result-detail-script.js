@@ -9,10 +9,13 @@ function _btFmt(value) {
 
 function _btPnlClass(val) { return val >= 0 ? 'text-success' : 'text-danger'; }
 
-function _btStatRow(label, value, cls) {
-    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f0f0f0;">' +
+function _btStatRow(label, value, cls, sub) {
+    return '<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0f0f0;">' +
         '<span style="color:#6a6d78; font-size:13px;">' + label + '</span>' +
-        '<span style="font-weight:600; font-size:13px;' + (cls ? ' color:' + (cls === 'positive' ? '#089981' : '#f23645') : '') + ';">' + value + '</span></div>';
+        '<span style="text-align:right;">' +
+            '<span style="font-weight:600; font-size:13px;' + (cls ? ' color:' + (cls === 'positive' ? '#089981' : '#f23645') : '') + ';">' + value + '</span>' +
+            (sub ? '<br><span style="font-size:10px; color:#aaa;">' + sub + '</span>' : '') +
+        '</span></div>';
 }
 
 function _btConfigCard(label, value) {
@@ -202,7 +205,12 @@ async function _displayOptDetail(metadata) {
     statsHtml += _btStatRow('Return %', (summary.total_return || 0).toFixed(2) + '%', (summary.total_return || 0) > 0 ? 'positive' : (summary.total_return || 0) < 0 ? 'negative' : null);
     statsHtml += _btStatRow('Profit Factor', (summary.profit_factor || 0).toFixed(2), (summary.profit_factor || 0) > 1 ? 'positive' : 'negative');
     statsHtml += _btStatRow('Max Drawdown', (summary.max_drawdown || 0).toFixed(2) + '%', (summary.max_drawdown || 0) < 0 ? 'negative' : null);
-    statsHtml += _btStatRow('Avg Trade', _btFmt((summary.avg_win || 0) + (summary.avg_loss || 0)));
+    var awSub = summary.avg_win_per_contract != null && summary.avg_win_per_contract !== 0
+        ? _btFmt(summary.avg_win_per_contract) + ' per contract' : null;
+    statsHtml += _btStatRow('Avg Win', _btFmt(summary.avg_win || 0), (summary.avg_win || 0) > 0 ? 'positive' : null, awSub);
+    var alSub = summary.avg_loss_per_contract != null && summary.avg_loss_per_contract !== 0
+        ? _btFmt(summary.avg_loss_per_contract) + ' per contract' : null;
+    statsHtml += _btStatRow('Avg Loss', _btFmt(summary.avg_loss || 0), (summary.avg_loss || 0) < 0 ? 'negative' : null, alSub);
     statsHtml += _btStatRow('Final Capital', summary.final_capital ? '$' + summary.final_capital.toLocaleString() : 'N/A');
     document.getElementById('optDetailStatsBody').innerHTML = statsHtml;
 
@@ -315,6 +323,79 @@ function _renderOptConfig(config) {
             });
             html += '</div>';
         }
+    }
+
+    var candleFmtDetail = function(candle, mult) {
+        var m = parseInt(mult) || 1;
+        if (candle === 'minute') return m + 'min';
+        if (candle === 'hour') return m + 'hr';
+        if (candle === 'day') return m > 1 ? m + 'day' : 'day';
+        return candle;
+    };
+
+    var fmtConditionSide = function(metric, sideObj, isLeft) {
+        var left = sideObj || {};
+        var leftDay = parseInt(left.day) || 0;
+        var leftCandle = left.candle_type || 'minute';
+        var leftSeries = left.series_type || 'close';
+        var leftWindow = left.window ? '(' + left.window + ')' : '';
+        var leftMult = parseInt(left.multiplier) || 1;
+        var isCurrentPrice = metric === 'PRICE' && leftDay === 0 && leftCandle === 'minute' && leftSeries === 'vwap';
+        if (isCurrentPrice) return 'Current Price';
+        return metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + candleFmtDetail(leftCandle, leftMult) + ']';
+    };
+
+    var fmtCondition = function(pc) {
+        var metric = (pc.metric || 'price').toUpperCase();
+        var op = pc.operator || '>';
+        var leftDesc = fmtConditionSide(metric, pc.left);
+        var rightDesc = '';
+        if (pc.comparator === 'value') {
+            rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
+        } else {
+            var rightMetric = (pc.comparator || '').replace('compare_', '').toUpperCase();
+            var right = pc.right || {};
+            rightDesc = fmtConditionSide(rightMetric, right);
+            var threshold = pc.threshold || {};
+            var threshVal = parseFloat(threshold.value);
+            if (threshVal) {
+                rightDesc += ' \u00b1' + threshVal + (threshold.unit === 'percent' ? '%' : '$');
+            }
+        }
+        return leftDesc + ' ' + op + ' ' + rightDesc;
+    };
+
+    var hasEntryConds = config.price_conditions && config.price_conditions.length > 0;
+    var hasExitConds = config.exit_price_conditions && config.exit_price_conditions.length > 0;
+    var hasPreset = config.options_entry_type === 'preset' && config.preset_condition;
+
+    if (hasPreset || hasEntryConds) {
+        var condLines = [];
+        if (hasPreset) {
+            var presetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
+            var condName = presetNames[config.preset_condition] || ('Preset #' + config.preset_condition);
+            var pLine = condName + ': ' + (config.preset_operator || '>') + ' ' + (config.preset_threshold || 0) + '%';
+            if (config.preset_condition === '5') pLine += ' over ' + (config.velocity_lookback || 5) + ' min';
+            condLines.push(pLine);
+        } else {
+            condLines = config.price_conditions.map(fmtCondition);
+        }
+        html += '<div style="grid-column: 1 / -1; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px;">';
+        html += '<div style="font-size:10px; color:#166534; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">Entry Conditions</div>';
+        condLines.forEach(function(line) {
+            html += '<div style="font-size:13px; color:#191919; padding:3px 0; border-bottom:1px dashed #d1fae5;">' + line + '</div>';
+        });
+        html += '</div>';
+    }
+
+    if (hasExitConds) {
+        var exitLines = config.exit_price_conditions.map(fmtCondition);
+        html += '<div style="grid-column: 1 / -1; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px 12px;">';
+        html += '<div style="font-size:10px; color:#9a3412; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">Exit Conditions</div>';
+        exitLines.forEach(function(line) {
+            html += '<div style="font-size:13px; color:#191919; padding:3px 0; border-bottom:1px dashed #fdba74;">' + line + '</div>';
+        });
+        html += '</div>';
     }
 
     document.getElementById('optDetailConfigList').innerHTML = html;

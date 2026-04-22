@@ -4089,6 +4089,21 @@ def run_backtester_script(config, api_key):
                     })
                     leg_num += 1
                 
+                # Read any indicator snapshot columns (SMA/EMA/VWAP values at entry)
+                known_fields = {
+                    'entry_date','entry_time','entry_timestamp','underlying_price',
+                    'exit_date','exit_time','exit_timestamp','underlying_exit_price',
+                    'strategy','num_contracts','net_premium_entry','net_premium_exit',
+                    'max_risk','pnl','exit_reason','dte','dit','capital_before','capital_after'
+                }
+                indicator_snapshot = {}
+                for col, val in row.items():
+                    if col and val and col not in known_fields and not col.startswith('leg') and val.strip():
+                        try:
+                            indicator_snapshot[col] = float(val)
+                        except (ValueError, TypeError):
+                            pass
+
                 trades.append({
                     'entry_date': row['entry_date'],
                     'entry_time': row['entry_time'],
@@ -4109,6 +4124,7 @@ def run_backtester_script(config, api_key):
                     'dit': float(row['dit']),
                     'capital_before': float(row['capital_before']),
                     'capital_after': float(row['capital_after']),
+                    'indicator_snapshot': indicator_snapshot,
                     'legs': legs
                 })
         

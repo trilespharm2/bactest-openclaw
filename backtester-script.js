@@ -203,6 +203,7 @@ function addOptExitCondition() {
                     <select class="form-select" id="optExitComparator${n}" onchange="updateOptExitRightSide(${n})">
                         <option value="value">Value</option>
                         <option value="compare_price">Compare Price</option>
+                        <option value="compare_vwap">Compare VWAP</option>
                         <option value="compare_sma">Compare SMA</option>
                         <option value="compare_ema">Compare EMA</option>
                     </select>
@@ -621,6 +622,7 @@ function addPriceCondition() {
                     <select class="form-select" id="comparator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
                         <option value="value">Value</option>
                         <option value="compare_price">Compare Price</option>
+                        <option value="compare_vwap">Compare VWAP</option>
                         <option value="compare_sma">Compare SMA</option>
                         <option value="compare_ema">Compare EMA</option>
                     </select>
@@ -803,7 +805,7 @@ function updateConditionFields(conditionId) {
             if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
             if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
             if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
             break;
         case 'price':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -865,7 +867,7 @@ function updateConditionFields(conditionId) {
                 if (c) c.value = 'minute';
                 if (m) m.value = '1';
             })();
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
             break;
             
         case 'rsi':
