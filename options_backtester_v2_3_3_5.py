@@ -482,7 +482,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
         left_params = condition.get('left', {})
         left_candle_type = left_params.get('candle_type', 'minute')
         
-        if metric == 'price':
+        if metric in ('price', 'vwap'):
             if left_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                 needs_day_price = True
                 if 'price_day' not in metrics_config:
@@ -504,7 +504,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
             right_params = condition.get('right', {})
             right_candle_type = right_params.get('candle_type', 'minute')
             
-            if comp_metric == 'price':
+            if comp_metric in ('price', 'vwap'):
                 if right_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                     needs_day_price = True
                     if 'price_day' not in metrics_config:
@@ -810,16 +810,29 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             if left_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and left_day_offset == 0 and left_series_type in ['close', 'high', 'low']:
                 return False, f"Invalid: cannot use day candle '{left_series_type}' on day 0 — current day has not closed"
 
+            # Treat 'vwap' metric same as 'price' with series_type='vwap'
+            if metric == 'vwap':
+                left_series_type = 'vwap'
+
             # Get left side value
-            if metric == 'price':
+            if metric in ('price', 'vwap'):
                 if left_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                     # Use day bars from cache
                     left_value = get_day_bar_value(indicators_cache, trade_date, left_day_offset, left_series_type)
                     if left_value is None:
                         return False, f"Missing day bar data for day offset {left_day_offset}"
                 else:
-                    # Use current bar's price
-                    left_value = bar_price
+                    # Use current bar's price field based on series_type
+                    if left_series_type == 'vwap':
+                        left_value = bar.get('vw', bar_price)
+                    elif left_series_type == 'close':
+                        left_value = bar.get('close', bar_price)
+                    elif left_series_type == 'high':
+                        left_value = bar.get('high', bar_price)
+                    elif left_series_type == 'low':
+                        left_value = bar.get('low', bar_price)
+                    else:
+                        left_value = bar_price
             else:
                 if metric in ('sma', 'ema'):
                     # Composite key: sma_w{window}_t{timeframe_minutes}
@@ -854,14 +867,27 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 if right_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and right_day_offset == 0 and right_series_type in ['close', 'high', 'low']:
                     return False, f"Invalid: cannot use day candle '{right_series_type}' on right side day 0 — current day has not closed"
 
-                if right_metric == 'price':
+                # Treat 'vwap' right metric same as 'price' with series_type='vwap'
+                if right_metric == 'vwap':
+                    right_series_type = 'vwap'
+
+                if right_metric in ('price', 'vwap'):
                     if right_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                         # Use day bars from cache with offset
                         right_value = get_day_bar_value(indicators_cache, trade_date, right_day_offset, right_series_type)
                         if right_value is None:
                             return False, f"Missing day bar data for right side day offset {right_day_offset}"
                     else:
-                        right_value = bar_price
+                        if right_series_type == 'vwap':
+                            right_value = bar.get('vw', bar_price)
+                        elif right_series_type == 'close':
+                            right_value = bar.get('close', bar_price)
+                        elif right_series_type == 'high':
+                            right_value = bar.get('high', bar_price)
+                        elif right_series_type == 'low':
+                            right_value = bar.get('low', bar_price)
+                        else:
+                            right_value = bar_price
                 else:
                     if right_metric in ('sma', 'ema'):
                         _rw  = int(right_params.get('window', 14))
@@ -999,7 +1025,9 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
     series_type = params.get('series_type', 'close')
     
     try:
-        if metric == 'price':
+        if metric in ('price', 'vwap'):
+            # For vwap metric, always use the 'vw' field
+            effective_series_type = 'vwap' if metric == 'vwap' else series_type
             # Get price from aggregates
             url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/1/day/{target_date_str}/{target_date_str}"
             response = requests.get(url, params={'apiKey': api_key})
@@ -1008,7 +1036,7 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
                 if data.get('results') and len(data['results']) > 0:
                     bar = data['results'][0]
                     price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
-                    return bar.get(price_map.get(series_type, 'c'), None)
+                    return bar.get(price_map.get(effective_series_type, 'c'), None)
             return None
         
         elif metric in ['sma', 'ema', 'rsi']:

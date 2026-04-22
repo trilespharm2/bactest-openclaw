@@ -60,6 +60,7 @@ const OPERATORS = [
 const METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
+    { value: 'vwap', label: 'VWAP' },
     { value: 'volume', label: 'Volume' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
@@ -301,27 +302,28 @@ function addOptExitCondition() {
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
     var isCurrentPrice = metric === 'current_price';
+    var isVwap = metric === 'vwap';
     var isIndicator = ['sma', 'ema'].indexOf(metric) !== -1;
     var isVolume = metric === 'volume';
     var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || isIndicator);
-    var hideNavFields = isCurrentPrice || isIndicator;
+    var showSeries = !isVolume && !isVwap && (metric === 'price' || isCurrentPrice || isIndicator);
+    var hideNavFields = isCurrentPrice || isIndicator || isVwap;
 
     var el;
-    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
+    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = (isCurrentPrice || isIndicator) ? 'none' : '';
     el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
     el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
-    if (isIndicator) {
+    if (isIndicator || isVwap) {
         var dayEl = document.getElementById('optExitLeftDay' + n);
         var candleEl = document.getElementById('optExitLeftCandleType' + n);
         var multEl = document.getElementById('optExitLeftMultiplier' + n);
-        if (dayEl) dayEl.value = '0';
+        if (isIndicator && dayEl) dayEl.value = '0';
         if (candleEl) candleEl.value = 'minute';
         if (multEl) multEl.value = '1';
     }
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
-    el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema') ? '' : 'none';
+    el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema' || isVwap) ? '' : 'none';
 
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : (metric === 'sma' || metric === 'ema') ? 'Period' : 'Window';
@@ -341,6 +343,7 @@ function updateOptExitComparatorOptions(n) {
         opts += '<option value="compare_volume">Compare Volume</option>';
     } else if (metric !== 'rsi' && metric !== 'macd') {
         opts += '<option value="compare_price">Compare Price</option>';
+        opts += '<option value="compare_vwap">Compare VWAP</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
     }
@@ -436,9 +439,9 @@ function collectOptExitConditions() {
             metric: effectiveMetric,
             left: {
                 day: metric === 'current_price' ? '0' : ((document.getElementById('optExitLeftDay' + id) || {}).value || '0'),
-                candle_type: metric === 'current_price' ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
-                multiplier: metric === 'current_price' ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
+                candle_type: (metric === 'current_price' || metric === 'vwap') ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
+                multiplier: (metric === 'current_price' || metric === 'vwap') ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
             },
             operator: (document.getElementById('optExitOperator' + id) || {}).value || '>',
             comparator: comparator
@@ -449,6 +452,9 @@ function collectOptExitConditions() {
         }
         if (metric === 'sma' || metric === 'ema') {
             condition.left.timeframe_minutes = parseInt((document.getElementById('optExitLeftTimeframe' + id) || {}).value) || 5;
+        }
+        if (metric === 'vwap') {
+            condition.left.timeframe_minutes = parseInt((document.getElementById('optExitLeftTimeframe' + id) || {}).value) || 1;
         }
 
         if (metric === 'volume') {
@@ -475,6 +481,12 @@ function collectOptExitConditions() {
             if (comparator === 'compare_sma' || comparator === 'compare_ema') {
                 condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
                 condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 5;
+            }
+            if (comparator === 'compare_vwap') {
+                condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 1;
+                condition.right.series_type = 'vwap';
+                condition.right.candle_type = 'minute';
+                condition.right.multiplier = 1;
             }
             
             condition.threshold = {
@@ -799,7 +811,24 @@ function updateConditionFields(conditionId) {
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            break;
+
+        case 'vwap':
+            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            (function() {
+                var tfGrp = document.getElementById('leftTimeframeGroup' + conditionId);
+                if (tfGrp) tfGrp.style.display = 'block';
+                var c = document.getElementById('leftCandleType' + conditionId);
+                var m = document.getElementById('leftMultiplier' + conditionId);
+                if (c) c.value = 'minute';
+                if (m) m.value = '1';
+            })();
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
             break;
 
         case 'volume':
@@ -946,6 +975,7 @@ function updateComparatorOptions(conditionId, options) {
     const optionLabels = {
         'value': 'Value',
         'compare_price': 'Compare Price',
+        'compare_vwap': 'Compare VWAP',
         'compare_sma': 'Compare SMA',
         'compare_ema': 'Compare EMA',
         'compare_rsi': 'Compare RSI',
@@ -1024,6 +1054,20 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Price Type';
+    } else if (comparator === 'compare_vwap') {
+        if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
+        if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'block';
+        var rDayGrp2 = document.getElementById('rightDayGroup' + conditionId);
+        var rCandleGrp2 = document.getElementById('rightCandleTypeGroup' + conditionId);
+        var rMultGrp2 = document.getElementById('rightMultiplierGroup' + conditionId);
+        if (rDayGrp2) rDayGrp2.style.display = '';
+        if (rCandleGrp2) rCandleGrp2.style.display = 'none';
+        if (rMultGrp2) rMultGrp2.style.display = 'none';
+        var rc2 = document.getElementById('rightCandleType' + conditionId);
+        var rm2 = document.getElementById('rightMultiplier' + conditionId);
+        if (rc2) rc2.value = 'minute';
+        if (rm2) rm2.value = '1';
     } else if (comparator === 'compare_volume') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'none';
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
@@ -1139,6 +1183,10 @@ function buildOptConditionDesc(n, isExit) {
         if (m === 'volume') return candleLabel(candle, mult) + ' vol (' + dayLabel(day) + ')';
         if (m === 'current_price') return 'current price';
         if (m === 'price') return candleLabel(candle, mult) + ' ' + series + ' (' + dayLabel(day) + ')';
+        if (m === 'vwap') {
+            var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 1) + 'min';
+            return 'VWAP (' + tf + ', ' + dayLabel(day) + ')';
+        }
         if (m === 'sma' || m === 'ema') {
             var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 5) + 'min';
             return m.toUpperCase() + '(' + series + ', ' + tf + ')';
@@ -1198,7 +1246,7 @@ function collectPriceConditions() {
                 day: metric === 'current_price' ? '0' : (document.getElementById(`leftDay${id}`)?.value || '0'),
                 candle_type: metric === 'current_price' ? 'minute' : (document.getElementById(`leftCandleType${id}`)?.value || 'minute'),
                 multiplier: metric === 'current_price' ? 1 : (parseInt(document.getElementById(`leftMultiplier${id}`)?.value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
             },
             operator: document.getElementById(`operator${id}`)?.value,
             comparator: comparator
@@ -1210,6 +1258,11 @@ function collectPriceConditions() {
         }
         if (metric === 'sma' || metric === 'ema') {
             condition.left.timeframe_minutes = parseInt(document.getElementById(`leftTimeframe${id}`)?.value) || 5;
+        }
+        if (metric === 'vwap') {
+            condition.left.timeframe_minutes = parseInt(document.getElementById(`leftTimeframe${id}`)?.value) || 1;
+            condition.left.candle_type = 'minute';
+            condition.left.multiplier = 1;
         }
 
         if (metric === 'volume') {
@@ -1246,6 +1299,12 @@ function collectPriceConditions() {
             }
             if (comparator === 'compare_sma' || comparator === 'compare_ema') {
                 condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 5;
+            }
+            if (comparator === 'compare_vwap') {
+                condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 1;
+                condition.right.series_type = 'vwap';
+                condition.right.candle_type = 'minute';
+                condition.right.multiplier = 1;
             }
             
             // Add MACD fields for MACD comparisons
