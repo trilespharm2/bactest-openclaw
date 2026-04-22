@@ -3538,6 +3538,81 @@ def calculate_net_premium(aligned_bar: Dict, legs_info: List[Dict]) -> float:
             net -= price
     return net
 
+# ==================== THEORETICAL PRICING HELPERS ====================
+
+def _compute_hist_vol(daily_closes: Dict[str, float], as_of_date: str, window_days: int = 30) -> float:
+    """Annualised historical volatility from daily closes prior to as_of_date."""
+    dates = sorted(d for d in daily_closes if d < as_of_date)
+    prices = [daily_closes[d] for d in dates[-(window_days + 1):]]
+    if len(prices) < 5:
+        return 0.20  # 20% fallback
+    log_rets = [np.log(prices[i] / prices[i - 1]) for i in range(1, len(prices))]
+    return float(np.std(log_rets, ddof=1) * np.sqrt(252))
+
+
+def _generate_synthetic_bars(
+    underlying_day_bars: List[Dict],
+    strike: float,
+    opt_type: str,        # 'C' or 'P'
+    exp_date: datetime,
+    sigma: float,
+    r: float = 0.045,
+    q: float = 0.0,
+    eastern=None,
+) -> Dict[str, List[Dict]]:
+    """
+    Build a {date_str: [bars]} cache from underlying 1-min bars, pricing each
+    bar via Black-Scholes.  Produces the same bar dict format used by real data.
+    """
+    if eastern is None:
+        eastern = pytz.timezone('US/Eastern')
+
+    # Expiry is treated as 16:00 ET on the expiration date
+    if isinstance(exp_date, datetime):
+        exp_naive = exp_date.replace(hour=16, minute=0, second=0, microsecond=0)
+    else:
+        exp_naive = datetime(exp_date.year, exp_date.month, exp_date.day, 16, 0, 0)
+    if getattr(exp_naive, 'tzinfo', None) is None:
+        exp_dt_aware = eastern.localize(exp_naive)
+    else:
+        exp_dt_aware = exp_naive
+
+    ot = 'call' if opt_type.upper() == 'C' else 'put'
+    bars_by_date: Dict[str, List[Dict]] = {}
+
+    for ub in underlying_day_bars:
+        try:
+            # Parse bar datetime (already in Eastern)
+            bar_time_str = ub['time']  # HH:MM:SS
+            bar_date_str = ub['date']
+            bar_dt_naive = datetime.strptime(f"{bar_date_str} {bar_time_str}", "%Y-%m-%d %H:%M:%S")
+            bar_dt = eastern.localize(bar_dt_naive)
+
+            T = max((exp_dt_aware - bar_dt).total_seconds() / (365.25 * 24 * 3600), 1e-10)
+            calc = GreeksCalculator(S=ub['open'], K=strike, T=T, r=r, q=q, option_type=ot)
+            price = max(0.01, calc.black_scholes_price(sigma))
+            price = round(price, 4)
+
+            syn_bar = {
+                'date': bar_date_str,
+                'datetime': bar_dt,
+                'timestamp': ub['timestamp'],
+                'time': bar_time_str,
+                'open': price,
+                'high': round(price * 1.0005, 4),
+                'low': round(price * 0.9995, 4),
+                'close': price,
+                'volume': 0,
+                'vw': price,
+                '_synthetic': True,
+            }
+            bars_by_date.setdefault(bar_date_str, []).append(syn_bar)
+        except Exception:
+            continue
+
+    return bars_by_date
+
+
 # ==================== MAIN BACKTEST ====================
 
 def run_backtest(config: Dict, client: RESTClient):
@@ -3837,14 +3912,72 @@ def run_backtest(config: Dict, client: RESTClient):
                 client, config, underlying_price, trade_date, exp_date
             )
         
+            _theoretical = False
             if not success:
-                print(f"  Skipping - unable to fetch valid option data")
-                day_entry['events'].append({'type': 'skip', 'reason': 'Unable to fetch valid option data for strikes'})
-                decision_log.append(day_entry)
-                continue
-        
-            # Cache the fetched data for monitoring
-            for leg_data in fetched_legs:
+                # Final fallback: Black-Scholes theoretical pricing
+                sigma_th = _compute_hist_vol(underlying_daily_closes, date_str)
+                r_th = 0.045
+
+                # Collect all underlying bars from trade_date through exp_date
+                _th_ub_all = []
+                for _thd in sorted(underlying_bars_1min.keys()):
+                    if trade_date.strftime("%Y-%m-%d") <= _thd <= exp_date.strftime("%Y-%m-%d"):
+                        _th_ub_all.extend(underlying_bars_1min.get(_thd, []))
+
+                # Recalculate strikes (config['legs'] already normalized by fetch call)
+                _th_strikes = []
+                _th_ok = True
+                for _th_i, _th_lc in enumerate(config['legs']):
+                    if _th_lc.get('config_type') == 'delta':
+                        _th_ok = False
+                        break
+                    _th_s = calculate_strike_simple(
+                        underlying_price, _th_lc, _th_strikes, config['symbol']
+                    )
+                    if _th_s is None:
+                        _th_ok = False
+                        break
+                    _th_strikes.append(_th_s)
+
+                if not _th_ok or len(_th_strikes) != len(config['legs']):
+                    print(f"  Skipping - unable to fetch valid option data")
+                    day_entry['events'].append({'type': 'skip', 'reason': 'Unable to fetch valid option data for strikes'})
+                    decision_log.append(day_entry)
+                    continue
+
+                print(f"  ⚠ No market data — Black-Scholes theoretical pricing "
+                      f"(σ={sigma_th:.1%}, r={r_th:.1%})")
+
+                _eastern_th = pytz.timezone('US/Eastern')
+                legs_info = []
+                for _th_i, _th_lc in enumerate(config['legs']):
+                    _th_strike = _th_strikes[_th_i]
+                    _th_exp = _th_lc.get('_exp_date', exp_date)
+                    _th_sym = format_option_symbol(
+                        config['symbol'], _th_exp, _th_strike, _th_lc['type']
+                    )
+                    _th_bars = _generate_synthetic_bars(
+                        _th_ub_all, _th_strike, _th_lc['type'],
+                        _th_exp, sigma_th, r_th, eastern=_eastern_th
+                    )
+                    option_cache_1min[_th_sym] = _th_bars
+                    option_cache_10sec[_th_sym] = _th_bars
+                    option_cache_detection[_th_sym] = _th_bars
+                    legs_info.append({
+                        'symbol': _th_sym,
+                        'strike': _th_strike,
+                        'type': _th_lc['type'],
+                        'position': _th_lc['position'],
+                        'entry_price': None,
+                        'name': _th_lc.get('name', f'Leg {_th_i + 1}'),
+                    })
+
+                day_entry['_theoretical'] = True
+                _theoretical = True
+
+            if not _theoretical:
+              # Cache the fetched data for monitoring
+              for leg_data in fetched_legs:
                 symbol = leg_data['symbol']
                 bars_dict = {}
                 eastern = pytz.timezone('US/Eastern')
@@ -3890,17 +4023,18 @@ def run_backtest(config: Dict, client: RESTClient):
                 total_10sec = sum(len(v) for v in bars_dict.values())
                 print(f"  [10sec] {symbol}: {total_10sec} bars across {len(bars_dict)} day(s)")
         
-            # Build legs_info from fetched data
-            legs_info = []
-            for leg_data in fetched_legs:
-                legs_info.append({
-                    'symbol': leg_data['symbol'],
-                    'strike': leg_data['strike'],
-                    'type': leg_data['type'],
-                    'position': leg_data['position'],
-                    'entry_price': None,  # Will be set from common timestamp
-                    'name': leg_data['name']
-                })
+            # Build legs_info from fetched data (skipped when theoretical pricing is used)
+            if not _theoretical:
+                legs_info = []
+                for leg_data in fetched_legs:
+                    legs_info.append({
+                        'symbol': leg_data['symbol'],
+                        'strike': leg_data['strike'],
+                        'type': leg_data['type'],
+                        'position': leg_data['position'],
+                        'entry_price': None,  # Will be set from common timestamp
+                        'name': leg_data['name']
+                    })
         
             # Find the entry minute by matching at MINUTE granularity across all legs.
             # 10-sec bars from illiquid options rarely share an exact 10-sec timestamp,
@@ -4781,6 +4915,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 'dte': dte_days,
                 'dit': round(dit_days, 1),  # 1 decimal precision
                 'indicator_snapshot': _entry_snap,
+                'pricing_mode': 'theoretical' if _theoretical else 'market',
                 'legs': []
             }
         
@@ -5206,7 +5341,8 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
             'exit_date', 'exit_time', 'exit_timestamp', 'underlying_exit_price',
             'strategy', 'num_contracts', 
             'net_premium_entry', 'net_premium_exit', 'max_risk',
-            'pnl', 'exit_reason', 'dte', 'dit', 'capital_before', 'capital_after'
+            'pnl', 'exit_reason', 'dte', 'dit', 'capital_before', 'capital_after',
+            'pricing_mode'
         ]
         
         # Add indicator snapshot columns (SMA/EMA/VWAP values at entry)
@@ -5256,7 +5392,8 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
                 'dte': trade['dte'],
                 'dit': f"{trade['dit']:.1f}",
                 'capital_before': f"{trade['capital_before']:.2f}",
-                'capital_after': f"{trade['capital_after']:.2f}"
+                'capital_after': f"{trade['capital_after']:.2f}",
+                'pricing_mode': trade.get('pricing_mode', 'market')
             }
             
             # Add indicator snapshot values
