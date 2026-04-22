@@ -290,8 +290,8 @@ function updateOptExitConditionFields(n) {
         var dayEl = document.getElementById('optExitLeftDay' + n);
         var candleEl = document.getElementById('optExitLeftCandleType' + n);
         var multEl = document.getElementById('optExitLeftMultiplier' + n);
-        if (dayEl) dayEl.value = '-1';
-        if (candleEl) candleEl.value = 'day';
+        if (dayEl) dayEl.value = '0';
+        if (candleEl) candleEl.value = 'minute';
         if (multEl) multEl.value = '1';
     }
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
@@ -348,8 +348,8 @@ function updateOptExitRightSide(n) {
             var rd = document.getElementById('optExitRightDay' + n);
             var rc = document.getElementById('optExitRightCandleType' + n);
             var rm = document.getElementById('optExitRightMultiplier' + n);
-            if (rd) rd.value = '-1';
-            if (rc) rc.value = 'day';
+            if (rd) rd.value = '0';
+            if (rc) rc.value = 'minute';
             if (rm) rm.value = '1';
         } else if (rightType === 'rsi') {
             el = document.getElementById('optExitRightWindowGroup' + n); if (el) el.style.display = '';
@@ -770,13 +770,13 @@ function updateConditionFields(conditionId) {
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
-            // day=-1: yesterday's completed bar — required since today's close is not yet available
+            // minute bars, day=0: matches simulated trading (rolling over N 1-min candles)
             (function() {
                 var d = document.getElementById('leftDay' + conditionId);
                 var c = document.getElementById('leftCandleType' + conditionId);
                 var m = document.getElementById('leftMultiplier' + conditionId);
-                if (d) d.value = '-1';
-                if (c) c.value = 'day';
+                if (d) d.value = '0';
+                if (c) c.value = 'minute';
                 if (m) m.value = '1';
             })();
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
@@ -987,8 +987,8 @@ function updateRightSideFields(conditionId, comparator) {
         var rd = document.getElementById('rightDay' + conditionId);
         var rc = document.getElementById('rightCandleType' + conditionId);
         var rm = document.getElementById('rightMultiplier' + conditionId);
-        if (rd) rd.value = '-1';
-        if (rc) rc.value = 'day';
+        if (rd) rd.value = '0';
+        if (rc) rc.value = 'minute';
         if (rm) rm.value = '1';
     } else if (comparator === 'compare_rsi') {
         if (rightWindowGroup) rightWindowGroup.style.display = 'block';

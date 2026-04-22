@@ -567,16 +567,15 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 window = int(params.get('window', 14))
                 series_type = params.get('series_type', 'close')
 
-                # Fetch extended daily bars covering the rolling-window lookback.
-                # Identical data source, adjustment, and formula as simulated trading:
-                #   SMA → series.rolling(window, min_periods=window).mean()
-                #   EMA → series.ewm(span=window, adjust=False).mean()
-                buffer_days = window * 3  # calendar-day buffer to absorb weekends/holidays
+                # Fetch 1-minute bars — identical data source and bar type as simulated trading.
+                # Buffer = enough calendar days so that at least `window` minute bars exist
+                # before the backtest start (1 trading day ≈ 390 min bars; add 2-day safety margin).
+                buffer_days = max(5, (window // 390 + 2) * 3)
                 extended_start = start_date - timedelta(days=buffer_days)
                 extended_start_str = extended_start.strftime("%Y-%m-%d")
 
-                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/day/{extended_start_str}/{end_str}"
-                print(f"[Prefetch] Fetching {metric.upper()} via daily bars: window={window}, series={series_type}, from {extended_start_str}...", flush=True)
+                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/minute/{extended_start_str}/{end_str}"
+                print(f"[Prefetch] Fetching {metric.upper()} via 1-min bars: window={window}, series={series_type}, from {extended_start_str}...", flush=True)
 
                 response = requests.get(url, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'})
                 if response.status_code == 200:
@@ -590,6 +589,9 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
 
                     price_series = pd.Series(prices, dtype=float)
 
+                    # Same formula as simulated trading engine:
+                    #   SMA → series.rolling(window, min_periods=window).mean()
+                    #   EMA → series.ewm(span=window, adjust=False).mean()
                     if metric == 'sma':
                         rolled = price_series.rolling(window=window, min_periods=window).mean()
                     else:
@@ -601,7 +603,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                             indicator_data[int(ts)] = float(val)
 
                     indicators[metric] = indicator_data
-                    print(f"[Prefetch] {metric.upper()}: computed {len(indicator_data)} values from {len(results)} daily bars", flush=True)
+                    print(f"[Prefetch] {metric.upper()}: computed {len(indicator_data)} values from {len(results)} 1-min bars", flush=True)
                 else:
                     print(f"[Prefetch] {metric.upper()} error: {response.status_code} - {response.text[:200]}", flush=True)
 
@@ -774,12 +776,17 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     # Use current bar's price
                     left_value = bar_price
             else:
-                # Use the range cache - find value for the trade date
                 indicator_data = indicators_cache.get(metric, {})
-                if indicator_data and trade_date:
-                    left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
+                if indicator_data:
+                    if metric in ['sma', 'ema']:
+                        # Minute-bar indicator: look up by exact bar timestamp (same as simulated trading)
+                        left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                    elif trade_date:
+                        left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
+                    else:
+                        left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                 else:
-                    left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                    left_value = None
             
             if left_value is None:
                 return False, f"Missing {metric} data"
@@ -806,10 +813,15 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         right_value = bar_price
                 else:
                     indicator_data = indicators_cache.get(right_metric, {})
-                    if indicator_data and trade_date:
-                        right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)
+                    if indicator_data:
+                        if right_metric in ['sma', 'ema']:
+                            right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                        elif trade_date:
+                            right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)
+                        else:
+                            right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                     else:
-                        right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                        right_value = None
                 
                 if right_value is None:
                     return False, f"Missing {right_metric} comparison data"
