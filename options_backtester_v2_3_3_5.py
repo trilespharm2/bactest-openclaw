@@ -3999,12 +3999,131 @@ def run_backtest(config: Dict, client: RESTClient):
                         print(f"  ↳ {fb_label}: still no common minute in window {window_start}–{window_end}")
 
                 if not found_fallback:
-                    reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
-                              if has_entry_window else f'No common option minute at {entry_time}')
-                    print(f"  Skipping - {reason}")
-                    day_entry['events'].append({'type': 'skip', 'reason': reason})
-                    decision_log.append(day_entry)
-                    continue
+                    # --- Strike sweep: try adjacent strikes for legs missing data in window ---
+                    _sym_inc = 1 if config['symbol'] in ("SPY", "QQQ", "IWM") else 5
+                    _MAX_SWEEP = 5
+                    _sweep_found = False
+
+                    # Identify which legs have no bars in the entry window
+                    _missing_in_window = []
+                    for _si, _sl in enumerate(legs_info):
+                        _sl_bars = option_cache_1min[_sl['symbol']].get(date_str, [])
+                        _sl_in_win = [b for b in _sl_bars if window_start <= b['time'][:5] <= window_end]
+                        if not _sl_in_win:
+                            _missing_in_window.append(_si)
+
+                    if _missing_in_window:
+                        print(f"  ↳ Strike sweep: "
+                              f"{[legs_info[i]['name'] for i in _missing_in_window]} "
+                              f"have no bars in window — trying adjacent strikes...")
+
+                        for _miss_idx in _missing_in_window:
+                            if _sweep_found:
+                                break
+                            _sl_leg = legs_info[_miss_idx]
+                            _sl_cfg = config['legs'][_miss_idx]
+                            _sl_exp = _sl_cfg.get('_exp_date', exp_date)
+                            _sl_fb  = _sl_cfg.get('params', {}).get('strike_fallback', 'closest')
+                            _sl_base = _sl_leg['strike']
+
+                            # Generate candidate strikes in the configured fallback direction
+                            _candidates = []
+                            if _sl_fb == 'or_lower':
+                                _candidates = [_sl_base - k * _sym_inc for k in range(1, _MAX_SWEEP + 1)]
+                            elif _sl_fb == 'or_higher':
+                                _candidates = [_sl_base + k * _sym_inc for k in range(1, _MAX_SWEEP + 1)]
+                            else:  # closest: alternate ± each increment
+                                for k in range(1, _MAX_SWEEP + 1):
+                                    _candidates.append(_sl_base - k * _sym_inc)
+                                    _candidates.append(_sl_base + k * _sym_inc)
+
+                            for _cand in _candidates:
+                                if _cand <= 0:
+                                    continue
+                                _new_sym = format_option_symbol(
+                                    config['symbol'], _sl_exp, _cand, _sl_leg['type']
+                                )
+
+                                # Reuse cache if already fetched
+                                if (_new_sym in option_cache_1min
+                                        and date_str in option_cache_1min[_new_sym]):
+                                    _sw_fetched = {date_str: option_cache_1min[_new_sym][date_str]}
+                                else:
+                                    try:
+                                        _sw_raw = list(client.list_aggs(
+                                            _new_sym, 10, "second",
+                                            trade_date.strftime("%Y-%m-%d"),
+                                            _sl_exp.strftime("%Y-%m-%d"),
+                                            adjusted="true", sort="asc", limit=50000
+                                        ))
+                                    except Exception:
+                                        continue
+                                    if not _sw_raw:
+                                        continue
+                                    _sw_fetched = {}
+                                    for _sa in _sw_raw:
+                                        _sdt = datetime.fromtimestamp(
+                                            _sa.timestamp / 1000, tz=pytz.UTC
+                                        ).astimezone(eastern)
+                                        _sdk = _sdt.strftime("%Y-%m-%d")
+                                        _shm = _sdt.hour * 60 + _sdt.minute
+                                        if not (9*60+30 <= _shm <= 16*60+15):
+                                            continue
+                                        if _sdk not in _sw_fetched:
+                                            _sw_fetched[_sdk] = []
+                                        _sw_fetched[_sdk].append({
+                                            'date': _sdk, 'datetime': _sdt,
+                                            'timestamp': _sa.timestamp,
+                                            'time': _sdt.strftime("%H:%M:%S"),
+                                            'open': _sa.open, 'high': _sa.high,
+                                            'low': _sa.low, 'close': _sa.close,
+                                            'volume': getattr(_sa, 'volume', 0),
+                                            'vw': getattr(_sa, 'vwap', _sa.close)
+                                        })
+
+                                _sw_today = _sw_fetched.get(date_str, [])
+                                if not _sw_today:
+                                    continue
+
+                                # Check for common minute across all legs with this candidate
+                                _sw_sets = []
+                                for _si2, _sl2 in enumerate(legs_info):
+                                    if _si2 == _miss_idx:
+                                        _sw_sets.append(set(b['time'][:5] for b in _sw_today))
+                                    else:
+                                        _ex = option_cache_1min[_sl2['symbol']].get(date_str, [])
+                                        _sw_sets.append(set(b['time'][:5] for b in _ex))
+
+                                if not all(_sw_sets):
+                                    continue
+
+                                _sw_common = set.intersection(*_sw_sets)
+                                _sw_valid = sorted(
+                                    m for m in _sw_common if window_start <= m <= window_end
+                                )
+
+                                if _sw_valid:
+                                    print(f"  ↳ Strike sweep success: "
+                                          f"{_sl_leg['name']} {_sl_base}→{_cand} "
+                                          f"({_new_sym}), common minute {_sw_valid[0]}")
+                                    option_cache_1min[_new_sym] = _sw_fetched
+                                    option_cache_10sec[_new_sym] = _sw_fetched
+                                    legs_info[_miss_idx]['symbol'] = _new_sym
+                                    legs_info[_miss_idx]['strike'] = _cand
+                                    valid_minutes = _sw_valid
+                                    _sweep_found = True
+                                    break
+                                else:
+                                    print(f"  ↳ {_new_sym} ({_cand}): no common minute in window")
+
+                    if not _sweep_found:
+                        reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
+                                  if has_entry_window else f'No common option minute at {entry_time}')
+                        print(f"  Skipping - {reason}")
+                        day_entry['events'].append({'type': 'skip', 'reason': reason})
+                        decision_log.append(day_entry)
+                        continue
+                    # --- End strike sweep ---
             # --- End fallback ---
 
             common_minute = valid_minutes[0]
