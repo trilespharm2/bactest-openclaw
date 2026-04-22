@@ -4058,10 +4058,38 @@ def run_backtest(config: Dict, client: RESTClient):
                 all_leg_bars.append(leg_bars)
 
             if len(all_leg_bars) != len(legs_info):
-                print(f"  Skipping - missing bars for some legs")
-                day_entry['events'].append({'type': 'skip', 'reason': 'Missing option bars for some legs on entry date'})
-                decision_log.append(day_entry)
-                continue
+                if config.get('allow_synthetic', True):
+                    # Some legs have no bars on entry date — fill all with synthetic bars
+                    _sigma_mb = _compute_hist_vol(underlying_daily_closes, date_str)
+                    _r_mb = 0.045
+                    _mb_ub_all = []
+                    for _mbd in sorted(underlying_bars_1min.keys()):
+                        if trade_date.strftime("%Y-%m-%d") <= _mbd <= exp_date.strftime("%Y-%m-%d"):
+                            _mb_ub_all.extend(underlying_bars_1min.get(_mbd, []))
+                    for _mb_leg in legs_info:
+                        _mb_leg_exp = exp_date
+                        for _lc in config['legs']:
+                            if _lc.get('name') == _mb_leg['name']:
+                                _mb_leg_exp = _lc.get('_exp_date', exp_date)
+                                break
+                        _mb_bars = _generate_synthetic_bars(
+                            _mb_ub_all, _mb_leg['strike'], _mb_leg['type'],
+                            _mb_leg_exp, _sigma_mb, _r_mb, eastern=eastern
+                        )
+                        option_cache_1min[_mb_leg['symbol']] = _mb_bars
+                        option_cache_10sec[_mb_leg['symbol']] = _mb_bars
+                        option_cache_detection[_mb_leg['symbol']] = _mb_bars
+                    # Rebuild all_leg_bars from the fresh synthetic cache
+                    all_leg_bars = [option_cache_1min[leg['symbol']].get(date_str, []) for leg in legs_info]
+                    _theoretical = True
+                    day_entry['_theoretical'] = True
+                    print(f"  ⚠ Missing bars for some legs — Black-Scholes synthetic pricing "
+                          f"(σ={_sigma_mb:.1%}, r={_r_mb:.1%})")
+                else:
+                    print(f"  Skipping - missing bars for some legs")
+                    day_entry['events'].append({'type': 'skip', 'reason': 'Missing option bars for some legs on entry date'})
+                    decision_log.append(day_entry)
+                    continue
 
             # Build per-leg minute sets (HH:MM) from their 10-sec bars
             minute_sets = [set(b['time'][:5] for b in bars) for bars in all_leg_bars]
@@ -4257,12 +4285,46 @@ def run_backtest(config: Dict, client: RESTClient):
                                     print(f"  ↳ {_new_sym} ({_cand}): no common minute in window")
 
                     if not _sweep_found:
-                        reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
-                                  if has_entry_window else f'No common option minute at {entry_time}')
-                        print(f"  Skipping - {reason}")
-                        day_entry['events'].append({'type': 'skip', 'reason': reason})
-                        decision_log.append(day_entry)
-                        continue
+                        if config.get('allow_synthetic', True):
+                            # All market-data fallbacks exhausted — switch to synthetic bars
+                            _sigma_nm = _compute_hist_vol(underlying_daily_closes, date_str)
+                            _r_nm = 0.045
+                            _nm_ub_all = []
+                            for _nmd in sorted(underlying_bars_1min.keys()):
+                                if trade_date.strftime("%Y-%m-%d") <= _nmd <= exp_date.strftime("%Y-%m-%d"):
+                                    _nm_ub_all.extend(underlying_bars_1min.get(_nmd, []))
+
+                            for _nm_leg in legs_info:
+                                _nm_leg_exp = exp_date
+                                for _lc in config['legs']:
+                                    if _lc.get('name') == _nm_leg['name']:
+                                        _nm_leg_exp = _lc.get('_exp_date', exp_date)
+                                        break
+                                _nm_bars = _generate_synthetic_bars(
+                                    _nm_ub_all, _nm_leg['strike'], _nm_leg['type'],
+                                    _nm_leg_exp, _sigma_nm, _r_nm, eastern=eastern
+                                )
+                                option_cache_1min[_nm_leg['symbol']] = _nm_bars
+                                option_cache_10sec[_nm_leg['symbol']] = _nm_bars
+                                option_cache_detection[_nm_leg['symbol']] = _nm_bars
+
+                            # Synthetic bars cover every underlying minute — pick first in entry window
+                            _syn_day_bars = option_cache_1min[legs_info[0]['symbol']].get(date_str, [])
+                            _syn_minutes = sorted(set(b['time'][:5] for b in _syn_day_bars))
+                            _syn_valid = [m for m in _syn_minutes if window_start <= m <= window_end]
+                            valid_minutes = _syn_valid if _syn_valid else [entry_time]
+
+                            _theoretical = True
+                            day_entry['_theoretical'] = True
+                            print(f"  ⚠ No common market minute — Black-Scholes synthetic pricing "
+                                  f"(σ={_sigma_nm:.1%}, r={_r_nm:.1%})")
+                        else:
+                            reason = (f'No common option minute in window {entry_time_start}–{entry_time_end}'
+                                      if has_entry_window else f'No common option minute at {entry_time}')
+                            print(f"  Skipping - {reason}")
+                            day_entry['events'].append({'type': 'skip', 'reason': reason})
+                            decision_log.append(day_entry)
+                            continue
                     # --- End strike sweep ---
             # --- End fallback ---
 
