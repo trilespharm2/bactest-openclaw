@@ -563,19 +563,55 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 else:
                     print(f"[Prefetch] PRICE_DAY error: {response.status_code}", flush=True)
             
-            elif metric in ['sma', 'ema', 'rsi']:
+            elif metric in ['sma', 'ema']:
+                window = int(params.get('window', 14))
+                series_type = params.get('series_type', 'close')
+
+                # Fetch extended daily bars covering the rolling-window lookback.
+                # Identical data source, adjustment, and formula as simulated trading:
+                #   SMA → series.rolling(window, min_periods=window).mean()
+                #   EMA → series.ewm(span=window, adjust=False).mean()
+                buffer_days = window * 3  # calendar-day buffer to absorb weekends/holidays
+                extended_start = start_date - timedelta(days=buffer_days)
+                extended_start_str = extended_start.strftime("%Y-%m-%d")
+
+                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/day/{extended_start_str}/{end_str}"
+                print(f"[Prefetch] Fetching {metric.upper()} via daily bars: window={window}, series={series_type}, from {extended_start_str}...", flush=True)
+
+                response = requests.get(url, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'})
+                if response.status_code == 200:
+                    data = response.json()
+                    results = data.get('results', [])
+
+                    field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
+                    field = field_map.get(series_type, 'c')
+                    timestamps = [bar.get('t') for bar in results]
+                    prices = [bar.get(field) for bar in results]
+
+                    price_series = pd.Series(prices, dtype=float)
+
+                    if metric == 'sma':
+                        rolled = price_series.rolling(window=window, min_periods=window).mean()
+                    else:
+                        rolled = price_series.ewm(span=window, adjust=False).mean()
+
+                    indicator_data = {}
+                    for ts, val in zip(timestamps, rolled.values):
+                        if ts is not None and not pd.isna(val):
+                            indicator_data[int(ts)] = float(val)
+
+                    indicators[metric] = indicator_data
+                    print(f"[Prefetch] {metric.upper()}: computed {len(indicator_data)} values from {len(results)} daily bars", flush=True)
+                else:
+                    print(f"[Prefetch] {metric.upper()} error: {response.status_code} - {response.text[:200]}", flush=True)
+
+            elif metric == 'rsi':
                 window = params.get('window', 14)
                 series_type = params.get('series_type', 'close')
-                # For SMA/EMA the candle type and multiplier are always fixed to
-                # daily bars (multiplier=1) to match simulated-trading behaviour.
-                if metric in ['sma', 'ema']:
-                    timespan = 'day'
-                    ind_multiplier = 1
-                else:
-                    timespan = params.get('candle_type', 'day')
-                    ind_multiplier = int(params.get('multiplier', 1) or 1)
-                
-                url = f"https://api.polygon.io/v1/indicators/{metric}/{underlying_sym}"
+                timespan = params.get('candle_type', 'day')
+                ind_multiplier = int(params.get('multiplier', 1) or 1)
+
+                url = f"https://api.polygon.io/v1/indicators/rsi/{underlying_sym}"
                 query_params = {
                     'apiKey': api_key,
                     'timespan': timespan,
@@ -589,9 +625,9 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 }
                 if ind_multiplier > 1:
                     query_params['timespan_multiplier'] = ind_multiplier
-                
-                print(f"[Prefetch] Fetching {metric.upper()}: window={window}, timespan={timespan}...", flush=True)
-                
+
+                print(f"[Prefetch] Fetching RSI: window={window}, timespan={timespan}...", flush=True)
+
                 response = requests.get(url, params=query_params)
                 if response.status_code == 200:
                     data = response.json()
@@ -599,15 +635,12 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     indicator_data = {}
                     for v in values:
                         indicator_data[v.get('timestamp')] = v.get('value')
-                    indicators[metric] = indicator_data
-                    print(f"[Prefetch] {metric.upper()}: got {len(values)} values", flush=True)
+                    indicators['rsi'] = indicator_data
+                    print(f"[Prefetch] RSI: got {len(values)} values", flush=True)
                     if values:
-                        # Show first and last values for debugging
-                        first = values[0]
-                        last = values[-1]
-                        print(f"[Prefetch] {metric.upper()} range: {first.get('timestamp')} to {last.get('timestamp')}", flush=True)
+                        print(f"[Prefetch] RSI range: {values[0].get('timestamp')} to {values[-1].get('timestamp')}", flush=True)
                 else:
-                    print(f"[Prefetch] {metric.upper()} error: {response.status_code} - {response.text[:200]}", flush=True)
+                    print(f"[Prefetch] RSI error: {response.status_code} - {response.text[:200]}", flush=True)
             
             elif metric == 'macd':
                 short_window = params.get('short_window', 12)
@@ -659,34 +692,38 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     return indicators
 
 
-def get_indicator_value_for_date(indicators_cache: Dict, metric: str, target_date: datetime) -> Optional[float]:
+def get_indicator_value_for_date(indicators_cache: Dict, metric: str, target_date: datetime,
+                                  day_offset: int = 0) -> Optional[float]:
     """
     Look up an indicator value for a specific date from the pre-fetched cache.
-    For daily indicators (SMA, EMA, RSI), finds the value for the trading day.
+    day_offset applies a calendar-day shift before the lookup (same approach as
+    get_day_bar_value), so day_offset=-1 returns the most recent value at or
+    before the end of yesterday — i.e. the last completed rolling window.
     """
     if metric not in indicators_cache:
         return None
-    
+
     indicator_data = indicators_cache[metric]
     if not indicator_data:
         return None
-    
-    # Convert target date to timestamp range (start/end of day)
+
     eastern = pytz.timezone('US/Eastern')
-    day_start = eastern.localize(datetime.combine(target_date, datetime.min.time()))
-    day_end = eastern.localize(datetime.combine(target_date, datetime.max.time().replace(microsecond=0)))
-    day_start_ts = int(day_start.timestamp() * 1000)
+
+    # Shift the lookup date by the offset (handles weekends: falls back to
+    # most recent bar before the shifted date via the <= comparison below)
+    lookup_date = target_date + timedelta(days=day_offset)
+
+    day_end = eastern.localize(datetime.combine(lookup_date, datetime.max.time().replace(microsecond=0)))
     day_end_ts = int(day_end.timestamp() * 1000)
-    
-    # Find the indicator value for this day (or the most recent one before it)
+
     best_value = None
     best_ts = 0
-    
+
     for ts, value in indicator_data.items():
         if ts <= day_end_ts and ts > best_ts:
             best_ts = ts
             best_value = value
-    
+
     return best_value
 
 
@@ -740,8 +777,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 # Use the range cache - find value for the trade date
                 indicator_data = indicators_cache.get(metric, {})
                 if indicator_data and trade_date:
-                    # For daily indicators like SMA, find the value for this trading day
-                    left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date)
+                    left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
                 else:
                     left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
             
@@ -771,7 +807,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 else:
                     indicator_data = indicators_cache.get(right_metric, {})
                     if indicator_data and trade_date:
-                        right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date)
+                        right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)
                     else:
                         right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                 
