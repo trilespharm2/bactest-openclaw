@@ -1638,6 +1638,16 @@
                             <div class="field-hint" style="margin-top:6px;">Limit to 3 day trades per 5 business days (PDT rule).</div>
                           </div>
                         </div>
+                        <div style="margin-top:12px; padding-top:12px; border-top:1px solid #e2e8f0;">
+                          <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:8px;">Synthetic (Theoretical) Pricing</label>
+                          <div class="bt-toggle-row">
+                            <button type="button" class="bt-toggle-btn on" data-radio="allowSynthetic" data-val="y" onclick="btToggle(this)">Allow synthetic fallback</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="allowSynthetic" data-val="n" onclick="btToggle(this)">Skip missing data days</button>
+                          </div>
+                          <input type="radio" name="allowSynthetic" id="syntheticYes" value="y" checked class="bt-hidden-radio">
+                          <input type="radio" name="allowSynthetic" id="syntheticNo" value="n" class="bt-hidden-radio">
+                          <div class="field-hint" style="margin-top:6px;">When enabled, days with no Polygon bar data are priced using Black-Scholes (30-day hist. vol). Trades are tagged <strong>theoretical</strong> in the log.</div>
+                        </div>
                       </div>
                     </div>
 
@@ -5684,6 +5694,7 @@
         config.net_premium_max = document.getElementById('netPremiumMax')?.value ? parseFloat(document.getElementById('netPremiumMax').value) : null;
         config.concurrent_trades = document.querySelector('input[name="concurrentTrades"]:checked')?.value === 'y';
         config.avoid_pdt = document.querySelector('input[name="avoidPdt"]:checked')?.value === 'y';
+        config.allow_synthetic = document.querySelector('input[name="allowSynthetic"]:checked')?.value !== 'n';
         config.starting_capital = parseFloat(document.getElementById('startingCapital')?.value) || 50000;
         
         const allocTypeRaw = document.querySelector('input[name="allocationType"]:checked')?.value || '1';
