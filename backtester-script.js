@@ -20,10 +20,11 @@ const CANDLE_TYPES = [
 ];
 
 const SERIES_TYPES = [
-    { value: 'open', label: 'Open' },
-    { value: 'high', label: 'High' },
-    { value: 'low', label: 'Low' },
-    { value: 'close', label: 'Close' }
+    { value: 'open',  label: 'Open' },
+    { value: 'high',  label: 'High' },
+    { value: 'low',   label: 'Low' },
+    { value: 'close', label: 'Close' },
+    { value: 'vwap',  label: 'VWAP' }
 ];
 
 const DAY_OPTIONS = [
@@ -323,7 +324,7 @@ function updateOptExitConditionFields(n) {
     el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema') ? '' : 'none';
 
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
-    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
+    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : (metric === 'sma' || metric === 'ema') ? 'Period' : 'Window';
     var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
     if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
 
@@ -817,7 +818,7 @@ function updateConditionFields(conditionId) {
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
             if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
             if (leftWindowGroup) leftWindowGroup.style.display = 'block';
-            if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
+            if (leftWindowLabel) leftWindowLabel.textContent = 'Period';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
             (function() {

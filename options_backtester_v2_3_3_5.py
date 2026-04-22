@@ -570,7 +570,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     data = response.json()
                     results = data.get('results', [])
                     price_data = {}
-                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c'}
+                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
                     for bar in results:
                         ts = bar.get('t')
                         price_data[ts] = bar.get(price_map.get(series_type, 'c'))
@@ -590,7 +590,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     data = response.json()
                     results = data.get('results', [])
                     price_data = {}
-                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c'}
+                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
                     for bar in results:
                         ts = bar.get('t')
                         price_data[ts] = bar.get(price_map.get(series_type, 'o'))
@@ -923,7 +923,7 @@ def get_day_bar_value(indicators_cache: Dict, trade_date: datetime, day_offset: 
         indicators_cache: Cache containing 'price_day' data
         trade_date: Current trading date (timezone-aware or naive in Eastern)
         day_offset: Day offset (0=today, -1=yesterday, etc.)
-        series_type: 'open', 'high', 'low', 'close'
+        series_type: 'open', 'high', 'low', 'close', 'vwap'
     
     Returns:
         The price value or None if not found
@@ -1007,7 +1007,7 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
                 data = response.json()
                 if data.get('results') and len(data['results']) > 0:
                     bar = data['results'][0]
-                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c'}
+                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
                     return bar.get(price_map.get(series_type, 'c'), None)
             return None
         
