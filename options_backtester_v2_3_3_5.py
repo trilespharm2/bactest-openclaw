@@ -482,7 +482,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
         left_params = condition.get('left', {})
         left_candle_type = left_params.get('candle_type', 'minute')
         
-        if metric in ('price', 'vwap'):
+        if metric == 'price':
             if left_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                 needs_day_price = True
                 if 'price_day' not in metrics_config:
@@ -491,7 +491,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 needs_minute_price = True
                 if 'price' not in metrics_config:
                     metrics_config['price'] = left_params
-        elif metric in ('sma', 'ema'):
+        elif metric in ('sma', 'ema', 'vwap'):
             key = _sma_ema_key(metric, left_params)
             if key not in metrics_config:
                 metrics_config[key] = dict(left_params, _metric_type=metric)
@@ -504,7 +504,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
             right_params = condition.get('right', {})
             right_candle_type = right_params.get('candle_type', 'minute')
             
-            if comp_metric in ('price', 'vwap'):
+            if comp_metric == 'price':
                 if right_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                     needs_day_price = True
                     if 'price_day' not in metrics_config:
@@ -513,7 +513,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     needs_minute_price = True
                     if 'price' not in metrics_config:
                         metrics_config['price'] = right_params
-            elif comp_metric in ('sma', 'ema'):
+            elif comp_metric in ('sma', 'ema', 'vwap'):
                 key = _sma_ema_key(comp_metric, right_params)
                 if key not in metrics_config:
                     metrics_config[key] = dict(right_params, _metric_type=comp_metric)
@@ -534,9 +534,9 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     print(f"[Prefetch] Symbol: {underlying_sym}", flush=True)
     print(f"{'='*60}\n", flush=True)
     
-    # Pre-pass: if any SMA/EMA conditions exist, fetch 1-min bars ONCE.
-    # All SMA/EMA computations share this single fetch; no duplicate API calls.
-    sma_ema_keys = [k for k in metrics_config if k.startswith('sma_') or k.startswith('ema_')]
+    # Pre-pass: if any SMA/EMA/VWAP conditions exist, fetch 1-min bars ONCE.
+    # All SMA/EMA/VWAP computations share this single fetch; no duplicate API calls.
+    sma_ema_keys = [k for k in metrics_config if k.startswith('sma_') or k.startswith('ema_') or k.startswith('vwap_')]
     if sma_ema_keys:
         max_window = max(int(metrics_config[k].get('window', 14)) for k in sma_ema_keys)
         buffer_days = max(5, (max_window // 390 + 2) * 3)
@@ -599,8 +599,8 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 else:
                     print(f"[Prefetch] PRICE_DAY error: {response.status_code}", flush=True)
             
-            elif metric.startswith('sma_') or metric.startswith('ema_'):
-                # Composite key: sma_w14_t5 or ema_w20_t1
+            elif metric.startswith('sma_') or metric.startswith('ema_') or metric.startswith('vwap_'):
+                # Composite key: sma_w14_t5, ema_w20_t1, vwap_w14_t5
                 # Uses shared _1min_raw bars fetched in the pre-pass above
                 metric_type = params.get('_metric_type', metric.split('_')[0])
                 window = int(params.get('window', 14))
@@ -613,7 +613,8 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     continue
 
                 field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
-                field = field_map.get(series_type, 'c')
+                # For VWAP metric, always use the 'vw' field regardless of series_type
+                field = 'vw' if metric_type == 'vwap' else field_map.get(series_type, 'c')
 
                 if timeframe_minutes <= 1:
                     # Use 1-min bars directly
@@ -633,15 +634,22 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     agg_map = {k: v for k, v in agg_map.items() if k in df.columns}
                     resampled = df.resample(f'{timeframe_minutes}min').agg(agg_map).dropna(subset=['c'])
                     timestamps = [int(ts.timestamp() * 1000) for ts in resampled.index]
-                    prices = resampled[field].tolist() if field in resampled.columns else resampled['c'].tolist()
+                    # For VWAP: use vw field; for SMA/EMA: use the specified price field
+                    if metric_type == 'vwap':
+                        prices = resampled['vw'].tolist() if 'vw' in resampled.columns else resampled['c'].tolist()
+                    else:
+                        prices = resampled[field].tolist() if field in resampled.columns else resampled['c'].tolist()
 
                 price_series = pd.Series(prices, dtype=float)
 
                 # Same formula as simulated trading engine
                 if metric_type == 'sma':
                     rolled = price_series.rolling(window=window, min_periods=window).mean()
-                else:
+                elif metric_type == 'ema':
                     rolled = price_series.ewm(span=window, adjust=False).mean()
+                else:
+                    # VWAP: rolling mean of per-bar VWAP values
+                    rolled = price_series.rolling(window=window, min_periods=window).mean()
 
                 indicator_data = {}
                 for ts, val in zip(timestamps, rolled.values):
@@ -650,7 +658,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
 
                 indicators[metric] = indicator_data
                 print(f"[Prefetch] {metric}: computed {len(indicator_data)} values "
-                      f"(window={window}, tf={timeframe_minutes}min, series={series_type})", flush=True)
+                      f"(window={window}, tf={timeframe_minutes}min, series={series_type if metric_type != 'vwap' else 'vw'})", flush=True)
 
             elif metric == 'rsi':
                 window = params.get('window', 14)
@@ -810,12 +818,8 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             if left_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and left_day_offset == 0 and left_series_type in ['close', 'high', 'low']:
                 return False, f"Invalid: cannot use day candle '{left_series_type}' on day 0 — current day has not closed"
 
-            # Treat 'vwap' metric same as 'price' with series_type='vwap'
-            if metric == 'vwap':
-                left_series_type = 'vwap'
-
             # Get left side value
-            if metric in ('price', 'vwap'):
+            if metric == 'price':
                 if left_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                     # Use day bars from cache
                     left_value = get_day_bar_value(indicators_cache, trade_date, left_day_offset, left_series_type)
@@ -834,8 +838,8 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     else:
                         left_value = bar_price
             else:
-                if metric in ('sma', 'ema'):
-                    # Composite key: sma_w{window}_t{timeframe_minutes}
+                if metric in ('sma', 'ema', 'vwap'):
+                    # Composite key: sma_w{window}_t{timeframe_minutes} or vwap_w{window}_t{timeframe_minutes}
                     _w  = int(left_params.get('window', 14))
                     _tf = int(left_params.get('timeframe_minutes', 5))
                     _ind_key = f'{metric}_w{_w}_t{_tf}'
@@ -843,7 +847,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 else:
                     indicator_data = indicators_cache.get(metric, {})
                 if indicator_data:
-                    if metric in ('sma', 'ema'):
+                    if metric in ('sma', 'ema', 'vwap'):
                         left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                     elif trade_date:
                         left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
@@ -867,11 +871,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 if right_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and right_day_offset == 0 and right_series_type in ['close', 'high', 'low']:
                     return False, f"Invalid: cannot use day candle '{right_series_type}' on right side day 0 — current day has not closed"
 
-                # Treat 'vwap' right metric same as 'price' with series_type='vwap'
-                if right_metric == 'vwap':
-                    right_series_type = 'vwap'
-
-                if right_metric in ('price', 'vwap'):
+                if right_metric == 'price':
                     if right_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
                         # Use day bars from cache with offset
                         right_value = get_day_bar_value(indicators_cache, trade_date, right_day_offset, right_series_type)
@@ -889,7 +889,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         else:
                             right_value = bar_price
                 else:
-                    if right_metric in ('sma', 'ema'):
+                    if right_metric in ('sma', 'ema', 'vwap'):
                         _rw  = int(right_params.get('window', 14))
                         _rtf = int(right_params.get('timeframe_minutes', 5))
                         _rind_key = f'{right_metric}_w{_rw}_t{_rtf}'
@@ -897,7 +897,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     else:
                         indicator_data = indicators_cache.get(right_metric, {})
                     if indicator_data:
-                        if right_metric in ('sma', 'ema'):
+                        if right_metric in ('sma', 'ema', 'vwap'):
                             right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                         elif trade_date:
                             right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)
@@ -1025,9 +1025,7 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
     series_type = params.get('series_type', 'close')
     
     try:
-        if metric in ('price', 'vwap'):
-            # For vwap metric, always use the 'vw' field
-            effective_series_type = 'vwap' if metric == 'vwap' else series_type
+        if metric == 'price':
             # Get price from aggregates
             url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/1/day/{target_date_str}/{target_date_str}"
             response = requests.get(url, params={'apiKey': api_key})
@@ -1036,9 +1034,40 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
                 if data.get('results') and len(data['results']) > 0:
                     bar = data['results'][0]
                     price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
-                    return bar.get(price_map.get(effective_series_type, 'c'), None)
+                    return bar.get(price_map.get(series_type, 'c'), None)
             return None
-        
+
+        elif metric == 'vwap':
+            # VWAP: rolling mean of per-bar vw values over a window of timeframe-aggregated bars
+            window = int(params.get('window', 14))
+            timeframe_minutes = int(params.get('timeframe_minutes', 5))
+            entry_dt = datetime.utcfromtimestamp(entry_timestamp / 1000)
+            buffer_days = max(5, (window // 390 + 2) * 3)
+            fetch_start = (entry_dt - timedelta(days=buffer_days)).strftime("%Y-%m-%d")
+            fetch_end = entry_dt.strftime("%Y-%m-%d")
+            url_1min = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/1/minute/{fetch_start}/{fetch_end}"
+            resp = requests.get(url_1min, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'})
+            if resp.status_code != 200:
+                return None
+            raw_bars = resp.json().get('results', [])
+            if not raw_bars:
+                return None
+            df = pd.DataFrame(raw_bars)
+            df['_ts'] = pd.to_datetime(df['t'], unit='ms', utc=True)
+            df = df.set_index('_ts').sort_index()
+            if timeframe_minutes > 1:
+                agg_map = {'vw': 'mean', 'c': 'last'}
+                agg_map = {k: v for k, v in agg_map.items() if k in df.columns}
+                df = df.resample(f'{timeframe_minutes}min').agg(agg_map).dropna(subset=['c'])
+            vw_series = df['vw'].dropna() if 'vw' in df.columns else pd.Series([], dtype=float)
+            # Filter to bars up to and including entry_timestamp
+            ts_ms = pd.Timestamp(entry_timestamp, unit='ms', tz='UTC')
+            vw_series = vw_series[vw_series.index <= ts_ms]
+            rolled = vw_series.rolling(window=window, min_periods=window).mean()
+            if rolled.empty or pd.isna(rolled.iloc[-1]):
+                return None
+            return float(rolled.iloc[-1])
+
         elif metric in ['sma', 'ema', 'rsi']:
             window = params.get('window', 14)
             url = f"https://api.polygon.io/v1/indicators/{metric}/{symbol}"

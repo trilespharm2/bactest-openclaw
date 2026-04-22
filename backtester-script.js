@@ -304,20 +304,21 @@ function updateOptExitConditionFields(n) {
     var isCurrentPrice = metric === 'current_price';
     var isVwap = metric === 'vwap';
     var isIndicator = ['sma', 'ema'].indexOf(metric) !== -1;
+    var isIndicatorOrVwap = isIndicator || isVwap;
     var isVolume = metric === 'volume';
-    var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var showSeries = !isVolume && !isVwap && (metric === 'price' || isCurrentPrice || isIndicator);
-    var hideNavFields = isCurrentPrice || isIndicator || isVwap;
+    var needsWindow = ['sma', 'ema', 'rsi', 'macd', 'vwap'].indexOf(metric) !== -1;
+    var showSeries = !isVolume && (metric === 'price' || isCurrentPrice || isIndicatorOrVwap);
+    var hideNavFields = isCurrentPrice || isIndicatorOrVwap;
 
     var el;
-    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = (isCurrentPrice || isIndicator) ? 'none' : '';
+    el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
     el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
     el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = hideNavFields ? 'none' : '';
-    if (isIndicator || isVwap) {
+    if (isIndicatorOrVwap) {
         var dayEl = document.getElementById('optExitLeftDay' + n);
         var candleEl = document.getElementById('optExitLeftCandleType' + n);
         var multEl = document.getElementById('optExitLeftMultiplier' + n);
-        if (isIndicator && dayEl) dayEl.value = '0';
+        if (dayEl) dayEl.value = '0';
         if (candleEl) candleEl.value = 'minute';
         if (multEl) multEl.value = '1';
     }
@@ -326,7 +327,7 @@ function updateOptExitConditionFields(n) {
     el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema' || isVwap) ? '' : 'none';
 
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
-    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : (metric === 'sma' || metric === 'ema') ? 'Period' : 'Window';
+    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : (metric === 'sma' || metric === 'ema' || metric === 'vwap') ? 'Period' : 'Window';
     var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
     if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
 
@@ -447,14 +448,13 @@ function collectOptExitConditions() {
             comparator: comparator
         };
         
-        if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
+        if (metric === 'sma' || metric === 'ema' || metric === 'rsi' || metric === 'vwap') {
             condition.left.window = parseInt((document.getElementById('optExitLeftWindow' + id) || {}).value) || 14;
         }
-        if (metric === 'sma' || metric === 'ema') {
+        if (metric === 'sma' || metric === 'ema' || metric === 'vwap') {
             condition.left.timeframe_minutes = parseInt((document.getElementById('optExitLeftTimeframe' + id) || {}).value) || 5;
-        }
-        if (metric === 'vwap') {
-            condition.left.timeframe_minutes = parseInt((document.getElementById('optExitLeftTimeframe' + id) || {}).value) || 1;
+            condition.left.candle_type = 'minute';
+            condition.left.multiplier = 1;
         }
 
         if (metric === 'volume') {
@@ -483,10 +483,11 @@ function collectOptExitConditions() {
                 condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 5;
             }
             if (comparator === 'compare_vwap') {
-                condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 1;
-                condition.right.series_type = 'vwap';
+                condition.right.window = parseInt((document.getElementById('optExitRightWindow' + id) || {}).value) || 14;
+                condition.right.timeframe_minutes = parseInt((document.getElementById('optExitRightTimeframe' + id) || {}).value) || 5;
                 condition.right.candle_type = 'minute';
                 condition.right.multiplier = 1;
+                condition.right.day = '0';
             }
             
             condition.threshold = {
@@ -815,16 +816,20 @@ function updateConditionFields(conditionId) {
             break;
 
         case 'vwap':
-            if (leftDayGroup) leftDayGroup.style.display = 'block';
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
             if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
             if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
-            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
-            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'block';
+            if (leftWindowLabel) leftWindowLabel.textContent = 'Period';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
+            if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
             (function() {
                 var tfGrp = document.getElementById('leftTimeframeGroup' + conditionId);
                 if (tfGrp) tfGrp.style.display = 'block';
+                var d = document.getElementById('leftDay' + conditionId);
                 var c = document.getElementById('leftCandleType' + conditionId);
                 var m = document.getElementById('leftMultiplier' + conditionId);
+                if (d) d.value = '0';
                 if (c) c.value = 'minute';
                 if (m) m.value = '1';
             })();
@@ -1055,17 +1060,20 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
         if (rightSeriesLabel) rightSeriesLabel.textContent = 'Price Type';
     } else if (comparator === 'compare_vwap') {
-        if (rightWindowGroup) rightWindowGroup.style.display = 'none';
-        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
+        if (rightWindowGroup) rightWindowGroup.style.display = 'block';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'block';
+        if (rightSeriesLabel) rightSeriesLabel.textContent = 'Series Type';
         if (rightTimeframeGroup) rightTimeframeGroup.style.display = 'block';
         var rDayGrp2 = document.getElementById('rightDayGroup' + conditionId);
         var rCandleGrp2 = document.getElementById('rightCandleTypeGroup' + conditionId);
         var rMultGrp2 = document.getElementById('rightMultiplierGroup' + conditionId);
-        if (rDayGrp2) rDayGrp2.style.display = '';
+        if (rDayGrp2) rDayGrp2.style.display = 'none';
         if (rCandleGrp2) rCandleGrp2.style.display = 'none';
         if (rMultGrp2) rMultGrp2.style.display = 'none';
+        var rd2 = document.getElementById('rightDay' + conditionId);
         var rc2 = document.getElementById('rightCandleType' + conditionId);
         var rm2 = document.getElementById('rightMultiplier' + conditionId);
+        if (rd2) rd2.value = '0';
         if (rc2) rc2.value = 'minute';
         if (rm2) rm2.value = '1';
     } else if (comparator === 'compare_volume') {
@@ -1185,7 +1193,7 @@ function buildOptConditionDesc(n, isExit) {
         if (m === 'price') return candleLabel(candle, mult) + ' ' + series + ' (' + dayLabel(day) + ')';
         if (m === 'vwap') {
             var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 1) + 'min';
-            return 'VWAP (' + tf + ', ' + dayLabel(day) + ')';
+            return 'VWAP(' + series + ', ' + tf + ')';
         }
         if (m === 'sma' || m === 'ema') {
             var tf = (timeframe && timeframe >= 60) ? (timeframe / 60) + 'hr' : (timeframe || 5) + 'min';
@@ -1253,14 +1261,11 @@ function collectPriceConditions() {
         };
         
         // Add metric-specific fields
-        if (metric === 'sma' || metric === 'ema' || metric === 'rsi') {
+        if (metric === 'sma' || metric === 'ema' || metric === 'rsi' || metric === 'vwap') {
             condition.left.window = parseInt(document.getElementById(`leftWindow${id}`)?.value) || 14;
         }
-        if (metric === 'sma' || metric === 'ema') {
+        if (metric === 'sma' || metric === 'ema' || metric === 'vwap') {
             condition.left.timeframe_minutes = parseInt(document.getElementById(`leftTimeframe${id}`)?.value) || 5;
-        }
-        if (metric === 'vwap') {
-            condition.left.timeframe_minutes = parseInt(document.getElementById(`leftTimeframe${id}`)?.value) || 1;
             condition.left.candle_type = 'minute';
             condition.left.multiplier = 1;
         }
@@ -1301,10 +1306,11 @@ function collectPriceConditions() {
                 condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 5;
             }
             if (comparator === 'compare_vwap') {
-                condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 1;
-                condition.right.series_type = 'vwap';
+                condition.right.window = parseInt(document.getElementById(`rightWindow${id}`)?.value) || 14;
+                condition.right.timeframe_minutes = parseInt(document.getElementById(`rightTimeframe${id}`)?.value) || 5;
                 condition.right.candle_type = 'minute';
                 condition.right.multiplier = 1;
+                condition.right.day = '0';
             }
             
             // Add MACD fields for MACD comparisons
