@@ -3914,7 +3914,13 @@ def run_backtest(config: Dict, client: RESTClient):
         
             _theoretical = False
             if not success:
-                # Final fallback: Black-Scholes theoretical pricing
+                # Final fallback: Black-Scholes theoretical pricing (only when user allows it)
+                if not config.get('allow_synthetic', True):
+                    print(f"  Skipping - no market data and synthetic pricing is disabled")
+                    day_entry['events'].append({'type': 'skip', 'reason': 'No market data (synthetic pricing disabled)'})
+                    decision_log.append(day_entry)
+                    continue
+
                 sigma_th = _compute_hist_vol(underlying_daily_closes, date_str)
                 r_th = 0.045
 

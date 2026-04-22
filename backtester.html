@@ -288,6 +288,26 @@
             </div>
         </div>
 
+        <!-- [11.5/13] SYNTHETIC DATA -->
+        <div class="section-header">
+            <span class="section-number">[11.5/13]</span>
+            <h3>SYNTHETIC (THEORETICAL) PRICING</h3>
+        </div>
+        <div class="form-group">
+            <label>Allow Black-Scholes synthetic pricing when no market data is available? [y/n]:</label>
+            <p class="help-text">When enabled, days where Polygon has no option bar data will be simulated using Black-Scholes pricing based on 30-day historical volatility. Resulting trades are tagged <code>pricing_mode: theoretical</code> in the trade log.</p>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="allowSynthetic" value="y" checked>
+                    <span>Yes — use synthetic pricing as fallback</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="allowSynthetic" value="n">
+                    <span>No — skip days with missing data</span>
+                </label>
+            </div>
+        </div>
+
         <!-- [12/13] STARTING CAPITAL -->
         <div class="section-header">
             <span class="section-number">[12/13]</span>

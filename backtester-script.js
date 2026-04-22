@@ -3184,6 +3184,7 @@ function collectFormData() {
         stop_loss_dollar: stopLossType === 'D' ? parseFloat(document.getElementById('stopLossDollar').value) : null,
         concurrent_trades: document.querySelector('input[name="concurrentTrades"]:checked').value === 'y',
         avoid_pdt: document.querySelector('input[name="avoidPdt"]:checked').value === 'y',
+        allow_synthetic: document.querySelector('input[name="allowSynthetic"]:checked').value === 'y',
         starting_capital: startingCapital
     };
     
@@ -3613,6 +3614,8 @@ function applyOptionsConfig(rawConfig) {
     config.concurrentTrades = rawConcurrent === true || rawConcurrent === 'y' ? 'y' : 'n';
     var rawPdt = rawConfig.avoidPdt != null ? rawConfig.avoidPdt : rawConfig.avoid_pdt;
     config.avoidPdt = rawPdt === true || rawPdt === 'y' ? 'y' : 'n';
+    var rawSynthetic = rawConfig.allowSynthetic != null ? rawConfig.allowSynthetic : rawConfig.allow_synthetic;
+    config.allowSynthetic = rawSynthetic === false || rawSynthetic === 'n' ? 'n' : 'y';
     config.legs = rawConfig.legs || [];
     config.takeProfitType = rawConfig.takeProfitType || (rawConfig.take_profit_pct != null ? 'P' : rawConfig.take_profit_dollar != null ? 'D' : 'P');
     config.takeProfitPct = rawConfig.takeProfitPct || (rawConfig.take_profit_pct != null ? String(rawConfig.take_profit_pct) : '');
@@ -3764,6 +3767,12 @@ function applyOptionsConfig(rawConfig) {
         if (pdtRadio) {
             pdtRadio.checked = true;
             document.querySelectorAll('.bt-toggle-btn[data-radio="avoidPdt"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.avoidPdt));
+        }
+
+        var syntheticRadio = document.querySelector(`input[name="allowSynthetic"][value="${config.allowSynthetic}"]`);
+        if (syntheticRadio) {
+            syntheticRadio.checked = true;
+            document.querySelectorAll('.bt-toggle-btn[data-radio="allowSynthetic"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.allowSynthetic));
         }
 
         if (document.getElementById('netPremiumMin') && config.netPremiumMin) {
