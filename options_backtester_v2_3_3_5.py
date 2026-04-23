@@ -5414,7 +5414,7 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
             'strategy', 'num_contracts', 
             'net_premium_entry', 'net_premium_exit', 'max_risk',
             'pnl', 'exit_reason', 'dte', 'dit', 'capital_before', 'capital_after',
-            'pricing_mode'
+            'pricing_mode', 'synthetic_entry'
         ]
         
         # Add indicator snapshot columns (SMA/EMA/VWAP values at entry)
@@ -5465,7 +5465,8 @@ def save_trade_log(trades: List[Dict], backtest_id: str = None):
                 'dit': f"{trade['dit']:.1f}",
                 'capital_before': f"{trade['capital_before']:.2f}",
                 'capital_after': f"{trade['capital_after']:.2f}",
-                'pricing_mode': trade.get('pricing_mode', 'market')
+                'pricing_mode': trade.get('pricing_mode', 'market'),
+                'synthetic_entry': 'Yes' if trade.get('pricing_mode') == 'theoretical' else 'No'
             }
             
             # Add indicator snapshot values
