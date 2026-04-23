@@ -3772,7 +3772,16 @@ def run_backtest(config: Dict, client: RESTClient):
                 'events': [],
                 'status': 'SKIPPED'
             }
-        
+
+            # Concurrent trades guard: if disabled, skip this day while a prior trade is still open
+            if not config.get('concurrent_trades', True):
+                open_trade = next((t for t in trades if t['exit_date'] >= date_str), None)
+                if open_trade:
+                    reason = f"Concurrent trade open until {open_trade['exit_date']}"
+                    day_entry['events'].append({'type': 'skip', 'reason': reason})
+                    decision_log.append(day_entry)
+                    continue
+
             # Get underlying bars for today
             bars_1min_today = underlying_bars_1min.get(date_str, [])
             bars_detection_today = underlying_bars_detection.get(date_str, [])
