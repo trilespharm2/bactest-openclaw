@@ -3582,10 +3582,14 @@ def _generate_synthetic_bars(
 
     for ub in underlying_day_bars:
         try:
-            # Parse bar datetime (already in Eastern)
-            bar_time_str = ub['time']  # HH:MM:SS
+            # Parse bar datetime (already in Eastern).
+            # Underlying 1-min bars use "HH:MM"; option 10-sec bars use "HH:MM:SS".
+            bar_time_str = ub['time']  # "HH:MM" or "HH:MM:SS"
             bar_date_str = ub['date']
-            bar_dt_naive = datetime.strptime(f"{bar_date_str} {bar_time_str}", "%Y-%m-%d %H:%M:%S")
+            fmt = "%Y-%m-%d %H:%M:%S" if len(bar_time_str) == 8 else "%Y-%m-%d %H:%M"
+            bar_dt_naive = datetime.strptime(f"{bar_date_str} {bar_time_str}", fmt)
+            # Normalise to HH:MM:SS so synthetic bar times are consistent
+            bar_time_str = bar_dt_naive.strftime("%H:%M:%S")
             bar_dt = eastern.localize(bar_dt_naive)
 
             T = max((exp_dt_aware - bar_dt).total_seconds() / (365.25 * 24 * 3600), 1e-10)
