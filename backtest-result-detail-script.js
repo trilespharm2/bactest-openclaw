@@ -263,6 +263,14 @@ async function _displayOptDetail(metadata) {
                 _optDetailState.chart = _btBuildEquityCurve('optDetailEquityChart', 'optDetailEquitySummary', labels, values);
                 _optDetailState.page = 1;
                 _renderOptTradesPage();
+            } else {
+                // 0-trade run — explicitly clear any stale DOM from a previous run
+                _optDetailState.trades = [];
+                _optDetailState.page = 1;
+                document.getElementById('optDetailTradeLogHeader').innerHTML = '';
+                if (_optDetailState.chart) { _optDetailState.chart.destroy(); _optDetailState.chart = null; }
+                _btBuildEquityCurve('optDetailEquityChart', 'optDetailEquitySummary', [], []);
+                _renderOptTradesPage();
             }
         }
     } catch(e) { console.error('Error loading trade log:', e); }
