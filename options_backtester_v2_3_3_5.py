@@ -3815,7 +3815,8 @@ def run_backtest(config: Dict, client: RESTClient):
                          round(b.get('open', 0), 2),
                          round(b.get('high', 0), 2),
                          round(b.get('low', 0), 2),
-                         round(b.get('close', 0), 2)]
+                         round(b.get('close', 0), 2),
+                         int(b.get('volume', b.get('v', 0)) or 0)]
                         for b in _sorted_bars
                         if _ws_str <= b.get('time', '')[:5] <= _we_str
                     ]

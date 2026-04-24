@@ -630,12 +630,23 @@ function _buildLwChart(container, stored, isModal) {
     return chart;
 }
 
+// ─── DT Modal indicator state ───────────────────────────────────────────────
+var _dtModalIndicators  = [];   // [{id, type, period, color, lineWidth, label, series}]
+var _dtModalIndNextId   = 0;
+var _dtModalBars        = [];   // bars in computation format {timestamp(ms), open, high, low, close, volume}
+
 function _openDtChartModal(idx) {
     idx = parseInt(idx);
     var stored = _dtChartData[idx];
     if (!stored) return;
     document.getElementById('dtChartModalTitle').textContent = (stored.day.symbol || '') + (stored.day.strategy ? '  ·  ' + stored.day.strategy : '');
     document.getElementById('dtChartModalDate').textContent = stored.day.date + (stored.entryTime ? '  ·  Entry: ' + stored.entryTime : '') + (stored.exitTime ? '  ·  Exit: ' + stored.exitTime : '');
+
+    // Build computation-ready bar list (re-used by every indicator calculation)
+    _dtModalBars = (stored.bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
+        return { timestamp: _toTs(stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
+    });
+
     var modal = document.getElementById('dtChartModal');
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -643,8 +654,19 @@ function _openDtChartModal(idx) {
     if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} }
     if (body._lwRo) { body._lwRo.disconnect(); }
     body.innerHTML = '';
+
+    // Reset indicator series refs (chart is new, but keep config to re-apply)
+    _dtModalIndicators.forEach(function(ind){ ind.series = null; });
+
     setTimeout(function() {
         body._lwModalChart = _buildLwChart(body, stored, true);
+        // Re-apply any persisted indicators to the new chart instance
+        if (body._lwModalChart && _dtModalIndicators.length) {
+            _dtModalIndicators.forEach(function(ind) {
+                ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
+            });
+            _dtRefreshIndList();
+        }
     }, 40);
 }
 
@@ -655,6 +677,148 @@ function _closeDtChartModal() {
     if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} body._lwModalChart = null; }
     if (body._lwRo) { body._lwRo.disconnect(); body._lwRo = null; }
     body.innerHTML = '';
+}
+
+// ─── Indicator type change ───────────────────────────────────────────────────
+function _dtOnIndTypeChange() {
+    var type  = document.getElementById('dtIndType').value;
+    var input = document.getElementById('dtIndPeriod');
+    if (input && type === 'vwap') input.value = '14';
+}
+
+// ─── Computation helpers ─────────────────────────────────────────────────────
+function _dtComputeSMA(bars, period) {
+    var result = [];
+    for (var i = 0; i < bars.length; i++) {
+        if (i < period - 1) continue;
+        var sum = 0;
+        for (var j = i - period + 1; j <= i; j++) sum += bars[j].close;
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / period });
+    }
+    return result;
+}
+
+function _dtComputeEMA(bars, period) {
+    var result = [];
+    if (bars.length < period) return result;
+    var sum = 0;
+    for (var i = 0; i < period; i++) sum += bars[i].close;
+    var ema = sum / period;
+    result.push({ time: Math.floor(bars[period - 1].timestamp / 1000), value: ema });
+    var k = 2 / (period + 1);
+    for (var i = period; i < bars.length; i++) {
+        ema = bars[i].close * k + ema * (1 - k);
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: ema });
+    }
+    return result;
+}
+
+function _dtComputeVWAP(bars, period) {
+    period = period || 14;
+    var result = [];
+    for (var i = 0; i < bars.length; i++) {
+        var start = Math.max(0, i - period + 1);
+        var cumVol = 0, cumTP = 0;
+        for (var j = start; j <= i; j++) {
+            var tp = (bars[j].high + bars[j].low + bars[j].close) / 3;
+            var vol = bars[j].volume > 0 ? bars[j].volume : 1; // equal weight fallback
+            cumTP += tp * vol;
+            cumVol += vol;
+        }
+        if (cumVol > 0) result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTP / cumVol });
+    }
+    return result;
+}
+
+// ─── Create a line series and set indicator data ─────────────────────────────
+function _dtCreateIndSeries(chart, ind) {
+    var data = [];
+    if (ind.type === 'sma')  data = _dtComputeSMA(_dtModalBars, ind.period);
+    else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
+    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
+
+    // Deduplicate by time
+    var seen = new Set(), clean = [];
+    data.forEach(function(d){ if (!seen.has(d.time)){ seen.add(d.time); clean.push(d); } });
+
+    var series = chart.addLineSeries({
+        color: ind.color,
+        lineWidth: ind.lineWidth,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        crosshairMarkerVisible: false,
+        title: ind.label
+    });
+    series.setData(clean);
+    return series;
+}
+
+// ─── Add indicator ───────────────────────────────────────────────────────────
+function _dtAddIndicator() {
+    var body = document.getElementById('dtChartModalBody');
+    if (!body._lwModalChart) return;
+
+    var type      = document.getElementById('dtIndType').value;
+    var period    = parseInt(document.getElementById('dtIndPeriod').value) || 20;
+    var color     = document.getElementById('dtIndColor').value || '#2962ff';
+    var lineWidth = parseInt(document.getElementById('dtIndWidth').value) || 2;
+
+    if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
+        alert('Period must be between 2 and 500.'); return;
+    }
+    if (_dtModalBars.length === 0) {
+        alert('No bar data available for this trade. Run a new backtest to generate chart data.'); return;
+    }
+
+    var id    = _dtModalIndNextId++;
+    var label = type === 'vwap' ? 'VWAP(' + period + ')' : type.toUpperCase() + '(' + period + ')';
+    var ind   = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label, series: null };
+
+    ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
+    _dtModalIndicators.push(ind);
+    _dtRefreshIndList();
+}
+
+// ─── Remove single indicator ─────────────────────────────────────────────────
+function _dtRemoveIndicator(id) {
+    var body = document.getElementById('dtChartModalBody');
+    var idx  = _dtModalIndicators.findIndex(function(i){ return i.id === id; });
+    if (idx === -1) return;
+    var ind  = _dtModalIndicators[idx];
+    if (ind.series && body._lwModalChart) {
+        try { body._lwModalChart.removeSeries(ind.series); } catch(e){}
+    }
+    _dtModalIndicators.splice(idx, 1);
+    _dtRefreshIndList();
+}
+
+// ─── Clear all indicators ────────────────────────────────────────────────────
+function _dtClearIndicators() {
+    var body = document.getElementById('dtChartModalBody');
+    _dtModalIndicators.forEach(function(ind) {
+        if (ind.series && body._lwModalChart) {
+            try { body._lwModalChart.removeSeries(ind.series); } catch(e){}
+        }
+    });
+    _dtModalIndicators = [];
+    _dtRefreshIndList();
+}
+
+// ─── Refresh active indicator chips ─────────────────────────────────────────
+function _dtRefreshIndList() {
+    var list    = document.getElementById('dtActiveIndsList');
+    var clearBtn = document.getElementById('dtClearIndsBtn');
+    if (!list) return;
+    list.innerHTML = '';
+    _dtModalIndicators.forEach(function(ind) {
+        var chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;color:#1e2330;';
+        chip.innerHTML = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + ind.color + ';flex-shrink:0;"></span>'
+                       + ind.label
+                       + '<button onclick="_dtRemoveIndicator(' + ind.id + ')" style="background:none;border:none;cursor:pointer;padding:0;margin-left:2px;color:#94a3b8;font-size:13px;line-height:1;" title="Remove">&times;</button>';
+        list.appendChild(chip);
+    });
+    if (clearBtn) clearBtn.style.display = _dtModalIndicators.length > 1 ? 'block' : 'none';
 }
 
 function _fmtExitReason(r) {
