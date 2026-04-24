@@ -1,4 +1,5 @@
 var _optDetailState = { id: null, config: null, trades: [], page: 1, perPage: 10, chart: null, dtDays: [], dtPage: 1, dtCharts: [] };
+var _dtChartData = {}; // key: absolute day idx → {day, bars, entryTime, exitTime, chart}
 var _stkDetailState = { id: null, config: null, data: null, trades: [], page: 1, perPage: 10, chart: null, dtDays: [], dtPage: 1 };
 
 function _btFmt(value) {
@@ -453,8 +454,12 @@ function _buildOptDetailDecisionTree(log) {
 }
 
 function _renderOptDtPage() {
-    // Destroy any previously created charts on this page
-    (_optDetailState.dtCharts || []).forEach(function(c) { try { c.destroy(); } catch(e) {} });
+    // Destroy any previously created inline charts
+    Object.keys(_dtChartData).forEach(function(k) {
+        var s = _dtChartData[k];
+        if (s.chart) { try { s.chart.remove(); } catch(e) {} }
+    });
+    _dtChartData = {};
     _optDetailState.dtCharts = [];
 
     var days = _optDetailState.dtDays;
@@ -512,12 +517,24 @@ function _renderOptDtPage() {
         });
         flowHtml += '</div>';
 
-        // OHLCV chart canvas — rendered only when bars are available
+        // Candlestick chart placeholder — lazily initialised when accordion opens
         var hasBars = day.bars && day.bars.length > 0;
         if (hasBars) {
-            flowHtml += '<div style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff;">' +
-                '<div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600;letter-spacing:0.04em;">PRICE CHART — ' + (day.symbol || '') + ' · ' + day.date + '</div>' +
-                '<div style="position:relative;height:160px;"><canvas id="dtChart_' + i + '"></canvas></div>' +
+            var _eT = day.entry_time || null;
+            var _eEvt = (day.events || []).find(function(e) { return e.type === 'entry'; });
+            if (_eEvt && _eEvt.time) _eT = _eEvt.time.slice(0, 5);
+            var _xEvt = (day.events || []).find(function(e) { return e.type === 'exit'; });
+            var _xT = _xEvt && _xEvt.exit_time ? _xEvt.exit_time.slice(0, 5) : null;
+            _dtChartData[i] = { day: day, bars: day.bars, entryTime: _eT, exitTime: _xT, chart: null };
+
+            flowHtml += '<div style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;">' +
+                '<div style="padding:7px 12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#fafbfc;">' +
+                '<div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:0.03em;"><i class="fas fa-chart-bar" style="color:#3b7cff;margin-right:5px;font-size:10px;"></i>' + (day.symbol || '') + ' · ' + day.date + (_eT ? '  ·  Entry: <span style="color:#10b981;">' + _eT + '</span>' : '') + '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<span style="font-size:10px;color:#94a3b8;">Scroll: zoom · Drag: pan</span>' +
+                '<button onclick="_openDtChartModal(' + i + ')" style="border:none;background:#e8eef7;border-radius:5px;width:26px;height:26px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" title="Expand to fullscreen"><i class="fas fa-expand-alt" style="font-size:11px;color:#3b7cff;"></i></button>' +
+                '</div></div>' +
+                '<div id="dtChart_' + i + '" data-chart-day-idx="' + i + '" style="height:190px;"></div>' +
                 '</div>';
         }
 
@@ -529,157 +546,115 @@ function _renderOptDtPage() {
             '<div class="dt-day-body" style="padding:10px 14px;display:none;">' + flowHtml + '</div></div>';
     }
     document.getElementById('optDetailDtContent').innerHTML = html;
+}
 
-    // Initialize OHLCV charts after DOM is ready
-    for (var ci = start; ci < end; ci++) {
-        var cday = days[ci];
-        if (!cday.bars || cday.bars.length === 0) continue;
-        _initDtBarChart(ci, cday);
-    }
+function _toTs(dateStr, timeStr) {
+    var p = dateStr.split('-');
+    var t = (timeStr || '00:00').split(':');
+    return Date.UTC(+p[0], +p[1] - 1, +p[2], +t[0], +t[1]) / 1000;
 }
 
 function _toggleDtDay(headerEl) {
     var body = headerEl.nextElementSibling;
     var wasHidden = body.style.display === 'none';
     body.style.display = wasHidden ? 'block' : 'none';
-    // Trigger chart resize when opening so Chart.js fills the container correctly
     if (wasHidden) {
-        var canvas = body.querySelector('canvas');
-        if (canvas && canvas._dtChart) { canvas._dtChart.resize(); }
+        var chartDiv = body.querySelector('[data-chart-day-idx]');
+        if (!chartDiv) return;
+        var idx = parseInt(chartDiv.getAttribute('data-chart-day-idx'));
+        var stored = _dtChartData[idx];
+        if (!stored) return;
+        if (!stored.chart) {
+            stored.chart = _buildLwChart(chartDiv, stored, false);
+        } else {
+            stored.chart.applyOptions({ width: chartDiv.clientWidth });
+        }
     }
 }
 
-function _initDtBarChart(idx, day) {
-    var canvas = document.getElementById('dtChart_' + idx);
-    if (!canvas) return;
-
-    var bars = day.bars; // [[time, o, h, l, c], ...]
-    var labels  = bars.map(function(b) { return b[0]; });
-    var closes  = bars.map(function(b) { return b[4]; });
-    var highs   = bars.map(function(b) { return b[2]; });
-    var lows    = bars.map(function(b) { return b[3]; });
-
-    // Find the actual entry bar (use entry event time if available, else day.entry_time)
-    var entryTime = day.entry_time || null;
-    var entryEvt  = (day.events || []).find(function(e) { return e.type === 'entry'; });
-    if (entryEvt && entryEvt.time) entryTime = entryEvt.time.length === 5 ? entryEvt.time : entryEvt.time.slice(0, 5);
-    var exitEvt = (day.events || []).find(function(e) { return e.type === 'exit'; });
-    var exitTime = exitEvt && exitEvt.exit_time ? (exitEvt.exit_time.length === 5 ? exitEvt.exit_time : exitEvt.exit_time.slice(0, 5)) : null;
-
-    var entryIdx = entryTime ? labels.indexOf(entryTime) : -1;
-    var exitIdx  = exitTime  ? labels.indexOf(exitTime)  : -1;
-
-    // Point styles: highlight entry (green) and exit (red) markers
-    var pointR = labels.map(function(_, k) {
-        if (k === entryIdx || k === exitIdx) return 5;
-        return 0;
-    });
-    var pointBg = labels.map(function(_, k) {
-        if (k === entryIdx) return '#10b981';
-        if (k === exitIdx)  return '#ef4444';
-        return 'transparent';
-    });
-
-    // Vertical-line annotation plugin (inline, no external dependency)
-    var entryLinePlugin = {
-        id: 'dtEntryLine',
-        beforeDraw: function(chart) {
-            var meta2 = chart.getDatasetMeta(2);
-            if (!meta2 || !meta2.data) return;
-            var ctx2 = chart.ctx;
-            var ca = chart.chartArea;
-            function drawVLine(barIdx, color) {
-                if (barIdx < 0 || !meta2.data[barIdx]) return;
-                var x = meta2.data[barIdx].x;
-                ctx2.save();
-                ctx2.beginPath();
-                ctx2.setLineDash([4, 3]);
-                ctx2.strokeStyle = color;
-                ctx2.lineWidth = 1.5;
-                ctx2.moveTo(x, ca.top);
-                ctx2.lineTo(x, ca.bottom);
-                ctx2.stroke();
-                ctx2.restore();
+function _buildLwChart(container, stored, isModal) {
+    if (typeof LightweightCharts === 'undefined') return null;
+    container.innerHTML = '';
+    var w = container.clientWidth || 600;
+    var h = container.clientHeight || (isModal ? 500 : 190);
+    var chart = LightweightCharts.createChart(container, {
+        layout: { background: { color: '#ffffff' }, textColor: '#475569', fontSize: 11 },
+        grid: { vertLines: { color: '#f1f5f9' }, horzLines: { color: '#f1f5f9' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        timeScale: {
+            timeVisible: true,
+            secondsVisible: false,
+            borderColor: '#e2e8f0',
+            tickMarkFormatter: function(t) {
+                var d = new Date(t * 1000);
+                return d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
             }
-            drawVLine(entryIdx, '#10b981');
-            drawVLine(exitIdx,  '#ef4444');
-        }
-    };
-
-    var ctx = canvas.getContext('2d');
-    var chart = new Chart(ctx, {
-        type: 'line',
-        plugins: [entryLinePlugin],
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'High',
-                    data: highs,
-                    borderWidth: 0,
-                    pointRadius: 0,
-                    fill: '+1',
-                    backgroundColor: 'rgba(59,124,255,0.10)',
-                    tension: 0.1
-                },
-                {
-                    label: 'Low',
-                    data: lows,
-                    borderWidth: 0,
-                    pointRadius: 0,
-                    fill: false,
-                    tension: 0.1
-                },
-                {
-                    label: 'Close',
-                    data: closes,
-                    borderColor: '#3b7cff',
-                    borderWidth: 1.5,
-                    pointRadius: pointR,
-                    pointBackgroundColor: pointBg,
-                    pointBorderColor: pointBg,
-                    fill: false,
-                    tension: 0.1
-                }
-            ]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    filter: function(item) { return item.dataset.label === 'Close'; },
-                    callbacks: {
-                        title: function(items) { return (day.symbol || '') + '  ' + (items[0] ? items[0].label : ''); },
-                        label: function(item) {
-                            var b = bars[item.dataIndex];
-                            if (!b) return '';
-                            var lines = ['O: ' + b[1].toFixed(2), 'H: ' + b[2].toFixed(2), 'L: ' + b[3].toFixed(2), 'C: ' + b[4].toFixed(2)];
-                            if (item.dataIndex === entryIdx) lines.push('▶ Entry');
-                            if (item.dataIndex === exitIdx)  lines.push('◀ Exit');
-                            return lines;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: { maxTicksLimit: 8, font: { size: 10 }, color: '#94a3b8' },
-                    grid: { display: false }
-                },
-                y: {
-                    ticks: { font: { size: 10 }, color: '#94a3b8' },
-                    grid: { color: 'rgba(0,0,0,0.04)' }
-                }
-            }
-        }
+        rightPriceScale: { borderColor: '#e2e8f0' },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true },
+        handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
+        width: w,
+        height: h
     });
 
-    canvas._dtChart = chart;
-    _optDetailState.dtCharts.push(chart);
+    var cs = chart.addCandlestickSeries({
+        upColor: '#089981', downColor: '#f23645',
+        borderUpColor: '#089981', borderDownColor: '#f23645',
+        wickUpColor: '#089981', wickDownColor: '#f23645'
+    });
+
+    var data = (stored.bars || []).map(function(b) {
+        return { time: _toTs(stored.day.date, b[0]), open: b[1], high: b[2], low: b[3], close: b[4] };
+    }).filter(function(d) { return d.open > 0; });
+    cs.setData(data);
+
+    var markers = [];
+    if (stored.entryTime) markers.push({ time: _toTs(stored.day.date, stored.entryTime), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' });
+    if (stored.exitTime)  markers.push({ time: _toTs(stored.day.date, stored.exitTime),  position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit'  });
+    if (markers.length) cs.setMarkers(markers);
+
+    // Initial view: zoom to ±10 min around entry (±30 min for modal)
+    if (stored.entryTime) {
+        var ets = _toTs(stored.day.date, stored.entryTime);
+        var winSec = isModal ? 1800 : 600;
+        chart.timeScale().setVisibleRange({ from: ets - winSec, to: ets + winSec });
+    }
+
+    var ro = new ResizeObserver(function() {
+        if (container.clientWidth > 0 && container.clientHeight > 0) {
+            chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+        }
+    });
+    ro.observe(container);
+    container._lwRo = ro;
+    return chart;
+}
+
+function _openDtChartModal(idx) {
+    idx = parseInt(idx);
+    var stored = _dtChartData[idx];
+    if (!stored) return;
+    document.getElementById('dtChartModalTitle').textContent = (stored.day.symbol || '') + (stored.day.strategy ? '  ·  ' + stored.day.strategy : '');
+    document.getElementById('dtChartModalDate').textContent = stored.day.date + (stored.entryTime ? '  ·  Entry: ' + stored.entryTime : '') + (stored.exitTime ? '  ·  Exit: ' + stored.exitTime : '');
+    var modal = document.getElementById('dtChartModal');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    var body = document.getElementById('dtChartModalBody');
+    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} }
+    if (body._lwRo) { body._lwRo.disconnect(); }
+    body.innerHTML = '';
+    setTimeout(function() {
+        body._lwModalChart = _buildLwChart(body, stored, true);
+    }, 40);
+}
+
+function _closeDtChartModal() {
+    document.getElementById('dtChartModal').style.display = 'none';
+    document.body.style.overflow = '';
+    var body = document.getElementById('dtChartModalBody');
+    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} body._lwModalChart = null; }
+    if (body._lwRo) { body._lwRo.disconnect(); body._lwRo = null; }
+    body.innerHTML = '';
 }
 
 function _fmtExitReason(r) {
