@@ -797,11 +797,12 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
     """
     price_conditions = config.get('price_conditions', [])
     if not price_conditions:
-        return True, ""
+        return True, "", []
     
     bar_timestamp = bar['timestamp']
     bar_price = bar['open']
-    
+    _cond_details = []   # collects per-condition evaluated values for decision log
+
     for idx, condition in enumerate(price_conditions):
         try:
             metric = condition.get('metric', 'price')
@@ -816,7 +817,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             left_series_type = left_params.get('series_type', 'close')
             
             if left_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and left_day_offset == 0 and left_series_type in ['close', 'high', 'low']:
-                return False, f"Invalid: cannot use day candle '{left_series_type}' on day 0 — current day has not closed"
+                return False, f"Invalid: cannot use day candle '{left_series_type}' on day 0 — current day has not closed", _cond_details
 
             # Get left side value
             if metric == 'price':
@@ -824,7 +825,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     # Use day bars from cache
                     left_value = get_day_bar_value(indicators_cache, trade_date, left_day_offset, left_series_type)
                     if left_value is None:
-                        return False, f"Missing day bar data for day offset {left_day_offset}"
+                        return False, f"Missing day bar data for day offset {left_day_offset}", _cond_details
                 else:
                     # Use current bar's price field based on series_type
                     if left_series_type == 'vwap':
@@ -857,11 +858,13 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     left_value = None
             
             if left_value is None:
-                return False, f"Missing {metric} data"
+                return False, f"Missing {metric} data", _cond_details
             
             # Get right side value
             if comparator == 'value':
                 right_value = condition.get('compare_value', 0)
+                _raw_right = right_value
+                threshold = {}
             else:
                 right_metric = comparator.replace('compare_', '')
                 right_candle_type = right_params.get('candle_type', 'minute')
@@ -869,14 +872,13 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 right_series_type = right_params.get('series_type', 'close')
                 
                 if right_candle_type in ['day', 'week', 'month', 'quarter', 'year'] and right_day_offset == 0 and right_series_type in ['close', 'high', 'low']:
-                    return False, f"Invalid: cannot use day candle '{right_series_type}' on right side day 0 — current day has not closed"
+                    return False, f"Invalid: cannot use day candle '{right_series_type}' on right side day 0 — current day has not closed", _cond_details
 
                 if right_metric == 'price':
                     if right_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
-                        # Use day bars from cache with offset
                         right_value = get_day_bar_value(indicators_cache, trade_date, right_day_offset, right_series_type)
                         if right_value is None:
-                            return False, f"Missing day bar data for right side day offset {right_day_offset}"
+                            return False, f"Missing day bar data for right side day offset {right_day_offset}", _cond_details
                     else:
                         if right_series_type == 'vwap':
                             right_value = bar.get('vw', bar_price)
@@ -907,10 +909,11 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         right_value = None
                 
                 if right_value is None:
-                    return False, f"Missing {right_metric} comparison data"
+                    return False, f"Missing {right_metric} comparison data", _cond_details
                 
                 # Apply threshold if present
                 threshold = condition.get('threshold', {})
+                _raw_right = right_value   # before threshold adjustment
                 if threshold:
                     threshold_value = threshold.get('value', 0)
                     threshold_unit = threshold.get('unit', 'percent')
@@ -931,14 +934,35 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 met = left_value <= right_value
             elif operator == '==':
                 met = abs(left_value - right_value) < 0.0001
-            
+
+            # Build left/right labels for the decision log
+            _left_label = left_params.get('series_type', metric).upper() if metric == 'price' else metric.upper()
+            _right_metric = comparator.replace('compare_', '') if comparator != 'value' else 'value'
+            _right_period = right_params.get('window', right_params.get('period', '')) if _right_metric in ('sma', 'ema', 'vwap') else ''
+            _right_label = (f"{_right_metric.upper()}({_right_period})" if _right_period else _right_metric.upper()) if _right_metric != 'value' else 'value'
+
+            _cond_details.append({
+                'metric': metric,
+                'series_type': left_params.get('series_type', 'close'),
+                'left_label': _left_label,
+                'left_value': round(left_value, 4),
+                'operator': operator,
+                'right_metric': _right_metric,
+                'right_label': _right_label,
+                'right_value': round(_raw_right, 4),
+                'effective_right': round(right_value, 4),
+                'threshold': threshold.get('value', 0) if threshold else 0,
+                'threshold_unit': threshold.get('unit', 'percent') if threshold else 'percent',
+                'met': met,
+            })
+
             if not met:
-                return False, f"{metric} {left_value:.2f} {operator} {right_value:.2f}"
+                return False, f"{metric} {left_value:.2f} {operator} {right_value:.2f}", _cond_details
         
         except Exception as e:
-            return False, f"Error: {str(e)}"
+            return False, f"Error: {str(e)}", _cond_details
     
-    return True, "All conditions met"
+    return True, "All conditions met", _cond_details
 
 
 def get_day_bar_value(indicators_cache: Dict, trade_date: datetime, day_offset: int, series_type: str) -> Optional[float]:
@@ -3873,7 +3897,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 
                 # Check custom price conditions at this bar using cached indicator data
                 if price_conditions:
-                    conditions_met, condition_reason = evaluate_price_conditions_with_cache(
+                    conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
                         config, bar, indicators_cache, trade_date
                     )
                     if not conditions_met:
@@ -3881,12 +3905,17 @@ def run_backtest(config: Dict, client: RESTClient):
                         last_condition_reason = condition_reason
                         continue
                     else:
-                        print(f"  Conditions met - entering trade", flush=True)
+                        _det_str = '  '.join(
+                            f"{c['left_label']} {c['left_value']:.2f} {c['operator']} {c['right_label']} {c['effective_right']:.2f}"
+                            for c in cond_details
+                        ) if cond_details else ''
+                        print(f"  Conditions met - entering trade" + (f"  [{_det_str}]" if _det_str else ""), flush=True)
                         day_entry['events'].append({
                             'type': 'condition_met',
                             'time': bar_time,
                             'price': underlying_price,
-                            'reason': 'All price conditions met'
+                            'reason': 'All price conditions met',
+                            'conditions': cond_details
                         })
                 
                 # Conditions met (or no conditions), use this bar for entry

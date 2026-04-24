@@ -498,7 +498,20 @@ function _renderOptDtPage() {
             if (evt.type === 'no_data' || evt.type === 'no_signal') {
                 flowHtml += '<div style="padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;border-left:3px solid #94a3b8;font-size:12px;color:#64748b;">' + (evt.type === 'no_data' ? 'NO DATA' : 'CONDITIONS NOT MET') + ': ' + (evt.reason || '') + '</div>';
             } else if (evt.type === 'condition_met') {
-                flowHtml += '<div style="padding:6px 10px;background:#ecfdf5;border-radius:6px;margin-bottom:4px;border-left:3px solid #10b981;font-size:12px;color:#065f46;">CONDITIONS MET - Price $' + (evt.price != null ? evt.price.toFixed(2) : 'N/A') + '</div>';
+                var _cmDetail = '';
+                if (evt.conditions && evt.conditions.length > 0) {
+                    _cmDetail = evt.conditions.map(function(c) {
+                        var lLabel = c.left_label  || (c.metric === 'price' ? (c.series_type || 'price').toUpperCase() : c.metric.toUpperCase());
+                        var rLabel = c.right_label || c.right_metric || 'ref';
+                        var lv = c.left_value  != null ? c.left_value.toFixed(2)          : '?';
+                        var rv = c.effective_right != null ? c.effective_right.toFixed(2)
+                               : (c.right_value   != null ? c.right_value.toFixed(2) : '?');
+                        var thr = (c.threshold && c.threshold !== 0) ? ' <span style="opacity:.7;">(+' + c.threshold + (c.threshold_unit === 'points' ? 'pts' : '%') + ')</span>' : '';
+                        return lLabel + ' <strong>$' + lv + '</strong> ' + c.operator + ' ' + rLabel + ' <strong>$' + rv + '</strong>' + thr;
+                    }).join(' &amp; ');
+                    _cmDetail = '<div style="margin-top:3px;font-size:11px;opacity:.85;">' + _cmDetail + '</div>';
+                }
+                flowHtml += '<div style="padding:6px 10px;background:#ecfdf5;border-radius:6px;margin-bottom:4px;border-left:3px solid #10b981;font-size:12px;color:#065f46;"><span style="font-weight:600;">CONDITIONS MET</span> at ' + (evt.time || '') + ' — Price $' + (evt.price != null ? evt.price.toFixed(2) : 'N/A') + _cmDetail + '</div>';
             } else if (evt.type === 'entry') {
                 var legsH = '';
                 if (evt.legs && evt.legs.length > 0) {
@@ -687,26 +700,27 @@ function _dtOnIndTypeChange() {
 }
 
 // ─── Computation helpers ─────────────────────────────────────────────────────
+// Use expanding (seeded) averages so the line spans the full chart from bar 1.
 function _dtComputeSMA(bars, period) {
     var result = [];
     for (var i = 0; i < bars.length; i++) {
-        if (i < period - 1) continue;
-        var sum = 0;
-        for (var j = i - period + 1; j <= i; j++) sum += bars[j].close;
-        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / period });
+        var from  = Math.max(0, i - period + 1);
+        var count = i - from + 1;            // expanding until we reach `period`
+        var sum   = 0;
+        for (var j = from; j <= i; j++) sum += bars[j].close;
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / count });
     }
     return result;
 }
 
 function _dtComputeEMA(bars, period) {
     var result = [];
-    if (bars.length < period) return result;
-    var sum = 0;
-    for (var i = 0; i < period; i++) sum += bars[i].close;
-    var ema = sum / period;
-    result.push({ time: Math.floor(bars[period - 1].timestamp / 1000), value: ema });
+    if (bars.length === 0) return result;
+    // Seed from first bar so the line starts immediately
+    var ema = bars[0].close;
+    result.push({ time: Math.floor(bars[0].timestamp / 1000), value: ema });
     var k = 2 / (period + 1);
-    for (var i = period; i < bars.length; i++) {
+    for (var i = 1; i < bars.length; i++) {
         ema = bars[i].close * k + ema * (1 - k);
         result.push({ time: Math.floor(bars[i].timestamp / 1000), value: ema });
     }
