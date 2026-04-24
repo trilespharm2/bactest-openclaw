@@ -1,4 +1,4 @@
-var _optDetailState = { id: null, config: null, trades: [], page: 1, perPage: 10, chart: null, dtDays: [], dtPage: 1 };
+var _optDetailState = { id: null, config: null, trades: [], page: 1, perPage: 10, chart: null, dtDays: [], dtPage: 1, dtCharts: [] };
 var _stkDetailState = { id: null, config: null, data: null, trades: [], page: 1, perPage: 10, chart: null, dtDays: [], dtPage: 1 };
 
 function _btFmt(value) {
@@ -443,6 +443,7 @@ function _buildOptDetailDecisionTree(log) {
     if (!log || log.length === 0) return;
     _optDetailState.dtDays = log;
     _optDetailState.dtPage = 1;
+    _optDetailState.dtCharts = _optDetailState.dtCharts || [];
     document.getElementById('optDetailDecisionTreeCard').style.display = '';
     document.getElementById('optDetailDtPrevBtn').onclick = function() { if (_optDetailState.dtPage > 1) { _optDetailState.dtPage--; _renderOptDtPage(); } };
     document.getElementById('optDetailDtNextBtn').onclick = function() {
@@ -452,6 +453,10 @@ function _buildOptDetailDecisionTree(log) {
 }
 
 function _renderOptDtPage() {
+    // Destroy any previously created charts on this page
+    (_optDetailState.dtCharts || []).forEach(function(c) { try { c.destroy(); } catch(e) {} });
+    _optDetailState.dtCharts = [];
+
     var days = _optDetailState.dtDays;
     var page = _optDetailState.dtPage;
     var pp = 10;
@@ -507,14 +512,174 @@ function _renderOptDtPage() {
         });
         flowHtml += '</div>';
 
+        // OHLCV chart canvas — rendered only when bars are available
+        var hasBars = day.bars && day.bars.length > 0;
+        if (hasBars) {
+            flowHtml += '<div style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff;">' +
+                '<div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600;letter-spacing:0.04em;">PRICE CHART — ' + (day.symbol || '') + ' · ' + day.date + '</div>' +
+                '<div style="position:relative;height:160px;"><canvas id="dtChart_' + i + '"></canvas></div>' +
+                '</div>';
+        }
+
         html += '<div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden;">' +
-            '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'" style="padding:10px 14px;background:' + headerBg + ';cursor:pointer;display:flex;justify-content:space-between;align-items:center;">' +
+            '<div onclick="_toggleDtDay(this)" style="padding:10px 14px;background:' + headerBg + ';cursor:pointer;display:flex;justify-content:space-between;align-items:center;">' +
             '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><i class="fas fa-calendar-day" style="color:#3b7cff;"></i><span style="font-weight:600;">' + day.date + '</span><span style="background:' + badgeColor + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;">' + badgeText + '</span>' +
             (exitEvents.length > 0 ? '<span style="color:' + (dayPnl >= 0 ? '#10b981' : '#ef4444') + ';font-weight:600;font-size:12px;">P&L: $' + dayPnl.toFixed(2) + '</span>' : '') +
             '</div><i class="fas fa-chevron-down" style="color:#94a3b8;font-size:12px;"></i></div>' +
-            '<div style="padding:10px 14px;display:none;">' + flowHtml + '</div></div>';
+            '<div class="dt-day-body" style="padding:10px 14px;display:none;">' + flowHtml + '</div></div>';
     }
     document.getElementById('optDetailDtContent').innerHTML = html;
+
+    // Initialize OHLCV charts after DOM is ready
+    for (var ci = start; ci < end; ci++) {
+        var cday = days[ci];
+        if (!cday.bars || cday.bars.length === 0) continue;
+        _initDtBarChart(ci, cday);
+    }
+}
+
+function _toggleDtDay(headerEl) {
+    var body = headerEl.nextElementSibling;
+    var wasHidden = body.style.display === 'none';
+    body.style.display = wasHidden ? 'block' : 'none';
+    // Trigger chart resize when opening so Chart.js fills the container correctly
+    if (wasHidden) {
+        var canvas = body.querySelector('canvas');
+        if (canvas && canvas._dtChart) { canvas._dtChart.resize(); }
+    }
+}
+
+function _initDtBarChart(idx, day) {
+    var canvas = document.getElementById('dtChart_' + idx);
+    if (!canvas) return;
+
+    var bars = day.bars; // [[time, o, h, l, c], ...]
+    var labels  = bars.map(function(b) { return b[0]; });
+    var closes  = bars.map(function(b) { return b[4]; });
+    var highs   = bars.map(function(b) { return b[2]; });
+    var lows    = bars.map(function(b) { return b[3]; });
+
+    // Find the actual entry bar (use entry event time if available, else day.entry_time)
+    var entryTime = day.entry_time || null;
+    var entryEvt  = (day.events || []).find(function(e) { return e.type === 'entry'; });
+    if (entryEvt && entryEvt.time) entryTime = entryEvt.time.length === 5 ? entryEvt.time : entryEvt.time.slice(0, 5);
+    var exitEvt = (day.events || []).find(function(e) { return e.type === 'exit'; });
+    var exitTime = exitEvt && exitEvt.exit_time ? (exitEvt.exit_time.length === 5 ? exitEvt.exit_time : exitEvt.exit_time.slice(0, 5)) : null;
+
+    var entryIdx = entryTime ? labels.indexOf(entryTime) : -1;
+    var exitIdx  = exitTime  ? labels.indexOf(exitTime)  : -1;
+
+    // Point styles: highlight entry (green) and exit (red) markers
+    var pointR = labels.map(function(_, k) {
+        if (k === entryIdx || k === exitIdx) return 5;
+        return 0;
+    });
+    var pointBg = labels.map(function(_, k) {
+        if (k === entryIdx) return '#10b981';
+        if (k === exitIdx)  return '#ef4444';
+        return 'transparent';
+    });
+
+    // Vertical-line annotation plugin (inline, no external dependency)
+    var entryLinePlugin = {
+        id: 'dtEntryLine',
+        beforeDraw: function(chart) {
+            var meta2 = chart.getDatasetMeta(2);
+            if (!meta2 || !meta2.data) return;
+            var ctx2 = chart.ctx;
+            var ca = chart.chartArea;
+            function drawVLine(barIdx, color) {
+                if (barIdx < 0 || !meta2.data[barIdx]) return;
+                var x = meta2.data[barIdx].x;
+                ctx2.save();
+                ctx2.beginPath();
+                ctx2.setLineDash([4, 3]);
+                ctx2.strokeStyle = color;
+                ctx2.lineWidth = 1.5;
+                ctx2.moveTo(x, ca.top);
+                ctx2.lineTo(x, ca.bottom);
+                ctx2.stroke();
+                ctx2.restore();
+            }
+            drawVLine(entryIdx, '#10b981');
+            drawVLine(exitIdx,  '#ef4444');
+        }
+    };
+
+    var ctx = canvas.getContext('2d');
+    var chart = new Chart(ctx, {
+        type: 'line',
+        plugins: [entryLinePlugin],
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'High',
+                    data: highs,
+                    borderWidth: 0,
+                    pointRadius: 0,
+                    fill: '+1',
+                    backgroundColor: 'rgba(59,124,255,0.10)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Low',
+                    data: lows,
+                    borderWidth: 0,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: 'Close',
+                    data: closes,
+                    borderColor: '#3b7cff',
+                    borderWidth: 1.5,
+                    pointRadius: pointR,
+                    pointBackgroundColor: pointBg,
+                    pointBorderColor: pointBg,
+                    fill: false,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    filter: function(item) { return item.dataset.label === 'Close'; },
+                    callbacks: {
+                        title: function(items) { return (day.symbol || '') + '  ' + (items[0] ? items[0].label : ''); },
+                        label: function(item) {
+                            var b = bars[item.dataIndex];
+                            if (!b) return '';
+                            var lines = ['O: ' + b[1].toFixed(2), 'H: ' + b[2].toFixed(2), 'L: ' + b[3].toFixed(2), 'C: ' + b[4].toFixed(2)];
+                            if (item.dataIndex === entryIdx) lines.push('▶ Entry');
+                            if (item.dataIndex === exitIdx)  lines.push('◀ Exit');
+                            return lines;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { maxTicksLimit: 8, font: { size: 10 }, color: '#94a3b8' },
+                    grid: { display: false }
+                },
+                y: {
+                    ticks: { font: { size: 10 }, color: '#94a3b8' },
+                    grid: { color: 'rgba(0,0,0,0.04)' }
+                }
+            }
+        }
+    });
+
+    canvas._dtChart = chart;
+    _optDetailState.dtCharts.push(chart);
 }
 
 function _fmtExitReason(r) {

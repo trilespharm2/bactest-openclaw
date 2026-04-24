@@ -3799,7 +3799,30 @@ def run_backtest(config: Dict, client: RESTClient):
             # Determine entry time range (check both field names for compatibility)
             entry_time_start = config['entry_time']
             entry_time_end = config.get('entry_time_end') or config.get('entry_time_max') or entry_time_start
-            
+
+            # Store compact OHLCV bars for decision-tree chart (±90 min window around entry)
+            if bars_1min_today:
+                try:
+                    _eh, _em = map(int, entry_time_start[:5].split(':'))
+                    _center = _eh * 60 + _em
+                    _ws = max(570, _center - 90)   # floor at 09:30
+                    _we = min(960, _center + 90)   # cap at 16:00
+                    _ws_str = f"{_ws // 60:02d}:{_ws % 60:02d}"
+                    _we_str = f"{_we // 60:02d}:{_we % 60:02d}"
+                    _sorted_bars = sorted(bars_1min_today, key=lambda x: x.get('time', ''))
+                    day_entry['bars'] = [
+                        [b['time'][:5],
+                         round(b.get('open', 0), 2),
+                         round(b.get('high', 0), 2),
+                         round(b.get('low', 0), 2),
+                         round(b.get('close', 0), 2)]
+                        for b in _sorted_bars
+                        if _ws_str <= b.get('time', '')[:5] <= _we_str
+                    ]
+                    day_entry['entry_time'] = entry_time_start[:5]
+                except Exception:
+                    day_entry['bars'] = []
+
             # Entry condition scanning always uses 1-minute bars so that rolling
             # window presets (e.g. Velocity) are evaluated at every minute.
             # detection_bar_size controls only the monitoring interval after entry.
