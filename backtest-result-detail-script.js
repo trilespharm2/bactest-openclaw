@@ -632,24 +632,23 @@ function _buildLwChart(container, stored, isModal) {
     if (stored.exitTime)  markers.push({ time: _toTs(stored.day.date, stored.exitTime),  position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit'  });
     if (markers.length) cs.setMarkers(markers);
 
-    // Initial view: zoom to show entry → exit with padding.
-    // When exit is same-day (usual case) show entry-5min to exit+15min.
-    // When no exit is known yet, fall back to ±15 min around entry.
+    // Initial view:
+    //   Inline card  → ±15 min around entry (zoomed in, like TradingView default)
+    //   Fullscreen modal → entry-5min to exit+20min so full trade span is visible
     (function() {
-        var PAD_BEFORE = 5 * 60;   // 5 min before entry
-        var PAD_AFTER  = isModal ? 20 * 60 : 10 * 60; // 20/10 min after exit (or after entry)
         var eT = stored.entryTime;
         var xT = stored.exitTime;
         if (!eT) return;
         var ets = _toTs(stored.day.date, eT);
-        var from = ets - PAD_BEFORE;
-        var to;
-        if (xT) {
-            // Exit is on the entry day — use exit timestamp as right edge
+        var from, to;
+        if (isModal && xT) {
             var xts = _toTs(stored.day.date, xT);
-            to = xts + PAD_AFTER;
+            from = ets - 5  * 60;
+            to   = xts + 20 * 60;
         } else {
-            to = ets + PAD_AFTER;
+            // Inline card: tight ±15 min window around entry
+            from = ets - 15 * 60;
+            to   = ets + 15 * 60;
         }
         chart.timeScale().setVisibleRange({ from: from, to: to });
     })();
