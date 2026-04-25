@@ -530,8 +530,9 @@ function _renderOptDtPage() {
         });
         flowHtml += '</div>';
 
-        // Candlestick chart placeholder — lazily initialised when accordion opens
-        var hasBars = day.bars && day.bars.length > 0;
+        // Candlestick chart — only rendered for days that actually entered a trade
+        var _hasEntry = (day.events || []).some(function(e){ return e.type === 'entry'; });
+        var hasBars   = _hasEntry && day.bars && day.bars.length > 0;
         if (hasBars) {
             var _eT = day.entry_time || null;
             var _eEvt = (day.events || []).find(function(e) { return e.type === 'entry'; });
@@ -547,7 +548,7 @@ function _renderOptDtPage() {
                 '<span style="font-size:10px;color:#94a3b8;">Scroll: zoom · Drag: pan</span>' +
                 '<button onclick="_openDtChartModal(' + i + ')" style="border:none;background:#e8eef7;border-radius:5px;width:26px;height:26px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" title="Expand to fullscreen"><i class="fas fa-expand-alt" style="font-size:11px;color:#3b7cff;"></i></button>' +
                 '</div></div>' +
-                '<div id="dtChart_' + i + '" data-chart-day-idx="' + i + '" style="height:190px;"></div>' +
+                '<div id="dtChart_' + i + '" data-chart-day-idx="' + i + '" style="height:260px;"></div>' +
                 '</div>';
         }
 
@@ -603,7 +604,7 @@ function _buildLwChart(container, stored, isModal) {
                 return d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
             }
         },
-        rightPriceScale: { borderColor: '#e2e8f0' },
+        rightPriceScale: { borderColor: '#e2e8f0', autoScale: true, scaleMargins: { top: 0.15, bottom: 0.15 } },
         handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true },
         handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
         width: w,
@@ -705,9 +706,9 @@ function _closeDtChartModal() {
 
 // ─── Indicator type change ───────────────────────────────────────────────────
 function _dtOnIndTypeChange() {
-    var type  = document.getElementById('dtIndType').value;
-    var input = document.getElementById('dtIndPeriod');
-    if (input && type === 'vwap') input.value = '14';
+    var type = document.getElementById('dtIndType').value;
+    var wrap = document.getElementById('dtIndPeriodWrap');
+    if (wrap) wrap.style.display = (type === 'vwap') ? 'none' : 'flex';
 }
 
 // ─── Computation helpers ─────────────────────────────────────────────────────
@@ -739,22 +740,20 @@ function _dtComputeEMA(bars, period) {
     return result;
 }
 
-// Rolling-window VWAP — mirrors the simulated-trading implementation.
-// Uses seed bars (previous day) for warmup so the line is valid from bar 1.
-// Output is filtered to current-day timestamps by the cutoff in _dtCreateIndSeries.
-function _dtComputeVWAP(bars, period) {
-    period = period || 14;
+// Session VWAP — cumulative from first bar of the current trading day.
+// Uses _dtModalDayBars (current-day bars only) so it resets at market open
+// exactly as traders and charting platforms expect.  Falls back to typical
+// price when volume is zero (rare, prevents invisible lines).
+function _dtComputeVWAP(bars) {
     var result = [];
+    var cumVol = 0, cumTPV = 0;
     for (var i = 0; i < bars.length; i++) {
-        var start = Math.max(0, i - period + 1);
-        var cumVol = 0, cumTPV = 0;
-        for (var j = start; j <= i; j++) {
-            var tp  = (bars[j].high + bars[j].low + bars[j].close) / 3;
-            var vol = bars[j].volume || 0;
-            cumTPV += tp * vol;
-            cumVol += vol;
-        }
-        if (cumVol > 0) result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTPV / cumVol });
+        var tp  = (bars[i].high + bars[i].low + bars[i].close) / 3;
+        var vol = bars[i].volume || 0;
+        cumTPV += tp * vol;
+        cumVol += vol;
+        var value = cumVol > 0 ? cumTPV / cumVol : tp;
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: value });
     }
     return result;
 }
@@ -764,10 +763,11 @@ function _dtCreateIndSeries(chart, ind) {
     var data = [];
     if (ind.type === 'sma')       data = _dtComputeSMA(_dtModalBars, ind.period);
     else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
-    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
+    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalDayBars);
 
-    // Filter to current-day timestamps only (seed bars used for warmup, not display)
-    if (_dtModalCutoffTs > 0) {
+    // Filter to current-day timestamps only (seed bars used for warmup, not display).
+    // Skip for VWAP — it already uses current-day bars exclusively.
+    if (_dtModalCutoffTs > 0 && ind.type !== 'vwap') {
         data = data.filter(function(d){ return d.time >= _dtModalCutoffTs; });
     }
 
@@ -800,12 +800,12 @@ function _dtAddIndicator() {
     if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
         alert('Period must be between 2 and 500.'); return;
     }
-    if (_dtModalBars.length === 0) {
+    if (_dtModalDayBars.length === 0) {
         alert('No bar data available for this trade. Run a new backtest to generate chart data.'); return;
     }
 
     var id    = _dtModalIndNextId++;
-    var label = type === 'vwap' ? 'VWAP(' + period + ')' : type.toUpperCase() + '(' + period + ')';
+    var label = type === 'vwap' ? 'VWAP' : type.toUpperCase() + '(' + period + ')';
     var ind   = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label, series: null };
 
     ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
