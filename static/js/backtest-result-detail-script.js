@@ -503,11 +503,16 @@ function _renderOptDtPage() {
                     _cmDetail = evt.conditions.map(function(c) {
                         var lLabel = c.left_label  || (c.metric === 'price' ? (c.series_type || 'price').toUpperCase() : c.metric.toUpperCase());
                         var rLabel = c.right_label || c.right_metric || 'ref';
-                        var lv = c.left_value  != null ? c.left_value.toFixed(2)          : '?';
-                        var rv = c.effective_right != null ? c.effective_right.toFixed(2)
-                               : (c.right_value   != null ? c.right_value.toFixed(2) : '?');
-                        var thr = (c.threshold && c.threshold !== 0) ? ' <span style="opacity:.7;">(+' + c.threshold + (c.threshold_unit === 'points' ? 'pts' : '%') + ')</span>' : '';
-                        return lLabel + ' <strong>$' + lv + '</strong> ' + c.operator + ' ' + rLabel + ' <strong>$' + rv + '</strong>' + thr;
+                        var lv  = c.left_value      != null ? c.left_value.toFixed(2)      : '?';
+                        var raw = c.right_value     != null ? c.right_value.toFixed(2)     : '?';
+                        var eff = c.effective_right != null ? c.effective_right.toFixed(2) : raw;
+                        var thr = '';
+                        if (c.threshold && c.threshold !== 0) {
+                            var sign = (c.operator === '<' || c.operator === '<=') ? '\u2212' : '+';
+                            var unit = c.threshold_unit === 'points' ? 'pts' : '%';
+                            thr = ' <span style="opacity:.7;">' + sign + c.threshold + unit + ' \u2192 $' + eff + '</span>';
+                        }
+                        return lLabel + ' <strong>$' + lv + '</strong> ' + c.operator + ' ' + rLabel + ' <strong>$' + raw + '</strong>' + thr;
                     }).join(' &amp; ');
                     _cmDetail = '<div style="margin-top:3px;font-size:11px;opacity:.85;">' + _cmDetail + '</div>';
                 }
@@ -706,9 +711,9 @@ function _closeDtChartModal() {
 
 // ─── Indicator type change ───────────────────────────────────────────────────
 function _dtOnIndTypeChange() {
-    var type = document.getElementById('dtIndType').value;
+    // Period input is shown for all types — VWAP uses a rolling period as well.
     var wrap = document.getElementById('dtIndPeriodWrap');
-    if (wrap) wrap.style.display = (type === 'vwap') ? 'none' : 'flex';
+    if (wrap) wrap.style.display = 'flex';
 }
 
 // ─── Computation helpers ─────────────────────────────────────────────────────
@@ -740,19 +745,23 @@ function _dtComputeEMA(bars, period) {
     return result;
 }
 
-// Session VWAP — cumulative from first bar of the current trading day.
-// Uses _dtModalDayBars (current-day bars only) so it resets at market open
-// exactly as traders and charting platforms expect.  Falls back to typical
-// price when volume is zero (rare, prevents invisible lines).
-function _dtComputeVWAP(bars) {
+// Rolling N-period VWAP — volume-weighted average over the trailing `period`
+// bars, including previous-day seed bars when needed for warmup.  Falls back
+// to typical price when volume is zero (rare, prevents invisible lines).
+function _dtComputeVWAP(bars, period) {
     var result = [];
-    var cumVol = 0, cumTPV = 0;
+    if (!period || period < 1) period = 20;
     for (var i = 0; i < bars.length; i++) {
-        var tp  = (bars[i].high + bars[i].low + bars[i].close) / 3;
-        var vol = bars[i].volume || 0;
-        cumTPV += tp * vol;
-        cumVol += vol;
-        var value = cumVol > 0 ? cumTPV / cumVol : tp;
+        if (i < period - 1) continue;
+        var sumTPV = 0, sumVol = 0, fallbackTP = 0;
+        for (var j = i - period + 1; j <= i; j++) {
+            var tp  = (bars[j].high + bars[j].low + bars[j].close) / 3;
+            var vol = bars[j].volume || 0;
+            sumTPV += tp * vol;
+            sumVol += vol;
+            fallbackTP += tp;
+        }
+        var value = sumVol > 0 ? sumTPV / sumVol : fallbackTP / period;
         result.push({ time: Math.floor(bars[i].timestamp / 1000), value: value });
     }
     return result;
@@ -763,11 +772,11 @@ function _dtCreateIndSeries(chart, ind) {
     var data = [];
     if (ind.type === 'sma')       data = _dtComputeSMA(_dtModalBars, ind.period);
     else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
-    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalDayBars);
+    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
 
-    // Filter to current-day timestamps only (seed bars used for warmup, not display).
-    // Skip for VWAP — it already uses current-day bars exclusively.
-    if (_dtModalCutoffTs > 0 && ind.type !== 'vwap') {
+    // Filter to current-day timestamps only — seed bars are used for warmup
+    // (so the rolling window is fully populated at 09:30) but not displayed.
+    if (_dtModalCutoffTs > 0) {
         data = data.filter(function(d){ return d.time >= _dtModalCutoffTs; });
     }
 
@@ -797,7 +806,7 @@ function _dtAddIndicator() {
     var color     = document.getElementById('dtIndColor').value || '#2962ff';
     var lineWidth = parseInt(document.getElementById('dtIndWidth').value) || 2;
 
-    if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
+    if (period < 2 || period > 500) {
         alert('Period must be between 2 and 500.'); return;
     }
     if (_dtModalDayBars.length === 0) {
@@ -805,7 +814,7 @@ function _dtAddIndicator() {
     }
 
     var id    = _dtModalIndNextId++;
-    var label = type === 'vwap' ? 'VWAP' : type.toUpperCase() + '(' + period + ')';
+    var label = type.toUpperCase() + '(' + period + ')';
     var ind   = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label, series: null };
 
     ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
@@ -1125,7 +1134,9 @@ function _renderStkDtPage(config) {
                     var em = evt.entry_metrics;
                     var thrStr = '';
                     if (em.threshold && em.threshold !== 0) {
-                        thrStr = ' (+' + em.threshold + (em.threshold_unit || '%') + ' = $' + (em.effective_right != null ? em.effective_right.toFixed(2) : '?') + ')';
+                        var sign1 = (em.operator === '<' || em.operator === '<=') ? '\u2212' : '+';
+                        var unit1 = em.threshold_unit === 'points' ? 'pts' : '%';
+                        thrStr = ' (' + sign1 + em.threshold + unit1 + ' \u2192 $' + (em.effective_right != null ? em.effective_right.toFixed(2) : '?') + ')';
                     }
                     noSigExtra += ' &mdash; <strong>' + (em.right_label || 'Ref') + ':</strong> ' + (em.right_value != null ? '$' + em.right_value.toFixed(2) : 'N/A') + thrStr;
                 }
@@ -1138,7 +1149,9 @@ function _renderStkDtPage(config) {
                     var em = evt.entry_metrics;
                     var thrStr = '';
                     if (em.threshold && em.threshold !== 0) {
-                        thrStr = ' (+' + em.threshold + (em.threshold_unit || '%') + ' = $' + (em.effective_right != null ? em.effective_right.toFixed(2) : '?') + ')';
+                        var sign2 = (em.operator === '<' || em.operator === '<=') ? '\u2212' : '+';
+                        var unit2 = em.threshold_unit === 'points' ? 'pts' : '%';
+                        thrStr = ' (' + sign2 + em.threshold + unit2 + ' \u2192 $' + (em.effective_right != null ? em.effective_right.toFixed(2) : '?') + ')';
                     }
                     cmExtra += ' &mdash; <strong>' + (em.right_label || 'Ref') + ':</strong> ' + (em.right_value != null ? '$' + em.right_value.toFixed(2) : 'N/A') + thrStr;
                 }

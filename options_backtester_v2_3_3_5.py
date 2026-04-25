@@ -971,7 +971,16 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             })
 
             if not met:
-                return False, f"{metric} {left_value:.2f} {operator} {right_value:.2f}", _cond_details
+                _left_lbl = left_params.get('series_type', metric).upper() if metric == 'price' else metric.upper()
+                _r_metric = comparator.replace('compare_', '') if comparator != 'value' else 'value'
+                _r_per    = right_params.get('window', right_params.get('period', '')) if _r_metric in ('sma', 'ema', 'vwap') else ''
+                _right_lbl = (f"{_r_metric.upper()}({_r_per})" if _r_per else _r_metric.upper()) if _r_metric != 'value' else 'value'
+                _msg = f"{_left_lbl} {left_value:.2f} {operator} {_right_lbl} {_raw_right:.2f}"
+                if threshold:
+                    _sign = '-' if operator in ('<', '<=') else '+'
+                    _u    = '%' if threshold.get('unit') == 'percent' else 'pts'
+                    _msg += f" {_sign}{threshold.get('value', 0)}{_u} → {right_value:.2f}"
+                return False, _msg, _cond_details
         
         except Exception as e:
             return False, f"Error: {str(e)}", _cond_details
@@ -3954,10 +3963,14 @@ def run_backtest(config: Dict, client: RESTClient):
                         last_condition_reason = condition_reason
                         continue
                     else:
-                        _det_str = '  '.join(
-                            f"{c['left_label']} {c['left_value']:.2f} {c['operator']} {c['right_label']} {c['effective_right']:.2f}"
-                            for c in cond_details
-                        ) if cond_details else ''
+                        def _fmt_cd(c):
+                            base = f"{c['left_label']} {c['left_value']:.2f} {c['operator']} {c['right_label']} {c['right_value']:.2f}"
+                            if c.get('threshold'):
+                                sign = '-' if c['operator'] in ('<', '<=') else '+'
+                                unit = '%' if c.get('threshold_unit') == 'percent' else 'pts'
+                                base += f" {sign}{c['threshold']}{unit} → {c['effective_right']:.2f}"
+                            return base
+                        _det_str = '  '.join(_fmt_cd(c) for c in cond_details) if cond_details else ''
                         print(f"  Conditions met - entering trade" + (f"  [{_det_str}]" if _det_str else ""), flush=True)
                         day_entry['events'].append({
                             'type': 'condition_met',
