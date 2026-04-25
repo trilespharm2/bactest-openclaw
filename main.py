@@ -60,7 +60,7 @@ def env_bool(name, default=False):
 
 
 def get_secret_key():
-    secret_key = os.environ.get("FLASK_SECRET_KEY")
+    secret_key = os.environ.get("FLASK_SECRET_KEY") or os.environ.get("SESSION_SECRET")
     if secret_key:
         return secret_key
     if IS_PRODUCTION:
