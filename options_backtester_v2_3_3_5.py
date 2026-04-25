@@ -812,6 +812,16 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
 
     for idx, condition in enumerate(price_conditions):
         try:
+            # Check condition-level time window restriction FIRST
+            time_window = condition.get('time_window')
+            if time_window:
+                tw_start = (time_window.get('start') or '').strip()
+                tw_end   = (time_window.get('end') or '').strip()
+                bar_time_hhmm = bar.get('time', '')[:5]
+                if tw_start and tw_end and bar_time_hhmm:
+                    if not (tw_start <= bar_time_hhmm <= tw_end):
+                        return False, f"Condition {idx+1}: bar time {bar_time_hhmm} outside required window {tw_start}–{tw_end}", _cond_details
+
             metric = condition.get('metric', 'price')
             operator = condition.get('operator', '>')
             comparator = condition.get('comparator', 'value')
