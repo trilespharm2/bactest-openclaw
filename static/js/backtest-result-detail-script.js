@@ -739,18 +739,22 @@ function _dtComputeEMA(bars, period) {
     return result;
 }
 
-// Session VWAP — always resets at market open, ignores previous day.
-// Cumulative (Typical Price × Volume) / Cumulative Volume from bar 1.
-// When volume is unavailable, equal-weight (volume=1) is used as fallback.
-function _dtComputeVWAP(bars) {
+// Rolling-window VWAP — mirrors the simulated-trading implementation.
+// Uses seed bars (previous day) for warmup so the line is valid from bar 1.
+// Output is filtered to current-day timestamps by the cutoff in _dtCreateIndSeries.
+function _dtComputeVWAP(bars, period) {
+    period = period || 14;
     var result = [];
-    var cumTPV = 0, cumVol = 0;
     for (var i = 0; i < bars.length; i++) {
-        var tp  = (bars[i].high + bars[i].low + bars[i].close) / 3;
-        var vol = bars[i].volume > 0 ? bars[i].volume : 1;
-        cumTPV += tp * vol;
-        cumVol += vol;
-        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTPV / cumVol });
+        var start = Math.max(0, i - period + 1);
+        var cumVol = 0, cumTPV = 0;
+        for (var j = start; j <= i; j++) {
+            var tp  = (bars[j].high + bars[j].low + bars[j].close) / 3;
+            var vol = bars[j].volume || 0;
+            cumTPV += tp * vol;
+            cumVol += vol;
+        }
+        if (cumVol > 0) result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTPV / cumVol });
     }
     return result;
 }
@@ -760,7 +764,7 @@ function _dtCreateIndSeries(chart, ind) {
     var data = [];
     if (ind.type === 'sma')       data = _dtComputeSMA(_dtModalBars, ind.period);
     else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
-    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalDayBars);   // VWAP always session-only
+    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
 
     // Filter to current-day timestamps only (seed bars used for warmup, not display)
     if (_dtModalCutoffTs > 0) {
