@@ -646,8 +646,9 @@ function _buildLwChart(container, stored, isModal) {
 // ─── DT Modal indicator state ───────────────────────────────────────────────
 var _dtModalIndicators  = [];   // [{id, type, period, color, lineWidth, label, series}]
 var _dtModalIndNextId   = 0;
-var _dtModalBars        = [];   // all bars for computation (seed + current day)
-var _dtModalCutoffTs    = 0;    // Unix seconds of first current-day bar; indicator output filtered to >= this
+var _dtModalBars        = [];   // seed + current-day bars — used for SMA/EMA warmup
+var _dtModalDayBars     = [];   // current-day bars only — used for VWAP (session resets at open)
+var _dtModalCutoffTs    = 0;    // Unix seconds of first current-day bar; SMA/EMA output filtered to >= this
 
 function _openDtChartModal(idx) {
     idx = parseInt(idx);
@@ -666,7 +667,8 @@ function _openDtChartModal(idx) {
     var dayBars = (stored.bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
         return { timestamp: _toTs(stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
     });
-    _dtModalBars = seedBars.concat(dayBars);
+    _dtModalBars    = seedBars.concat(dayBars);
+    _dtModalDayBars = dayBars;
     _dtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;
 
     var modal = document.getElementById('dtChartModal');
@@ -737,19 +739,18 @@ function _dtComputeEMA(bars, period) {
     return result;
 }
 
-function _dtComputeVWAP(bars, period) {
-    period = period || 14;
+// Session VWAP — always resets at market open, ignores previous day.
+// Cumulative (Typical Price × Volume) / Cumulative Volume from bar 1.
+// When volume is unavailable, equal-weight (volume=1) is used as fallback.
+function _dtComputeVWAP(bars) {
     var result = [];
+    var cumTPV = 0, cumVol = 0;
     for (var i = 0; i < bars.length; i++) {
-        var start = Math.max(0, i - period + 1);
-        var cumVol = 0, cumTP = 0;
-        for (var j = start; j <= i; j++) {
-            var tp = (bars[j].high + bars[j].low + bars[j].close) / 3;
-            var vol = bars[j].volume > 0 ? bars[j].volume : 1; // equal weight fallback
-            cumTP += tp * vol;
-            cumVol += vol;
-        }
-        if (cumVol > 0) result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTP / cumVol });
+        var tp  = (bars[i].high + bars[i].low + bars[i].close) / 3;
+        var vol = bars[i].volume > 0 ? bars[i].volume : 1;
+        cumTPV += tp * vol;
+        cumVol += vol;
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTPV / cumVol });
     }
     return result;
 }
@@ -757,9 +758,9 @@ function _dtComputeVWAP(bars, period) {
 // ─── Create a line series and set indicator data ─────────────────────────────
 function _dtCreateIndSeries(chart, ind) {
     var data = [];
-    if (ind.type === 'sma')  data = _dtComputeSMA(_dtModalBars, ind.period);
+    if (ind.type === 'sma')       data = _dtComputeSMA(_dtModalBars, ind.period);
     else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
-    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
+    else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalDayBars);   // VWAP always session-only
 
     // Filter to current-day timestamps only (seed bars used for warmup, not display)
     if (_dtModalCutoffTs > 0) {

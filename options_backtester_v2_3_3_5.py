@@ -3867,7 +3867,7 @@ def run_backtest(config: Dict, client: RESTClient):
                                  round(b.get('low', 0), 2),
                                  round(b.get('close', 0), 2),
                                  int(b.get('volume', b.get('v', 0)) or 0)]
-                                for b in _prev_sorted[-50:]
+                                for b in _prev_sorted
                             ]
                         else:
                             day_entry['seed_date'] = None
