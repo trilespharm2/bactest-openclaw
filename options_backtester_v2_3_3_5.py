@@ -619,18 +619,6 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     print(f"[Prefetch] {metric}: no 1-min raw bars available — skipping", flush=True)
                     continue
 
-                # Filter to regular market hours (09:30–16:00 ET) so the indicator
-                # series matches what the chart modal shows (seed + current-day bars
-                # are already market-hours only). Pre-market / after-hours bars
-                # would shift rolling windows and produce different SMA/EMA values.
-                _tz_et = pytz.timezone('US/Eastern')
-                def _in_mkt_hours(ts_ms):
-                    _dt = datetime.fromtimestamp(ts_ms / 1000, tz=pytz.UTC).astimezone(_tz_et)
-                    _hm = _dt.hour * 60 + _dt.minute
-                    return 570 <= _hm <= 960  # 09:30–16:00
-
-                raw_bars = [b for b in raw_bars if _in_mkt_hours(b.get('t', 0))]
-
                 field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
                 # For VWAP metric, always use the 'vw' field regardless of series_type
                 field = 'vw' if metric_type == 'vwap' else field_map.get(series_type, 'c')
@@ -3863,18 +3851,11 @@ def run_backtest(config: Dict, client: RESTClient):
             entry_time_start = config['entry_time']
             entry_time_end = config.get('entry_time_end') or config.get('entry_time_max') or entry_time_start
 
-            # Store OHLCV bars for the decision-tree chart.
-            # Window = 30 min before entry_time_start → 30 min after entry_time_end
-            # (clamped to market hours).  This ensures the FULL entry window is
-            # visible even when conditions are met late in the window.
+            # Store FULL-DAY OHLCV bars (09:30–16:15) for the decision-tree chart.
+            # Storing all day bars means the chart frontend can scroll/pan freely to
+            # see entry AND exit no matter when they occur in the session.
             if bars_1min_today:
                 try:
-                    _es_h, _es_m = map(int, entry_time_start[:5].split(':'))
-                    _ee_h, _ee_m = map(int, entry_time_end[:5].split(':'))
-                    _ws = max(570, _es_h * 60 + _es_m - 30)   # floor at 09:30
-                    _we = min(960, _ee_h * 60 + _ee_m + 30)   # cap at 16:00
-                    _ws_str = f"{_ws // 60:02d}:{_ws % 60:02d}"
-                    _we_str = f"{_we // 60:02d}:{_we % 60:02d}"
                     _sorted_bars = sorted(bars_1min_today, key=lambda x: x.get('time', ''))
                     day_entry['bars'] = [
                         [b['time'][:5],
@@ -3884,7 +3865,7 @@ def run_backtest(config: Dict, client: RESTClient):
                          round(b.get('close', 0), 2),
                          int(b.get('volume', b.get('v', 0)) or 0)]
                         for b in _sorted_bars
-                        if _ws_str <= b.get('time', '')[:5] <= _we_str
+                        if '09:30' <= b.get('time', '')[:5] <= '16:15'
                     ]
                     day_entry['entry_time'] = entry_time_start[:5]
 

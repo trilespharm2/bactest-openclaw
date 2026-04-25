@@ -632,12 +632,27 @@ function _buildLwChart(container, stored, isModal) {
     if (stored.exitTime)  markers.push({ time: _toTs(stored.day.date, stored.exitTime),  position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit'  });
     if (markers.length) cs.setMarkers(markers);
 
-    // Initial view: zoom to ±10 min around entry (±30 min for modal)
-    if (stored.entryTime) {
-        var ets = _toTs(stored.day.date, stored.entryTime);
-        var winSec = isModal ? 1800 : 600;
-        chart.timeScale().setVisibleRange({ from: ets - winSec, to: ets + winSec });
-    }
+    // Initial view: zoom to show entry → exit with padding.
+    // When exit is same-day (usual case) show entry-5min to exit+15min.
+    // When no exit is known yet, fall back to ±15 min around entry.
+    (function() {
+        var PAD_BEFORE = 5 * 60;   // 5 min before entry
+        var PAD_AFTER  = isModal ? 20 * 60 : 10 * 60; // 20/10 min after exit (or after entry)
+        var eT = stored.entryTime;
+        var xT = stored.exitTime;
+        if (!eT) return;
+        var ets = _toTs(stored.day.date, eT);
+        var from = ets - PAD_BEFORE;
+        var to;
+        if (xT) {
+            // Exit is on the entry day — use exit timestamp as right edge
+            var xts = _toTs(stored.day.date, xT);
+            to = xts + PAD_AFTER;
+        } else {
+            to = ets + PAD_AFTER;
+        }
+        chart.timeScale().setVisibleRange({ from: from, to: to });
+    })();
 
     var ro = new ResizeObserver(function() {
         if (container.clientWidth > 0 && container.clientHeight > 0) {
