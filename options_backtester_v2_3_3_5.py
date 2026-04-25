@@ -619,6 +619,18 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     print(f"[Prefetch] {metric}: no 1-min raw bars available — skipping", flush=True)
                     continue
 
+                # Filter to regular market hours (09:30–16:00 ET) so the indicator
+                # series matches what the chart modal shows (seed + current-day bars
+                # are already market-hours only). Pre-market / after-hours bars
+                # would shift rolling windows and produce different SMA/EMA values.
+                _tz_et = pytz.timezone('US/Eastern')
+                def _in_mkt_hours(ts_ms):
+                    _dt = datetime.fromtimestamp(ts_ms / 1000, tz=pytz.UTC).astimezone(_tz_et)
+                    _hm = _dt.hour * 60 + _dt.minute
+                    return 570 <= _hm <= 960  # 09:30–16:00
+
+                raw_bars = [b for b in raw_bars if _in_mkt_hours(b.get('t', 0))]
+
                 field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
                 # For VWAP metric, always use the 'vw' field regardless of series_type
                 field = 'vw' if metric_type == 'vwap' else field_map.get(series_type, 'c')
@@ -3851,13 +3863,16 @@ def run_backtest(config: Dict, client: RESTClient):
             entry_time_start = config['entry_time']
             entry_time_end = config.get('entry_time_end') or config.get('entry_time_max') or entry_time_start
 
-            # Store compact OHLCV bars for decision-tree chart (±90 min window around entry)
+            # Store OHLCV bars for the decision-tree chart.
+            # Window = 30 min before entry_time_start → 30 min after entry_time_end
+            # (clamped to market hours).  This ensures the FULL entry window is
+            # visible even when conditions are met late in the window.
             if bars_1min_today:
                 try:
-                    _eh, _em = map(int, entry_time_start[:5].split(':'))
-                    _center = _eh * 60 + _em
-                    _ws = max(570, _center - 90)   # floor at 09:30
-                    _we = min(960, _center + 90)   # cap at 16:00
+                    _es_h, _es_m = map(int, entry_time_start[:5].split(':'))
+                    _ee_h, _ee_m = map(int, entry_time_end[:5].split(':'))
+                    _ws = max(570, _es_h * 60 + _es_m - 30)   # floor at 09:30
+                    _we = min(960, _ee_h * 60 + _ee_m + 30)   # cap at 16:00
                     _ws_str = f"{_ws // 60:02d}:{_ws % 60:02d}"
                     _we_str = f"{_we // 60:02d}:{_we % 60:02d}"
                     _sorted_bars = sorted(bars_1min_today, key=lambda x: x.get('time', ''))
@@ -4223,11 +4238,16 @@ def run_backtest(config: Dict, client: RESTClient):
             minute_sets = [set(b['time'][:5] for b in bars) for bars in all_leg_bars]
             common_minutes = set.intersection(*minute_sets) if minute_sets else set()
 
-            # Filter to the configured entry window
+            # Filter to the configured entry window.
+            # IMPORTANT: when an entry window spans multiple minutes and conditions
+            # gate which minute to enter, the option pricing must start at the same
+            # minute the underlying condition was satisfied — not at the beginning of
+            # the window.  `entry_time` has already been updated to the condition-met
+            # bar's time (e.g. "10:00:00"), so use entry_time[:5] as the floor.
             eastern = pytz.timezone('US/Eastern')
             has_entry_window = entry_time_start != entry_time_end
-            window_start = entry_time_start if has_entry_window else entry_time
-            window_end   = entry_time_end   if has_entry_window else entry_time
+            window_start = entry_time[:5] if has_entry_window else entry_time
+            window_end   = entry_time_end  if has_entry_window else entry_time
 
             valid_minutes = sorted([m for m in common_minutes if window_start <= m <= window_end])
 
