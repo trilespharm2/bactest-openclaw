@@ -404,15 +404,22 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
                     print(f"  [Condition {idx+1}] Could not fetch {right_metric} comparison data - skipping trade")
                     return False, f"Missing {right_metric} comparison data"
                 
-                # Apply threshold if present
+                # Apply threshold if present — direction always makes the condition stricter:
+                # for < / <=, lower the right side; for > / >=, raise it.
                 threshold = condition.get('threshold', {})
                 if threshold:
                     threshold_value = threshold.get('value', 0)
                     threshold_unit = threshold.get('unit', 'percent')
-                    if threshold_unit == 'percent':
-                        right_value = right_value * (1 + threshold_value / 100)
+                    if operator in ('<', '<='):
+                        if threshold_unit == 'percent':
+                            right_value = right_value * (1 - threshold_value / 100)
+                        else:
+                            right_value = right_value - threshold_value
                     else:
-                        right_value = right_value + threshold_value
+                        if threshold_unit == 'percent':
+                            right_value = right_value * (1 + threshold_value / 100)
+                        else:
+                            right_value = right_value + threshold_value
             
             # Evaluate condition
             met = False
@@ -911,16 +918,23 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 if right_value is None:
                     return False, f"Missing {right_metric} comparison data", _cond_details
                 
-                # Apply threshold if present
+                # Apply threshold if present — direction always makes the condition stricter:
+                # for < / <=, lower the right side; for > / >=, raise it.
                 threshold = condition.get('threshold', {})
                 _raw_right = right_value   # before threshold adjustment
                 if threshold:
                     threshold_value = threshold.get('value', 0)
                     threshold_unit = threshold.get('unit', 'percent')
-                    if threshold_unit == 'percent':
-                        right_value = right_value * (1 + threshold_value / 100)
+                    if operator in ('<', '<='):
+                        if threshold_unit == 'percent':
+                            right_value = right_value * (1 - threshold_value / 100)
+                        else:
+                            right_value = right_value - threshold_value
                     else:
-                        right_value = right_value + threshold_value
+                        if threshold_unit == 'percent':
+                            right_value = right_value * (1 + threshold_value / 100)
+                        else:
+                            right_value = right_value + threshold_value
             
             # Evaluate condition
             met = False
@@ -3702,11 +3716,15 @@ def run_backtest(config: Dict, client: RESTClient):
     is_index = config['symbol'].upper() in INDEX_SYMBOLS
     exp_close_time = "16:00" if is_index else "16:15"
     
-    # CRITICAL: Entry uses 1-minute bars for precision
+    # CRITICAL: Entry uses 1-minute bars for precision.
+    # Fetch a 7-day buffer before start_date so that the very first backtest day always
+    # has a previous trading day available in underlying_bars_1min — this ensures the
+    # decision-tree chart SMA/EMA warmup (seed_bars) works from 9:30 on day 1.
+    _one_min_fetch_start = datetime.strptime(config['start_date'], "%Y-%m-%d") - timedelta(days=7)
     print(f"\nFetching {config['symbol']} 1-minute data for entry prices...")
     underlying_bars_1min = get_bars_for_period(
         client, underlying_sym,
-        datetime.strptime(config['start_date'], "%Y-%m-%d"),
+        _one_min_fetch_start,
         latest_exp,
         1  # Always 1-minute for entry
     )
