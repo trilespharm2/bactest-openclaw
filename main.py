@@ -142,6 +142,12 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
 
+@login_manager.unauthorized_handler
+def unauthorized_callback():
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Authentication required', 'auth_required': True}), 401
+    return redirect(url_for('login_page'))
+
 # User model
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash

@@ -3037,19 +3037,33 @@ async function handleBacktestSubmit(e) {
                 body: JSON.stringify(config)
             });
             
+            const responseText = await response.text();
+            let responseData;
+            try {
+                responseData = JSON.parse(responseText);
+            } catch (parseErr) {
+                console.error('Server returned non-JSON. Status:', response.status, 'Body:', responseText.substring(0, 300));
+                if (response.status === 401 || !response.ok) {
+                    throw new Error('Session expired. Please refresh the page and log in again.');
+                }
+                throw new Error(`Unexpected server response (status ${response.status})`);
+            }
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
+                if (response.status === 401 || responseData.auth_required) {
+                    throw new Error('Session expired. Please refresh the page and log in again.');
+                }
                 if (response.status === 429) {
-                    showError(errorData.error || 'A backtest is already running. Please wait for it to finish.');
+                    showError(responseData.error || 'A backtest is already running. Please wait for it to finish.');
                     if (loadingDiv) loadingDiv.style.display = 'none';
                     form.dataset.isSubmitting = 'false';
                     checkForRunningBacktests();
                     return;
                 }
-                throw new Error(errorData.error || `Server error: ${response.status}`);
+                throw new Error(responseData.error || `Server error: ${response.status}`);
             }
-            
-            const result = await response.json();
+
+            const result = responseData;
             
             if (result.error) {
                 throw new Error(result.error);
