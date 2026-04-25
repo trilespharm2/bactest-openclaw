@@ -3845,8 +3845,39 @@ def run_backtest(config: Dict, client: RESTClient):
                         if _ws_str <= b.get('time', '')[:5] <= _we_str
                     ]
                     day_entry['entry_time'] = entry_time_start[:5]
+
+                    # Store last 50 bars from the previous trading day as seed bars for
+                    # indicator warmup (SMA/EMA) in the decision-tree chart modal.
+                    # These are NOT rendered as candles — only used for computation.
+                    try:
+                        _prev_date = max(
+                            (d for d in underlying_bars_1min if d < date_str),
+                            default=None
+                        )
+                        if _prev_date:
+                            _prev_sorted = sorted(
+                                underlying_bars_1min[_prev_date],
+                                key=lambda x: x.get('time', '')
+                            )
+                            day_entry['seed_date'] = _prev_date
+                            day_entry['seed_bars'] = [
+                                [b['time'][:5],
+                                 round(b.get('open', 0), 2),
+                                 round(b.get('high', 0), 2),
+                                 round(b.get('low', 0), 2),
+                                 round(b.get('close', 0), 2),
+                                 int(b.get('volume', b.get('v', 0)) or 0)]
+                                for b in _prev_sorted[-50:]
+                            ]
+                        else:
+                            day_entry['seed_date'] = None
+                            day_entry['seed_bars'] = []
+                    except Exception:
+                        day_entry['seed_bars'] = []
+
                 except Exception:
                     day_entry['bars'] = []
+                    day_entry['seed_bars'] = []
 
             # Entry condition scanning always uses 1-minute bars so that rolling
             # window presets (e.g. Velocity) are evaluated at every minute.

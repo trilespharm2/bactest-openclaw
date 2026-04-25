@@ -646,7 +646,8 @@ function _buildLwChart(container, stored, isModal) {
 // ─── DT Modal indicator state ───────────────────────────────────────────────
 var _dtModalIndicators  = [];   // [{id, type, period, color, lineWidth, label, series}]
 var _dtModalIndNextId   = 0;
-var _dtModalBars        = [];   // bars in computation format {timestamp(ms), open, high, low, close, volume}
+var _dtModalBars        = [];   // all bars for computation (seed + current day)
+var _dtModalCutoffTs    = 0;    // Unix seconds of first current-day bar; indicator output filtered to >= this
 
 function _openDtChartModal(idx) {
     idx = parseInt(idx);
@@ -655,10 +656,18 @@ function _openDtChartModal(idx) {
     document.getElementById('dtChartModalTitle').textContent = (stored.day.symbol || '') + (stored.day.strategy ? '  ·  ' + stored.day.strategy : '');
     document.getElementById('dtChartModalDate').textContent = stored.day.date + (stored.entryTime ? '  ·  Entry: ' + stored.entryTime : '') + (stored.exitTime ? '  ·  Exit: ' + stored.exitTime : '');
 
-    // Build computation-ready bar list (re-used by every indicator calculation)
-    _dtModalBars = (stored.bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
+    // Build computation-ready bar list:
+    // seed_bars (prev day, for warmup) + current-day bars — both used for SMA/EMA computation.
+    // The indicator series is then filtered to only show values for current-day timestamps.
+    var seedDate = stored.day.seed_date || null;
+    var seedBars = (stored.day.seed_bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
+        return { timestamp: _toTs(seedDate || stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
+    });
+    var dayBars = (stored.bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
         return { timestamp: _toTs(stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
     });
+    _dtModalBars = seedBars.concat(dayBars);
+    _dtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;
 
     var modal = document.getElementById('dtChartModal');
     modal.style.display = 'flex';
@@ -700,27 +709,28 @@ function _dtOnIndTypeChange() {
 }
 
 // ─── Computation helpers ─────────────────────────────────────────────────────
-// Use expanding (seeded) averages so the line spans the full chart from bar 1.
+// Standard formulas — seed_bars from the previous day warm up the calculation
+// so the first current-day bar already has a fully valid indicator value.
 function _dtComputeSMA(bars, period) {
     var result = [];
     for (var i = 0; i < bars.length; i++) {
-        var from  = Math.max(0, i - period + 1);
-        var count = i - from + 1;            // expanding until we reach `period`
-        var sum   = 0;
-        for (var j = from; j <= i; j++) sum += bars[j].close;
-        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / count });
+        if (i < period - 1) continue;
+        var sum = 0;
+        for (var j = i - period + 1; j <= i; j++) sum += bars[j].close;
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / period });
     }
     return result;
 }
 
 function _dtComputeEMA(bars, period) {
     var result = [];
-    if (bars.length === 0) return result;
-    // Seed from first bar so the line starts immediately
-    var ema = bars[0].close;
-    result.push({ time: Math.floor(bars[0].timestamp / 1000), value: ema });
+    if (bars.length < period) return result;
+    var sum = 0;
+    for (var i = 0; i < period; i++) sum += bars[i].close;
+    var ema = sum / period;
+    result.push({ time: Math.floor(bars[period - 1].timestamp / 1000), value: ema });
     var k = 2 / (period + 1);
-    for (var i = 1; i < bars.length; i++) {
+    for (var i = period; i < bars.length; i++) {
         ema = bars[i].close * k + ema * (1 - k);
         result.push({ time: Math.floor(bars[i].timestamp / 1000), value: ema });
     }
@@ -750,6 +760,11 @@ function _dtCreateIndSeries(chart, ind) {
     if (ind.type === 'sma')  data = _dtComputeSMA(_dtModalBars, ind.period);
     else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
     else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
+
+    // Filter to current-day timestamps only (seed bars used for warmup, not display)
+    if (_dtModalCutoffTs > 0) {
+        data = data.filter(function(d){ return d.time >= _dtModalCutoffTs; });
+    }
 
     // Deduplicate by time
     var seen = new Set(), clean = [];
