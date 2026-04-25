@@ -366,7 +366,7 @@ def bootstrap_admin_user():
     if not admin_email or not admin_password:
         return {'created': False, 'reason': 'missing_credentials'}
 
-    if len(admin_password) < 12:
+    if len(admin_password) < 6:
         return {'created': False, 'reason': 'weak_password'}
 
     with app.app_context():
@@ -693,7 +693,8 @@ def api_login():
         db.session.commit()
         
         redirect_url = '/dashboard'
-        if user.selected_plan and user.selected_plan != 'free' and not user.stripe_subscription_id:
+        stripe_configured = bool(os.environ.get('STRIPE_SECRET_KEY'))
+        if stripe_configured and user.selected_plan and user.selected_plan != 'free' and not user.stripe_subscription_id:
             redirect_url = '/dashboard?section=subscription&setup_payment=true'
         
         return jsonify({
