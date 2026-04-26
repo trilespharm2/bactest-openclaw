@@ -544,7 +544,7 @@ function _renderOptDtPage() {
             if (_eEvt && _eEvt.time) _eT = _eEvt.time.slice(0, 5);
             var _xEvt = (day.events || []).find(function(e) { return e.type === 'exit'; });
             var _xT = _xEvt && _xEvt.exit_time ? _xEvt.exit_time.slice(0, 5) : null;
-            _dtChartData[i] = { day: day, bars: day.bars, entryTime: _eT, exitTime: _xT, chart: null };
+            _dtChartData[i] = { day: day, bars: day.bars, entryTime: _eT, exitTime: _xT, exitDate: day.exit_date || day.date, multi_day_bars: day.multi_day_bars || null, chart: null };
 
             flowHtml += '<div style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;">' +
                 '<div style="padding:7px 12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#fafbfc;">' +
@@ -622,14 +622,25 @@ function _buildLwChart(container, stored, isModal) {
         wickUpColor: '#089981', wickDownColor: '#f23645'
     });
 
-    var data = (stored.bars || []).map(function(b) {
-        return { time: _toTs(stored.day.date, b[0]), open: b[1], high: b[2], low: b[3], close: b[4] };
-    }).filter(function(d) { return d.open > 0; });
+    var data;
+    if (stored.multi_day_bars) {
+        data = [];
+        var _mdDates = Object.keys(stored.multi_day_bars).sort();
+        _mdDates.forEach(function(dateStr) {
+            (stored.multi_day_bars[dateStr] || []).forEach(function(b) {
+                if (b[1] > 0) data.push({ time: _toTs(dateStr, b[0]), open: b[1], high: b[2], low: b[3], close: b[4] });
+            });
+        });
+    } else {
+        data = (stored.bars || []).map(function(b) {
+            return { time: _toTs(stored.day.date, b[0]), open: b[1], high: b[2], low: b[3], close: b[4] };
+        }).filter(function(d) { return d.open > 0; });
+    }
     cs.setData(data);
 
     var markers = [];
     if (stored.entryTime) markers.push({ time: _toTs(stored.day.date, stored.entryTime), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' });
-    if (stored.exitTime)  markers.push({ time: _toTs(stored.day.date, stored.exitTime),  position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit'  });
+    if (stored.exitTime)  markers.push({ time: _toTs(stored.exitDate || stored.day.date, stored.exitTime),  position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit'  });
     if (markers.length) cs.setMarkers(markers);
 
     // Initial view:
@@ -642,7 +653,7 @@ function _buildLwChart(container, stored, isModal) {
         var ets = _toTs(stored.day.date, eT);
         var from, to;
         if (isModal && xT) {
-            var xts = _toTs(stored.day.date, xT);
+            var xts = _toTs(stored.exitDate || stored.day.date, xT);
             from = ets - 5  * 60;
             to   = xts + 20 * 60;
         } else {
@@ -675,7 +686,9 @@ function _openDtChartModal(idx) {
     var stored = _dtChartData[idx];
     if (!stored) return;
     document.getElementById('dtChartModalTitle').textContent = (stored.day.symbol || '') + (stored.day.strategy ? '  ·  ' + stored.day.strategy : '');
-    document.getElementById('dtChartModalDate').textContent = stored.day.date + (stored.entryTime ? '  ·  Entry: ' + stored.entryTime : '') + (stored.exitTime ? '  ·  Exit: ' + stored.exitTime : '');
+    var _modalDateLabel = stored.day.date;
+    if (stored.exitDate && stored.exitDate !== stored.day.date) _modalDateLabel = stored.day.date + ' → ' + stored.exitDate;
+    document.getElementById('dtChartModalDate').textContent = _modalDateLabel + (stored.entryTime ? '  ·  Entry: ' + stored.entryTime : '') + (stored.exitTime ? '  ·  Exit: ' + stored.exitTime : '');
 
     // Build computation-ready bar list:
     // seed_bars (prev day, for warmup) + current-day bars — both used for SMA/EMA computation.
@@ -684,9 +697,20 @@ function _openDtChartModal(idx) {
     var seedBars = (stored.day.seed_bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
         return { timestamp: _toTs(seedDate || stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
     });
-    var dayBars = (stored.bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
-        return { timestamp: _toTs(stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
-    });
+    var dayBars;
+    if (stored.multi_day_bars) {
+        dayBars = [];
+        var _mdModalDates = Object.keys(stored.multi_day_bars).sort();
+        _mdModalDates.forEach(function(dateStr) {
+            (stored.multi_day_bars[dateStr] || []).filter(function(b){ return b[1] > 0; }).forEach(function(b) {
+                dayBars.push({ timestamp: _toTs(dateStr, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 });
+            });
+        });
+    } else {
+        dayBars = (stored.bars || []).filter(function(b){ return b[1] > 0; }).map(function(b) {
+            return { timestamp: _toTs(stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
+        });
+    }
     _dtModalBars    = seedBars.concat(dayBars);
     _dtModalDayBars = dayBars;
     _dtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;

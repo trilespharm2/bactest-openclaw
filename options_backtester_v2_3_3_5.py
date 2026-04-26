@@ -5046,6 +5046,32 @@ def run_backtest(config: Dict, client: RESTClient):
             # For display/storage, calendar/diagonal uses debit convention (long - short)
             _exit_store = round(-final_premium if has_per_leg_dte else final_premium, 4)
             exit_date_str = mon_date_str if exit_hit else exp_date.strftime("%Y-%m-%d")
+
+            # Store exit date directly on day_entry so the chart can show the
+            # full entry→exit span for multi-day trades.
+            day_entry['exit_date'] = exit_date_str
+            if exit_date_str != date_str:
+                # Collect 1-min underlying bars for every trading day from entry
+                # through exit (inclusive) so the frontend can render a continuous
+                # multi-day candlestick chart.
+                _multi = {}
+                for _d in sorted(underlying_bars_1min.keys()):
+                    if date_str <= _d <= exit_date_str:
+                        _db = underlying_bars_1min.get(_d, [])
+                        if _db:
+                            _ds = sorted(_db, key=lambda x: x.get('time', ''))
+                            _multi[_d] = [
+                                [b['time'][:5],
+                                 round(b.get('open', 0), 2),
+                                 round(b.get('high', 0), 2),
+                                 round(b.get('low', 0), 2),
+                                 round(b.get('close', 0), 2),
+                                 int(b.get('volume', b.get('v', 0)) or 0)]
+                                for b in _ds
+                                if '09:30' <= b.get('time', '')[:5] <= '16:15'
+                            ]
+                day_entry['multi_day_bars'] = _multi
+
             day_entry['events'].append({
                 'type': 'exit',
                 'exit_date': exit_date_str,
