@@ -5415,7 +5415,7 @@ def check_exit_signal_conditions(config: Dict, underlying_bars_today: List[Dict]
         exit_config_for_eval = dict(config)
         exit_config_for_eval['price_conditions'] = config['exit_price_conditions']
         
-        met, reason = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date)
+        met, reason, _ = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date)
         if met:
             return True, f"EXIT_SIGNAL_CUSTOM: {reason}"
         return False, ""
