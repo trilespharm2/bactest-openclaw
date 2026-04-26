@@ -4804,6 +4804,11 @@ def run_backtest(config: Dict, client: RESTClient):
                         if is_entry_day and abar['timestamp'] <= entry_timestamp:
                             continue
                         
+                        # Avoid day trades: if avoid_pdt is enabled, skip ALL exits on
+                        # the entry day (regardless of DTE) to prevent same-day round trips.
+                        if config.get('avoid_pdt') and is_entry_day:
+                            continue
+                        
                         current_premium = calculate_net_premium(abar, legs_info)
                         # For credit strategies the closing cost cannot be negative —
                         # VWAP timing differences between legs can momentarily invert
