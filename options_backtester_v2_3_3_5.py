@@ -790,7 +790,8 @@ def get_indicator_value_for_date(indicators_cache: Dict, metric: str, target_dat
 
 
 def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cache: Dict, 
-                                          trade_date: datetime = None) -> Tuple[bool, str]:
+                                          trade_date: datetime = None,
+                                          bars_by_date: Dict = None) -> Tuple[bool, str]:
     """
     Evaluate price conditions using pre-fetched indicator data.
     Uses the bar's timestamp to look up indicator values from cache.
@@ -844,17 +845,28 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     if left_value is None:
                         return False, f"Missing day bar data for day offset {left_day_offset}", _cond_details
                 else:
-                    # Use current bar's price field based on series_type
-                    if left_series_type == 'vwap':
-                        left_value = bar.get('vw', bar_price)
-                    elif left_series_type == 'close':
-                        left_value = bar.get('close', bar_price)
-                    elif left_series_type == 'high':
-                        left_value = bar.get('high', bar_price)
-                    elif left_series_type == 'low':
-                        left_value = bar.get('low', bar_price)
+                    # Cross-day minute bar lookup when day_offset != 0
+                    if left_day_offset != 0 and bars_by_date is not None and trade_date is not None:
+                        _left_bar_time = left_params.get('bar_time') or None
+                        _current_bar_time = bar.get('time', '')[:5] or None
+                        left_value = get_minute_bar_value_cross_day(
+                            bars_by_date, trade_date, left_day_offset,
+                            _left_bar_time, left_series_type, _current_bar_time
+                        )
+                        if left_value is None:
+                            return False, f"Missing minute bar data for day offset {left_day_offset}", _cond_details
                     else:
-                        left_value = bar_price
+                        # Use current bar's price field based on series_type
+                        if left_series_type == 'vwap':
+                            left_value = bar.get('vw', bar_price)
+                        elif left_series_type == 'close':
+                            left_value = bar.get('close', bar_price)
+                        elif left_series_type == 'high':
+                            left_value = bar.get('high', bar_price)
+                        elif left_series_type == 'low':
+                            left_value = bar.get('low', bar_price)
+                        else:
+                            left_value = bar_price
             else:
                 if metric in ('sma', 'ema', 'vwap'):
                     # Composite key: sma_w{window}_t{timeframe_minutes} or vwap_w{window}_t{timeframe_minutes}
@@ -897,16 +909,27 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         if right_value is None:
                             return False, f"Missing day bar data for right side day offset {right_day_offset}", _cond_details
                     else:
-                        if right_series_type == 'vwap':
-                            right_value = bar.get('vw', bar_price)
-                        elif right_series_type == 'close':
-                            right_value = bar.get('close', bar_price)
-                        elif right_series_type == 'high':
-                            right_value = bar.get('high', bar_price)
-                        elif right_series_type == 'low':
-                            right_value = bar.get('low', bar_price)
+                        # Cross-day minute bar lookup when day_offset != 0
+                        if right_day_offset != 0 and bars_by_date is not None and trade_date is not None:
+                            _right_bar_time = right_params.get('bar_time') or None
+                            _current_bar_time = bar.get('time', '')[:5] or None
+                            right_value = get_minute_bar_value_cross_day(
+                                bars_by_date, trade_date, right_day_offset,
+                                _right_bar_time, right_series_type, _current_bar_time
+                            )
+                            if right_value is None:
+                                return False, f"Missing minute bar data for right side day offset {right_day_offset}", _cond_details
                         else:
-                            right_value = bar_price
+                            if right_series_type == 'vwap':
+                                right_value = bar.get('vw', bar_price)
+                            elif right_series_type == 'close':
+                                right_value = bar.get('close', bar_price)
+                            elif right_series_type == 'high':
+                                right_value = bar.get('high', bar_price)
+                            elif right_series_type == 'low':
+                                right_value = bar.get('low', bar_price)
+                            else:
+                                right_value = bar_price
                 else:
                     if right_metric in ('sma', 'ema', 'vwap'):
                         _rw  = int(right_params.get('window', 14))
@@ -996,6 +1019,85 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             return False, f"Error: {str(e)}", _cond_details
     
     return True, "All conditions met", _cond_details
+
+
+def get_minute_bar_value_cross_day(bars_by_date: Dict, trade_date, day_offset: int,
+                                    bar_time: Optional[str], series_type: str,
+                                    current_bar_time: Optional[str] = None) -> Optional[float]:
+    """
+    Get a 1-min bar value from a prior (or same) trading day.
+
+    Args:
+        bars_by_date: Dict of date_str -> [bar_dicts] for the underlying symbol.
+        trade_date: Current trading date (datetime or date).
+        day_offset: Trading-day offset relative to trade_date (0 = today, -1 = yesterday, etc.).
+        bar_time: Optional HH:MM string specifying which bar to fetch on the target day.
+                  If None, falls back to current_bar_time (i.e. "same time on that day").
+        series_type: 'open', 'high', 'low', 'close', 'vwap'.
+        current_bar_time: HH:MM of the bar currently being evaluated (used when bar_time is None).
+
+    Returns:
+        The resolved price value, or None if not found.
+    """
+    if not bars_by_date:
+        return None
+
+    date_str = trade_date.strftime("%Y-%m-%d") if hasattr(trade_date, 'strftime') else str(trade_date)
+    sorted_dates = sorted(bars_by_date.keys())
+
+    if date_str not in sorted_dates:
+        # Fallback: find closest prior date
+        prior = [d for d in sorted_dates if d < date_str]
+        if not prior:
+            return None
+        date_str = prior[-1]
+        # Recalculate from this found date
+        current_idx = sorted_dates.index(date_str)
+        target_idx = current_idx + day_offset
+    else:
+        current_idx = sorted_dates.index(date_str)
+        target_idx = current_idx + day_offset  # day_offset is 0 or negative
+
+    if target_idx < 0 or target_idx >= len(sorted_dates):
+        return None
+
+    target_date_str = sorted_dates[target_idx]
+    target_bars = bars_by_date.get(target_date_str, [])
+    if not target_bars:
+        return None
+
+    ref_time = bar_time or current_bar_time
+    if not ref_time:
+        return None
+
+    try:
+        ref_h, ref_m = int(ref_time[:2]), int(ref_time[3:5])
+        ref_minutes = ref_h * 60 + ref_m
+    except (ValueError, IndexError):
+        return None
+
+    best_bar = None
+    best_diff = float('inf')
+    for b in target_bars:
+        btime = b.get('time', '')[:5]
+        if not btime or ':' not in btime:
+            continue
+        try:
+            bh, bm = int(btime[:2]), int(btime[3:5])
+            bminutes = bh * 60 + bm
+        except ValueError:
+            continue
+        diff = abs(bminutes - ref_minutes)
+        if diff < best_diff:
+            best_diff = diff
+            best_bar = b
+
+    if best_bar is None or best_diff > 2:
+        return None
+
+    series_map = {'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'vwap': 'vw'}
+    field = series_map.get(series_type, 'close')
+    return best_bar.get(field)
 
 
 def get_day_bar_value(indicators_cache: Dict, trade_date: datetime, day_offset: int, series_type: str) -> Optional[float]:
@@ -3962,7 +4064,8 @@ def run_backtest(config: Dict, client: RESTClient):
                 # Check custom price conditions at this bar using cached indicator data
                 if price_conditions:
                     conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
-                        config, bar, indicators_cache, trade_date
+                        config, bar, indicators_cache, trade_date,
+                        bars_by_date=underlying_bars_1min
                     )
                     if not conditions_met:
                         print(f"  Conditions not met: {condition_reason}", flush=True)
@@ -4860,7 +4963,8 @@ def run_backtest(config: Dict, client: RESTClient):
                             sig_bar_time = bar_time_str[:5]
                             sig_exit, sig_reason = check_exit_signal_conditions(
                                 config, underlying_bars_mon_1min, _mon_prev_day_bars,
-                                sig_bar_time, indicators_cache, monitoring_date
+                                sig_bar_time, indicators_cache, monitoring_date,
+                                bars_by_date=underlying_bars_1min
                             )
                             if sig_exit:
                                 exit_hit = True
@@ -5394,7 +5498,8 @@ def check_exit_conditions_detailed(aligned_bars: List[Dict], legs_info: List[Dic
 def check_exit_signal_conditions(config: Dict, underlying_bars_today: List[Dict],
                                   prev_day_bars: List[Dict], bar_time: str,
                                   indicators_cache: Dict = None, 
-                                  trade_date=None) -> Tuple[bool, str]:
+                                  trade_date=None,
+                                  bars_by_date: Dict = None) -> Tuple[bool, str]:
     """
     Check signal-based exit conditions (preset or custom) on the underlying price.
     Called after TP/SL check on each monitoring bar.
@@ -5446,7 +5551,7 @@ def check_exit_signal_conditions(config: Dict, underlying_bars_today: List[Dict]
         exit_config_for_eval = dict(config)
         exit_config_for_eval['price_conditions'] = config['exit_price_conditions']
         
-        met, reason, _ = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date)
+        met, reason, _ = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date, bars_by_date=bars_by_date)
         if met:
             return True, f"EXIT_SIGNAL_CUSTOM: {reason}"
         return False, ""

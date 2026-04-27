@@ -153,13 +153,13 @@ function addOptExitCondition() {
                 </div>
                 <div class="col-md-4 col-sm-6" id="optExitLeftDayGroup${n}">
                     <label class="form-label small">Day</label>
-                    <select class="form-select form-select-sm" id="optExitLeftDay${n}">
+                    <select class="form-select form-select-sm" id="optExitLeftDay${n}" onchange="updateExitBarTimeVisibility(${n})">
                         ${DAY_OPTIONS.map(d => '<option value="' + d.value + '">' + d.label + '</option>').join('')}
                     </select>
                 </div>
                 <div class="col-md-4 col-sm-6" id="optExitLeftCandleTypeGroup${n}">
                     <label class="form-label small">Candle Type</label>
-                    <select class="form-select form-select-sm" id="optExitLeftCandleType${n}">
+                    <select class="form-select form-select-sm" id="optExitLeftCandleType${n}" onchange="updateExitBarTimeVisibility(${n})">
                         ${CANDLE_TYPES.map(c => '<option value="' + c.value + '">' + c.label + '</option>').join('')}
                     </select>
                 </div>
@@ -182,6 +182,11 @@ function addOptExitCondition() {
                     <select class="form-select form-select-sm" id="optExitLeftTimeframe${n}">
                         ${TIMEFRAME_OPTIONS.map(t => '<option value="' + t.value + '"' + (t.value === '5' ? ' selected' : '') + '>' + t.label + '</option>').join('')}
                     </select>
+                </div>
+                <!-- Bar Time: shown only when candle type is minute and day != 0 -->
+                <div class="col-md-3 col-sm-6" id="optExitLeftBarTimeGroup${n}" style="display:none;">
+                    <label class="form-label small">Bar Time (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optExitLeftBarTime${n}" placeholder="e.g. 09:45" pattern="[0-2][0-9]:[0-5][0-9]">
                 </div>
             </div>
         </div>
@@ -220,13 +225,13 @@ function addOptExitCondition() {
             <div class="row g-2">
                 <div class="col-md-4 col-sm-6" id="optExitRightDayGroup${n}">
                     <label class="form-label small">Day</label>
-                    <select class="form-select form-select-sm" id="optExitRightDay${n}">
+                    <select class="form-select form-select-sm" id="optExitRightDay${n}" onchange="updateExitBarTimeVisibility(${n})">
                         ${DAY_OPTIONS.map(d => '<option value="' + d.value + '">' + d.label + '</option>').join('')}
                     </select>
                 </div>
                 <div class="col-md-4 col-sm-6" id="optExitRightCandleTypeGroup${n}">
                     <label class="form-label small">Candle Type</label>
-                    <select class="form-select form-select-sm" id="optExitRightCandleType${n}">
+                    <select class="form-select form-select-sm" id="optExitRightCandleType${n}" onchange="updateExitBarTimeVisibility(${n})">
                         ${CANDLE_TYPES.map(c => '<option value="' + c.value + '">' + c.label + '</option>').join('')}
                     </select>
                 </div>
@@ -249,6 +254,11 @@ function addOptExitCondition() {
                     <select class="form-select form-select-sm" id="optExitRightTimeframe${n}">
                         ${TIMEFRAME_OPTIONS.map(t => '<option value="' + t.value + '"' + (t.value === '5' ? ' selected' : '') + '>' + t.label + '</option>').join('')}
                     </select>
+                </div>
+                <!-- Bar Time: shown only when candle type is minute and day != 0 -->
+                <div class="col-md-3 col-sm-6" id="optExitRightBarTimeGroup${n}" style="display:none;">
+                    <label class="form-label small">Bar Time (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="optExitRightBarTime${n}" placeholder="e.g. 09:45" pattern="[0-2][0-9]:[0-5][0-9]">
                 </div>
             </div>
             <div class="row g-2 mt-2">
@@ -443,7 +453,8 @@ function collectOptExitConditions() {
                 day: metric === 'current_price' ? '0' : ((document.getElementById('optExitLeftDay' + id) || {}).value || '0'),
                 candle_type: (metric === 'current_price' || metric === 'vwap') ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
                 multiplier: (metric === 'current_price' || metric === 'vwap') ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close'),
+                bar_time: (document.getElementById('optExitLeftBarTime' + id) || {}).value || null
             },
             operator: (document.getElementById('optExitOperator' + id) || {}).value || '>',
             comparator: comparator
@@ -471,7 +482,8 @@ function collectOptExitConditions() {
                 day: (document.getElementById('optExitRightDay' + id) || {}).value || '0',
                 candle_type: (document.getElementById('optExitRightCandleType' + id) || {}).value || 'minute',
                 multiplier: parseInt((document.getElementById('optExitRightMultiplier' + id) || {}).value) || 1,
-                series_type: (document.getElementById('optExitRightSeriesType' + id) || {}).value || 'close'
+                series_type: (document.getElementById('optExitRightSeriesType' + id) || {}).value || 'close',
+                bar_time: (document.getElementById('optExitRightBarTime' + id) || {}).value || null
             };
 
             if (comparator === 'compare_volume') {
@@ -605,6 +617,11 @@ function addPriceCondition() {
                         <option value="macd_line">MACD Line</option>
                     </select>
                 </div>
+                <!-- Bar Time: shown only when candle type is minute and day != 0 -->
+                <div class="col-md-3 col-sm-6" id="leftBarTimeGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Bar Time (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="leftBarTime${conditionId}" placeholder="e.g. 09:45" pattern="[0-2][0-9]:[0-5][0-9]">
+                </div>
             </div>
         </div>
         
@@ -682,6 +699,11 @@ function addPriceCondition() {
                 <div class="col-md-3 col-sm-6" id="rightMacdSignalGroup${conditionId}" style="display: none;">
                     <label class="form-label small">Signal Window</label>
                     <input type="number" class="form-control form-control-sm" id="rightMacdSignal${conditionId}" value="9" min="1">
+                </div>
+                <!-- Bar Time: shown only when candle type is minute and day != 0 -->
+                <div class="col-md-3 col-sm-6" id="rightBarTimeGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Bar Time (HH:MM)</label>
+                    <input type="text" class="form-control form-control-sm" id="rightBarTime${conditionId}" placeholder="e.g. 09:45" pattern="[0-2][0-9]:[0-5][0-9]">
                 </div>
             </div>
             
@@ -923,6 +945,26 @@ function enforceDayCandleSeriesRestriction(side, conditionId) {
             return '<option value="' + s.value + '"' + (s.value === prev ? ' selected' : '') + '>' + s.label + '</option>';
         }).join('');
     }
+
+    // Show bar_time input only for minute bars on a prior day
+    var barTimeGroupEl = document.getElementById(side + 'BarTimeGroup' + conditionId);
+    if (barTimeGroupEl) {
+        barTimeGroupEl.style.display = (candleType === 'minute' && dayOffset !== 0) ? '' : 'none';
+    }
+}
+
+function updateExitBarTimeVisibility(n) {
+    function syncSide(sidePrefix, idPrefix) {
+        var dayEl = document.getElementById(idPrefix + 'Day' + n);
+        var candleEl = document.getElementById(idPrefix + 'CandleType' + n);
+        var barTimeGroupEl = document.getElementById(idPrefix + 'BarTimeGroup' + n);
+        if (!dayEl || !candleEl || !barTimeGroupEl) return;
+        var day = parseInt(dayEl.value) || 0;
+        var candle = candleEl.value;
+        barTimeGroupEl.style.display = (candle === 'minute' && day !== 0) ? '' : 'none';
+    }
+    syncSide('Left', 'optExitLeft');
+    syncSide('Right', 'optExitRight');
 }
 
 function checkDayCandleConditions() {
@@ -1256,7 +1298,8 @@ function collectPriceConditions() {
                 day: metric === 'current_price' ? '0' : (document.getElementById(`leftDay${id}`)?.value || '0'),
                 candle_type: metric === 'current_price' ? 'minute' : (document.getElementById(`leftCandleType${id}`)?.value || 'minute'),
                 multiplier: metric === 'current_price' ? 1 : (parseInt(document.getElementById(`leftMultiplier${id}`)?.value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close'),
+                bar_time: document.getElementById(`leftBarTime${id}`)?.value || null
             },
             operator: document.getElementById(`operator${id}`)?.value,
             comparator: comparator
@@ -1292,7 +1335,8 @@ function collectPriceConditions() {
                 day: document.getElementById(`rightDay${id}`)?.value,
                 candle_type: document.getElementById(`rightCandleType${id}`)?.value,
                 multiplier: parseInt(document.getElementById(`rightMultiplier${id}`)?.value) || 1,
-                series_type: document.getElementById(`rightSeriesType${id}`)?.value
+                series_type: document.getElementById(`rightSeriesType${id}`)?.value,
+                bar_time: document.getElementById(`rightBarTime${id}`)?.value || null
             };
 
             if (comparator === 'compare_volume') {
