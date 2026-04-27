@@ -847,11 +847,10 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 else:
                     # Cross-day minute bar lookup when day_offset != 0
                     if left_day_offset != 0 and bars_by_date is not None and trade_date is not None:
-                        _left_bar_time = left_params.get('bar_time') or None
                         _current_bar_time = bar.get('time', '')[:5] or None
                         left_value = get_minute_bar_value_cross_day(
                             bars_by_date, trade_date, left_day_offset,
-                            _left_bar_time, left_series_type, _current_bar_time
+                            None, left_series_type, _current_bar_time
                         )
                         if left_value is None:
                             return False, f"Missing minute bar data for day offset {left_day_offset}", _cond_details
@@ -911,25 +910,46 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     else:
                         # Cross-day minute bar lookup when day_offset != 0
                         if right_day_offset != 0 and bars_by_date is not None and trade_date is not None:
-                            _right_bar_time = right_params.get('bar_time') or None
                             _current_bar_time = bar.get('time', '')[:5] or None
                             right_value = get_minute_bar_value_cross_day(
                                 bars_by_date, trade_date, right_day_offset,
-                                _right_bar_time, right_series_type, _current_bar_time
+                                None, right_series_type, _current_bar_time
                             )
                             if right_value is None:
                                 return False, f"Missing minute bar data for right side day offset {right_day_offset}", _cond_details
                         else:
-                            if right_series_type == 'vwap':
-                                right_value = bar.get('vw', bar_price)
-                            elif right_series_type == 'close':
-                                right_value = bar.get('close', bar_price)
-                            elif right_series_type == 'high':
-                                right_value = bar.get('high', bar_price)
-                            elif right_series_type == 'low':
-                                right_value = bar.get('low', bar_price)
+                            # Same-day minute bar: support N-bar lookback via restrict_bars
+                            restrict_bars = condition.get('restrict_bars')
+                            if restrict_bars and bars_by_date is not None and trade_date is not None:
+                                _date_str = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]
+                                _today_bars = sorted(bars_by_date.get(_date_str, []), key=lambda x: x.get('time', ''))
+                                _cur_time = bar.get('time', '')[:5]
+                                _cur_idx = next((i for i, b in enumerate(_today_bars) if b.get('time', '')[:5] >= _cur_time), None)
+                                if _cur_idx is not None and _cur_idx >= restrict_bars:
+                                    _ref_bar = _today_bars[_cur_idx - restrict_bars]
+                                    if right_series_type == 'vwap':
+                                        right_value = _ref_bar.get('vw', _ref_bar.get('close', bar_price))
+                                    elif right_series_type == 'close':
+                                        right_value = _ref_bar.get('close', bar_price)
+                                    elif right_series_type == 'high':
+                                        right_value = _ref_bar.get('high', bar_price)
+                                    elif right_series_type == 'low':
+                                        right_value = _ref_bar.get('low', bar_price)
+                                    else:
+                                        right_value = _ref_bar.get('close', bar_price)
+                                else:
+                                    return False, f"Not enough bars for {restrict_bars}-bar lookback", _cond_details
                             else:
-                                right_value = bar_price
+                                if right_series_type == 'vwap':
+                                    right_value = bar.get('vw', bar_price)
+                                elif right_series_type == 'close':
+                                    right_value = bar.get('close', bar_price)
+                                elif right_series_type == 'high':
+                                    right_value = bar.get('high', bar_price)
+                                elif right_series_type == 'low':
+                                    right_value = bar.get('low', bar_price)
+                                else:
+                                    right_value = bar_price
                 else:
                     if right_metric in ('sma', 'ema', 'vwap'):
                         _rw  = int(right_params.get('window', 14))
