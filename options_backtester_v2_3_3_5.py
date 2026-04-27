@@ -911,12 +911,45 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         # Cross-day minute bar lookup when day_offset != 0
                         if right_day_offset != 0 and bars_by_date is not None and trade_date is not None:
                             _current_bar_time = bar.get('time', '')[:5] or None
-                            right_value = get_minute_bar_value_cross_day(
-                                bars_by_date, trade_date, right_day_offset,
-                                None, right_series_type, _current_bar_time
-                            )
-                            if right_value is None:
-                                return False, f"Missing minute bar data for right side day offset {right_day_offset}", _cond_details
+                            restrict_bars = condition.get('restrict_bars')
+                            if restrict_bars:
+                                # N-bar lookback within the prior day's bars
+                                _d_str = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]
+                                _sorted_dates = sorted(bars_by_date.keys())
+                                _cur_d_idx = next((i for i, d in enumerate(_sorted_dates) if d == _d_str), None)
+                                if _cur_d_idx is None:
+                                    _prior = [d for d in _sorted_dates if d < _d_str]
+                                    _cur_d_idx = _sorted_dates.index(_prior[-1]) if _prior else None
+                                if _cur_d_idx is not None:
+                                    _tgt_d_idx = _cur_d_idx + right_day_offset
+                                    if 0 <= _tgt_d_idx < len(_sorted_dates):
+                                        _prior_bars = sorted(bars_by_date.get(_sorted_dates[_tgt_d_idx], []), key=lambda x: x.get('time', ''))
+                                        _anc_idx = next((i for i, b2 in enumerate(_prior_bars) if b2.get('time', '')[:5] >= _current_bar_time), None)
+                                        if _anc_idx is not None and _anc_idx >= restrict_bars:
+                                            _ref_bar = _prior_bars[_anc_idx - restrict_bars]
+                                            if right_series_type == 'vwap':
+                                                right_value = _ref_bar.get('vw', _ref_bar.get('close', bar_price))
+                                            elif right_series_type == 'close':
+                                                right_value = _ref_bar.get('close', bar_price)
+                                            elif right_series_type == 'high':
+                                                right_value = _ref_bar.get('high', bar_price)
+                                            elif right_series_type == 'low':
+                                                right_value = _ref_bar.get('low', bar_price)
+                                            else:
+                                                right_value = _ref_bar.get('close', bar_price)
+                                        else:
+                                            return False, f"Not enough prior-day bars for {restrict_bars}-bar lookback", _cond_details
+                                    else:
+                                        return False, f"Missing day data for right side day offset {right_day_offset}", _cond_details
+                                else:
+                                    return False, f"Current date not found in historical bars", _cond_details
+                            else:
+                                right_value = get_minute_bar_value_cross_day(
+                                    bars_by_date, trade_date, right_day_offset,
+                                    None, right_series_type, _current_bar_time
+                                )
+                                if right_value is None:
+                                    return False, f"Missing minute bar data for right side day offset {right_day_offset}", _cond_details
                         else:
                             # Same-day minute bar: support N-bar lookback via restrict_bars
                             restrict_bars = condition.get('restrict_bars')
