@@ -2677,11 +2677,20 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
     let pnl = 0;
     const legExitPrices = [];
 
+    const underlyingAtClose = currentMinuteBar.close;
     for (const leg of pos.legs) {
-        let optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
-        if (!optionBar && leg.optionBars.length > 0) optionBar = leg.optionBars[leg.optionBars.length - 1];
-        if (!optionBar) { legExitPrices.push({ leg: leg.name, price: leg.entryPrice }); continue; }
-        const exitPrice = optionBar.vwap || optionBar.close;
+        let exitPrice;
+        if (reason === 'Expiration') {
+            // Use intrinsic value at settlement — eliminates data artifacts from last option bar
+            exitPrice = leg.type === 'P'
+                ? Math.max(leg.strike - underlyingAtClose, 0)
+                : Math.max(underlyingAtClose - leg.strike, 0);
+        } else {
+            let optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
+            if (!optionBar && leg.optionBars.length > 0) optionBar = leg.optionBars[leg.optionBars.length - 1];
+            if (!optionBar) { legExitPrices.push({ leg: leg.name, price: leg.entryPrice }); continue; }
+            exitPrice = optionBar.vwap || optionBar.close;
+        }
         legExitPrices.push({ leg: leg.name, price: exitPrice });
         pnl += (leg.position === 'long' ? (exitPrice - leg.entryPrice) : (leg.entryPrice - exitPrice)) * 100 * qtyToClose;
     }
