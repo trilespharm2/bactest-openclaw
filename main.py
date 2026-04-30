@@ -6296,10 +6296,14 @@ def get_simulated_trading_bars():
         from polygon.rest import RESTClient
         client = RESTClient(api_key)
 
+        # Normalize index symbols to Polygon's "I:" prefix format
+        _SIM_INDEX_MAP = {'SPX': 'I:SPX', 'SPXW': 'I:SPX', 'NDX': 'I:NDX', 'RUT': 'I:RUT', 'XSP': 'I:XSP'}
+        polygon_ticker = _SIM_INDEX_MAP.get(symbol, symbol)
+
         bars = []
         try:
             aggs = client.get_aggs(
-                ticker=symbol,
+                ticker=polygon_ticker,
                 multiplier=multiplier,
                 timespan=bar_size,
                 from_=start_date,
