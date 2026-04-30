@@ -2780,6 +2780,10 @@ function updateOptionsPositionsCard() {
         const pnlStr = `${isProfit ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
         const entryPremium = Math.abs(pos.totalEntryPremium);
         const pnlPct = entryPremium > 0 ? (unrealizedPnl / entryPremium * 100).toFixed(1) : '0.0';
+        const isCredit = pos.totalEntryPremium > 0;
+        const creditDebitLabel = isCredit ? 'Credit Rcvd' : 'Debit Paid';
+        const creditDebitColor = isCredit ? '#089981' : '#f23645';
+        const creditDebitStr = `$${entryPremium.toFixed(2)}`;
 
         const legsHtml = pos.legs.map(leg => {
             const optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
@@ -2795,6 +2799,9 @@ function updateOptionsPositionsCard() {
                 <span style="font-weight: 600; color: ${isProfit ? '#089981' : '#f23645'}; font-size: 12px;">${pnlStr} (${pnlPct}%)</span>
             </div>
             <div style="margin-bottom: 4px;">${legsHtml}</div>
+            <div style="margin-bottom: 4px; font-size: 10px;">
+                <span style="color: ${creditDebitColor}; font-weight: 600;">${creditDebitLabel}: ${creditDebitStr}</span>
+            </div>
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #6a6d78; margin-bottom: 6px;">
                 <span>Exp: ${pos.expiration}</span>
                 <button onclick="showPayoffModal(${pos.id})" style="background: #f0f3fa; color: #2962ff; border: 1px solid #d1d4dc; padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;" title="Payoff Diagram"><i class="fas fa-chart-area me-1"></i>Payoff</button>
