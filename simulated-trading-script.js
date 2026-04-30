@@ -2678,6 +2678,19 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
     const legExitPrices = [];
 
     const underlyingAtClose = currentMinuteBar.close;
+
+    // For manual closes: find the common timestamp across all legs (latest time all legs
+    // have simultaneous data) to prevent cross-leg timing artifacts causing pnl > credit.
+    let effectiveCloseTimestamp = currentTimestamp;
+    if (reason !== 'Expiration') {
+        const perLegTs = pos.legs.map(leg => {
+            const bar = findClosestOptionBar(leg.optionBars, currentTimestamp)
+                     || (leg.optionBars.length > 0 ? leg.optionBars[leg.optionBars.length - 1] : null);
+            return bar ? bar.timestamp : currentTimestamp;
+        }).filter(ts => ts != null);
+        if (perLegTs.length > 0) effectiveCloseTimestamp = Math.min(...perLegTs);
+    }
+
     for (const leg of pos.legs) {
         let exitPrice;
         if (reason === 'Expiration') {
@@ -2686,14 +2699,16 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
                 ? Math.max(leg.strike - underlyingAtClose, 0)
                 : Math.max(underlyingAtClose - leg.strike, 0);
         } else {
-            let optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
+            let optionBar = findClosestOptionBar(leg.optionBars, effectiveCloseTimestamp);
             if (!optionBar && leg.optionBars.length > 0) optionBar = leg.optionBars[leg.optionBars.length - 1];
             if (!optionBar) { legExitPrices.push({ leg: leg.name, price: leg.entryPrice }); continue; }
             exitPrice = optionBar.vwap || optionBar.close;
+            console.log(`[Close] Leg ${leg.name} (${leg.position} ${leg.type} $${leg.strike}): entry=$${leg.entryPrice.toFixed(4)}, exit=$${exitPrice.toFixed(4)}, bar_ts=${new Date(optionBar.timestamp).toISOString()}, effective_ts=${new Date(effectiveCloseTimestamp).toISOString()}`);
         }
         legExitPrices.push({ leg: leg.name, price: exitPrice });
         pnl += (leg.position === 'long' ? (exitPrice - leg.entryPrice) : (leg.entryPrice - exitPrice)) * 100 * qtyToClose;
     }
+    console.log(`[Close] Strategy=${pos.strategy}, reason=${reason}, qty=${qtyToClose}, pnl=$${pnl.toFixed(2)}, credit=$${pos.totalEntryPremium.toFixed(2)}`);
 
     simOptionsRealizedPnl += pnl;
     pos.realizedPnl += pnl;
