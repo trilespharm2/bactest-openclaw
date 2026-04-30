@@ -2552,11 +2552,14 @@ async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, 
     await waitForRateLimit();
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
+    const dirSign = (legConfig.method === 'dollar_underlying' || legConfig.method === 'pct_underlying')
+        ? (legConfig.direction === 'above' ? 1 : -1)
+        : 1;
     const requestBody = {
         symbol, option_type: optionType, expiration_date: expDate,
         start_date: startDate, end_date: endDate, multiplier,
         underlying_price: underlyingPrice, strike_method: legConfig.method,
-        method_value: legConfig.value || 0, fallback: legConfig.fallback || 'closest'
+        method_value: dirSign * (legConfig.value || 0), fallback: legConfig.fallback || 'closest'
     };
     if (legConfig.method === 'exact_strike') requestBody.strike = legConfig.strike;
     if (legConfig.method === 'delta') { requestBody.delta = legConfig.delta; requestBody.delta_method = legConfig.deltaMethod || 'closest'; }
