@@ -2585,6 +2585,10 @@ function calculateOptionPositionPnl(pos, currentTimestamp) {
         const priceDiff = (optionBar.vwap || optionBar.close) - leg.entryPrice;
         totalPnl += (leg.position === 'long' ? priceDiff : -priceDiff) * 100 * pos.remainingQuantity;
     }
+    // Cap unrealized P&L at credit received for short spread strategies —
+    // Polygon bar data can show the lower-strike put priced above the higher-strike
+    // put within the same bar (bid/ask artifact), making pnl appear > credit received.
+    if (pos.totalEntryPremium > 0) totalPnl = Math.min(totalPnl, pos.totalEntryPremium);
     return totalPnl;
 }
 
@@ -2707,6 +2711,11 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
         }
         legExitPrices.push({ leg: leg.name, price: exitPrice });
         pnl += (leg.position === 'long' ? (exitPrice - leg.entryPrice) : (leg.entryPrice - exitPrice)) * 100 * qtyToClose;
+    }
+    // Cap realized P&L at credit received for short spread strategies
+    if (pos.totalEntryPremium > 0) {
+        const creditForClose = pos.totalEntryPremium * (qtyToClose / pos.remainingQuantity);
+        pnl = Math.min(pnl, creditForClose);
     }
     console.log(`[Close] Strategy=${pos.strategy}, reason=${reason}, qty=${qtyToClose}, pnl=$${pnl.toFixed(2)}, credit=$${pos.totalEntryPremium.toFixed(2)}`);
 
