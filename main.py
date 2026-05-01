@@ -6580,6 +6580,47 @@ def get_simulated_trading_option_bars():
             else:
                 return jsonify({'error': f'Failed to fetch option data: {str(e)}'}), 500
         
+        # If primary strike returned no bars, try adjacent strikes (±increment steps up to ±6)
+        if not bars and fallback != 'exactly':
+            increment = 1 if symbol in ['SPY', 'QQQ', 'IWM'] else 5
+            for step in range(1, 7):
+                candidates = []
+                if fallback in ('closest', 'above', 'between'):
+                    candidates.append(strike + step * increment)
+                if fallback in ('closest', 'below', 'between'):
+                    candidates.append(strike - step * increment)
+                if fallback == 'above':
+                    candidates = [strike + step * increment]
+                elif fallback == 'below':
+                    candidates = [strike - step * increment]
+                for adj_strike in candidates:
+                    try:
+                        adj_int = int(adj_strike * 1000)
+                        adj_str = f"{adj_int:08d}"
+                        adj_symbol = f"O:{option_symbol_base}{date_part}{option_type}{adj_str}"
+                        adj_aggs = client.get_aggs(ticker=adj_symbol, multiplier=multiplier,
+                                                   timespan='minute', from_=start_date,
+                                                   to=end_date or start_date, limit=50000)
+                        adj_bars = []
+                        for agg in adj_aggs:
+                            ts = agg.timestamp
+                            if hasattr(ts, 'timestamp'): ts = int(ts.timestamp() * 1000)
+                            else: ts = int(ts)
+                            vw = getattr(agg, 'vw', None) or getattr(agg, 'vwap', None) or agg.close
+                            adj_bars.append({'timestamp': ts, 'open': agg.open, 'high': agg.high,
+                                             'low': agg.low, 'close': agg.close, 'vwap': vw,
+                                             'volume': getattr(agg, 'volume', 0)})
+                        if adj_bars:
+                            bars = adj_bars
+                            strike = adj_strike
+                            option_symbol = adj_symbol
+                            print(f"[SimTrading Option Bars] Fallback strike found: {adj_symbol} (original strike had no data)")
+                            break
+                    except Exception:
+                        continue
+                if bars:
+                    break
+
         bars.sort(key=lambda x: x['timestamp'])
         
         from datetime import datetime as _dt_cls, timezone as _tz
