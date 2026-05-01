@@ -6389,6 +6389,42 @@ def estimate_strike_from_delta(underlying_price, target_delta, option_type, symb
         return round_strike_for_symbol(underlying_price, symbol, 'closest')
 
 
+def _bs_norm_cdf(x):
+    import math as _m
+    return 0.5 * (1.0 + _m.erf(x / _m.sqrt(2)))
+
+def _bs_option_price(S, K, T, r, sigma, opt_type='P'):
+    import math as _m
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return max(K - S, 0.0) if opt_type == 'P' else max(S - K, 0.0)
+    d1 = (_m.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * _m.sqrt(T))
+    d2 = d1 - sigma * _m.sqrt(T)
+    if opt_type == 'C':
+        return S * _bs_norm_cdf(d1) - K * _m.exp(-r * T) * _bs_norm_cdf(d2)
+    return K * _m.exp(-r * T) * _bs_norm_cdf(-d2) - S * _bs_norm_cdf(-d1)
+
+def _bs_implied_vol(S, K, T, r, market_price, opt_type='P'):
+    import math as _m
+    if T <= 0 or market_price <= 0 or S <= 0 or K <= 0:
+        return 0.3
+    intrinsic = max(K - S, 0.0) if opt_type == 'P' else max(S - K, 0.0)
+    if market_price < intrinsic - 0.01:
+        return 0.01
+    sigma = 0.3
+    for _ in range(100):
+        price = _bs_option_price(S, K, T, r, sigma, opt_type)
+        diff = price - market_price
+        if abs(diff) < 1e-8:
+            break
+        d1 = (_m.log(max(S, 1e-9) / max(K, 1e-9)) + (r + 0.5 * sigma**2) * T) / (sigma * _m.sqrt(T))
+        vega = S * _m.sqrt(T) * _m.exp(-0.5 * d1**2) / _m.sqrt(2 * _m.pi)
+        if vega < 1e-10:
+            break
+        sigma -= diff / vega
+        sigma = max(0.001, min(sigma, 10.0))
+    return sigma
+
+
 def round_strike_for_symbol(target_strike, symbol, fallback='closest'):
     """Round strike to valid increment based on symbol"""
     import math
@@ -6580,46 +6616,88 @@ def get_simulated_trading_option_bars():
             else:
                 return jsonify({'error': f'Failed to fetch option data: {str(e)}'}), 500
         
-        # If primary strike returned no bars, try adjacent strikes (±increment steps up to ±6)
-        if not bars and fallback != 'exactly':
+        # If primary strike returned no bars, generate synthetic bars via Black-Scholes
+        if not bars:
             increment = 1 if symbol in ['SPY', 'QQQ', 'IWM'] else 5
+            # Find nearest reference strike with actual market data
+            ref_bars_raw = []
+            ref_strike_found = None
             for step in range(1, 7):
-                candidates = []
-                if fallback in ('closest', 'above', 'between'):
-                    candidates.append(strike + step * increment)
-                if fallback in ('closest', 'below', 'between'):
-                    candidates.append(strike - step * increment)
-                if fallback == 'above':
-                    candidates = [strike + step * increment]
-                elif fallback == 'below':
-                    candidates = [strike - step * increment]
-                for adj_strike in candidates:
+                for test_k in [strike + step * increment, strike - step * increment]:
+                    if test_k <= 0:
+                        continue
                     try:
-                        adj_int = int(adj_strike * 1000)
-                        adj_str = f"{adj_int:08d}"
-                        adj_symbol = f"O:{option_symbol_base}{date_part}{option_type}{adj_str}"
-                        adj_aggs = client.get_aggs(ticker=adj_symbol, multiplier=multiplier,
-                                                   timespan='minute', from_=start_date,
-                                                   to=end_date or start_date, limit=50000)
-                        adj_bars = []
-                        for agg in adj_aggs:
+                        t_int = int(test_k * 1000)
+                        t_sym = f"O:{option_symbol_base}{date_part}{option_type}{t_int:08d}"
+                        t_aggs = client.get_aggs(ticker=t_sym, multiplier=multiplier,
+                                                 timespan='minute', from_=start_date,
+                                                 to=end_date or start_date, limit=50000)
+                        tmp = []
+                        for agg in t_aggs:
                             ts = agg.timestamp
                             if hasattr(ts, 'timestamp'): ts = int(ts.timestamp() * 1000)
                             else: ts = int(ts)
                             vw = getattr(agg, 'vw', None) or getattr(agg, 'vwap', None) or agg.close
-                            adj_bars.append({'timestamp': ts, 'open': agg.open, 'high': agg.high,
-                                             'low': agg.low, 'close': agg.close, 'vwap': vw,
-                                             'volume': getattr(agg, 'volume', 0)})
-                        if adj_bars:
-                            bars = adj_bars
-                            strike = adj_strike
-                            option_symbol = adj_symbol
-                            print(f"[SimTrading Option Bars] Fallback strike found: {adj_symbol} (original strike had no data)")
+                            tmp.append({'timestamp': ts, 'vwap': float(vw), 'close': float(agg.close)})
+                        if tmp:
+                            ref_bars_raw = tmp
+                            ref_strike_found = test_k
                             break
                     except Exception:
                         continue
-                if bars:
+                if ref_bars_raw:
                     break
+
+            # Fetch underlying minute bars for per-timestamp S values
+            und_map = {}
+            try:
+                _IDX = {'SPX': 'I:SPX', 'SPXW': 'I:SPX', 'NDX': 'I:NDX', 'RUT': 'I:RUT', 'XSP': 'I:XSP'}
+                u_ticker = _IDX.get(symbol, symbol)
+                u_aggs = client.get_aggs(ticker=u_ticker, multiplier=1, timespan='minute',
+                                         from_=start_date, to=end_date or start_date, limit=50000)
+                for agg in u_aggs:
+                    ts = agg.timestamp
+                    if hasattr(ts, 'timestamp'): ts = int(ts.timestamp() * 1000)
+                    else: ts = int(ts)
+                    und_map[ts] = float(agg.close)
+            except Exception as _ue:
+                print(f"[SimTrading] Underlying fetch for BS: {_ue}")
+
+            if ref_bars_raw and ref_strike_found is not None:
+                from datetime import datetime as _dt_bs, timezone as _tz_bs
+                exp_close_ms = int(_dt_bs.strptime(expiration_date + ' 20:15:00', '%Y-%m-%d %H:%M:%S')
+                                   .replace(tzinfo=_tz_bs.utc).timestamp() * 1000)
+                r_rate = 0.045
+                ref_by_ts = {b['timestamp']: b['vwap'] for b in ref_bars_raw}
+                und_ts_list = sorted(und_map.keys()) if und_map else []
+
+                for ts_ms in sorted(ref_by_ts.keys()):
+                    ref_price = ref_by_ts[ts_ms]
+                    if ref_price <= 0:
+                        continue
+                    if und_ts_list:
+                        nearest = min(und_ts_list, key=lambda k: abs(k - ts_ms))
+                        S_val = und_map[nearest]
+                    elif underlying_price:
+                        S_val = float(underlying_price)
+                    else:
+                        continue
+                    T_yr = max((exp_close_ms - ts_ms) / (1000.0 * 60 * 60 * 24 * 365.25), 1e-6)
+                    try:
+                        iv = _bs_implied_vol(S_val, ref_strike_found, T_yr, r_rate, ref_price, option_type)
+                        synth = max(_bs_option_price(S_val, strike, T_yr, r_rate, iv, option_type), 0.01)
+                    except Exception:
+                        synth = ref_price
+                    mono = abs(strike - S_val) / max(S_val, 1)
+                    half = synth * max(0.01, min(0.08, 0.005 + mono * 2.0))
+                    bars.append({
+                        'timestamp': ts_ms,
+                        'open': round(synth, 4), 'high': round(synth + half, 4),
+                        'low': round(max(synth - half, 0.01), 4), 'close': round(synth, 4),
+                        'vwap': round(synth, 4), 'volume': 0, 'synthetic': True
+                    })
+                if bars:
+                    print(f"[SimTrading] Generated {len(bars)} synthetic BS bars for {option_symbol} (ref strike: {ref_strike_found})")
 
         bars.sort(key=lambda x: x['timestamp'])
         
@@ -6646,6 +6724,115 @@ def get_simulated_trading_option_bars():
             'count': len(bars)
         })
         
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/simulated-trading/option-chain', methods=['POST'])
+def get_sim_option_chain():
+    """Return a theoretical option chain at a specific simulation timestamp using Black-Scholes.
+    Requires one Polygon call (ATM reference for IV). All other strikes are priced analytically.
+    """
+    try:
+        data = request.json
+        symbol = data.get('symbol', '').upper().strip()
+        expiration_date = data.get('expiration_date')
+        option_type = data.get('option_type', 'P').upper()
+        underlying_price = float(data.get('underlying_price', 0))
+        current_ts_ms = int(data.get('current_timestamp', 0))
+        start_date = data.get('start_date')
+
+        if not all([symbol, expiration_date, underlying_price, current_ts_ms, start_date]):
+            return jsonify({'error': 'Missing required parameters'}), 400
+
+        api_key = request.headers.get('X-API-Key') or API_KEY
+        if not api_key:
+            return jsonify({'error': 'Polygon API key not configured'}), 400
+
+        from polygon.rest import RESTClient
+        from datetime import datetime as _dt_oc, timezone as _tz_oc
+        client = RESTClient(api_key)
+
+        if symbol == 'SPX':
+            option_symbol_base = 'SPXW'
+        else:
+            option_symbol_base = symbol
+
+        exp_dt = _dt_oc.strptime(expiration_date, '%Y-%m-%d')
+        date_part = exp_dt.strftime('%y%m%d')
+        increment = 1 if symbol in ['SPY', 'QQQ', 'IWM'] else 5
+        atm_strike = round(underlying_price / increment) * increment
+
+        # Expiration at 4:15 PM ET = 20:15 UTC
+        exp_close_ms = int(_dt_oc.strptime(expiration_date + ' 20:15:00', '%Y-%m-%d %H:%M:%S')
+                           .replace(tzinfo=_tz_oc.utc).timestamp() * 1000)
+        T_years = max((exp_close_ms - current_ts_ms) / (1000.0 * 60 * 60 * 24 * 365.25), 1e-6)
+        r_rate = 0.045
+
+        # Fetch one ATM reference option bar to derive implied volatility (1 Polygon call)
+        ref_price = None
+        ref_strike = None
+        for offset in [0, 1, -1, 2, -2, 3, -3, 4, -4]:
+            test_k = atm_strike + offset * increment
+            if test_k <= 0:
+                continue
+            try:
+                t_int = int(test_k * 1000)
+                t_sym = f"O:{option_symbol_base}{date_part}{option_type}{t_int:08d}"
+                t_aggs = client.get_aggs(ticker=t_sym, multiplier=1, timespan='minute',
+                                         from_=start_date, to=start_date, limit=5000)
+                best = None
+                best_diff = float('inf')
+                for agg in t_aggs:
+                    ts = agg.timestamp
+                    if hasattr(ts, 'timestamp'): ts = int(ts.timestamp() * 1000)
+                    else: ts = int(ts)
+                    diff = abs(ts - current_ts_ms)
+                    if diff < best_diff:
+                        best_diff = diff
+                        vw = getattr(agg, 'vw', None) or getattr(agg, 'vwap', None) or agg.close
+                        best = float(vw)
+                if best is not None and best_diff < 10 * 60 * 1000:
+                    ref_price = best
+                    ref_strike = test_k
+                    break
+            except Exception:
+                continue
+
+        if ref_price and ref_strike:
+            iv = _bs_implied_vol(underlying_price, ref_strike, T_years, r_rate, ref_price, option_type)
+        else:
+            iv = 0.30  # fallback 30% IV
+
+        # Build chain: ATM ± 15 strikes
+        max_strikes = 15
+        chain = []
+        for step in range(-max_strikes, max_strikes + 1):
+            k = atm_strike + step * increment
+            if k <= 0:
+                continue
+            theo = max(_bs_option_price(underlying_price, k, T_years, r_rate, iv, option_type), 0.0)
+            mono = abs(k - underlying_price) / max(underlying_price, 1)
+            spread_pct = max(0.03, min(0.20, 0.02 + mono * 4.0))
+            half = theo * spread_pct
+            bid = round(max(theo - half, 0.01), 2) if theo > 0.01 else 0.00
+            ask = round(theo + half, 2)
+            mid = round(theo, 2)
+            itm = (k > underlying_price) if option_type == 'P' else (k < underlying_price)
+            chain.append({'strike': k, 'bid': bid, 'ask': ask, 'mid': mid, 'itm': itm})
+
+        return jsonify({
+            'success': True,
+            'chain': chain,
+            'underlying': underlying_price,
+            'iv_pct': round(iv * 100, 1),
+            'ref_strike': ref_strike,
+            'ref_price': ref_price,
+            'T_years': round(T_years, 6)
+        })
+
     except Exception as e:
         import traceback
         traceback.print_exc()

@@ -2196,6 +2196,7 @@ function buildSimLegConfiguration() {
                         <option value="pct_underlying" selected>% from Underlying</option>
                         <option value="dollar_underlying">$ from Underlying</option>
                         <option value="exact_strike">Exact Strike Price</option>
+                        <option value="chain">Select from Chain</option>
                         <option value="delta">Delta-Based</option>
                         <option value="mid_price">Mid Price Range</option>
                         ${legs.length > 1 ? `<option value="dollar_leg">$ ${dirLabel} Leg</option>` : ''}
@@ -2265,6 +2266,13 @@ function updateSimLegParams(legIndex, method) {
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
+            break;
+        case 'chain':
+            html = `<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                <span class="sim-chain-label" data-leg="${legIndex}" style="font-size:10px;color:#6a6d78;white-space:nowrap;">No strike selected</span>
+                <input type="hidden" class="sim-chain-strike" data-leg="${legIndex}" value="">
+                <button type="button" onclick="openOptionChainModal(${legIndex})" style="background:#2962ff;color:#fff;border:none;border-radius:4px;font-size:10px;padding:3px 8px;cursor:pointer;white-space:nowrap;">Browse Chain</button>
+            </div>`;
             break;
         case 'mid_price':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Min$:</label>
@@ -2356,6 +2364,11 @@ function collectSimLegConfigurations() {
                 leg.value = Math.abs(parseFloat(card.querySelector('.sim-leg-value')?.value) || 0);
                 leg.direction = direction;
                 break;
+            case 'chain':
+                leg.method = 'exact_strike';
+                leg.strike = parseFloat(card.querySelector('.sim-chain-strike')?.value) || 0;
+                leg.fallback = 'closest';
+                break;
         }
         legs.push(leg);
     });
@@ -2378,6 +2391,132 @@ function calculateStrikeFromLegConfig(leg, underlyingPrice, resolvedStrikes) {
         case 'mid_price': return { strike: underlyingPrice, fallback: 'closest', midPriceMin: leg.min, midPriceMax: leg.max };
         default: return { strike: underlyingPrice, fallback: 'closest' };
     }
+}
+
+function _ensureOptionChainModal() {
+    if (document.getElementById('optionChainModal')) return;
+    const el = document.createElement('div');
+    el.id = 'optionChainModal';
+    el.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;';
+    el.innerHTML = `
+        <div style="background:#fff;border-radius:12px;width:min(95vw,480px);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.22);overflow:hidden;">
+            <div style="padding:14px 16px 10px;border-bottom:1px solid #e8eaed;display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <div id="chainModalTitle" style="font-size:14px;font-weight:700;color:#191919;">Option Chain</div>
+                    <div id="chainModalSub" style="font-size:11px;color:#6a6d78;margin-top:2px;"></div>
+                </div>
+                <button onclick="closeOptionChainModal()" style="background:none;border:none;font-size:18px;color:#6a6d78;cursor:pointer;padding:4px 8px;line-height:1;">&times;</button>
+            </div>
+            <div id="chainModalBody" style="overflow-y:auto;flex:1;padding:8px 0;"></div>
+        </div>`;
+    document.body.appendChild(el);
+}
+
+async function openOptionChainModal(legIndex) {
+    _ensureOptionChainModal();
+    const modal = document.getElementById('optionChainModal');
+    modal.style.display = 'flex';
+    modal._legIndex = legIndex;
+
+    const strategy = document.getElementById('simOptionStrategy')?.value;
+    const strategyLegs = SIM_STRATEGY_LEGS[strategy] || [];
+    const legInfo = strategyLegs[legIndex];
+    const optType = legInfo?.type || 'P';
+
+    const curBar = simMinuteBarsCache[simCurrentMinuteIndex - 1] || simMinuteBarsCache[simMinuteBarsCache.length - 1];
+    const underlyingPrice = curBar ? (curBar.vwap || curBar.close) : 0;
+    const currentTs = curBar ? curBar.timestamp : Date.now();
+
+    const card = document.querySelectorAll('#simLegConfigSection > div > div')[legIndex];
+    const legDteInput = card?.querySelector('.sim-leg-dte');
+    const globalDte = parseInt(document.getElementById('simDte')?.value || '0');
+    const legDte = legDteInput ? (parseInt(legDteInput.value) || 0) : globalDte;
+
+    const entryDate = simChartDates.tradingStart || simChartDates.start;
+    const expDate = new Date(entryDate);
+    expDate.setDate(expDate.getDate() + legDte);
+    const expDateStr = expDate.toISOString().split('T')[0];
+    const startDateStr = simChartDates.start;
+
+    document.getElementById('chainModalTitle').textContent = `${simCurrentSymbol} ${optType === 'P' ? 'Puts' : 'Calls'} — Exp ${expDateStr}`;
+    document.getElementById('chainModalSub').textContent = `Underlying: ${underlyingPrice.toFixed(2)} · Fetching IV…`;
+    document.getElementById('chainModalBody').innerHTML =
+        `<div style="text-align:center;padding:36px;color:#6a6d78;font-size:13px;"><i class="fas fa-spinner fa-spin" style="font-size:22px;display:block;margin-bottom:10px;"></i>Loading option chain…</div>`;
+
+    try {
+        const resp = await fetch('/api/simulated-trading/option-chain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                symbol: simCurrentSymbol,
+                expiration_date: expDateStr,
+                option_type: optType,
+                underlying_price: underlyingPrice,
+                current_timestamp: currentTs,
+                start_date: startDateStr
+            })
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Chain fetch failed');
+
+        const chain = data.chain || [];
+        const iv = data.iv_pct || 0;
+        document.getElementById('chainModalSub').textContent =
+            `Underlying: ${underlyingPrice.toFixed(2)} · IV: ${iv.toFixed(1)}% · ${chain.length} strikes (theoretical)`;
+
+        let rows = '';
+        chain.forEach(row => {
+            const itmBg = row.itm ? '#f0f7ff' : '#fff';
+            rows += `<tr onclick="selectChainStrike(${legIndex},${row.strike})"
+                style="cursor:pointer;background:${itmBg};border-bottom:1px solid #f0f0f0;"
+                onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='${itmBg}'">
+                <td style="padding:7px 12px;font-size:12px;color:#191919;font-weight:${row.itm?'700':'400'};">${row.strike}</td>
+                <td style="padding:7px 8px;font-size:11px;color:#6a6d78;text-align:right;">${row.bid.toFixed(2)}</td>
+                <td style="padding:7px 8px;font-size:12px;color:#191919;text-align:right;font-weight:600;">${row.mid.toFixed(2)}</td>
+                <td style="padding:7px 12px;font-size:11px;color:#6a6d78;text-align:right;">${row.ask.toFixed(2)}</td>
+                <td style="padding:7px 12px;text-align:center;">
+                    <span style="padding:2px 5px;border-radius:3px;font-size:10px;background:${row.itm?'#dbeafe':'#f3f4f6'};color:${row.itm?'#1d4ed8':'#6b7280'};">${row.itm?'ITM':'OTM'}</span>
+                </td>
+            </tr>`;
+        });
+
+        document.getElementById('chainModalBody').innerHTML = `
+            <div style="font-size:10px;color:#9ca3af;padding:6px 12px;border-bottom:1px solid #f0f0f0;">
+                Theoretical prices derived from market-anchored IV. Click a row to select that strike.
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:#f8f9fa;border-bottom:2px solid #e8eaed;position:sticky;top:0;">
+                    <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:left;font-weight:600;">STRIKE</th>
+                    <th style="padding:7px 8px;font-size:10px;color:#6a6d78;text-align:right;font-weight:600;">BID</th>
+                    <th style="padding:7px 8px;font-size:10px;color:#6a6d78;text-align:right;font-weight:600;">MID</th>
+                    <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:right;font-weight:600;">ASK</th>
+                    <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:center;font-weight:600;">MONO</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    } catch (err) {
+        document.getElementById('chainModalBody').innerHTML =
+            `<div style="text-align:center;padding:32px;color:#e53935;font-size:13px;">Failed to load chain: ${err.message}</div>`;
+    }
+}
+
+function selectChainStrike(legIndex, strike) {
+    const card = document.querySelectorAll('#simLegConfigSection > div > div')[legIndex];
+    if (!card) return;
+    const hiddenInput = card.querySelector('.sim-chain-strike');
+    const label = card.querySelector('.sim-chain-label');
+    if (hiddenInput) hiddenInput.value = strike;
+    if (label) {
+        label.textContent = `Strike: ${strike}`;
+        label.style.color = '#191919';
+        label.style.fontWeight = '600';
+    }
+    closeOptionChainModal();
+}
+
+function closeOptionChainModal() {
+    const modal = document.getElementById('optionChainModal');
+    if (modal) modal.style.display = 'none';
 }
 
 function fetchServerGreeks(position) {
