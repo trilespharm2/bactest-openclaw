@@ -1657,7 +1657,7 @@ function updateTimeframeButtons() {
 
 function showNextBar() {
     stopAutoplay();
-    const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
+    const skipMinutes = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
     if (simCurrentMinuteIndex < simMinuteBarsCache.length) {
         simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
         rebuildBarsForCurrentTimeframe();
@@ -1678,7 +1678,7 @@ function showNextBar() {
 
 function showPreviousBar() {
     stopAutoplay();
-    const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
+    const skipMinutes = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
     if (simCurrentMinuteIndex > (simTradingStartMinuteIndex || 0)) {
         simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex || 0, simCurrentMinuteIndex - skipMinutes);
         rebuildBarsForCurrentTimeframe();
@@ -1766,14 +1766,27 @@ function gotoDateTime() {
         targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
     }
 
-    const targetTimestamp = parseETDateTime(targetDateStr, targetTime);
+    // Check if the requested date has any trading bars at all
+    const dayStart = parseETDateTime(targetDateStr, '00:00');
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+    const hasBarsOnDay = simMinuteBarsCache.some(b => b.timestamp >= dayStart && b.timestamp < dayEnd);
+
+    let resolvedDateStr = targetDateStr;
+    if (!hasBarsOnDay) {
+        // Weekend or holiday — find the next trading day and land at the same requested time
+        const nextBar = simMinuteBarsCache.find(b => b.timestamp >= dayEnd);
+        if (!nextBar) { appAlert(`Market not open on ${gotoDateValue || targetDateStr} and no later data available`); return; }
+        resolvedDateStr = new Date(nextBar.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    }
+
+    const resolvedTargetTs = parseETDateTime(resolvedDateStr, targetTime);
     let targetMinuteIndex = -1;
     for (let i = simTradingStartMinuteIndex; i < simMinuteBarsCache.length; i++) {
-        if (simMinuteBarsCache[i].timestamp >= targetTimestamp) { targetMinuteIndex = i + 1; break; }
+        if (simMinuteBarsCache[i].timestamp >= resolvedTargetTs) { targetMinuteIndex = i + 1; break; }
     }
 
     if (targetMinuteIndex === -1) {
-        if (simMinuteBarsCache.length > 0 && simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp < targetTimestamp) {
+        if (simMinuteBarsCache.length > 0 && simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp < resolvedTargetTs) {
             targetMinuteIndex = simMinuteBarsCache.length;
         } else { appAlert('Date/time not found in the available data range'); return; }
     }
@@ -2246,7 +2259,7 @@ function updateSimLegParams(legIndex, method) {
     switch (method) {
         case 'exact_strike':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
-                <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="633" step="1" style="${inputStyle} width:65px;"></div>
+                <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="" step="1" style="${inputStyle} width:65px;"></div>
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down, Exactly = fail if not found.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
@@ -2475,9 +2488,6 @@ async function openOptionChainModal(legIndex) {
                 style="cursor:pointer;background:${itmBg};border-bottom:1px solid #f0f0f0;"
                 onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='${itmBg}'">
                 <td style="padding:7px 12px;font-size:12px;color:#191919;font-weight:${row.itm?'700':'400'};">${row.strike}</td>
-                <td style="padding:7px 8px;font-size:11px;color:#6a6d78;text-align:right;">${row.bid.toFixed(2)}</td>
-                <td style="padding:7px 8px;font-size:12px;color:#191919;text-align:right;font-weight:600;">${row.mid.toFixed(2)}</td>
-                <td style="padding:7px 12px;font-size:11px;color:#6a6d78;text-align:right;">${row.ask.toFixed(2)}</td>
                 <td style="padding:7px 12px;text-align:center;">
                     <span style="padding:2px 5px;border-radius:3px;font-size:10px;background:${row.itm?'#dbeafe':'#f3f4f6'};color:${row.itm?'#1d4ed8':'#6b7280'};">${row.itm?'ITM':'OTM'}</span>
                 </td>
@@ -2486,15 +2496,12 @@ async function openOptionChainModal(legIndex) {
 
         document.getElementById('chainModalBody').innerHTML = `
             <div style="font-size:10px;color:#9ca3af;padding:6px 12px;border-bottom:1px solid #f0f0f0;">
-                Theoretical prices derived from market-anchored IV. Click a row to select that strike.
+                Theoretical strikes derived from market-anchored IV. Click a row to select that strike.
             </div>
             <table style="width:100%;border-collapse:collapse;">
                 <thead><tr style="background:#f8f9fa;border-bottom:2px solid #e8eaed;position:sticky;top:0;">
                     <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:left;font-weight:600;">STRIKE</th>
-                    <th style="padding:7px 8px;font-size:10px;color:#6a6d78;text-align:right;font-weight:600;">BID</th>
-                    <th style="padding:7px 8px;font-size:10px;color:#6a6d78;text-align:right;font-weight:600;">MID</th>
-                    <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:right;font-weight:600;">ASK</th>
-                    <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:center;font-weight:600;">MONO</th>
+                    <th style="padding:7px 12px;font-size:10px;color:#6a6d78;text-align:center;font-weight:600;">MONEYNESS</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table>`;
@@ -2966,10 +2973,8 @@ function updateOptionsPositionsCard() {
         const creditDebitStr = `$${entryPremium.toFixed(2)}`;
 
         const legsHtml = pos.legs.map(leg => {
-            const optionBar = findClosestOptionBar(leg.optionBars, currentTimestamp);
-            const currentPrice = optionBar ? (optionBar.vwap || optionBar.close) : leg.entryPrice;
             return `<span style="background: ${leg.position === 'long' ? '#2962ff' : '#ff9800'}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px; margin-right: 3px;">
-                ${leg.position.charAt(0).toUpperCase()} ${leg.type} $${leg.strike} @ $${currentPrice.toFixed(2)}</span>`;
+                ${leg.position.charAt(0).toUpperCase()} ${leg.type} $${leg.strike} @ $${leg.entryPrice.toFixed(2)}</span>`;
         }).join('');
 
         html += `
@@ -3041,85 +3046,79 @@ function validateLegDirections(strategy, legConfigs) {
 
 const SIM_STRATEGY_PRESETS = {
     'Short Iron Condor': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_leg', ref: 1, direction: 'below', value: 1 },
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_leg', ref: 2, direction: 'above', value: 1 }
-        ]},
-        { name: '$2 wide', legs: [
-            { method: 'dollar_leg', ref: 1, direction: 'below', value: 2 },
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_leg', ref: 2, direction: 'above', value: 2 }
-        ]},
         { name: '$5 wide', legs: [
             { method: 'dollar_leg', ref: 1, direction: 'below', value: 5 },
             { method: 'dollar_underlying', direction: 'below', value: 2 },
             { method: 'dollar_underlying', direction: 'above', value: 2 },
             { method: 'dollar_leg', ref: 2, direction: 'above', value: 5 }
+        ]},
+        { name: '$10 wide', legs: [
+            { method: 'dollar_leg', ref: 1, direction: 'below', value: 10 },
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 2, direction: 'above', value: 10 }
         ]}
     ],
     'Short Iron Butterfly': [
-        { name: '$1 wings', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
+        { name: '$5 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
             { method: 'dollar_underlying', direction: 'below', value: 0 },
             { method: 'dollar_underlying', direction: 'above', value: 0 },
-            { method: 'dollar_underlying', direction: 'above', value: 1 }
+            { method: 'dollar_underlying', direction: 'above', value: 5 }
         ]},
-        { name: '$2 wings', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 2 },
+        { name: '$10 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 10 },
             { method: 'dollar_underlying', direction: 'below', value: 0 },
             { method: 'dollar_underlying', direction: 'above', value: 0 },
-            { method: 'dollar_underlying', direction: 'above', value: 2 }
+            { method: 'dollar_underlying', direction: 'above', value: 10 }
         ]}
     ],
     'Long Iron Condor': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'above', value: 1 },
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_leg', ref: 2, direction: 'below', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 },
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 2, direction: 'below', value: 5 }
         ]}
     ],
     'Long Iron Butterfly': [
-        { name: '$1 wings', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
+        { name: '$5 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
             { method: 'dollar_underlying', direction: 'below', value: 0 },
             { method: 'dollar_underlying', direction: 'above', value: 0 },
-            { method: 'dollar_underlying', direction: 'above', value: 1 }
+            { method: 'dollar_underlying', direction: 'above', value: 5 }
         ]}
     ],
     'Short Put Spread': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'below', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 5 }
         ]},
-        { name: '$2 wide', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'below', value: 2 }
+        { name: '$10 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 10 }
         ]}
     ],
     'Short Call Spread': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'above', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 }
         ]},
-        { name: '$2 wide', legs: [
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'above', value: 2 }
+        { name: '$10 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 10 }
         ]}
     ],
     'Long Call Spread': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'above', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 }
         ]}
     ],
     'Long Put Spread': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'below', value: 1 },
-            { method: 'dollar_leg', ref: 0, direction: 'below', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 5 }
         ]}
     ],
     'Long Straddle': [
@@ -3135,15 +3134,15 @@ const SIM_STRATEGY_PRESETS = {
         ]}
     ],
     'Long Strangle': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_underlying', direction: 'below', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 5 }
         ]}
     ],
     'Short Strangle': [
-        { name: '$1 wide', legs: [
-            { method: 'dollar_underlying', direction: 'above', value: 1 },
-            { method: 'dollar_underlying', direction: 'below', value: 1 }
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 5 }
         ]}
     ]
 };
@@ -3375,7 +3374,7 @@ function refreshPayoffModal() {
 }
 
 function payoffModalAdvanceBar(direction) {
-    const skipMinutes = parseInt(document.getElementById('simSkipBars')?.value) || 1;
+    const skipMinutes = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
     if (direction > 0 && simCurrentMinuteIndex < simMinuteBarsCache.length) {
         simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
     } else if (direction < 0 && simCurrentMinuteIndex > simTradingStartMinuteIndex) {
