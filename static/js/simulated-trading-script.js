@@ -2456,7 +2456,11 @@ async function openOptionChainModal(legIndex) {
                 start_date: startDateStr
             })
         });
-        const data = await resp.json();
+        const rawChain = await resp.text();
+        let data;
+        try { data = JSON.parse(rawChain); } catch (_) {
+            throw new Error(`Server error ${resp.status}: ${rawChain.slice(0, 120)}`);
+        }
         if (!data.success) throw new Error(data.error || 'Chain fetch failed');
 
         const chain = data.chain || [];
@@ -2710,8 +2714,12 @@ async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, 
         credentials: 'include',
         body: JSON.stringify(requestBody)
     });
-    if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed to fetch option data'); }
-    const data = await response.json();
+    const rawText = await response.text();
+    let data;
+    try { data = JSON.parse(rawText); } catch (_) {
+        throw new Error(`Server error ${response.status}: ${rawText.slice(0, 120)}`);
+    }
+    if (!response.ok) throw new Error(data.error || `Server error ${response.status}`);
     return { bars: data.bars || [], actualStrike: data.strike, optionSymbol: data.option_symbol, optionType: data.option_type };
 }
 

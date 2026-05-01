@@ -6450,7 +6450,7 @@ def round_strike_for_symbol(target_strike, symbol, fallback='closest'):
 def get_simulated_trading_option_bars():
     """Fetch OHLCV bars for an option contract in simulated trading"""
     try:
-        data = request.json
+        data = request.json or {}
         symbol = data.get('symbol', '').upper().strip()
         option_type = data.get('option_type', 'C').upper()
         expiration_date = data.get('expiration_date')
@@ -6736,7 +6736,7 @@ def get_sim_option_chain():
     Requires one Polygon call (ATM reference for IV). All other strikes are priced analytically.
     """
     try:
-        data = request.json
+        data = request.json or {}
         symbol = data.get('symbol', '').upper().strip()
         expiration_date = data.get('expiration_date')
         option_type = data.get('option_type', 'P').upper()
