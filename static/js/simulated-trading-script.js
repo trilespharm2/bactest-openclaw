@@ -2209,7 +2209,6 @@ function buildSimLegConfiguration() {
                         <option value="pct_underlying" selected>% from Underlying</option>
                         <option value="dollar_underlying">$ from Underlying</option>
                         <option value="exact_strike">Exact Strike Price</option>
-                        <option value="chain">Select from Chain</option>
                         <option value="delta">Delta-Based</option>
                         <option value="mid_price">Mid Price Range</option>
                         ${legs.length > 1 ? `<option value="dollar_leg">$ ${dirLabel} Leg</option>` : ''}
