@@ -2063,9 +2063,16 @@ function updateTradingDisplay() {
     }
 
     if (unrealizedEl) {
-        if (simOpenPosition && simVisibleBars.length > 0) {
+        let unrealizedPnl = 0;
+        if (mode === 'stock' && simOpenPosition && simVisibleBars.length > 0) {
             const currentBar = simVisibleBars[simVisibleBars.length - 1];
-            const unrealizedPnl = calculatePositionPnl(simOpenPosition, currentBar.close);
+            unrealizedPnl = calculatePositionPnl(simOpenPosition, currentBar.close);
+        } else if (mode === 'options' && simOpenOptionPositions.length > 0) {
+            const currentMinuteBar = simMinuteBarsCache[simCurrentMinuteIndex - 1];
+            const currentTimestamp = currentMinuteBar ? currentMinuteBar.timestamp : Date.now();
+            for (const pos of simOpenOptionPositions) unrealizedPnl += calculateOptionPositionPnl(pos, currentTimestamp);
+        }
+        if (unrealizedPnl !== 0) {
             const isPositive = unrealizedPnl >= 0;
             unrealizedEl.textContent = `${isPositive ? '+' : ''}$${unrealizedPnl.toFixed(2)}`;
             unrealizedEl.style.color = isPositive ? '#089981' : '#f23645';
@@ -2814,6 +2821,11 @@ function updateOptionsPnlDisplay() {
         optUnrealizedEl.style.color = isPositive ? '#089981' : '#f23645';
     }
     updateOptionsPositionsCard();
+    // Keep the top header (Balance / Realized / Unrealized) synchronized with
+    // option close events. Without this call, closeOptionPosition would only
+    // refresh the bottom panel and leave the header stale, causing the two
+    // Realized values to disagree after any option trade closes.
+    updateTradingDisplay();
 }
 
 function findClosestOptionBar(optionBars, targetTimestamp) {
