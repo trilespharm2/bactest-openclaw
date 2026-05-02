@@ -3225,10 +3225,30 @@ function showPayoffModal(positionId) {
     const allStrikes = [...strikes].sort((a, b) => a - b);
     const minStrike = allStrikes[0];
     const maxStrike = allStrikes[allStrikes.length - 1];
-    const range = Math.max(maxStrike - minStrike, 10);
-    const priceMin = minStrike - range * 0.6;
-    const priceMax = maxStrike + range * 0.6;
+    // Anchor the chart range to the underlying price as well as the strikes.
+    // Using just (maxStrike - minStrike) collapses to ~$10 for single-leg or
+    // single-strike positions, which makes a long-call payoff look bounded
+    // and triggers the magnitude-based "Unlimited" check incorrectly.
+    const underlyingAnchor = pos.underlyingAtEntry || allStrikes[0];
+    const strikeSpan = maxStrike - minStrike;
+    const range = Math.max(strikeSpan, underlyingAnchor * 0.05, 10);
+    const padFactor = strikeSpan > 0 ? 0.6 : 1.5;
+    const priceMin = Math.max(0.01, Math.min(minStrike, underlyingAnchor) - range * padFactor);
+    const priceMax = Math.max(maxStrike, underlyingAnchor) + range * padFactor;
     const step = (priceMax - priceMin) / 300;
+
+    // Slope-based "unlimited" detection: as price → ∞ only call legs have
+    // non-zero slope, and as price → 0 only put legs do. A truly unbounded
+    // profit/loss must come from a net long/short call position. Net put
+    // exposure is large but bounded (capped at price = 0), so we display the
+    // computed value rather than calling it Unlimited.
+    let netCallContracts = 0;
+    let netPutContracts = 0;
+    pos.legs.forEach(leg => {
+        const sign = leg.position === 'long' ? 1 : -1;
+        if (leg.type === 'C') netCallContracts += sign;
+        else netPutContracts += sign;
+    });
 
     const payoffPoints = [];
     let maxProfit = -Infinity;
@@ -3288,8 +3308,10 @@ function showPayoffModal(positionId) {
         }
     }
 
-    const isMaxProfitUnlimited = maxProfit > range * multiplier * quantity * 3;
-    const isMaxLossUnlimited = Math.abs(maxLoss) > range * multiplier * quantity * 3;
+    // Calendar/diagonal payoffs are evaluated at the near expiration with
+    // Black-Scholes pricing on far legs, so they are always bounded.
+    const isMaxProfitUnlimited = !isCalDiag && netCallContracts > 0;
+    const isMaxLossUnlimited = !isCalDiag && netCallContracts < 0;
 
     statsDiv.innerHTML = `
         <div style="text-align:center;">
