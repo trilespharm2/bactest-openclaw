@@ -693,7 +693,15 @@ async function loadPageContent(pageName) {
         }
     }
     
-    // Show target page
+    // Show target page — but only if init didn't redirect us elsewhere.
+    // Some init functions (e.g. initSimTradingActive when there's no pending session)
+    // call navigateToPage(...) themselves. Without this guard, the outer call would
+    // re-activate its target after the inner navigation already activated a different
+    // page, leaving BOTH pages with the .active class visible at the same time.
+    if (currentPage !== pageName) {
+        console.log('Skipping page activation — navigation redirected from', pageName, 'to', currentPage);
+        return;
+    }
     targetPage.classList.add('active');
     console.log('Page now visible:', pageName);
     
