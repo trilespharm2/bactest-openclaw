@@ -2629,6 +2629,12 @@ async function executeOptionTrade() {
             const legDte = (legConfig.dte !== undefined) ? legConfig.dte : globalDte;
             const legExpDate = new Date(entryDate);
             legExpDate.setDate(legExpDate.getDate() + legDte);
+            // Roll weekend expirations forward to the next weekday — option contracts
+            // do not expire on Saturdays or Sundays, so a DTE that lands on a weekend
+            // would otherwise return zero bars from Polygon.
+            while (legExpDate.getDay() === 0 || legExpDate.getDay() === 6) {
+                legExpDate.setDate(legExpDate.getDate() + 1);
+            }
             const legExpDateStr = legExpDate.toISOString().split('T')[0];
             legExpirations.push(legExpDateStr);
 
