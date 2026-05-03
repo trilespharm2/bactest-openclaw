@@ -2172,6 +2172,26 @@ def get_cached_underlying_close(daily_closes: Dict[str, float], bars_by_date: Di
     
     return None
 
+
+def get_underlying_price_at_1615(bars_by_date: Dict, exp_date: datetime) -> Optional[float]:
+    """Return the underlying price at the 16:15 expiration for equity options.
+
+    Equity options (SPY/QQQ/AAPL/etc.) keep trading in extended hours until 4:15 PM
+    ET on expiration day, and the official P&L reflects the underlying at that
+    time. Find the last 1-minute (or finer) underlying bar at or before 16:15 on
+    the expiration date.
+    """
+    exp_date_str = exp_date.strftime("%Y-%m-%d")
+    bars = bars_by_date.get(exp_date_str, [])
+    if not bars:
+        return None
+    # bars[*]['time'] may be 'HH:MM' or 'HH:MM:SS'; first 5 chars give HH:MM.
+    eligible = [b for b in bars if b.get('time', '')[:5] <= '16:15']
+    if not eligible:
+        return None
+    last_bar = max(eligible, key=lambda x: x['time'])
+    return last_bar.get('close')
+
 # ==================== USER INPUT ====================
 
 def get_user_config() -> Dict[str, Any]:
@@ -4360,9 +4380,13 @@ def run_backtest(config: Dict, client: RESTClient):
 
             all_leg_bars = []
             for leg in legs_info:
-                leg_bars = option_cache_1min[leg['symbol']].get(date_str, [])
+                # Defensive .get() — when an option contract has no Polygon data the symbol
+                # never gets added to the cache, so a bare dict access would raise KeyError
+                # and silently lose the trade. Treat a missing symbol the same as empty bars
+                # so the existing missing-bar handler (synthetic / strike-sweep) can run.
+                leg_bars = option_cache_1min.get(leg['symbol'], {}).get(date_str, [])
                 if not leg_bars:
-                    print(f"  No bars for {leg['symbol']} on entry date")
+                    print(f"  No bars for {leg['symbol']} ({leg['name']} @ {leg['strike']}) on entry date — leg will be filled by synthetic/strike-sweep fallback")
                     break
                 all_leg_bars.append(leg_bars)
 
@@ -4934,15 +4958,25 @@ def run_backtest(config: Dict, client: RESTClient):
                 mon_date_str = monitoring_date.strftime("%Y-%m-%d")
                 is_entry_day = (mon_date_str == date_str)
             
-                # Get detection bars for all legs
+                # Get detection bars for all legs.
+                # Use .get() defensively: if an option contract has no data on Polygon
+                # at all, its symbol may never have been added to the cache. A bare
+                # `option_cache_detection[symbol]` access would raise KeyError and the
+                # outer try/except would record the symbol string as the failure reason,
+                # silently dropping the trade. Treat missing symbols the same as empty
+                # bars so the loop continues to the expiration-pricing fallback.
                 leg_bars_list = []
+                _missing_leg = None
                 for leg_info in legs_info:
-                    leg_bars = option_cache_detection[leg_info['symbol']].get(mon_date_str, [])
+                    leg_bars = option_cache_detection.get(leg_info['symbol'], {}).get(mon_date_str, [])
                     if not leg_bars:
+                        _missing_leg = leg_info
                         break
                     leg_bars_list.append(leg_bars)
             
                 if len(leg_bars_list) != len(legs_info):
+                    if _missing_leg is not None and is_entry_day:
+                        print(f"  ⚠ {_missing_leg['name']} {_missing_leg['symbol']} has no monitoring bars on {mon_date_str} — relying on expiration pricing")
                     continue
             
                 # Align bars
@@ -5117,7 +5151,17 @@ def run_backtest(config: Dict, client: RESTClient):
                     raise ValueError(
                         f"No underlying expiration close available for {config['symbol']} on {monitoring_exp.strftime('%Y-%m-%d')}"
                     )
-            
+
+                # For equity options, the settlement reference is the underlying price
+                # at 16:15 ET (extended-hours close), not the 16:00 regular-session
+                # close. Look up the last underlying 1-min bar at or before 16:15 on
+                # the expiration date and use it for intrinsic-value pricing. Fall
+                # back to the daily close when no intraday bar is available.
+                if not is_index:
+                    _u1615 = get_underlying_price_at_1615(underlying_bars_1min, monitoring_exp)
+                    if _u1615 is not None:
+                        expiration_underlying_price = _u1615
+
                 # Set exit underlying price to expiration price
                 exit_underlying_price = expiration_underlying_price
             
@@ -5130,30 +5174,20 @@ def run_backtest(config: Dict, client: RESTClient):
                     for i, leg in enumerate(legs_info):
                         leg_specific_exp = leg_exp_list[i] if i < len(leg_exp_list) else monitoring_exp
                         if leg_specific_exp <= monitoring_exp:
-                            # Near-term leg: expired
-                            if not is_index:
-                                # Stock options: use last recorded market price at 16:15
-                                leg_bars = option_cache_1min.get(leg['symbol'], {}).get(mon_exp_str, [])
-                                if leg_bars:
-                                    last_bar = max(leg_bars, key=lambda x: x['time'])
-                                    last_price = last_bar.get('vw', last_bar['close'])
-                                    final_leg_prices.append(last_price)
-                                    print(f"    {leg['name']} (near leg, stock): last market price = {last_price:.4f} @ {last_bar['time']}")
-                                else:
-                                    # Fallback to intrinsic if no market data
-                                    if leg['type'] == 'C':
-                                        intrinsic = max(0, expiration_underlying_price - leg['strike'])
-                                    else:
-                                        intrinsic = max(0, leg['strike'] - expiration_underlying_price)
-                                    final_leg_prices.append(intrinsic)
-                                    print(f"    {leg['name']} (near leg, stock): no market data, fallback intrinsic = {intrinsic:.4f}")
+                            # Near-term leg: expired.
+                            # Both equity and index options are settled at intrinsic
+                            # value. For equity options the reference is the underlying
+                            # at 16:15 (already applied to expiration_underlying_price
+                            # above); for index options it is the 16:00 close. Using
+                            # intrinsic avoids spurious P&L from illiquid late prints
+                            # on OTM contracts that should expire worthless.
+                            if leg['type'] == 'C':
+                                intrinsic = max(0, expiration_underlying_price - leg['strike'])
                             else:
-                                # Index options: use intrinsic value from 16:00 close
-                                if leg['type'] == 'C':
-                                    intrinsic = max(0, expiration_underlying_price - leg['strike'])
-                                else:
-                                    intrinsic = max(0, leg['strike'] - expiration_underlying_price)
-                                final_leg_prices.append(intrinsic)
+                                intrinsic = max(0, leg['strike'] - expiration_underlying_price)
+                            final_leg_prices.append(intrinsic)
+                            _ref = "16:15" if not is_index else "16:00"
+                            print(f"    {leg['name']} (near leg) @ {leg['strike']}: intrinsic from underlying {_ref} = {intrinsic:.4f}")
                         else:
                             # Far-term leg: still has time value — use actual last market price.
                             # This reflects real-world execution: the leg is sold at the
@@ -5176,38 +5210,19 @@ def run_backtest(config: Dict, client: RESTClient):
                     final_premium = sum(final_leg_prices[i] if legs_info[i]['position'] == 'short' else -final_leg_prices[i]
                                        for i in range(len(legs_info)))
                 else:
-                    if is_index:
-                        # Index options: intrinsic value from 16:00 underlying close
-                        final_premium, final_leg_prices = calculate_expiration_values(
-                            legs_info, expiration_underlying_price
-                        )
-                    else:
-                        # Stock options: last recorded market price of each option contract at 16:15
-                        exp_date_key = monitoring_exp.strftime("%Y-%m-%d")
-                        final_leg_prices = []
-                        for leg in legs_info:
-                            leg_bars = option_cache_1min.get(leg['symbol'], {}).get(exp_date_key, [])
-                            if leg_bars:
-                                last_bar = max(leg_bars, key=lambda x: x['time'])
-                                last_price = last_bar.get('vw', last_bar['close'])
-                                final_leg_prices.append(last_price)
-                                print(f"    {leg['name']} @ {leg['strike']}: Last market price = {last_price:.4f} @ {last_bar['time']}")
-                            else:
-                                # Fallback to intrinsic when no market data exists for this contract
-                                if leg['type'] == 'C':
-                                    intrinsic = max(0, expiration_underlying_price - leg['strike'])
-                                else:
-                                    intrinsic = max(0, leg['strike'] - expiration_underlying_price)
-                                final_leg_prices.append(intrinsic)
-                                print(f"    {leg['name']} @ {leg['strike']}: No market data, fallback intrinsic = {intrinsic:.4f}")
-                        # Compute net premium from actual last prices
-                        net_prem = 0
-                        for i, leg_info in enumerate(legs_info):
-                            if leg_info['position'] == 'short':
-                                net_prem += final_leg_prices[i]
-                            else:
-                                net_prem -= final_leg_prices[i]
-                        final_premium = net_prem
+                    # Both equity and index options settle at intrinsic value at
+                    # expiration. The only difference is the underlying reference
+                    # time (16:15 vs 16:00), which has already been applied to
+                    # expiration_underlying_price above. Pricing equity options
+                    # off the option contract's last market print produced spurious
+                    # P&L from illiquid late-session prints on OTM contracts that
+                    # should expire worthless — see flag 2 from the T6 review.
+                    final_premium, final_leg_prices = calculate_expiration_values(
+                        legs_info, expiration_underlying_price
+                    )
+                    _ref = "16:15" if not is_index else "16:00"
+                    for i, leg in enumerate(legs_info):
+                        print(f"    {leg['name']} @ {leg['strike']}: intrinsic from underlying {_ref} = {final_leg_prices[i]:.4f}")
             
                 # Log values for each leg
                 _exit_display = -final_premium if has_per_leg_dte else final_premium
