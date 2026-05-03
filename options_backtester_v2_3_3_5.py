@@ -437,6 +437,29 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
             elif operator == '><':
                 # Between - not fully implemented
                 met = False
+            elif operator in ('cross_up', 'cross_down', 'cross_either'):
+                # Cross: need previous candle's values (1 minute back)
+                prev_ts = entry_timestamp - 60000
+                prev_left = get_indicator_value_for_backtest(
+                    client, underlying_sym, metric, left, trade_date, prev_ts
+                )
+                if comparator == 'value':
+                    prev_right = right_value  # fixed value never changes
+                else:
+                    _rm = comparator.replace('compare_', '')
+                    _rp = condition.get('right', {})
+                    prev_right = get_indicator_value_for_backtest(
+                        client, underlying_sym, _rm, _rp, trade_date, prev_ts
+                    )
+                if prev_left is not None and prev_right is not None:
+                    cross_up   = prev_left < prev_right and left_value >= right_value
+                    cross_down = prev_left > prev_right and left_value <= right_value
+                    if operator == 'cross_up':
+                        met = cross_up
+                    elif operator == 'cross_down':
+                        met = cross_down
+                    else:
+                        met = cross_up or cross_down
             
             if not met:
                 print(f"  [Condition {idx+1}] FAILED: {metric} {left_value:.2f} {operator} {right_value:.2f}")

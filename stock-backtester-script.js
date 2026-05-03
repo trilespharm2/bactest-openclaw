@@ -280,6 +280,30 @@ const STOCK_METRICS = [
     { value: 'macd', label: 'MACD' }
 ];
 
+function setCrossOperators(selectId, include) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    var crossVals = ['cross_up', 'cross_down', 'cross_either'];
+    crossVals.forEach(function(v) {
+        var ex = sel.querySelector('option[value="' + v + '"]');
+        if (ex) ex.remove();
+    });
+    if (include) {
+        [
+            ['cross_up',     'Cross Up ↑ (was below, now above)'],
+            ['cross_down',   'Cross Down ↓ (was above, now below)'],
+            ['cross_either', 'Cross (Either Direction)']
+        ].forEach(function(pair) {
+            var opt = document.createElement('option');
+            opt.value = pair[0];
+            opt.textContent = pair[1];
+            sel.appendChild(opt);
+        });
+    } else {
+        if (crossVals.indexOf(sel.value) !== -1) sel.value = '>';
+    }
+}
+
 const STOCK_SERIES_TYPES = [
     { value: 'open', label: 'Open' },
     { value: 'high', label: 'High' },
@@ -486,6 +510,7 @@ function updateStockConditionFields(n) {
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        setCrossOperators('operator-' + n, false);
     } else if (val === 'price') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -494,6 +519,7 @@ function updateStockConditionFields(n) {
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        setCrossOperators('operator-' + n, false);
     } else if (val === 'sma' || val === 'ema') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -503,6 +529,7 @@ function updateStockConditionFields(n) {
         if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        setCrossOperators('operator-' + n, true);
     } else if (val === 'rsi') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -512,6 +539,7 @@ function updateStockConditionFields(n) {
         if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
         updateStockComparatorOptions(n, ['value']);
+        setCrossOperators('operator-' + n, false);
     } else if (val === 'volume') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -519,6 +547,7 @@ function updateStockConditionFields(n) {
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
         updateStockComparatorOptions(n, ['value', 'compare_volume']);
+        setCrossOperators('operator-' + n, false);
     } else if (val === 'macd') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -527,6 +556,7 @@ function updateStockConditionFields(n) {
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
         updateStockComparatorOptions(n, ['value']);
+        setCrossOperators('operator-' + n, false);
     }
     updateThresholdUnitOptions(n, val, false);
     updateStockRightSide(n);
@@ -583,8 +613,9 @@ function updateStockRightSide(n) {
 
         var thresholdUnit = document.getElementById('threshold-unit-' + n);
         var thresholdValue = document.getElementById('threshold-value-' + n);
-        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
-        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
+        var isCross = operator && ['cross_up', 'cross_down', 'cross_either'].indexOf(operator.value) !== -1;
+        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
+        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
     }
     updateConditionSummary(n, false);
 }
@@ -856,6 +887,7 @@ function updateExitConditionFields(n) {
     var seriesLabel = document.getElementById('exit-left-series-label-' + n);
     if (seriesLabel) seriesLabel.textContent = (isPrice || isCurrentPrice) ? 'Price Type' : 'Series Type';
 
+    setCrossOperators('exit-operator-' + n, ['sma', 'ema'].indexOf(metric) !== -1);
     updateExitComparatorOptions(n);
 
     if (isCurrentPrice) {
@@ -913,8 +945,9 @@ function updateExitRightSide(n) {
 
         var thresholdUnit = document.getElementById('exit-threshold-unit-' + n);
         var thresholdValue = document.getElementById('exit-threshold-value-' + n);
-        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
-        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
+        var isCross = ['cross_up', 'cross_down', 'cross_either'].indexOf(operator) !== -1;
+        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
+        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
     }
     updateConditionSummary(n, true);
 }
@@ -976,7 +1009,10 @@ function buildConditionDesc(n, isExit) {
 
     var left = sideDesc('left');
     var leftDesc = metricDesc(metric, left);
-    var opSym = { '>': '>', '<': '<', '>=': '≥', '<=': '≤', '=': '=' }[operator] || operator;
+    var opSym = {
+        '>': '>', '<': '<', '>=': '≥', '<=': '≤', '=': '=',
+        'cross_up': 'crosses above', 'cross_down': 'crosses below', 'cross_either': 'crosses'
+    }[operator] || operator;
 
     if (comparator === 'value') {
         var fixedVal = (document.getElementById(p + 'compare-value-' + n) || {}).value;

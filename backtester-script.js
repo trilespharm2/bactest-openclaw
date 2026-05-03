@@ -57,6 +57,32 @@ const OPERATORS = [
     { value: '><', label: 'Between (><)' }
 ];
 
+const CROSS_OPERATORS = [
+    { value: 'cross_up',     label: 'Cross Up ↑ (was below, now above)' },
+    { value: 'cross_down',   label: 'Cross Down ↓ (was above, now below)' },
+    { value: 'cross_either', label: 'Cross (Either Direction)' }
+];
+
+function setCrossOperators(selectId, include) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    var crossVals = ['cross_up', 'cross_down', 'cross_either'];
+    crossVals.forEach(function(v) {
+        var ex = sel.querySelector('option[value="' + v + '"]');
+        if (ex) ex.remove();
+    });
+    if (include) {
+        CROSS_OPERATORS.forEach(function(o) {
+            var opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.label;
+            sel.appendChild(opt);
+        });
+    } else {
+        if (crossVals.indexOf(sel.value) !== -1) sel.value = '>';
+    }
+}
+
 const METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
@@ -347,6 +373,7 @@ function updateOptExitConditionFields(n) {
     var seriesLabel = document.getElementById('optExitLeftSeriesLabel' + n);
     if (seriesLabel) seriesLabel.textContent = (metric === 'price' || isCurrentPrice) ? 'Price Type' : 'Series Type';
 
+    setCrossOperators('optExitOperator' + n, isIndicator || isVwap);
     updateOptExitComparatorOptions(n);
     updateOptThresholdUnitOptions(n, metric, true);
 }
@@ -416,8 +443,9 @@ function updateOptExitRightSide(n) {
 
         var thresholdUnit = document.getElementById('optExitThresholdUnit' + n);
         var thresholdValue = document.getElementById('optExitThresholdValue' + n);
-        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = isEquals ? 'none' : '';
-        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = isEquals ? 'none' : '';
+        const isCross = ['cross_up', 'cross_down', 'cross_either'].indexOf(operator) !== -1;
+        if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
+        if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
     }
     updateOptConditionSummary(n, true);
 }
@@ -842,6 +870,7 @@ function updateConditionFields(conditionId) {
             if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
             if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            setCrossOperators('operator' + conditionId, false);
             break;
         case 'price':
             if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -851,6 +880,7 @@ function updateConditionFields(conditionId) {
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            setCrossOperators('operator' + conditionId, false);
             break;
 
         case 'vwap':
@@ -872,6 +902,7 @@ function updateConditionFields(conditionId) {
                 if (m) m.value = '1';
             })();
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            setCrossOperators('operator' + conditionId, true);
             break;
 
         case 'volume':
@@ -882,6 +913,7 @@ function updateConditionFields(conditionId) {
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
             updateComparatorOptions(conditionId, ['value', 'compare_volume']);
             updateOptThresholdUnitOptions(conditionId, 'volume', false);
+            setCrossOperators('operator' + conditionId, false);
             break;
             
         case 'sma':
@@ -904,6 +936,7 @@ function updateConditionFields(conditionId) {
                 if (m) m.value = '1';
             })();
             updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            setCrossOperators('operator' + conditionId, true);
             break;
             
         case 'rsi':
@@ -915,6 +948,7 @@ function updateConditionFields(conditionId) {
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
             updateComparatorOptions(conditionId, ['value', 'compare_rsi']);
+            setCrossOperators('operator' + conditionId, false);
             break;
             
         case 'macd':
@@ -929,6 +963,7 @@ function updateConditionFields(conditionId) {
             if (leftMacdSignalGroup) leftMacdSignalGroup.style.display = 'block';
             if (leftMacdComponentGroup) leftMacdComponentGroup.style.display = 'block';
             updateMacdComparatorOptions(conditionId);
+            setCrossOperators('operator' + conditionId, false);
             break;
     }
     
@@ -1077,8 +1112,9 @@ function updateRightSideVisibility(conditionId) {
         var thresholdValue = document.getElementById(`thresholdValue${conditionId}`);
         var threshUnitCol = thresholdUnit ? thresholdUnit.closest('.col-md-3') : null;
         var threshValCol = thresholdValue ? thresholdValue.closest('.col-md-3') : null;
-        if (threshUnitCol) threshUnitCol.style.display = isEquals ? 'none' : '';
-        if (threshValCol) threshValCol.style.display = isEquals ? 'none' : '';
+        const isCross = ['cross_up', 'cross_down', 'cross_either'].indexOf(operator) !== -1;
+        if (threshUnitCol) threshUnitCol.style.display = (isEquals || isCross) ? 'none' : '';
+        if (threshValCol) threshValCol.style.display = (isEquals || isCross) ? 'none' : '';
     }
     updateOptConditionSummary(conditionId, false);
 }
@@ -1249,22 +1285,27 @@ function buildOptConditionDesc(n, isExit) {
     }
 
     var leftDesc = sideDesc(metric, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe);
+    var opLabel = {
+        'cross_up': 'crosses above',
+        'cross_down': 'crosses below',
+        'cross_either': 'crosses'
+    }[operator] || operator;
 
     if (comparator === 'value') {
-        return leftDesc + ' ' + operator + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
+        return leftDesc + ' ' + opLabel + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
     var rightMetric = comparator.replace('compare_', '');
     var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
     var suffix = '';
-    if (threshVal !== 0) {
+    if (threshVal !== 0 && ['cross_up','cross_down','cross_either'].indexOf(operator) === -1) {
         if (threshUnit === 'percent') suffix = ' ±' + threshVal + '%';
         else if (threshUnit === 'dollar') suffix = ' ±$' + threshVal;
         else if (threshUnit === 'x') suffix = ' ×' + threshVal;
     }
 
-    return leftDesc + ' ' + operator + ' ' + rightDesc + suffix;
+    return leftDesc + ' ' + opLabel + ' ' + rightDesc + suffix;
 }
 
 function updateOptConditionSummary(n, isExit) {

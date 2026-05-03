@@ -985,6 +985,71 @@ class BacktesterEngine:
             threshold_value = float(condition.get('threshold_value', 0) or 0)
             operation = condition['operation']
 
+            # Cross operators — check prev vs current candle relationship
+            if operation in ('cross_up', 'cross_down', 'cross_either'):
+                prev_candle = None
+                if current_candle is not None:
+                    current_date = dates[current_date_index]
+                    if current_date in grouped_data.groups:
+                        day_data = grouped_data.get_group(current_date)
+                        try:
+                            loc = day_data.index.get_loc(current_candle.name)
+                            if loc > 0:
+                                prev_candle = day_data.iloc[loc - 1]
+                        except Exception:
+                            pass
+                if prev_candle is None:
+                    return False  # Can't detect a cross on the first candle of the day
+
+                # Compute previous left value
+                if left_type in self._INDICATOR_TYPES:
+                    prev_left = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, prev_candle)
+                elif left_type == 'volume':
+                    prev_left = self._get_volume(condition, 'left', grouped_data, dates, current_date_index, prev_candle)
+                else:
+                    # handles vwap, price columns, etc. — pass prev_candle as the "current" bar
+                    prev_left = self.get_candle_value(
+                        grouped_data, dates, current_date_index,
+                        condition.get('left_day', 0), condition.get('left_candle', 'min'),
+                        condition.get('left_multiplier', 1), left_type,
+                        current_candle=prev_candle
+                    )
+
+                # Compute previous right value
+                if right_type == 'value':
+                    prev_right = right_value  # fixed threshold never changes
+                elif right_type in self._INDICATOR_TYPES:
+                    prev_right = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, prev_candle)
+                elif right_type == 'volume':
+                    prev_right = self._get_volume(condition, 'right', grouped_data, dates, current_date_index, prev_candle)
+                else:
+                    prev_right = self.get_candle_value(
+                        grouped_data, dates, current_date_index,
+                        condition.get('right_day', 0), condition.get('right_candle', 'min'),
+                        condition.get('right_multiplier', 1), right_type,
+                        current_candle=prev_candle
+                    )
+
+                if prev_left is None or prev_right is None:
+                    return False
+                try:
+                    if pd.isna(prev_left) or pd.isna(prev_right):
+                        return False
+                except Exception:
+                    return False
+
+                was_below  = prev_left < prev_right
+                was_above  = prev_left > prev_right
+                now_above  = left_value >= right_value
+                now_below  = left_value <= right_value
+
+                if operation == 'cross_up':
+                    return was_below and now_above
+                elif operation == 'cross_down':
+                    return was_above and now_below
+                else:  # cross_either
+                    return (was_below and now_above) or (was_above and now_below)
+
             # x-Multiplier: left vs right * multiplier (direct comparison, no change %)
             if threshold_unit == 'x':
                 adjusted_right = right_value * threshold_value if threshold_value else right_value
