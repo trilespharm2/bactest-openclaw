@@ -2765,6 +2765,11 @@ function checkOptionTpSlThresholds() {
     const currentTimestamp = currentMinuteBar.timestamp;
     const positionsToClose = [];
 
+    // Index options settle at 16:00; equity/ETF options trade until 16:15
+    const SIM_INDEX_SYMS = new Set(['SPX', 'SPXW', 'NDX', 'RUT', 'XSP', 'VIX']);
+    const _simUndSym = ((document.getElementById('simSymbol') || {}).value || '').toUpperCase().trim();
+    const _expMins = SIM_INDEX_SYMS.has(_simUndSym) ? 960 : 975;  // 16:00 vs 16:15
+
     for (const pos of simOpenOptionPositions) {
         if (pos.status !== 'open') continue;
         const unrealizedPnl = calculateOptionPositionPnl(pos, currentTimestamp);
@@ -2793,7 +2798,7 @@ function checkOptionTpSlThresholds() {
         const currentDateStr = `${cY}-${cM}-${cD}`;
         const currentTimeET = currentDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
         const [etH, etMi] = currentTimeET.split(':').map(Number);
-        const isPastExpiration = currentDateStr > pos.expiration || (currentDateStr === pos.expiration && (etH * 60 + etMi) >= 960);
+        const isPastExpiration = currentDateStr > pos.expiration || (currentDateStr === pos.expiration && (etH * 60 + etMi) >= _expMins);
         if (isPastExpiration) positionsToClose.push({ pos, reason: 'Expiration' });
     }
 
@@ -2852,7 +2857,24 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
     let pnl = 0;
     const legExitPrices = [];
 
-    const underlyingAtClose = currentMinuteBar.close;
+    // For expiration closes: use the last bar of the expiration day at or after 16:00 ET
+    // (preferably 16:15). Scan backwards from the current bar to find it.
+    let underlyingAtClose;
+    if (reason === 'Expiration') {
+        const _expDate = pos.expiration;
+        let _lastExpBar = null;
+        for (let _bi = Math.min(simCurrentMinuteIndex - 1, simMinuteBarsCache.length - 1); _bi >= 0; _bi--) {
+            const _b = simMinuteBarsCache[_bi];
+            const _bDateET = new Date(_b.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+            const [_bM, _bD, _bY] = _bDateET.split('/');
+            const _bDateStr = `${_bY}-${_bM}-${_bD}`;
+            if (_bDateStr === _expDate) { _lastExpBar = _b; break; }
+            if (_bDateStr < _expDate) break;  // went past expiration day — no bar found
+        }
+        underlyingAtClose = (_lastExpBar || currentMinuteBar).close;
+    } else {
+        underlyingAtClose = currentMinuteBar.close;
+    }
 
     // For manual closes: find the common timestamp across all legs (latest time all legs
     // have simultaneous data) to prevent cross-leg timing artifacts causing pnl > credit.
