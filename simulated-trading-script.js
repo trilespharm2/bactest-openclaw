@@ -2255,7 +2255,7 @@ function updateSimLegParams(legIndex, method) {
         const dirRequired = getLegDirectionRequirement(strategy, legIdx);
         const defaultDir = dirRequired || 'below';
         return `<div style="display: flex; align-items: center; gap: 3px;">
-            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Dir${infoIcon('Direction: Where to place the strike relative to the reference price (above or below the underlying or another leg\'s strike).')}</label>
+            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Side${infoIcon('Side: Where to place the strike relative to the reference price (above or below the underlying or another leg\'s strike).')}</label>
             <select class="sim-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 70px;">
                 <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
                 <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
@@ -2266,7 +2266,7 @@ function updateSimLegParams(legIndex, method) {
         case 'exact_strike':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
                 <input type="number" class="sim-leg-strike" data-leg="${legIndex}" placeholder="" step="1" style="${inputStyle} width:65px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down, Exactly = fail if not found.')}</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Match${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down, Exactly = fail if not found.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option></select></div>`;
             break;
@@ -2274,7 +2274,7 @@ function updateSimLegParams(legIndex, method) {
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Match${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;
@@ -2282,7 +2282,7 @@ function updateSimLegParams(legIndex, method) {
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
                 <input type="number" class="sim-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
-                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">FB${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Match${infoIcon('Fallback: When the exact strike isn\'t available, how to pick the nearest one. Closest = nearest available, Higher = next strike up, Lower = next strike down.')}</label>
                 <select class="sim-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">
                 <option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option></select></div>`;
             break;

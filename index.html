@@ -2608,6 +2608,7 @@
                   </div>
 
                   <div id="simOptionsTradingSection" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e3eb;">
+                    <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8e98; margin-bottom: 6px;">Order</div>
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">DTE <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_optionDTE')" title="Days to expiration"></i>:</label>
@@ -2652,31 +2653,33 @@
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">TP <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" data-tip="Take Profit: Triggers a close order when the position's unrealized profit meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and TP = 35%, the position closes when unrealized profit reaches $350. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></label>
-                        <input type="number" class="sim-dark-input" id="simOptionTP" placeholder="" step="5" style="width: 55px;">
-                        <select class="sim-dark-select" id="simOptionTPType" style="width: 38px; font-size: 10px; padding: 2px;">
-                          <option value="pct" selected>%</option>
-                          <option value="dollar">$</option>
-                        </select>
+                        <div style="display: flex;">
+                          <input type="number" class="sim-dark-input" id="simOptionTP" placeholder="" step="5" style="width: 55px; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                          <select class="sim-dark-select" id="simOptionTPType" style="width: 38px; font-size: 10px; padding: 2px; border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                            <option value="pct" selected>%</option>
+                            <option value="dollar">$</option>
+                          </select>
+                        </div>
                       </div>
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">SL <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" data-tip="Stop Loss: Triggers a close order when the position's unrealized loss meets the threshold. In % mode, it's based on the total cost to open. E.g. if cost to open is $1,000 and SL = 200%, the position closes when unrealized loss reaches $2,000. In $ mode, it's a fixed dollar amount per contract." onclick="showSimInfoTip(this)"></i></label>
-                        <input type="number" class="sim-dark-input" id="simOptionSL" placeholder="" step="10" style="width: 55px;">
-                        <select class="sim-dark-select" id="simOptionSLType" style="width: 38px; font-size: 10px; padding: 2px;">
-                          <option value="pct">%</option>
-                          <option value="dollar" selected>$</option>
-                        </select>
+                        <div style="display: flex;">
+                          <input type="number" class="sim-dark-input" id="simOptionSL" placeholder="" step="10" style="width: 55px; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none;">
+                          <select class="sim-dark-select" id="simOptionSLType" style="width: 38px; font-size: 10px; padding: 2px; border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                            <option value="pct">%</option>
+                            <option value="dollar" selected>$</option>
+                          </select>
+                        </div>
                       </div>
                       <input type="hidden" id="simOptionDetectionBar" value="1">
                       <div style="display: flex; align-items: center; gap: 4px;">
                         <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Qty <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_optionQty')" title="Number of contracts"></i>:</label>
                         <input type="number" class="sim-dark-input" id="simOptionQuantity" value="10" min="1" style="width: 55px;">
                       </div>
-                      <button type="button" id="simOptionTradeBtn" style="background: #2962ff; color: white; border: none; padding: 6px 14px; border-radius: 4px; font-weight: 600; font-size: 12px; cursor: pointer;">
-                        <i class="fas fa-bolt me-1"></i>Trade
-                      </button>
                     </div>
 
-                    <div id="simLegConfigSection" class="mt-2" style="padding-top: 8px; border-top: 1px solid #e0e3eb;"></div>
+                    <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8e98; margin-top: 12px; margin-bottom: 6px;">Legs</div>
+                    <div id="simLegConfigSection"></div>
 
                     <div id="simLegPresetSection" class="mt-2" style="padding-top: 8px; border-top: 1px solid #e0e3eb; display: none;">
                       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -2685,16 +2688,13 @@
                       </div>
                     </div>
 
-                    <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e3eb;">
-                      <div>
-                        <span style="font-size: 11px; color: #6a6d78;">Options Realized:</span>
-                        <span id="simOptionsRealizedPnl" style="font-size: 13px; font-weight: 600; color: #6a6d78; margin-left: 4px;">$0.00</span>
-                      </div>
-                      <div>
-                        <span style="font-size: 11px; color: #6a6d78;">Options Unrealized:</span>
-                        <span id="simOptionsUnrealizedPnl" style="font-size: 13px; font-weight: 600; color: #6a6d78; margin-left: 4px;">$0.00</span>
-                      </div>
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e0e3eb; display: flex; justify-content: center;">
+                      <button type="button" id="simOptionTradeBtn" style="background: #2962ff; color: white; border: none; padding: 9px 32px; border-radius: 6px; font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 1px 3px rgba(41,98,255,0.25); min-width: 200px;">
+                        <i class="fas fa-bolt me-2"></i>Place Trade
+                      </button>
                     </div>
+                    <span id="simOptionsRealizedPnl" style="display:none;">$0.00</span>
+                    <span id="simOptionsUnrealizedPnl" style="display:none;">$0.00</span>
 
                     <div id="simOptionsPositionsCard" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e3eb;">
                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
