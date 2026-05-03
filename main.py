@@ -3329,6 +3329,13 @@ def start_backtest_async():
             try:
                 result = run_backtester_script_with_id(params, api_key, backtest_id)
                 running_backtests[backtest_id]['status'] = 'completed'
+                # Remove progress file so the row no longer shows a progress bar
+                try:
+                    _pp = os.path.join('backtest_results', f'progress_{backtest_id}.json')
+                    if os.path.exists(_pp):
+                        os.remove(_pp)
+                except Exception:
+                    pass
                 
                 # Update metadata with completed status
                 # Note: run_backtester_script_with_id already wrote full metadata with config + summary
@@ -3419,6 +3426,12 @@ def start_backtest_async():
                 print(f"Async backtest error: {e}")
                 running_backtests[backtest_id]['status'] = 'error'
                 running_backtests[backtest_id]['error'] = str(e)
+                try:
+                    _pp = os.path.join('backtest_results', f'progress_{backtest_id}.json')
+                    if os.path.exists(_pp):
+                        os.remove(_pp)
+                except Exception:
+                    pass
                 # Update metadata with error
                 try:
                     with open(metadata_path, 'r') as f:
@@ -3816,8 +3829,18 @@ def list_my_options_backtests():
                         result_data['summary'] = file_data.get('summary', {})
                 except:
                     pass
+            # For running backtests, surface live progress (current/total days) so
+            # the frontend can render an accurate progress bar instead of a spinner.
+            if result_data.get('status') == 'running':
+                progress_path = os.path.join('backtest_results', f'progress_{record.id}.json')
+                if os.path.exists(progress_path):
+                    try:
+                        with open(progress_path, 'r') as pf:
+                            result_data['progress'] = json.load(pf)
+                    except Exception:
+                        pass
             results.append(result_data)
-        
+
         return jsonify({'backtests': results})
         
     except Exception as e:
@@ -3848,8 +3871,16 @@ def list_my_stocks_backtests():
                         result_data['summary'] = file_data.get('summary', {})
                 except:
                     pass
+            if result_data.get('status') == 'running':
+                progress_path = os.path.join('backtest_results', f'progress_{record.id}.json')
+                if os.path.exists(progress_path):
+                    try:
+                        with open(progress_path, 'r') as pf:
+                            result_data['progress'] = json.load(pf)
+                    except Exception:
+                        pass
             results.append(result_data)
-        
+
         return jsonify({'backtests': results})
         
     except Exception as e:
@@ -4358,7 +4389,10 @@ def run_backtester_script_with_id(config, api_key, backtest_id):
         # Set API key in environment
         env = os_module.environ.copy()
         env['POLYGON_API_KEY'] = api_key
-        
+        # Pass backtest ID through env so the worker can write a progress file
+        # that the listing API surfaces back to the frontend progress bar.
+        env['CURRENT_BACKTEST_ID'] = backtest_id
+
         # Run the Python script with config file AND backtest ID
         script_path = os_module.path.join(os_module.path.dirname(__file__), 'backtest_wrapper.py')
         
@@ -4571,7 +4605,10 @@ def start_stocks_backtest_v3_async():
                 print(f"STOCK BACKTEST V3.0 - RUNNING IN BACKGROUND")
                 print(f"Backtest ID: {unique_id}")
                 print(f"{'='*60}\n")
-                
+
+                # Expose backtest ID to engine so it can write a progress file
+                # that the listing API exposes for the frontend progress bar.
+                os.environ['CURRENT_BACKTEST_ID'] = unique_id
                 # Run the backtest with a specific ID
                 result = stocks_v3_wrapper.run_backtest_with_id(config, unique_id)
                 
@@ -4605,6 +4642,14 @@ def start_stocks_backtest_v3_async():
                         except Exception as db_err:
                             print(f"Error updating stock backtest database record: {db_err}")
                 
+                # Remove progress file so the row no longer shows a progress bar
+                try:
+                    _pp = os.path.join('backtest_results', f'progress_{unique_id}.json')
+                    if os.path.exists(_pp):
+                        os.remove(_pp)
+                except Exception:
+                    pass
+
                 print(f"\n{'='*60}")
                 print(f"STOCK BACKTEST COMPLETE: {unique_id}")
                 print(f"Status: {running_stock_backtests[unique_id]['status']}")
@@ -4615,6 +4660,12 @@ def start_stocks_backtest_v3_async():
                 import traceback
                 traceback.print_exc()
                 running_stock_backtests[unique_id] = {'status': 'error', 'error': str(e)}
+                try:
+                    _pp = os.path.join('backtest_results', f'progress_{unique_id}.json')
+                    if os.path.exists(_pp):
+                        os.remove(_pp)
+                except Exception:
+                    pass
                 
                 # Update metadata with error
                 try:
@@ -4806,6 +4857,14 @@ def list_stocks_backtests_v3():
                         config_data = json.loads(record.config_json)
                     except:
                         pass
+                progress_data = None
+                progress_path = os.path.join('backtest_results', f'progress_{backtest_id}.json')
+                if os.path.exists(progress_path):
+                    try:
+                        with open(progress_path, 'r') as pf:
+                            progress_data = json.load(pf)
+                    except Exception:
+                        pass
                 backtests.append({
                     'id': backtest_id,
                     'name': config_data.get('name', 'Processing...'),
@@ -4814,7 +4873,8 @@ def list_stocks_backtests_v3():
                     'symbol_count': 0,
                     'config': config_data,
                     'summary': {},
-                    'status': 'running'
+                    'status': 'running',
+                    'progress': progress_data
                 })
         
         return jsonify({'backtests': backtests})

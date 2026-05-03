@@ -1471,8 +1471,27 @@ class BacktesterEngine:
         
         print(f"Analyzing {len(dates)} days of data...")
         print(f"Trade window: {start_date} to {end_date}")
-        
+
+        # Progress reporting setup — write a small JSON file every iteration so
+        # the frontend can render an accurate progress bar for running backtests.
+        import json as _json_progress
+        _progress_bt_id = os.environ.get('CURRENT_BACKTEST_ID')
+        _progress_path = None
+        if _progress_bt_id:
+            try:
+                os.makedirs('backtest_results', exist_ok=True)
+                _progress_path = os.path.join('backtest_results', f'progress_{_progress_bt_id}.json')
+            except Exception:
+                _progress_path = None
+        _progress_total = len(dates)
+
         for i, current_date in enumerate(dates):
+            if _progress_path:
+                try:
+                    with open(_progress_path, 'w') as _pf:
+                        _json_progress.dump({'current': i, 'total': _progress_total}, _pf)
+                except Exception:
+                    pass
             if current_date < start_date or i == 0:
                 continue
             if current_date > end_date and position is None:

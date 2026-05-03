@@ -196,6 +196,7 @@ Features:
 """
 
 import csv
+import json
 import os
 import time
 from datetime import datetime, timedelta
@@ -3974,9 +3975,27 @@ def run_backtest(config: Dict, client: RESTClient):
     print("\nProcessing trades...\n" + "-"*80)
     
     decision_log = []
-    
+
+    # Progress reporting setup — write to a small JSON file every iteration
+    # so the frontend can render an accurate progress bar for running backtests.
+    _progress_bt_id = os.environ.get('CURRENT_BACKTEST_ID')
+    _progress_total = len(trading_days)
+    _progress_path = None
+    if _progress_bt_id:
+        try:
+            os.makedirs('backtest_results', exist_ok=True)
+            _progress_path = os.path.join('backtest_results', f'progress_{_progress_bt_id}.json')
+        except Exception:
+            _progress_path = None
+
     # Main loop
     for idx, trade_date in enumerate(trading_days):
+        if _progress_path:
+            try:
+                with open(_progress_path, 'w') as _pf:
+                    json.dump({'current': idx, 'total': _progress_total}, _pf)
+            except Exception:
+                pass
         try:
             date_str = trade_date.strftime("%Y-%m-%d")
             

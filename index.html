@@ -346,6 +346,13 @@
       .payment-loading { text-align: center; padding: 40px; }
       .loading-spinner { width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #1a9988; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes bt-progress-slide {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
+      }
+      .bt-progress-indeterminate {
+        animation: bt-progress-slide 1.4s ease-in-out infinite;
+      }
       .stripe-element-container { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; }
       .stripe-error-message { color: #ef4444; font-size: 0.85rem; margin-top: 8px; }
       .payment-security-note { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #64748b; margin: 16px 0; }
@@ -4948,7 +4955,7 @@
 
           if (allOptionsBacktests.some(bt => bt.status === 'running')) {
             if (!window._optionsRefreshTimer) {
-              window._optionsRefreshTimer = setInterval(() => loadOptionsBacktests(), 10000);
+              window._optionsRefreshTimer = setInterval(() => loadOptionsBacktests(), 2000);
             }
           } else if (window._optionsRefreshTimer) {
             clearInterval(window._optionsRefreshTimer);
@@ -5116,12 +5123,29 @@
           const rowStyle = isRunning ? 'opacity:0.7;' : 'cursor:pointer;';
           
           if (isRunning) {
+            const progress = bt.progress || null;
+            const pct = (progress && progress.total > 0)
+              ? Math.min(100, Math.round((progress.current / progress.total) * 100))
+              : null;
+            const progressHtml = pct !== null
+              ? `<div style="display:flex;align-items:center;gap:8px;width:100%;">
+                   <div style="flex:1;background:#e9ecef;border-radius:6px;height:10px;overflow:hidden;position:relative;">
+                     <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#2962ff,#5b8dff);transition:width 0.4s ease;"></div>
+                   </div>
+                   <span style="font-size:11px;color:#6a6d78;white-space:nowrap;font-variant-numeric:tabular-nums;">${pct}%&nbsp;<span style="color:#a0a4ae;">(${progress.current}/${progress.total} days)</span></span>
+                 </div>`
+              : `<div style="display:flex;align-items:center;gap:8px;width:100%;">
+                   <div style="flex:1;background:#e9ecef;border-radius:6px;height:10px;overflow:hidden;position:relative;">
+                     <div class="bt-progress-indeterminate" style="width:30%;height:100%;background:linear-gradient(90deg,#2962ff,#5b8dff);border-radius:6px;"></div>
+                   </div>
+                   <span style="font-size:11px;color:#6a6d78;white-space:nowrap;">Starting…</span>
+                 </div>`;
             return `<tr class="${rowClass}" style="${rowStyle}">
               <td>
                 <div class="fw-semibold">${symbol} ${strategy}</div>
                 <div class="text-muted small">${legDesc || ''}</div>
               </td>
-              <td colspan="11"><span class="spinner-border spinner-border-sm text-primary me-2"></span> Processing backtest...</td>
+              <td colspan="11">${progressHtml}</td>
               <td>${timeAgo(updated)}</td>
               <td></td>
             </tr>`;
@@ -5240,7 +5264,7 @@
 
           if (allStockBacktests.some(bt => bt.status === 'running')) {
             if (!window._stockRefreshTimer) {
-              window._stockRefreshTimer = setInterval(() => loadStockBacktests(), 10000);
+              window._stockRefreshTimer = setInterval(() => loadStockBacktests(), 2000);
             }
           } else if (window._stockRefreshTimer) {
             clearInterval(window._stockRefreshTimer);
@@ -5336,12 +5360,29 @@
           const rowStyle = isRunning ? 'opacity:0.7;' : 'cursor:pointer;';
           
           if (isRunning) {
+            const progress = bt.progress || null;
+            const pct = (progress && progress.total > 0)
+              ? Math.min(100, Math.round((progress.current / progress.total) * 100))
+              : null;
+            const progressHtml = pct !== null
+              ? `<div style="display:flex;align-items:center;gap:8px;width:100%;">
+                   <div style="flex:1;background:#e9ecef;border-radius:6px;height:10px;overflow:hidden;position:relative;">
+                     <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#2962ff,#5b8dff);transition:width 0.4s ease;"></div>
+                   </div>
+                   <span style="font-size:11px;color:#6a6d78;white-space:nowrap;font-variant-numeric:tabular-nums;">${pct}%&nbsp;<span style="color:#a0a4ae;">(${progress.current}/${progress.total} days)</span></span>
+                 </div>`
+              : `<div style="display:flex;align-items:center;gap:8px;width:100%;">
+                   <div style="flex:1;background:#e9ecef;border-radius:6px;height:10px;overflow:hidden;position:relative;">
+                     <div class="bt-progress-indeterminate" style="width:30%;height:100%;background:linear-gradient(90deg,#2962ff,#5b8dff);border-radius:6px;"></div>
+                   </div>
+                   <span style="font-size:11px;color:#6a6d78;white-space:nowrap;">Starting…</span>
+                 </div>`;
             return `<tr class="${rowClass}" style="${rowStyle}">
               <td>
                 <div class="fw-semibold">${name}</div>
                 <div class="text-muted small">${strategy}</div>
               </td>
-              <td colspan="10"><span class="spinner-border spinner-border-sm text-primary me-2"></span> Processing backtest...</td>
+              <td colspan="10">${progressHtml}</td>
               <td>${timeAgo(updated)}</td>
               <td></td>
             </tr>`;
