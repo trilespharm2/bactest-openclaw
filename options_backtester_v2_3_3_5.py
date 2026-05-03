@@ -576,13 +576,27 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
         url_1min = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/1/minute/{extended_start_str}/{end_str}"
         print(f"[Prefetch] Fetching shared 1-min bars for {len(sma_ema_keys)} SMA/EMA key(s): window up to {max_window}, from {extended_start_str}...", flush=True)
         try:
-            resp = requests.get(url_1min, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'})
-            if resp.status_code == 200:
-                indicators['_1min_raw'] = resp.json().get('results', [])
-                print(f"[Prefetch] 1-min raw bars: {len(indicators['_1min_raw'])} bars loaded", flush=True)
-            else:
-                indicators['_1min_raw'] = []
-                print(f"[Prefetch] 1-min raw bars error: {resp.status_code}", flush=True)
+            # Paginate through ALL 1-min bars — a multi-month backtest can exceed 50,000 bars
+            _all_1min = []
+            _next_url = url_1min
+            _next_params = {'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'}
+            _page = 0
+            while _next_url:
+                _resp = requests.get(_next_url, params=_next_params)
+                if _resp.status_code != 200:
+                    print(f"[Prefetch] 1-min raw bars error on page {_page}: {_resp.status_code}", flush=True)
+                    break
+                _d = _resp.json()
+                _batch = _d.get('results', [])
+                _all_1min.extend(_batch)
+                _page += 1
+                _next_url = _d.get('next_url')
+                _next_params = {'apiKey': api_key}  # next_url already encodes all other params
+                print(f"[Prefetch] 1-min bars page {_page}: +{len(_batch)} bars (total {len(_all_1min)})", flush=True)
+                if not _batch:
+                    break
+            indicators['_1min_raw'] = _all_1min
+            print(f"[Prefetch] 1-min raw bars: {len(_all_1min)} bars loaded total ({_page} page(s))", flush=True)
         except Exception as e:
             indicators['_1min_raw'] = []
             print(f"[Prefetch] 1-min raw bars exception: {e}", flush=True)
@@ -1058,6 +1072,43 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 met = left_value <= right_value
             elif operator == '==':
                 met = abs(left_value - right_value) < 0.0001
+            elif operator in ('cross_up', 'cross_down', 'cross_either'):
+                # Need the previous bar's values — step back by timeframe width
+                _tf_mins = int(left_params.get('timeframe_minutes', 1))
+                _prev_ts = bar_timestamp - _tf_mins * 60000
+
+                # Previous left value
+                if metric in ('sma', 'ema', 'vwap'):
+                    _lw = int(left_params.get('window', 14))
+                    _lkey = f'{metric}_w{_lw}_t{_tf_mins}'
+                    prev_left = find_closest_indicator_value(indicators_cache.get(_lkey, {}), _prev_ts)
+                elif metric == 'price':
+                    prev_left = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_ts)
+                else:
+                    prev_left = None
+
+                # Previous right value
+                if comparator == 'value':
+                    prev_right = right_value  # constant — never changes
+                elif right_metric in ('sma', 'ema', 'vwap'):
+                    _rtf = int(right_params.get('timeframe_minutes', _tf_mins))
+                    _rw = int(right_params.get('window', 14))
+                    _rkey = f'{right_metric}_w{_rw}_t{_rtf}'
+                    prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_ts)
+                elif right_metric == 'price':
+                    prev_right = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_ts)
+                else:
+                    prev_right = None
+
+                if prev_left is not None and prev_right is not None:
+                    _cross_up   = prev_left < prev_right and left_value >= right_value
+                    _cross_down = prev_left > prev_right and left_value <= right_value
+                    if operator == 'cross_up':
+                        met = _cross_up
+                    elif operator == 'cross_down':
+                        met = _cross_down
+                    else:
+                        met = _cross_up or _cross_down
 
             # Build left/right labels for the decision log
             _left_label = left_params.get('series_type', metric).upper() if metric == 'price' else metric.upper()
