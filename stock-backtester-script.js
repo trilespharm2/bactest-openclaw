@@ -324,7 +324,7 @@ function addCondition() {
 
     conditionDiv.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <strong class="text-muted">Condition ${n} ${n === 1 ? '(Entry Trigger)' : '(Prerequisite)'}</strong>
+            <strong class="text-muted"><span id="cond-mode-label-${n}">Condition ${n} — ${n === 1 ? 'Phase 1: Initial Trigger' : 'Phase 1: Prerequisite'}</span></strong>
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeCondition(${n})">
                 <i class="fas fa-times"></i>
             </button>
@@ -477,6 +477,27 @@ function addCondition() {
                     </div>
                     <div class="col-12">
                         <small class="text-muted">Condition is only evaluated if the candle falls within this time range (e.g. 04:00–09:29 for premarket).</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="seq-section-${n}" class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6; display: ${n === 1 ? 'none' : 'block'};">
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="seq-enabled-${n}" onchange="_updateSeqMode(${n})">
+                <label class="form-check-label small fw-bold" for="seq-enabled-${n}" style="color:#374151;">
+                    Sequential Phase
+                    <span style="font-weight:400;color:#6b7280;">— triggers <em>after</em> previous condition fires, not simultaneously</span>
+                </label>
+            </div>
+            <div id="seq-fields-${n}" style="display:none;" class="mt-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Max Wait Bars <span class="text-muted">(0 = no limit)</span></label>
+                        <input type="number" class="form-control form-control-sm" id="seq-max-wait-${n}" value="0" min="0" max="500" placeholder="e.g. 10">
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">Entry fires when this condition triggers after the previous phase. Set <strong>Max Wait Bars &gt; 0</strong> to auto-reset and re-arm if this phase does not trigger in time.</small>
                     </div>
                 </div>
             </div>
@@ -636,6 +657,40 @@ function removeCondition(id) {
     }
 }
 
+// Update sequential mode label + fields visibility for condition n
+function _updateSeqMode(n) {
+    var cb = document.getElementById('seq-enabled-' + n);
+    var fields = document.getElementById('seq-fields-' + n);
+    if (fields) fields.style.display = (cb && cb.checked) ? 'block' : 'none';
+    _relabelAllConditions();
+}
+
+// Recompute phase labels for every condition (called after any sequential toggle or remove)
+function _relabelAllConditions() {
+    const conditions = document.querySelectorAll('.condition-item');
+    var nextSeqPhase = 2; // sequential phases start at 2 (phase 1 = initial trigger)
+    conditions.forEach(function(cond, index) {
+        var id = cond.id.split('-')[1];
+        var labelEl = document.getElementById('cond-mode-label-' + id);
+        var seqCb   = document.getElementById('seq-enabled-' + id);
+        var seqSec  = document.getElementById('seq-section-' + id);
+        if (!labelEl) return;
+        if (index === 0) {
+            labelEl.textContent = 'Condition 1 — Phase 1: Initial Trigger';
+            if (seqSec) seqSec.style.display = 'none';
+        } else {
+            var isSeq = seqCb && seqCb.checked;
+            if (isSeq) {
+                labelEl.textContent = `Condition ${index + 1} — Phase ${nextSeqPhase}: Sequential Trigger`;
+                nextSeqPhase++;
+            } else {
+                labelEl.textContent = `Condition ${index + 1} — Phase 1: Prerequisite`;
+            }
+            if (seqSec) seqSec.style.display = 'block';
+        }
+    });
+}
+
 // Renumber conditions after removal
 function renumberConditions() {
     const conditions = document.querySelectorAll('.condition-item');
@@ -649,12 +704,7 @@ function renumberConditions() {
     // Update counter to match current number of conditions
     conditionCount = conditions.length;
     
-    conditions.forEach((cond, index) => {
-        const label = cond.querySelector('strong.text-muted');
-        if (label) {
-            label.textContent = `Condition ${index + 1} ${index === 0 ? '(Entry Trigger)' : '(Prerequisite)'}`;
-        }
-    });
+    _relabelAllConditions();
 }
 
 // Read CSV file
@@ -1372,6 +1422,13 @@ async function collectFormData() {
 
                 condition.threshold_unit = (document.getElementById(`threshold-unit-${id}`) || {}).value || '%';
                 condition.threshold_value = parseFloat((document.getElementById(`threshold-value-${id}`) || {}).value) || 0;
+            }
+
+            // Sequential phase flag (conditions 2+ only)
+            const seqCb = document.getElementById(`seq-enabled-${id}`);
+            condition.is_sequential = !!(seqCb && seqCb.checked);
+            if (condition.is_sequential) {
+                condition.max_wait_bars = parseInt((document.getElementById(`seq-max-wait-${id}`) || {}).value) || 0;
             }
 
             const twCb = document.getElementById(`time-window-enabled-${id}`);

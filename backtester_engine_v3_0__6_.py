@@ -1583,17 +1583,30 @@ class BacktesterEngine:
             exited_this_day = False
             exit_time = None
             
+            # Split custom conditions into day-level prerequisites vs sequential (bar-level) phases
+            custom_conds = self.config.get('custom_conditions', []) if self.config['entry_type'] == 'custom' else []
+            prereq_conds = [c for c in custom_conds[1:] if not c.get('is_sequential')]
+            seq_conds    = [c for c in custom_conds[1:] if c.get('is_sequential')]
+
             prior_conditions_met = True
-            if self.config['entry_type'] == 'custom' and len(self.config['custom_conditions']) > 1:
-                for cond_idx in range(1, len(self.config['custom_conditions'])):
-                    condition = self.config['custom_conditions'][cond_idx]
+            if self.config['entry_type'] == 'custom':
+                for condition in prereq_conds:
                     if not self.check_custom_condition(condition, grouped, dates, i, None):
                         prior_conditions_met = False
                         break
-            
+            elif self.config['entry_type'] != 'custom' and self.config['entry_type'] != 'velocity':
+                # legacy fallback: non-custom modes have no prior conditions
+                pass
+
+            # Per-day sequential state machine (resets each day, only used when seq_conds exist)
+            seq_phase = 0        # 0 = scanning for phase-1 trigger; k>0 = waiting for seq_conds[k-1]
+            seq_arm_bar_loc = -1 # bar position (iloc) when the phase last advanced
+
             if position is None and current_date <= end_date and prior_conditions_met:
                 entry_found = False
+                bar_loc = -1
                 for idx, candle in current_data.iterrows():
+                    bar_loc += 1
                     entry_signal, price_point, entry_price = (False, None, None)
                     
                     if self.config['entry_type'] == 'preset':
@@ -1615,14 +1628,43 @@ class BacktesterEngine:
                                 entry_price = candle['close']
                                 price_point = 'close'
                     elif self.config['entry_type'] == 'custom':
-                        entry_condition = self.config['custom_conditions'][0]
-                        if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
-                            entry_signal = True
-                            price_point = 'vwap'
-                            entry_price = candle.get('vwap')
-                            if pd.isna(entry_price):
-                                entry_price = candle['close']
-                                price_point = 'close'
+                        if seq_phase == 0:
+                            # Phase 1: check the entry condition (condition 0)
+                            entry_condition = custom_conds[0]
+                            if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
+                                if seq_conds:
+                                    # Sequential conditions exist — arm phase 2, don't enter yet
+                                    seq_phase = 1
+                                    seq_arm_bar_loc = bar_loc
+                                else:
+                                    # No sequential conditions — enter immediately
+                                    entry_signal = True
+                                    price_point = 'vwap'
+                                    entry_price = candle.get('vwap')
+                                    if pd.isna(entry_price):
+                                        entry_price = candle['close']
+                                        price_point = 'close'
+                        else:
+                            # Sequential phase k: check seq_conds[seq_phase - 1]
+                            seq_cond_current = seq_conds[seq_phase - 1]
+                            max_wait = int(seq_cond_current.get('max_wait_bars', 0) or 0)
+                            if max_wait > 0 and (bar_loc - seq_arm_bar_loc) > max_wait:
+                                # Timed out — reset to phase 0 and continue scanning
+                                seq_phase = 0
+                                seq_arm_bar_loc = -1
+                            elif self.check_custom_condition(seq_cond_current, grouped, dates, i, candle):
+                                if seq_phase == len(seq_conds):
+                                    # All sequential phases satisfied — entry!
+                                    entry_signal = True
+                                    price_point = 'vwap'
+                                    entry_price = candle.get('vwap')
+                                    if pd.isna(entry_price):
+                                        entry_price = candle['close']
+                                        price_point = 'close'
+                                else:
+                                    # Advance to next sequential phase
+                                    seq_phase += 1
+                                    seq_arm_bar_loc = bar_loc
                     
                     if entry_signal:
                         entry_time = candle['timestamp']
