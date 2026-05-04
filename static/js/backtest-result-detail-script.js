@@ -742,22 +742,38 @@ function _dtSetTf(tf) {
     _dtRebuildModalChart();
 }
 
-// Re-aggregate bars at the current TF and rebuild the chart + indicators
+// ─── Shared helper: destroy all sub-panel LW charts and clear body ────────────
+function _dtDestroyBodyCharts() {
+    var body = document.getElementById('dtChartModalBody');
+    if (!body) return;
+    _dtModalIndicators.forEach(function(ind) {
+        if (ind.subRo)   { try { ind.subRo.disconnect(); } catch(e){} ind.subRo = null; }
+        if (ind.subChart){ try { ind.subChart.remove();  } catch(e){} ind.subChart = null; }
+        ind.subDiv = null; ind.series = null;
+    });
+    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} body._lwModalChart = null; }
+    if (body._lwRo)         { try { body._lwRo.disconnect();     } catch(e){} body._lwRo = null; }
+    body.innerHTML = '';
+    body.style.display = 'flex';
+    body.style.flexDirection = 'column';
+}
+
 function _dtRebuildModalChart() {
     var body = document.getElementById('dtChartModalBody');
     if (!body || !_dtCurrentStored) return;
-    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} }
-    if (body._lwRo) { body._lwRo.disconnect(); }
-    body.innerHTML = '';
+
+    _dtDestroyBodyCharts();
 
     _dtModalBars     = _dtAggregateBars(_dtRawAllBars, _dtCurrentTf);
     _dtModalDayBars  = _dtAggregateBars(_dtRawDayBars, _dtCurrentTf);
     _dtModalCutoffTs = _dtModalDayBars.length > 0 ? Math.floor(_dtModalDayBars[0].timestamp / 1000) : 0;
 
-    _dtModalIndicators.forEach(function(ind){ ind.series = null; });
-
     setTimeout(function() {
-        body._lwModalChart = _buildLwChart(body, _dtCurrentStored, true, _dtModalDayBars, _dtCurrentTf);
+        var priceDiv = document.createElement('div');
+        priceDiv.id = 'dtPriceDiv';
+        priceDiv.style.cssText = 'flex:1;min-height:0;width:100%;';
+        body.appendChild(priceDiv);
+        body._lwModalChart = _buildLwChart(priceDiv, _dtCurrentStored, true, _dtModalDayBars, _dtCurrentTf);
         if (body._lwModalChart && _dtModalIndicators.length) {
             _dtModalIndicators.forEach(function(ind) {
                 ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
@@ -821,15 +837,16 @@ function _openDtChartModal(idx) {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     var body = document.getElementById('dtChartModalBody');
-    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} }
-    if (body._lwRo) { body._lwRo.disconnect(); }
-    body.innerHTML = '';
 
-    // Reset indicator series refs (chart is new, but keep config to re-apply)
-    _dtModalIndicators.forEach(function(ind){ ind.series = null; });
+    // Destroy any previous chart and sub-panels (but keep indicator configs to re-apply)
+    _dtDestroyBodyCharts();
 
     setTimeout(function() {
-        body._lwModalChart = _buildLwChart(body, stored, true, _dtModalDayBars, 1);
+        var priceDiv = document.createElement('div');
+        priceDiv.id = 'dtPriceDiv';
+        priceDiv.style.cssText = 'flex:1;min-height:0;width:100%;';
+        body.appendChild(priceDiv);
+        body._lwModalChart = _buildLwChart(priceDiv, stored, true, _dtModalDayBars, 1);
         // Re-apply any persisted indicators to the new chart instance
         if (body._lwModalChart && _dtModalIndicators.length) {
             _dtModalIndicators.forEach(function(ind) {
@@ -843,17 +860,20 @@ function _openDtChartModal(idx) {
 function _closeDtChartModal() {
     document.getElementById('dtChartModal').style.display = 'none';
     document.body.style.overflow = '';
-    var body = document.getElementById('dtChartModalBody');
-    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} body._lwModalChart = null; }
-    if (body._lwRo) { body._lwRo.disconnect(); body._lwRo = null; }
-    body.innerHTML = '';
+    _dtDestroyBodyCharts();
 }
 
 // ─── Indicator type change ───────────────────────────────────────────────────
 function _dtOnIndTypeChange() {
-    // Period input is shown for all types — VWAP uses a rolling period as well.
-    var wrap = document.getElementById('dtIndPeriodWrap');
-    if (wrap) wrap.style.display = 'flex';
+    var type = document.getElementById('dtIndType').value;
+    var periodWrap = document.getElementById('dtIndPeriodWrap');
+    var colorWrap  = document.getElementById('dtIndColorWrap');
+    var widthWrap  = document.getElementById('dtIndWidthWrap');
+    // MACD has fixed params (12,26,9) — hide period; RSI defaults to 14
+    if (periodWrap) periodWrap.style.display = (type === 'macd') ? 'none' : 'flex';
+    if (type === 'rsi' && document.getElementById('dtIndPeriod')) {
+        document.getElementById('dtIndPeriod').value = 14;
+    }
 }
 
 // ─── Computation helpers ─────────────────────────────────────────────────────
@@ -907,30 +927,183 @@ function _dtComputeVWAP(bars, period) {
     return result;
 }
 
+// ─── RSI computation (Wilder's smoothing) ────────────────────────────────────
+function _dtComputeRSI(bars, period) {
+    period = period || 14;
+    if (bars.length < period + 1) return [];
+    var result = [], avgGain = 0, avgLoss = 0;
+    for (var i = 1; i <= period; i++) {
+        var ch = bars[i].close - bars[i-1].close;
+        if (ch > 0) avgGain += ch; else avgLoss -= ch;
+    }
+    avgGain /= period; avgLoss /= period;
+    var rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    result.push({ time: Math.floor(bars[period].timestamp / 1000), value: 100 - 100 / (1 + rs) });
+    for (var i = period + 1; i < bars.length; i++) {
+        var ch = bars[i].close - bars[i-1].close;
+        avgGain = (avgGain * (period - 1) + (ch > 0 ? ch : 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + (ch < 0 ? -ch : 0)) / period;
+        rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: 100 - 100 / (1 + rs) });
+    }
+    return result;
+}
+
+// ─── MACD computation (12, 26, 9) ───────────────────────────────────────────
+function _dtComputeMACD(bars) {
+    var fast = 12, slow = 26, sig = 9;
+    var emaFastAll = _dtComputeEMA(bars, fast);
+    var emaSlowAll = _dtComputeEMA(bars, slow);
+    var fastMap = {};
+    emaFastAll.forEach(function(d){ fastMap[d.time] = d.value; });
+    var macdLine = [];
+    emaSlowAll.forEach(function(d){
+        if (fastMap[d.time] !== undefined)
+            macdLine.push({ time: d.time, value: fastMap[d.time] - d.value });
+    });
+    if (macdLine.length < sig) return null;
+    var sigLine = [], ema = 0, k = 2 / (sig + 1);
+    for (var i = 0; i < sig; i++) ema += macdLine[i].value;
+    ema /= sig;
+    sigLine.push({ time: macdLine[sig - 1].time, value: ema });
+    for (var i = sig; i < macdLine.length; i++) {
+        ema = macdLine[i].value * k + ema * (1 - k);
+        sigLine.push({ time: macdLine[i].time, value: ema });
+    }
+    var sigMap = {};
+    sigLine.forEach(function(d){ sigMap[d.time] = d.value; });
+    var hist = [];
+    macdLine.forEach(function(d){
+        if (sigMap[d.time] !== undefined) {
+            var h = d.value - sigMap[d.time];
+            hist.push({ time: d.time, value: h, color: h >= 0 ? '#26a69a' : '#ef5350' });
+        }
+    });
+    return { macd: macdLine, signal: sigLine, hist: hist };
+}
+
+// ─── Build a sub-panel chart div below the price chart ───────────────────────
+function _dtCreateSubPanel(ind, labelText) {
+    var body = document.getElementById('dtChartModalBody');
+    var subDiv = document.createElement('div');
+    subDiv.id = 'dtSubPanel_' + ind.id;
+    subDiv.style.cssText = 'width:100%;height:150px;flex-shrink:0;border-top:2px solid #e2e8f0;position:relative;background:#fafbff;';
+    // Floating label
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'position:absolute;top:5px;left:10px;font-size:10px;font-weight:700;color:' + ind.color + ';z-index:2;pointer-events:none;opacity:0.9;';
+    lbl.textContent = labelText;
+    subDiv.appendChild(lbl);
+    body.appendChild(subDiv);
+
+    var subChart = LightweightCharts.createChart(subDiv, {
+        layout: { background: { color: '#fafbff' }, textColor: '#64748b', fontSize: 10 },
+        grid: { vertLines: { color: '#f1f5f9' }, horzLines: { color: '#f1f5f9' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#e2e8f0',
+            tickMarkFormatter: function(t) {
+                var d = new Date(t * 1000);
+                return d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
+            }
+        },
+        rightPriceScale: { borderColor: '#e2e8f0', autoScale: true, minimumWidth: 55 },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true },
+        handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
+        width: subDiv.clientWidth || 600,
+        height: 150
+    });
+
+    // Sync timescales with main price chart (bidirectional)
+    var mainBody = document.getElementById('dtChartModalBody');
+    if (mainBody && mainBody._lwModalChart) {
+        var _syncing = false;
+        subChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+            if (_syncing || !range || !mainBody._lwModalChart) return;
+            _syncing = true;
+            try { mainBody._lwModalChart.timeScale().setVisibleLogicalRange(range); } catch(e){}
+            _syncing = false;
+        });
+        mainBody._lwModalChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+            if (_syncing || !range || !subChart) return;
+            _syncing = true;
+            try { subChart.timeScale().setVisibleLogicalRange(range); } catch(e){}
+            _syncing = false;
+        });
+    }
+
+    var ro = new ResizeObserver(function() {
+        if (subDiv.clientWidth > 0 && subDiv.clientHeight > 0)
+            subChart.applyOptions({ width: subDiv.clientWidth, height: subDiv.clientHeight });
+    });
+    ro.observe(subDiv);
+    ind.subRo = ro;
+    return { subDiv: subDiv, subChart: subChart };
+}
+
+function _dtDedup(arr) {
+    var seen = new Set(), out = [];
+    arr.forEach(function(d){ if (!seen.has(d.time)){ seen.add(d.time); out.push(d); } });
+    return out;
+}
+
 // ─── Create a line series and set indicator data ─────────────────────────────
 function _dtCreateIndSeries(chart, ind) {
+    var cutoff = _dtModalCutoffTs;
+    var filterFn = function(d){ return !cutoff || d.time >= cutoff; };
+
+    // ── RSI sub-panel ────────────────────────────────────────────────────────
+    if (ind.type === 'rsi') {
+        var rsiData = _dtDedup(_dtComputeRSI(_dtModalBars, ind.period).filter(filterFn));
+        var sub = _dtCreateSubPanel(ind, 'RSI (' + ind.period + ')');
+        ind.subDiv = sub.subDiv; ind.subChart = sub.subChart; ind.isSubPanel = true;
+
+        var series = sub.subChart.addLineSeries({
+            color: ind.color, lineWidth: ind.lineWidth,
+            priceLineVisible: false, lastValueVisible: true,
+            autoscaleInfoProvider: function() {
+                return { priceRange: { minValue: 0, maxValue: 100 } };
+            }
+        });
+        series.setData(rsiData);
+        series.createPriceLine({ price: 70, color: 'rgba(38,166,154,0.6)', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: '70' });
+        series.createPriceLine({ price: 30, color: 'rgba(239,83,80,0.6)', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: '30' });
+        return series;
+    }
+
+    // ── MACD sub-panel ───────────────────────────────────────────────────────
+    if (ind.type === 'macd') {
+        var macdData = _dtComputeMACD(_dtModalBars);
+        if (!macdData) return null;
+        var macdClean = _dtDedup(macdData.macd.filter(filterFn));
+        var sigClean  = _dtDedup(macdData.signal.filter(filterFn));
+        var histClean = _dtDedup(macdData.hist.filter(filterFn));
+
+        var sub = _dtCreateSubPanel(ind, 'MACD (12, 26, 9)');
+        ind.subDiv = sub.subDiv; ind.subChart = sub.subChart; ind.isSubPanel = true;
+
+        var histSeries = sub.subChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
+        histSeries.setData(histClean);
+
+        var macdSeries = sub.subChart.addLineSeries({ color: ind.color || '#2962ff', lineWidth: 1, priceLineVisible: false, lastValueVisible: true });
+        macdSeries.setData(macdClean);
+
+        var sigSeries = sub.subChart.addLineSeries({ color: '#ff6d00', lineWidth: 1, lineStyle: 1, priceLineVisible: false, lastValueVisible: true });
+        sigSeries.setData(sigClean);
+
+        ind.extraSeries = [histSeries, sigSeries];
+        return macdSeries;
+    }
+
+    // ── Overlay indicators (SMA / EMA / VWAP) ───────────────────────────────
     var data = [];
     if (ind.type === 'sma')       data = _dtComputeSMA(_dtModalBars, ind.period);
     else if (ind.type === 'ema')  data = _dtComputeEMA(_dtModalBars, ind.period);
     else if (ind.type === 'vwap') data = _dtComputeVWAP(_dtModalBars, ind.period);
 
-    // Filter to current-day timestamps only — seed bars are used for warmup
-    // (so the rolling window is fully populated at 09:30) but not displayed.
-    if (_dtModalCutoffTs > 0) {
-        data = data.filter(function(d){ return d.time >= _dtModalCutoffTs; });
-    }
-
-    // Deduplicate by time
-    var seen = new Set(), clean = [];
-    data.forEach(function(d){ if (!seen.has(d.time)){ seen.add(d.time); clean.push(d); } });
-
+    var clean = _dtDedup(data.filter(filterFn));
     var series = chart.addLineSeries({
-        color: ind.color,
-        lineWidth: ind.lineWidth,
-        priceLineVisible: false,
-        lastValueVisible: true,
-        crosshairMarkerVisible: false,
-        title: ind.label
+        color: ind.color, lineWidth: ind.lineWidth,
+        priceLineVisible: false, lastValueVisible: true,
+        crosshairMarkerVisible: false, title: ind.label
     });
     series.setData(clean);
     return series;
@@ -946,16 +1119,20 @@ function _dtAddIndicator() {
     var color     = document.getElementById('dtIndColor').value || '#2962ff';
     var lineWidth = parseInt(document.getElementById('dtIndWidth').value) || 2;
 
-    if (period < 2 || period > 500) {
+    // Sub-panel types use fixed params; overlay types need period validation
+    if (type !== 'macd' && (period < 2 || period > 500)) {
         alert('Period must be between 2 and 500.'); return;
     }
     if (_dtModalDayBars.length === 0) {
         alert('No bar data available for this trade. Run a new backtest to generate chart data.'); return;
     }
 
-    var id    = _dtModalIndNextId++;
-    var label = type.toUpperCase() + '(' + period + ')';
-    var ind   = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label, series: null };
+    var id = _dtModalIndNextId++;
+    var label = type === 'macd' ? 'MACD(12,26,9)'
+              : type === 'rsi'  ? 'RSI(' + period + ')'
+              : type.toUpperCase() + '(' + period + ')';
+    var ind = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label,
+                series: null, isSubPanel: false, subChart: null, subDiv: null, subRo: null, extraSeries: null };
 
     ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
     _dtModalIndicators.push(ind);
@@ -968,8 +1145,15 @@ function _dtRemoveIndicator(id) {
     var idx  = _dtModalIndicators.findIndex(function(i){ return i.id === id; });
     if (idx === -1) return;
     var ind  = _dtModalIndicators[idx];
-    if (ind.series && body._lwModalChart) {
-        try { body._lwModalChart.removeSeries(ind.series); } catch(e){}
+
+    if (ind.isSubPanel) {
+        if (ind.subRo)   { try { ind.subRo.disconnect();  } catch(e){} }
+        if (ind.subChart){ try { ind.subChart.remove();   } catch(e){} }
+        if (ind.subDiv && ind.subDiv.parentNode) ind.subDiv.parentNode.removeChild(ind.subDiv);
+    } else {
+        if (ind.series && body._lwModalChart) {
+            try { body._lwModalChart.removeSeries(ind.series); } catch(e){}
+        }
     }
     _dtModalIndicators.splice(idx, 1);
     _dtRefreshIndList();
@@ -979,8 +1163,14 @@ function _dtRemoveIndicator(id) {
 function _dtClearIndicators() {
     var body = document.getElementById('dtChartModalBody');
     _dtModalIndicators.forEach(function(ind) {
-        if (ind.series && body._lwModalChart) {
-            try { body._lwModalChart.removeSeries(ind.series); } catch(e){}
+        if (ind.isSubPanel) {
+            if (ind.subRo)   { try { ind.subRo.disconnect();  } catch(e){} }
+            if (ind.subChart){ try { ind.subChart.remove();   } catch(e){} }
+            if (ind.subDiv && ind.subDiv.parentNode) ind.subDiv.parentNode.removeChild(ind.subDiv);
+        } else {
+            if (ind.series && body._lwModalChart) {
+                try { body._lwModalChart.removeSeries(ind.series); } catch(e){}
+            }
         }
     });
     _dtModalIndicators = [];
