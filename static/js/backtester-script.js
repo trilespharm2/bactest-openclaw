@@ -1617,7 +1617,8 @@ function setupFormControls() {
     
     // Reset Button
     const resetBtn = document.getElementById('resetBacktestBtn');
-    if (resetBtn) {
+    if (resetBtn && !resetBtn.dataset.resetListenerAttached) {
+        resetBtn.dataset.resetListenerAttached = 'true';
         resetBtn.addEventListener('click', resetForm);
     }
 }
@@ -1625,6 +1626,8 @@ function setupFormControls() {
 function setupStrategySelection() {
     const strategySelect = document.getElementById('strategy');
     if (!strategySelect) return;
+    if (strategySelect.dataset.strategyListenerAttached) return;
+    strategySelect.dataset.strategyListenerAttached = 'true';
     
     strategySelect.addEventListener('change', (e) => {
         const strategy = e.target.value;
@@ -3765,168 +3768,163 @@ function applyOptionsConfig(rawConfig) {
         strategySelect.dispatchEvent(new Event('change'));
     }
     
-    // Wait for leg configs to render
-    setTimeout(() => {
-        // Apply entry time
-        if (document.getElementById('entryTime')) {
-            document.getElementById('entryTime').value = config.entryTime || '10:00';
-        }
-        
-        // Apply DTE
-        if (document.getElementById('dte')) {
-            document.getElementById('dte').value = config.dte || '0';
-        }
-        
-        // Apply wing configuration
-        var wingRadio = document.querySelector(`input[name="allowSkewedWings"][value="${config.allowSkewedWings || 'n'}"]`);
-        if (wingRadio) wingRadio.checked = true;
-        
-        // Apply leg configurations - handle both array and dict formats
-        var legsArray = config.legs;
-        if (legsArray && !Array.isArray(legsArray) && typeof legsArray === 'object') {
-            legsArray = Object.keys(legsArray).map((key, idx) => {
-                var leg = legsArray[key];
-                leg.name = key;
-                return leg;
-            });
-        }
-        if (legsArray && legsArray.length > 0) {
-            legsArray.forEach((leg, index) => {
-                var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${index}"]`);
-                var method = leg.method || leg.config_type || '';
-                if (methodSelect && method) {
-                    methodSelect.value = method;
-                    methodSelect.dispatchEvent(new Event('change'));
-                    
-                    setTimeout(() => {
-                        var paramsContainer = document.getElementById(`legParams${index}`);
-                        if (paramsContainer) {
-                            var params = leg.params || leg;
-                            Object.keys(params).forEach(key => {
-                                if (['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'].indexOf(key) === -1) {
-                                    var input = paramsContainer.querySelector(`[data-param="${key}"]`);
-                                    if (input) input.value = params[key];
-                                }
-                            });
-                        }
-                    }, 150);
-                }
-            });
-        }
-        
-        // Apply take profit
-        var tpRadio = document.querySelector(`input[name="takeProfitType"][value="${config.takeProfitType || 'P'}"]`);
-        if (tpRadio) {
-            tpRadio.checked = true;
-            tpRadio.dispatchEvent(new Event('change'));
-        }
-        if (document.getElementById('takeProfitPct')) document.getElementById('takeProfitPct').value = config.takeProfitPct || '';
-        if (document.getElementById('takeProfitDollar')) document.getElementById('takeProfitDollar').value = config.takeProfitDollar || '';
-        
-        // Apply stop loss
-        var slRadio = document.querySelector(`input[name="stopLossType"][value="${config.stopLossType || 'P'}"]`);
-        if (slRadio) {
-            slRadio.checked = true;
-            slRadio.dispatchEvent(new Event('change'));
-        }
-        if (document.getElementById('stopLossPct')) document.getElementById('stopLossPct').value = config.stopLossPct || '';
-        if (document.getElementById('stopLossDollar')) document.getElementById('stopLossDollar').value = config.stopLossDollar || '';
-        
-        // Apply EOD action
-        if (document.getElementById('eodAction')) document.getElementById('eodAction').value = config.eodAction || 'close';
-        
-        // Apply trade frequency
-        if (document.getElementById('tradeFrequency')) document.getElementById('tradeFrequency').value = config.tradeFrequency || 'daily';
-        
-        // Apply entry days
-        document.querySelectorAll('input[name="entryDays"]').forEach(cb => {
-            cb.checked = config.entryDays && config.entryDays.includes(cb.value);
+    // Apply entry time (synchronous — no need to wait for strategy render)
+    if (document.getElementById('entryTime')) {
+        document.getElementById('entryTime').value = config.entryTime || '10:00';
+    }
+
+    // Apply DTE
+    if (document.getElementById('dte')) {
+        document.getElementById('dte').value = config.dte || '0';
+    }
+
+    // Apply wing configuration
+    var wingRadio = document.querySelector(`input[name="allowSkewedWings"][value="${config.allowSkewedWings || 'n'}"]`);
+    if (wingRadio) wingRadio.checked = true;
+
+    // Apply leg configurations - handle both array and dict formats
+    // buildLegConfiguration (called via strategy change above) is synchronous,
+    // so the leg method selects are available immediately in the DOM.
+    var legsArray = config.legs;
+    if (legsArray && !Array.isArray(legsArray) && typeof legsArray === 'object') {
+        legsArray = Object.keys(legsArray).map((key) => {
+            var leg = legsArray[key];
+            leg.name = key;
+            return leg;
         });
-        
-        // Apply capital
-        if (document.getElementById('startingCapital')) document.getElementById('startingCapital').value = config.startingCapital || '100000';
-        
-        // Apply allocation
-        var allocRadio = document.querySelector(`input[name="allocationType"][value="${config.allocationType || '1'}"]`);
-        if (allocRadio) {
-            allocRadio.checked = true;
-            allocRadio.dispatchEvent(new Event('change'));
-        }
-        if (document.getElementById('allocationPct')) document.getElementById('allocationPct').value = config.allocationPct || '';
-        if (document.getElementById('allocationContracts')) document.getElementById('allocationContracts').value = config.allocationContracts || '';
-        if (document.getElementById('allocationFixed')) document.getElementById('allocationFixed').value = config.allocationFixed || '';
-        
-        if (document.getElementById('entryTimeMax')) {
-            document.getElementById('entryTimeMax').value = config.entryTimeMax || '';
-        }
-
-        var concurrentRadio = document.querySelector(`input[name="concurrentTrades"][value="${config.concurrentTrades}"]`);
-        if (concurrentRadio) {
-            concurrentRadio.checked = true;
-            document.querySelectorAll('.bt-toggle-btn[data-radio="concurrentTrades"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.concurrentTrades));
-        }
-
-        var pdtRadio = document.querySelector(`input[name="avoidPdt"][value="${config.avoidPdt}"]`);
-        if (pdtRadio) {
-            pdtRadio.checked = true;
-            document.querySelectorAll('.bt-toggle-btn[data-radio="avoidPdt"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.avoidPdt));
-        }
-
-        var syntheticRadio = document.querySelector(`input[name="allowSynthetic"][value="${config.allowSynthetic}"]`);
-        if (syntheticRadio) {
-            syntheticRadio.checked = true;
-            document.querySelectorAll('.bt-toggle-btn[data-radio="allowSynthetic"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.allowSynthetic));
-        }
-
-        if (document.getElementById('netPremiumMin') && config.netPremiumMin) {
-            document.getElementById('netPremiumMin').value = config.netPremiumMin;
-        }
-        if (document.getElementById('netPremiumMax') && config.netPremiumMax) {
-            document.getElementById('netPremiumMax').value = config.netPremiumMax;
-        }
-
-        // Apply entry type
-        var entryType = config.optionsEntryType || 'none';
-        if (config.priceConditions && config.priceConditions.length > 0 && entryType === 'none') {
-            entryType = 'custom';
-        }
-        if (config.presetCondition && entryType === 'none') {
-            entryType = 'preset';
-        }
-        var entryTypeRadio = document.querySelector('input[name="optionsEntryType"][value="' + entryType + '"]');
-        if (entryTypeRadio) {
-            entryTypeRadio.checked = true;
-            if (typeof updateOptionsEntryType === 'function') updateOptionsEntryType();
-        }
-
-        if (entryType === 'preset') {
-            if (document.getElementById('optionsPresetCondition') && config.presetCondition) {
-                document.getElementById('optionsPresetCondition').value = config.presetCondition;
-                var presetChangeEvent = new Event('change');
-                document.getElementById('optionsPresetCondition').dispatchEvent(presetChangeEvent);
+    }
+    if (legsArray && legsArray.length > 0) {
+        legsArray.forEach((leg, index) => {
+            var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${index}"]`);
+            var method = leg.method || leg.config_type || '';
+            if (methodSelect && method) {
+                methodSelect.value = method;
+                // handleLegMethodChange is synchronous (sets innerHTML), so params
+                // container is available immediately after dispatching change.
+                methodSelect.dispatchEvent(new Event('change'));
+                var paramsContainer = document.getElementById(`legParams${index}`);
+                if (paramsContainer) {
+                    var params = leg.params || leg;
+                    Object.keys(params).forEach(key => {
+                        if (['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'].indexOf(key) === -1) {
+                            var input = paramsContainer.querySelector(`[data-param="${key}"]`);
+                            if (input) input.value = params[key];
+                        }
+                    });
+                }
             }
-            if (config.presetCondition === '5') {
-                if (document.getElementById('optionsVelocityLookback')) document.getElementById('optionsVelocityLookback').value = config.velocityLookback || '5';
-                if (document.getElementById('optionsVelocityOperator')) document.getElementById('optionsVelocityOperator').value = config.presetOperator || '>';
-                if (document.getElementById('optionsVelocityThreshold')) document.getElementById('optionsVelocityThreshold').value = config.presetThreshold || '';
-            } else {
-                if (document.getElementById('optionsPresetOperator')) document.getElementById('optionsPresetOperator').value = config.presetOperator || '>';
-                if (document.getElementById('optionsPresetThreshold')) document.getElementById('optionsPresetThreshold').value = config.presetThreshold || '';
-            }
-        }
+        });
+    }
 
-        // Apply price conditions
-        if (entryType === 'custom' && config.priceConditions && config.priceConditions.length > 0) {
-            applyPriceConditions(config.priceConditions);
+    // Apply take profit
+    var tpRadio = document.querySelector(`input[name="takeProfitType"][value="${config.takeProfitType || 'P'}"]`);
+    if (tpRadio) {
+        tpRadio.checked = true;
+        tpRadio.dispatchEvent(new Event('change'));
+    }
+    if (document.getElementById('takeProfitPct')) document.getElementById('takeProfitPct').value = config.takeProfitPct || '';
+    if (document.getElementById('takeProfitDollar')) document.getElementById('takeProfitDollar').value = config.takeProfitDollar || '';
+
+    // Apply stop loss
+    var slRadio = document.querySelector(`input[name="stopLossType"][value="${config.stopLossType || 'P'}"]`);
+    if (slRadio) {
+        slRadio.checked = true;
+        slRadio.dispatchEvent(new Event('change'));
+    }
+    if (document.getElementById('stopLossPct')) document.getElementById('stopLossPct').value = config.stopLossPct || '';
+    if (document.getElementById('stopLossDollar')) document.getElementById('stopLossDollar').value = config.stopLossDollar || '';
+
+    // Apply EOD action
+    if (document.getElementById('eodAction')) document.getElementById('eodAction').value = config.eodAction || 'close';
+
+    // Apply trade frequency
+    if (document.getElementById('tradeFrequency')) document.getElementById('tradeFrequency').value = config.tradeFrequency || 'daily';
+
+    // Apply entry days
+    document.querySelectorAll('input[name="entryDays"]').forEach(cb => {
+        cb.checked = config.entryDays && config.entryDays.includes(cb.value);
+    });
+
+    // Apply capital
+    if (document.getElementById('startingCapital')) document.getElementById('startingCapital').value = config.startingCapital || '100000';
+
+    // Apply allocation
+    var allocRadio = document.querySelector(`input[name="allocationType"][value="${config.allocationType || '1'}"]`);
+    if (allocRadio) {
+        allocRadio.checked = true;
+        allocRadio.dispatchEvent(new Event('change'));
+    }
+    if (document.getElementById('allocationPct')) document.getElementById('allocationPct').value = config.allocationPct || '';
+    if (document.getElementById('allocationContracts')) document.getElementById('allocationContracts').value = config.allocationContracts || '';
+    if (document.getElementById('allocationFixed')) document.getElementById('allocationFixed').value = config.allocationFixed || '';
+
+    if (document.getElementById('entryTimeMax')) {
+        document.getElementById('entryTimeMax').value = config.entryTimeMax || '';
+    }
+
+    var concurrentRadio = document.querySelector(`input[name="concurrentTrades"][value="${config.concurrentTrades}"]`);
+    if (concurrentRadio) {
+        concurrentRadio.checked = true;
+        document.querySelectorAll('.bt-toggle-btn[data-radio="concurrentTrades"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.concurrentTrades));
+    }
+
+    var pdtRadio = document.querySelector(`input[name="avoidPdt"][value="${config.avoidPdt}"]`);
+    if (pdtRadio) {
+        pdtRadio.checked = true;
+        document.querySelectorAll('.bt-toggle-btn[data-radio="avoidPdt"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.avoidPdt));
+    }
+
+    var syntheticRadio = document.querySelector(`input[name="allowSynthetic"][value="${config.allowSynthetic}"]`);
+    if (syntheticRadio) {
+        syntheticRadio.checked = true;
+        document.querySelectorAll('.bt-toggle-btn[data-radio="allowSynthetic"]').forEach(b => b.classList.toggle('on', b.dataset.val === config.allowSynthetic));
+    }
+
+    if (document.getElementById('netPremiumMin') && config.netPremiumMin) {
+        document.getElementById('netPremiumMin').value = config.netPremiumMin;
+    }
+    if (document.getElementById('netPremiumMax') && config.netPremiumMax) {
+        document.getElementById('netPremiumMax').value = config.netPremiumMax;
+    }
+
+    // Apply entry type
+    var entryType = config.optionsEntryType || 'none';
+    if (config.priceConditions && config.priceConditions.length > 0 && entryType === 'none') {
+        entryType = 'custom';
+    }
+    if (config.presetCondition && entryType === 'none') {
+        entryType = 'preset';
+    }
+    var entryTypeRadio = document.querySelector('input[name="optionsEntryType"][value="' + entryType + '"]');
+    if (entryTypeRadio) {
+        entryTypeRadio.checked = true;
+        if (typeof updateOptionsEntryType === 'function') updateOptionsEntryType();
+    }
+
+    if (entryType === 'preset') {
+        if (document.getElementById('optionsPresetCondition') && config.presetCondition) {
+            document.getElementById('optionsPresetCondition').value = config.presetCondition;
+            document.getElementById('optionsPresetCondition').dispatchEvent(new Event('change'));
         }
-        
-        // Check for Day candle conditions and lock entry time if needed
-        setTimeout(() => {
-            checkDayCandleConditions();
-        }, 300);
-        
-        console.log('Options config applied from Use Template');
-    }, 200);
+        if (config.presetCondition === '5') {
+            if (document.getElementById('optionsVelocityLookback')) document.getElementById('optionsVelocityLookback').value = config.velocityLookback || '5';
+            if (document.getElementById('optionsVelocityOperator')) document.getElementById('optionsVelocityOperator').value = config.presetOperator || '>';
+            if (document.getElementById('optionsVelocityThreshold')) document.getElementById('optionsVelocityThreshold').value = config.presetThreshold || '';
+        } else {
+            if (document.getElementById('optionsPresetOperator')) document.getElementById('optionsPresetOperator').value = config.presetOperator || '>';
+            if (document.getElementById('optionsPresetThreshold')) document.getElementById('optionsPresetThreshold').value = config.presetThreshold || '';
+        }
+    }
+
+    // Apply price conditions
+    if (entryType === 'custom' && config.priceConditions && config.priceConditions.length > 0) {
+        applyPriceConditions(config.priceConditions);
+    }
+
+    // Defer only the day-candle check which reads computed DOM state
+    setTimeout(checkDayCandleConditions, 100);
+
+    console.log('Options config applied from Use Template');
 }
 
 var _runningBacktestId = null;
