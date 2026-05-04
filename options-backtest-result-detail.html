@@ -468,6 +468,141 @@
             margin-bottom: 20px;
         }
 
+        /* Day Chart Modal */
+        .day-chart-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            padding: 20px;
+            background: rgba(10, 18, 35, 0.72);
+            z-index: 1100;
+            backdrop-filter: blur(8px);
+        }
+        .day-chart-modal.active {
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+        }
+        .day-chart-panel {
+            width: min(1300px, 100%);
+            display: flex;
+            flex-direction: column;
+            background: #0f1923;
+            border-radius: 20px;
+            border: 1px solid #1e2d3e;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .day-chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 18px 22px;
+            border-bottom: 1px solid #1e2d3e;
+            background: #111d2b;
+        }
+        .day-chart-header h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .day-chart-indicator-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .day-chart-indicator-row label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .day-chart-indicator-row select {
+            background: #1a2535;
+            color: #e2e8f0;
+            border: 1px solid #2d3f54;
+            border-radius: 8px;
+            padding: 7px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+        }
+        .day-chart-close-btn {
+            background: #1a2535;
+            color: #94a3b8;
+            border: 1px solid #2d3f54;
+            padding: 8px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            transition: all 0.15s;
+        }
+        .day-chart-close-btn:hover { background: #243045; color: #e2e8f0; }
+        .day-chart-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 0;
+            overflow: hidden;
+        }
+        .day-price-chart-wrap {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+        .day-indicator-chart-wrap {
+            flex: 0 0 170px;
+            min-height: 0;
+            position: relative;
+            border-top: 1px solid #1e2d3e;
+            padding-top: 6px;
+            margin-top: 6px;
+            display: none;
+        }
+        .day-indicator-label {
+            position: absolute;
+            top: 10px;
+            left: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .day-chart-btn {
+            background: #1e2d3e;
+            color: #7eb8ff;
+            border: 1px solid #2d4a6a;
+            border-radius: 8px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .day-chart-btn:hover { background: #243a52; color: #a8d4ff; }
+
         .chart-modal {
             display: none;
             position: fixed;
@@ -629,6 +764,9 @@
             .chart-modal         { padding: 8px; }
             .chart-modal-header  { padding: 12px 14px; }
             .chart-modal-content { padding: 10px; }
+            .day-chart-modal     { padding: 8px; }
+            .day-chart-header    { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+            .day-chart-indicator-row { flex-wrap: wrap; gap: 8px; }
 
             .pagination-controls {
                 gap: 8px;
@@ -906,6 +1044,35 @@
                 </div>
             </div>
         </div>
+
+        <!-- Day Chart Modal (Decision Tree) -->
+        <div class="day-chart-modal" id="dayChartModal">
+            <div class="day-chart-panel">
+                <div class="day-chart-header">
+                    <h3><i class="fas fa-chart-area"></i> <span id="dayChartTitle">Day Chart</span></h3>
+                    <div class="day-chart-indicator-row">
+                        <label for="dayChartIndicator">Indicator:</label>
+                        <select id="dayChartIndicator" onchange="onDayChartIndicatorChange()">
+                            <option value="none">None</option>
+                            <option value="rsi">RSI (14)</option>
+                            <option value="macd">MACD (12, 26, 9)</option>
+                        </select>
+                        <button class="day-chart-close-btn" type="button" onclick="closeDayChartModal()">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="day-chart-body">
+                    <div class="day-price-chart-wrap">
+                        <canvas id="dayPriceChart"></canvas>
+                    </div>
+                    <div class="day-indicator-chart-wrap" id="dayIndicatorWrap">
+                        <div class="day-indicator-label" id="dayIndicatorLabel"></div>
+                        <canvas id="dayIndicatorChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -927,6 +1094,17 @@
                 icon.classList.add('collapsed');
             }
         }
+
+        // Close day chart modal on Escape or backdrop click
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                if (document.getElementById('dayChartModal').classList.contains('active')) closeDayChartModal();
+                else if (document.getElementById('chartModal').classList.contains('active')) closeChartModal();
+            }
+        });
+        document.getElementById('dayChartModal').addEventListener('click', function(e) {
+            if (e.target === this) closeDayChartModal();
+        });
 
         let expandedChart = null;
         
