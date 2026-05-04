@@ -591,11 +591,14 @@ function _toggleDtDay(headerEl) {
     }
 }
 
-function _buildLwChart(container, stored, isModal) {
+// aggBars (optional): pre-aggregated [{timestamp(ms), open, high, low, close}] bars for modal use
+// tf (optional): current timeframe in minutes — used to snap entry/exit marker timestamps
+function _buildLwChart(container, stored, isModal, aggBars, tf) {
     if (typeof LightweightCharts === 'undefined') return null;
     container.innerHTML = '';
     var w = container.clientWidth || 600;
     var h = container.clientHeight || (isModal ? 500 : 190);
+    tf = tf || 1;
     var chart = LightweightCharts.createChart(container, {
         layout: { background: { color: '#ffffff' }, textColor: '#475569', fontSize: 11 },
         grid: { vertLines: { color: '#f1f5f9' }, horzLines: { color: '#f1f5f9' } },
@@ -623,7 +626,12 @@ function _buildLwChart(container, stored, isModal) {
     });
 
     var data;
-    if (stored.multi_day_bars) {
+    if (aggBars) {
+        // Modal: use pre-aggregated object-format bars so TF is respected
+        data = aggBars.filter(function(b){ return b.open > 0; }).map(function(b) {
+            return { time: Math.floor(b.timestamp / 1000), open: b.open, high: b.high, low: b.low, close: b.close };
+        });
+    } else if (stored.multi_day_bars) {
         data = [];
         var _mdDates = Object.keys(stored.multi_day_bars).sort();
         _mdDates.forEach(function(dateStr) {
@@ -639,8 +647,14 @@ function _buildLwChart(container, stored, isModal) {
     cs.setData(data);
 
     var markers = [];
-    if (stored.entryTime) markers.push({ time: _toTs(stored.day.date, stored.entryTime), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' });
-    if (stored.exitTime)  markers.push({ time: _toTs(stored.exitDate || stored.day.date, stored.exitTime),  position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit'  });
+    if (stored.entryTime) {
+        var eRaw = _toTs(stored.day.date, stored.entryTime);
+        markers.push({ time: _dtSnapToTf(eRaw, tf), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' });
+    }
+    if (stored.exitTime) {
+        var xRaw = _toTs(stored.exitDate || stored.day.date, stored.exitTime);
+        markers.push({ time: _dtSnapToTf(xRaw, tf), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit' });
+    }
     if (markers.length) cs.setMarkers(markers);
 
     // Initial view:
@@ -677,9 +691,81 @@ function _buildLwChart(container, stored, isModal) {
 // ─── DT Modal indicator state ───────────────────────────────────────────────
 var _dtModalIndicators  = [];   // [{id, type, period, color, lineWidth, label, series}]
 var _dtModalIndNextId   = 0;
-var _dtModalBars        = [];   // seed + current-day bars — used for SMA/EMA warmup
-var _dtModalDayBars     = [];   // current-day bars only — used for VWAP (session resets at open)
+var _dtModalBars        = [];   // seed + current-day bars (at current TF) — used for SMA/EMA warmup
+var _dtModalDayBars     = [];   // current-day bars (at current TF) — used for VWAP
 var _dtModalCutoffTs    = 0;    // Unix seconds of first current-day bar; SMA/EMA output filtered to >= this
+
+// ─── DT Modal timeframe state ────────────────────────────────────────────────
+var _dtCurrentTf        = 1;    // active timeframe in minutes (1, 5, 15, 30, 60)
+var _dtCurrentStored    = null; // stored object for the currently-open modal
+var _dtRawAllBars       = [];   // raw 1-min seed+day bars (object format) — source of truth
+var _dtRawDayBars       = [];   // raw 1-min day-only bars (object format) — source of truth
+
+// Aggregate 1-min object-format bars into tf-minute candles
+function _dtAggregateBars(bars, tf) {
+    if (!tf || tf <= 1) return bars.slice();
+    var out = [], bucket = null;
+    var tfMs = tf * 60 * 1000;
+    bars.forEach(function(b) {
+        var bStart = Math.floor(b.timestamp / tfMs) * tfMs;
+        if (!bucket || bucket.timestamp !== bStart) {
+            if (bucket) out.push(bucket);
+            bucket = { timestamp: bStart, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 };
+        } else {
+            if (b.high > bucket.high) bucket.high = b.high;
+            if (b.low  < bucket.low)  bucket.low  = b.low;
+            bucket.close   = b.close;
+            bucket.volume += b.volume || 0;
+        }
+    });
+    if (bucket) out.push(bucket);
+    return out;
+}
+
+// Snap a Unix-seconds timestamp to the start of its tf-minute bucket
+function _dtSnapToTf(ts, tf) {
+    if (!tf || tf <= 1) return ts;
+    var bucket = tf * 60;
+    return Math.floor(ts / bucket) * bucket;
+}
+
+// Update TF button active state and re-render the modal chart
+function _dtSetTf(tf) {
+    _dtCurrentTf = tf;
+    document.querySelectorAll('.dt-tf-btn').forEach(function(btn) {
+        var active = parseInt(btn.dataset.tf) === tf;
+        btn.style.background   = active ? '#3b7cff' : '#fff';
+        btn.style.color        = active ? '#fff'    : '#475569';
+        btn.style.borderColor  = active ? '#3b7cff' : '#d1d4dc';
+        btn.style.fontWeight   = active ? '600'     : '500';
+    });
+    _dtRebuildModalChart();
+}
+
+// Re-aggregate bars at the current TF and rebuild the chart + indicators
+function _dtRebuildModalChart() {
+    var body = document.getElementById('dtChartModalBody');
+    if (!body || !_dtCurrentStored) return;
+    if (body._lwModalChart) { try { body._lwModalChart.remove(); } catch(e){} }
+    if (body._lwRo) { body._lwRo.disconnect(); }
+    body.innerHTML = '';
+
+    _dtModalBars     = _dtAggregateBars(_dtRawAllBars, _dtCurrentTf);
+    _dtModalDayBars  = _dtAggregateBars(_dtRawDayBars, _dtCurrentTf);
+    _dtModalCutoffTs = _dtModalDayBars.length > 0 ? Math.floor(_dtModalDayBars[0].timestamp / 1000) : 0;
+
+    _dtModalIndicators.forEach(function(ind){ ind.series = null; });
+
+    setTimeout(function() {
+        body._lwModalChart = _buildLwChart(body, _dtCurrentStored, true, _dtModalDayBars, _dtCurrentTf);
+        if (body._lwModalChart && _dtModalIndicators.length) {
+            _dtModalIndicators.forEach(function(ind) {
+                ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
+            });
+            _dtRefreshIndList();
+        }
+    }, 40);
+}
 
 function _openDtChartModal(idx) {
     idx = parseInt(idx);
@@ -711,8 +797,24 @@ function _openDtChartModal(idx) {
             return { timestamp: _toTs(stored.day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
         });
     }
-    _dtModalBars    = seedBars.concat(dayBars);
-    _dtModalDayBars = dayBars;
+    // Store raw 1-min bars as source of truth for TF switching
+    _dtRawAllBars  = seedBars.concat(dayBars);
+    _dtRawDayBars  = dayBars;
+    _dtCurrentStored = stored;
+
+    // Reset TF to 1min on every new modal open
+    _dtCurrentTf = 1;
+    document.querySelectorAll('.dt-tf-btn').forEach(function(btn) {
+        var active = parseInt(btn.dataset.tf) === 1;
+        btn.style.background  = active ? '#3b7cff' : '#fff';
+        btn.style.color       = active ? '#fff'    : '#475569';
+        btn.style.borderColor = active ? '#3b7cff' : '#d1d4dc';
+        btn.style.fontWeight  = active ? '600'     : '500';
+    });
+
+    // At tf=1 aggregation is a no-op; set state vars normally
+    _dtModalBars     = _dtRawAllBars.slice();
+    _dtModalDayBars  = _dtRawDayBars.slice();
     _dtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;
 
     var modal = document.getElementById('dtChartModal');
@@ -727,7 +829,7 @@ function _openDtChartModal(idx) {
     _dtModalIndicators.forEach(function(ind){ ind.series = null; });
 
     setTimeout(function() {
-        body._lwModalChart = _buildLwChart(body, stored, true);
+        body._lwModalChart = _buildLwChart(body, stored, true, _dtModalDayBars, 1);
         // Re-apply any persisted indicators to the new chart instance
         if (body._lwModalChart && _dtModalIndicators.length) {
             _dtModalIndicators.forEach(function(ind) {
