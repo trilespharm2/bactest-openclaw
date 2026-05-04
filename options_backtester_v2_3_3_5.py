@@ -743,7 +743,15 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                         data = response.json()
                         values = data.get('results', {}).get('values', [])
                         for v in values:
-                            indicator_data[v.get('timestamp')] = v.get('value')
+                            _ts = v.get('timestamp')
+                            if _ts is None:
+                                continue
+                            # Filter out Polygon's after-hours ghost values (repeated post-close RSI).
+                            # Only keep timestamps that fall within regular market hours (9:30–16:00 ET).
+                            _dt = datetime.fromtimestamp(_ts / 1000, tz=pytz.UTC).astimezone(eastern)
+                            _hm = _dt.hour * 60 + _dt.minute
+                            if 9 * 60 + 30 <= _hm <= 16 * 60:
+                                indicator_data[_ts] = v.get('value')
                         _rsi_page += 1
                         _next_cursor = data.get('next_url')
                         if _next_cursor and values:
@@ -756,7 +764,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                         print(f"[Prefetch] RSI error: {response.status_code} - {response.text[:200]}", flush=True)
                         _next_url = None
                 indicators['rsi'] = indicator_data
-                print(f"[Prefetch] RSI complete: {len(indicator_data)} total values ({_rsi_page} page(s))", flush=True)
+                print(f"[Prefetch] RSI complete: {len(indicator_data)} market-hours values ({_rsi_page} page(s))", flush=True)
             
             elif metric == 'macd':
                 short_window = params.get('short_window', 12)
@@ -796,12 +804,20 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                         data = response.json()
                         values = data.get('results', {}).get('values', [])
                         for v in values:
+                            _ts = v.get('timestamp')
+                            if _ts is None:
+                                continue
+                            # Filter out after-hours ghost values (same as RSI)
+                            _dt = datetime.fromtimestamp(_ts / 1000, tz=pytz.UTC).astimezone(eastern)
+                            _hm = _dt.hour * 60 + _dt.minute
+                            if not (9 * 60 + 30 <= _hm <= 16 * 60):
+                                continue
                             if component == 'histogram':
-                                indicator_data[v.get('timestamp')] = v.get('histogram')
+                                indicator_data[_ts] = v.get('histogram')
                             elif component == 'signal':
-                                indicator_data[v.get('timestamp')] = v.get('signal')
+                                indicator_data[_ts] = v.get('signal')
                             else:
-                                indicator_data[v.get('timestamp')] = v.get('value')
+                                indicator_data[_ts] = v.get('value')
                         _macd_page += 1
                         _next_cursor = data.get('next_url')
                         if _next_cursor and values:
@@ -814,7 +830,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                         print(f"[Prefetch] MACD error: {response.status_code} - {response.text[:100]}", flush=True)
                         _next_url = None
                 indicators[metric] = indicator_data
-                print(f"[Prefetch] MACD complete: {len(indicator_data)} total values ({_macd_page} page(s))", flush=True)
+                print(f"[Prefetch] MACD complete: {len(indicator_data)} market-hours values ({_macd_page} page(s))", flush=True)
                     
         except Exception as e:
             print(f"[Prefetch] Error fetching {metric}: {e}", flush=True)
@@ -4099,7 +4115,16 @@ def run_backtest(config: Dict, client: RESTClient):
             except (ValueError, TypeError):
                 right_offset = 0
             max_day_offset = max(max_day_offset, left_offset, right_offset)
-        buffer_days = max_day_offset * 2 + 5 if max_day_offset > 0 else 0
+        # Always add at least 14 calendar days of warm-up so RSI/MACD have enough
+        # prior bars to compute on the very first trading day of the backtest.
+        # (RSI-14 on 1-min bars needs 14 previous bars; 14 cal days covers that and weekends.)
+        _has_rolling_indicator = any(
+            c.get('metric') in ('rsi', 'macd') and
+            c.get('left', {}).get('candle_type', 'minute') not in ('day', 'week', 'month')
+            for c in all_price_conditions
+        )
+        min_warmup = 14 if _has_rolling_indicator else 0
+        buffer_days = max(max_day_offset * 2 + 5 if max_day_offset > 0 else 0, min_warmup)
         prefetch_start = trading_days[0] - timedelta(days=buffer_days)
         indicators_cache = prefetch_all_indicators_for_range(
             config,
