@@ -3403,6 +3403,15 @@ def start_backtest_async():
                     
                     with open(metadata_path, 'w') as f:
                         json.dump(metadata, f, indent=2)
+
+                    # Write tiny sidecar so the results list loads fast
+                    try:
+                        sidecar_path = os.path.join(output_dir, f'summary_{backtest_id}.json')
+                        with open(sidecar_path, 'w') as sf:
+                            json.dump({'config': metadata.get('config', {}),
+                                       'summary': metadata.get('summary', {})}, sf)
+                    except Exception:
+                        pass
                     
                     # Update database record with results
                     with app.app_context():
@@ -3803,14 +3812,33 @@ def list_my_options_backtests():
         results = []
         for record in backtests:
             result_data = record.to_dict()
+            # Read the tiny sidecar summary file (~2KB) instead of the full
+            # metadata file (2-11MB) — massive speedup for large result sets.
+            sidecar_path = os.path.join('backtest_results', f'summary_{record.id}.json')
             metadata_path = os.path.join('backtest_results', f'metadata_{record.id}.json')
-            if os.path.exists(metadata_path):
+            if os.path.exists(sidecar_path):
+                try:
+                    with open(sidecar_path, 'r') as f:
+                        sidecar = json.load(f)
+                        result_data['config'] = sidecar.get('config', {})
+                        result_data['summary'] = sidecar.get('summary', {})
+                except Exception:
+                    pass
+            elif os.path.exists(metadata_path):
+                # Fallback: read full file and write sidecar for next time
                 try:
                     with open(metadata_path, 'r') as f:
                         file_data = json.load(f)
-                        result_data['config'] = file_data.get('config', {})
-                        result_data['summary'] = file_data.get('summary', {})
-                except:
+                    result_data['config'] = file_data.get('config', {})
+                    result_data['summary'] = file_data.get('summary', {})
+                    # Write sidecar so future requests are fast
+                    try:
+                        with open(sidecar_path, 'w') as sf:
+                            json.dump({'config': file_data.get('config', {}),
+                                       'summary': file_data.get('summary', {})}, sf)
+                    except Exception:
+                        pass
+                except Exception:
                     pass
             # For running backtests, surface live progress (current/total days) so
             # the frontend can render an accurate progress bar instead of a spinner.
