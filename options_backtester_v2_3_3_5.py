@@ -707,12 +707,17 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
 
             elif metric == 'rsi':
                 window = params.get('window', 14)
-                series_type = params.get('series_type', 'close')
+                raw_series_type = params.get('series_type', 'close')
+                # Polygon RSI only supports: close, open, high, low — map anything else to 'close'
+                _rsi_valid_series = {'close', 'open', 'high', 'low'}
+                series_type = raw_series_type if raw_series_type in _rsi_valid_series else 'close'
+                if series_type != raw_series_type:
+                    print(f"[Prefetch] RSI: series_type '{raw_series_type}' not supported by Polygon — using 'close'", flush=True)
                 timespan = params.get('candle_type', 'day')
                 ind_multiplier = int(params.get('multiplier', 1) or 1)
 
                 url = f"https://api.polygon.io/v1/indicators/rsi/{underlying_sym}"
-                query_params = {
+                base_params = {
                     'apiKey': api_key,
                     'timespan': timespan,
                     'adjusted': 'true',
@@ -724,23 +729,34 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     'order': 'asc'
                 }
                 if ind_multiplier > 1:
-                    query_params['timespan_multiplier'] = ind_multiplier
+                    base_params['multiplier'] = ind_multiplier
 
-                print(f"[Prefetch] Fetching RSI: window={window}, timespan={timespan}...", flush=True)
+                print(f"[Prefetch] Fetching RSI: window={window}, timespan={timespan}, series={series_type}...", flush=True)
 
-                response = requests.get(url, params=query_params)
-                if response.status_code == 200:
-                    data = response.json()
-                    values = data.get('results', {}).get('values', [])
-                    indicator_data = {}
-                    for v in values:
-                        indicator_data[v.get('timestamp')] = v.get('value')
-                    indicators['rsi'] = indicator_data
-                    print(f"[Prefetch] RSI: got {len(values)} values", flush=True)
-                    if values:
-                        print(f"[Prefetch] RSI range: {values[0].get('timestamp')} to {values[-1].get('timestamp')}", flush=True)
-                else:
-                    print(f"[Prefetch] RSI error: {response.status_code} - {response.text[:200]}", flush=True)
+                indicator_data = {}
+                _next_url = url
+                _next_params = base_params
+                _rsi_page = 0
+                while _next_url:
+                    response = requests.get(_next_url, params=_next_params)
+                    if response.status_code == 200:
+                        data = response.json()
+                        values = data.get('results', {}).get('values', [])
+                        for v in values:
+                            indicator_data[v.get('timestamp')] = v.get('value')
+                        _rsi_page += 1
+                        _next_cursor = data.get('next_url')
+                        if _next_cursor and values:
+                            _next_url = _next_cursor
+                            _next_params = {'apiKey': api_key}
+                        else:
+                            _next_url = None
+                        print(f"[Prefetch] RSI page {_rsi_page}: +{len(values)} values (total {len(indicator_data)})", flush=True)
+                    else:
+                        print(f"[Prefetch] RSI error: {response.status_code} - {response.text[:200]}", flush=True)
+                        _next_url = None
+                indicators['rsi'] = indicator_data
+                print(f"[Prefetch] RSI complete: {len(indicator_data)} total values ({_rsi_page} page(s))", flush=True)
             
             elif metric == 'macd':
                 short_window = params.get('short_window', 12)
@@ -748,10 +764,14 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 signal_window = params.get('signal_window', 9)
                 component = params.get('component', 'histogram')
                 timespan = params.get('candle_type', 'day')
-                series_type = params.get('series_type', 'close')
+                raw_series_type = params.get('series_type', 'close')
+                _macd_valid_series = {'close', 'open', 'high', 'low'}
+                series_type = raw_series_type if raw_series_type in _macd_valid_series else 'close'
+                if series_type != raw_series_type:
+                    print(f"[Prefetch] MACD: series_type '{raw_series_type}' not supported — using 'close'", flush=True)
                 
                 url = f"https://api.polygon.io/v1/indicators/macd/{underlying_sym}"
-                query_params = {
+                macd_base_params = {
                     'apiKey': api_key,
                     'timespan': timespan,
                     'short_window': short_window,
@@ -760,28 +780,41 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     'series_type': series_type,
                     'timestamp.gte': start_ts,
                     'timestamp.lte': end_ts,
-                    'limit': 5000,  # Indicator endpoints have lower max limit
+                    'limit': 5000,
                     'order': 'asc'
                 }
                 
-                print(f"[Prefetch] Fetching MACD: short={short_window}, long={long_window}...", flush=True)
+                print(f"[Prefetch] Fetching MACD: short={short_window}, long={long_window}, series={series_type}...", flush=True)
                 
-                response = requests.get(url, params=query_params)
-                if response.status_code == 200:
-                    data = response.json()
-                    values = data.get('results', {}).get('values', [])
-                    indicator_data = {}
-                    for v in values:
-                        if component == 'histogram':
-                            indicator_data[v.get('timestamp')] = v.get('histogram')
-                        elif component == 'signal':
-                            indicator_data[v.get('timestamp')] = v.get('signal')
+                indicator_data = {}
+                _next_url = url
+                _next_params = macd_base_params
+                _macd_page = 0
+                while _next_url:
+                    response = requests.get(_next_url, params=_next_params)
+                    if response.status_code == 200:
+                        data = response.json()
+                        values = data.get('results', {}).get('values', [])
+                        for v in values:
+                            if component == 'histogram':
+                                indicator_data[v.get('timestamp')] = v.get('histogram')
+                            elif component == 'signal':
+                                indicator_data[v.get('timestamp')] = v.get('signal')
+                            else:
+                                indicator_data[v.get('timestamp')] = v.get('value')
+                        _macd_page += 1
+                        _next_cursor = data.get('next_url')
+                        if _next_cursor and values:
+                            _next_url = _next_cursor
+                            _next_params = {'apiKey': api_key}
                         else:
-                            indicator_data[v.get('timestamp')] = v.get('value')
-                    indicators[metric] = indicator_data
-                    print(f"[Prefetch] MACD: got {len(values)} values", flush=True)
-                else:
-                    print(f"[Prefetch] MACD error: {response.status_code}", flush=True)
+                            _next_url = None
+                        print(f"[Prefetch] MACD page {_macd_page}: +{len(values)} values (total {len(indicator_data)})", flush=True)
+                    else:
+                        print(f"[Prefetch] MACD error: {response.status_code} - {response.text[:100]}", flush=True)
+                        _next_url = None
+                indicators[metric] = indicator_data
+                print(f"[Prefetch] MACD complete: {len(indicator_data)} total values ({_macd_page} page(s))", flush=True)
                     
         except Exception as e:
             print(f"[Prefetch] Error fetching {metric}: {e}", flush=True)
@@ -1358,11 +1391,13 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
         elif metric in ['sma', 'ema', 'rsi']:
             window = params.get('window', 14)
             url = f"https://api.polygon.io/v1/indicators/{metric}/{symbol}"
+            _poly_valid_series = {'close', 'open', 'high', 'low'}
+            _safe_series = series_type if series_type in _poly_valid_series else 'close'
             query_params = {
                 'apiKey': api_key,
                 'timespan': timespan,
                 'window': window,
-                'series_type': series_type,
+                'series_type': _safe_series,
                 'timestamp.lte': entry_timestamp,
                 'limit': 1
             }
@@ -1380,6 +1415,8 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
             long_window = params.get('long_window', 26)
             signal_window = params.get('signal_window', 9)
             component = params.get('component', 'histogram')
+            _poly_valid_series = {'close', 'open', 'high', 'low'}
+            _safe_series = series_type if series_type in _poly_valid_series else 'close'
             
             url = f"https://api.polygon.io/v1/indicators/macd/{symbol}"
             query_params = {
@@ -1388,7 +1425,7 @@ def get_indicator_value_for_backtest(client: RESTClient, symbol: str, metric: st
                 'short_window': short_window,
                 'long_window': long_window,
                 'signal_window': signal_window,
-                'series_type': series_type,
+                'series_type': _safe_series,
                 'timestamp.lte': entry_timestamp,
                 'limit': 1
             }

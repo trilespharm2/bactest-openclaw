@@ -367,6 +367,13 @@ function updateOptExitConditionFields(n) {
     el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = needsWindow ? '' : 'none';
     el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
     el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = (metric === 'sma' || metric === 'ema' || isVwap) ? '' : 'none';
+    if (metric === 'rsi' || metric === 'macd') {
+        var stEl = document.getElementById('optExitLeftSeriesType' + n);
+        if (stEl) {
+            var _validS = ['close', 'open', 'high', 'low'];
+            if (_validS.indexOf(stEl.value) === -1) stEl.value = 'close';
+        }
+    }
 
     var windowLabel = document.getElementById('optExitLeftWindowLabel' + n);
     if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : (metric === 'sma' || metric === 'ema' || metric === 'vwap') ? 'Period' : 'Window';
@@ -947,6 +954,13 @@ function updateConditionFields(conditionId) {
             if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+            (function() {
+                var st = document.getElementById('leftSeriesType' + conditionId);
+                if (st) {
+                    var _rsiValid = ['close', 'open', 'high', 'low'];
+                    if (_rsiValid.indexOf(st.value) === -1) st.value = 'close';
+                }
+            })();
             updateComparatorOptions(conditionId, ['value', 'compare_rsi']);
             setCrossOperators('operator' + conditionId, false);
             break;
