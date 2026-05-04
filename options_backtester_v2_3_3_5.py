@@ -949,9 +949,11 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 if indicator_data:
                     if metric in ('sma', 'ema', 'vwap'):
                         left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
-                    elif trade_date:
+                    elif left_candle_type in ('day', 'week', 'month', 'quarter', 'year') and trade_date:
+                        # Daily+ timeframe: return the last value at/before end of the target date
                         left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
                     else:
+                        # Minute timeframe: look up by bar timestamp so each bar gets its own RSI/MACD value
                         left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                 else:
                     left_value = None
@@ -1065,9 +1067,11 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     if indicator_data:
                         if right_metric in ('sma', 'ema', 'vwap'):
                             right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
-                        elif trade_date:
+                        elif right_candle_type in ('day', 'week', 'month', 'quarter', 'year') and trade_date:
+                            # Daily+ timeframe: return the last value at/before end of the target date
                             right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)
                         else:
+                            # Minute timeframe: look up by bar timestamp so each bar gets its own RSI/MACD value
                             right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
                     else:
                         right_value = None
