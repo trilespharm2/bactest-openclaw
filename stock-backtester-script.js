@@ -589,6 +589,13 @@ function updateStockRightSide(n) {
 
     var comp = comparator.value;
     var isEquals = operator && (operator.value === '=' || operator.value === '==');
+
+    // Enable cross operators for current_price/price when RHS is SMA or EMA
+    var leftMetric = (document.getElementById('metric-' + n) || {}).value || '';
+    if (leftMetric === 'current_price' || leftMetric === 'price') {
+        setCrossOperators('operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
+    }
+
     if (comp === 'value') {
         rightSide.style.display = 'none';
         valueGroup.style.display = 'block';
@@ -922,6 +929,12 @@ function updateExitRightSide(n) {
     var rightSide = document.getElementById('exit-right-side-' + n);
     var valueGroup = document.getElementById('exit-value-input-group-' + n);
     var isEquals = (operator === '=' || operator === '==');
+
+    // Enable cross operators for current_price/price when RHS is SMA or EMA
+    var leftMetric = (document.getElementById('exit-metric-' + n) || {}).value || '';
+    if (leftMetric === 'current_price' || leftMetric === 'price') {
+        setCrossOperators('exit-operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
+    }
 
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';

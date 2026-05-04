@@ -409,6 +409,12 @@ function updateOptExitRightSide(n) {
     var valueGroup = document.getElementById('optExitValueInputGroup' + n);
     var isEquals = (operator === '==');
 
+    // Enable cross operators for current_price when RHS is SMA, EMA, or VWAP
+    var exitMetric = (document.getElementById('optExitMetric' + n) || {}).value || '';
+    if (exitMetric === 'current_price') {
+        setCrossOperators('optExitOperator' + n, comp === 'compare_sma' || comp === 'compare_ema' || comp === 'compare_vwap');
+    }
+
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';
         if (valueGroup) valueGroup.style.display = '';
@@ -1111,6 +1117,12 @@ function updateRightSideVisibility(conditionId) {
     const isEquals = (operator === '==' || operator === '=');
     
     if (!rightSide || !valueInputGroup) return;
+
+    // Enable cross operators for current_price when RHS is SMA, EMA, or VWAP
+    if (metric === 'current_price') {
+        var crossOk = comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_vwap';
+        setCrossOperators('operator' + conditionId, crossOk);
+    }
     
     if (comparator === 'value') {
         rightSide.style.display = 'none';
