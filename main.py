@@ -3673,23 +3673,6 @@ def list_backtests():
                     with open(metadata_path, 'r') as f:
                         metadata = json.load(f)
                         metadata['status'] = record.status or 'completed'
-                        summary = metadata.get('summary') or {}
-                        if 'avg_win' not in summary or 'avg_loss' not in summary:
-                            trade_log_path = os.path.join('backtest_results', f'trade_log_{record.id}.csv')
-                            if os.path.exists(trade_log_path):
-                                try:
-                                    import csv as csv_mod
-                                    with open(trade_log_path, 'r') as csvf:
-                                        reader = csv_mod.DictReader(csvf)
-                                        tlog = list(reader)
-                                    if tlog:
-                                        w = [t for t in tlog if round(float(t.get('pnl', 0) or 0), 2) > 0]
-                                        l = [t for t in tlog if round(float(t.get('pnl', 0) or 0), 2) < 0]
-                                        summary['avg_win'] = round(sum(float(t.get('pnl', 0) or 0) for t in w) / len(w), 2) if w else 0
-                                        summary['avg_loss'] = round(sum(float(t.get('pnl', 0) or 0) for t in l) / len(l), 2) if l else 0
-                                        metadata['summary'] = summary
-                                except Exception:
-                                    pass
                         results.append(metadata)
                 except Exception as e:
                     print(f"Error reading metadata for {record.id}: {e}")
@@ -4804,38 +4787,11 @@ def list_stocks_backtests_v3():
                     meta = data.get('metadata', {})
                     config = data.get('config', {})
 
-                    if not summary or not summary.get('total_pnl') and summary.get('total_pnl') != 0:
-                        raw_trades = data.get('trades', [])
-                        if raw_trades:
-                            starting_capital = config.get('starting_capital', 50000)
-                            total_pnl = sum(float(t.get('pnl', 0) or 0) for t in raw_trades)
-                            winners = [t for t in raw_trades if round(float(t.get('pnl', 0) or 0), 2) > 0]
-                            losers = [t for t in raw_trades if round(float(t.get('pnl', 0) or 0), 2) < 0]
-                            total_wins_val = sum(float(t.get('pnl', 0)) for t in winners)
-                            total_losses_val = abs(sum(float(t.get('pnl', 0)) for t in losers))
-                            n = len(raw_trades)
-                            balance = starting_capital
-                            peak = starting_capital
-                            max_dd_val = 0
-                            for t in raw_trades:
-                                balance += float(t.get('pnl', 0) or 0)
-                                if balance > peak:
-                                    peak = balance
-                                dd_val = ((balance - peak) / peak * 100) if peak > 0 else 0
-                                if dd_val < max_dd_val:
-                                    max_dd_val = dd_val
-                            summary = {
-                                'total_trades': n,
-                                'win_rate': round(len(winners) / n * 100, 2) if n else 0,
-                                'total_pnl': round(total_pnl, 2),
-                                'total_return': round((total_pnl / starting_capital) * 100, 2) if starting_capital else 0,
-                                'avg_win': round(total_wins_val / len(winners), 2) if winners else 0,
-                                'avg_loss': round(total_losses_val / len(losers), 2) if losers else 0,
-                                'profit_factor': round(total_wins_val / total_losses_val, 2) if total_losses_val > 0 else 0,
-                                'max_drawdown': round(max_dd_val, 2)
-                            }
-                        elif meta:
-                            summary = meta
+                    # Use metadata as fallback if summary is empty, but never
+                    # iterate through trades in the list endpoint — that causes
+                    # worker timeouts when many large result files are present.
+                    if not summary and meta:
+                        summary = meta
 
                     backtests.append({
                         'id': backtest_id,
