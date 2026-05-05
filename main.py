@@ -3905,8 +3905,9 @@ def list_my_stocks_backtests():
 def get_equity_curve(backtest_id):
     """Serve equity curve PNG file (ownership verified)"""
     try:
+        # Verify ownership
         record = BacktestResult.query.get(backtest_id)
-        if record and record.user_id != current_user.id:
+        if not record or record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         filename = f'equity_curve_{backtest_id}.png'
@@ -3926,8 +3927,9 @@ def get_equity_curve(backtest_id):
 def get_trade_log(backtest_id):
     """Serve trade log CSV file (ownership verified)"""
     try:
+        # Verify ownership
         record = BacktestResult.query.get(backtest_id)
-        if record and record.user_id != current_user.id:
+        if not record or record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         filename = f'trade_log_{backtest_id}.csv'
@@ -3947,11 +3949,9 @@ def get_trade_log(backtest_id):
 def get_metadata(backtest_id):
     """Serve metadata JSON file (ownership verified)"""
     try:
-        # Verify ownership via DB record when available.
-        # Legacy backtests pre-date the BacktestResult table, so we fall back to
-        # file-existence checks for those (user is already authenticated via @login_required).
+        # Verify ownership
         record = BacktestResult.query.get(backtest_id)
-        if record and record.user_id != current_user.id:
+        if not record or record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         filename = f'metadata_{backtest_id}.json'
@@ -3980,54 +3980,9 @@ def get_metadata(backtest_id):
                         metadata['summary'] = summary
                 except Exception:
                     pass
-
-        # Strip the embedded decision_log — it is served separately via
-        # /api/files/decision-log/<id> to keep this response lightweight.
-        metadata.pop('decision_log', None)
-
+        
         return jsonify(metadata)
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/files/decision-log/<backtest_id>', methods=['GET'])
-@login_required
-def get_decision_log(backtest_id):
-    """Serve the decision log for an options backtest (ownership verified, lazy-loaded)."""
-    try:
-        # Verify ownership via DB record when available.
-        # Legacy backtests pre-date the BacktestResult table, so we fall back to
-        # file-existence checks for those (user is already authenticated via @login_required).
-        record = BacktestResult.query.get(backtest_id)
-        if record and record.user_id != current_user.id:
-            return jsonify({'error': 'Unauthorized'}), 403
-
-        # Options: prefer standalone decision_log file, fall back to embedded in metadata
-        dl_path = os.path.join('backtest_results', f'decision_log_{backtest_id}.json')
-        if os.path.exists(dl_path):
-            with open(dl_path, 'r') as f:
-                log = json.load(f)
-            return jsonify({'decision_log': log})
-
-        meta_path = os.path.join('backtest_results', f'metadata_{backtest_id}.json')
-        if os.path.exists(meta_path):
-            with open(meta_path, 'r') as f:
-                metadata = json.load(f)
-            log = metadata.get('decision_log', [])
-            return jsonify({'decision_log': log})
-
-        # Stocks V3: decision_log is embedded in the main result JSON
-        stk_dir = 'stock_backtest_v3_results'
-        stk_path = os.path.join(stk_dir, f'{backtest_id}.json')
-        if os.path.exists(stk_path):
-            with open(stk_path, 'r') as f:
-                stk_data = json.load(f)
-            log = stk_data.get('decision_log', [])
-            return jsonify({'decision_log': log})
-
-        return jsonify({'decision_log': []}), 404
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -4819,9 +4774,6 @@ def get_stocks_backtest_v3_results(backtest_id):
         print(f"Stats keys: {list(results.get('stats', {}).keys()) if 'stats' in results else 'N/A'}")
         print(f"{'='*60}\n")
         
-        # Strip embedded decision_log — served separately via /api/files/decision-log/<id>
-        results.pop('decision_log', None)
-
         return jsonify(results)
     
     except FileNotFoundError as e:

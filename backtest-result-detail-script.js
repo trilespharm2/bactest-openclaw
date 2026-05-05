@@ -276,36 +276,11 @@ async function _displayOptDetail(metadata) {
         }
     } catch(e) { console.error('Error loading trade log:', e); }
 
-    // Decision log is fetched separately to keep the initial metadata response small
-    _loadOptDecisionLog(_optDetailState.id);
+    if (metadata.decision_log && metadata.decision_log.length > 0) {
+        _buildOptDetailDecisionTree(metadata.decision_log);
+    }
 
     if (typeof TierRestrictions !== 'undefined') TierRestrictions.disableCsvButtons();
-}
-
-async function _loadOptDecisionLog(id) {
-    try {
-        var dtCard = document.getElementById('optDetailDecisionTreeCard');
-        if (dtCard) {
-            dtCard.style.display = '';
-            dtCard.innerHTML = '<div class="p-3 text-muted small"><i class="fas fa-spinner fa-spin me-1"></i> Loading decision log…</div>';
-        }
-        var resp = await authFetch('/api/files/decision-log/' + id);
-        if (!resp.ok) {
-            if (dtCard) dtCard.innerHTML = '<div class="p-3 text-muted small">Decision log unavailable.</div>';
-            return;
-        }
-        var data = await resp.json();
-        var log = data.decision_log || [];
-        if (dtCard) dtCard.innerHTML = '';
-        if (log.length > 0) {
-            _buildOptDetailDecisionTree(log);
-        } else {
-            if (dtCard) dtCard.style.display = 'none';
-        }
-    } catch(e) {
-        var dtCard = document.getElementById('optDetailDecisionTreeCard');
-        if (dtCard) dtCard.innerHTML = '<div class="p-3 text-muted small">Decision log unavailable.</div>';
-    }
 }
 
 function _renderOptConfig(config) {
@@ -1364,36 +1339,11 @@ function _displayStkDetail(data) {
         document.body.removeChild(a);
     };
 
-    // Decision log is fetched separately to keep the initial metadata response small
-    _loadStkDecisionLog(_stkDetailState.id, config);
+    if (data.decision_log && data.decision_log.length > 0) {
+        _buildStkDetailDecisionTree(data.decision_log, config);
+    }
 
     if (typeof TierRestrictions !== 'undefined') TierRestrictions.disableCsvButtons();
-}
-
-async function _loadStkDecisionLog(id, config) {
-    try {
-        var dtCard = document.getElementById('stkDetailDecisionTreeCard');
-        if (dtCard) {
-            dtCard.style.display = '';
-            dtCard.innerHTML = '<div class="p-3 text-muted small"><i class="fas fa-spinner fa-spin me-1"></i> Loading decision log…</div>';
-        }
-        var resp = await authFetch('/api/files/decision-log/' + id);
-        if (!resp.ok) {
-            if (dtCard) dtCard.innerHTML = '<div class="p-3 text-muted small">Decision log unavailable.</div>';
-            return;
-        }
-        var data = await resp.json();
-        var log = data.decision_log || [];
-        if (dtCard) dtCard.innerHTML = '';
-        if (log.length > 0) {
-            _buildStkDetailDecisionTree(log, config);
-        } else {
-            if (dtCard) dtCard.style.display = 'none';
-        }
-    } catch(e) {
-        var dtCard = document.getElementById('stkDetailDecisionTreeCard');
-        if (dtCard) dtCard.innerHTML = '<div class="p-3 text-muted small">Decision log unavailable.</div>';
-    }
 }
 
 function _renderStkConfig(config, metadata) {
