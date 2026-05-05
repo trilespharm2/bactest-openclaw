@@ -583,7 +583,7 @@ async function loadPageContent(pageName) {
                 
                 if (pageName === 'stockBacktester') {
                     fileName = 'stock-backtester';
-                    scriptName = 'stock-backtester-script.js';
+                    scriptName = 'stock-backtester-script.js?v=2';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
@@ -650,6 +650,9 @@ async function loadPageContent(pageName) {
             } else if (!loadedScripts.has(pageName)) {
                 console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
+                if (pageName === 'backtester') {
+                    scriptName = 'backtester-script.js?v=2';
+                }
                 if (pageName === 'stockBacktester') {
                     scriptName = 'stock-backtester-script.js';
                 }
@@ -693,7 +696,15 @@ async function loadPageContent(pageName) {
         }
     }
     
-    // Show target page
+    // Show target page — but only if init didn't redirect us elsewhere.
+    // Some init functions (e.g. initSimTradingActive when there's no pending session)
+    // call navigateToPage(...) themselves. Without this guard, the outer call would
+    // re-activate its target after the inner navigation already activated a different
+    // page, leaving BOTH pages with the .active class visible at the same time.
+    if (currentPage !== pageName) {
+        console.log('Skipping page activation — navigation redirected from', pageName, 'to', currentPage);
+        return;
+    }
     targetPage.classList.add('active');
     console.log('Page now visible:', pageName);
     

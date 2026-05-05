@@ -4262,11 +4262,27 @@ def run_backtest(config: Dict, client: RESTClient):
             # Use pre-fetched indicator cache (already loaded at backtest start)
             # No additional API calls needed here!
             
+            # Split price conditions into simultaneous prerequisites vs sequential phases
+            _all_price_conds = price_conditions or []
+            _prereq_conds = [c for c in _all_price_conds if not c.get('is_sequential')]
+            _seq_conds    = [c for c in _all_price_conds if c.get('is_sequential')]
+            # Per-day sequential state (resets each day)
+            _seq_phase = 0        # 0 = checking phase-1; k>0 = waiting for _seq_conds[k-1]
+            _seq_arm_bar_idx = -1 # bar index when phase last advanced
+
+            def _fmt_cd(c):
+                base = f"{c['left_label']} {c['left_value']:.2f} {c['operator']} {c['right_label']} {c['right_value']:.2f}"
+                if c.get('threshold'):
+                    sign = '-' if c['operator'] in ('<', '<=') else '+'
+                    unit = '%' if c.get('threshold_unit') == 'percent' else 'pts'
+                    base += f" {sign}{c['threshold']}{unit} → {c['effective_right']:.2f}"
+                return base
+
             # Scan through candidate bars to find first one where conditions are met
             entry_bar = None
             last_condition_reason = None
             _entry_snap = {}
-            for bar in candidate_bars:
+            for _bar_idx, bar in enumerate(candidate_bars):
                 underlying_price = bar['open']
                 bar_time = bar['time']
                 bar_timestamp = bar['timestamp']
@@ -4293,24 +4309,34 @@ def run_backtest(config: Dict, client: RESTClient):
                             'reason': preset_reason
                         })
                 
-                # Check custom price conditions at this bar using cached indicator data
+                # Check custom price conditions — sequential state machine
                 if price_conditions:
-                    conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
-                        config, bar, indicators_cache, trade_date,
-                        bars_by_date=underlying_bars_1min
-                    )
-                    if not conditions_met:
-                        print(f"  Conditions not met: {condition_reason}", flush=True)
-                        last_condition_reason = condition_reason
-                        continue
-                    else:
-                        def _fmt_cd(c):
-                            base = f"{c['left_label']} {c['left_value']:.2f} {c['operator']} {c['right_label']} {c['right_value']:.2f}"
-                            if c.get('threshold'):
-                                sign = '-' if c['operator'] in ('<', '<=') else '+'
-                                unit = '%' if c.get('threshold_unit') == 'percent' else 'pts'
-                                base += f" {sign}{c['threshold']}{unit} → {c['effective_right']:.2f}"
-                            return base
+                    cond_details = []
+                    if _seq_phase == 0:
+                        # Phase 1: check all non-sequential (simultaneous) conditions
+                        if _prereq_conds:
+                            _pconf = {**config, 'price_conditions': _prereq_conds}
+                            conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
+                                _pconf, bar, indicators_cache, trade_date,
+                                bars_by_date=underlying_bars_1min
+                            )
+                            if not conditions_met:
+                                print(f"  Conditions not met: {condition_reason}", flush=True)
+                                last_condition_reason = condition_reason
+                                continue
+                        if _seq_conds:
+                            # Phase 1 satisfied — arm phase 2, don't enter yet
+                            _seq_phase = 1
+                            _seq_arm_bar_idx = _bar_idx
+                            print(f"  SEQ Phase 1 armed @ {bar_time}", flush=True)
+                            day_entry['events'].append({
+                                'type': 'seq_phase_armed',
+                                'phase': 1,
+                                'time': bar_time,
+                                'price': underlying_price,
+                            })
+                            continue
+                        # No sequential conditions — fall through to entry
                         _det_str = '  '.join(_fmt_cd(c) for c in cond_details) if cond_details else ''
                         print(f"  Conditions met - entering trade" + (f"  [{_det_str}]" if _det_str else ""), flush=True)
                         day_entry['events'].append({
@@ -4318,6 +4344,47 @@ def run_backtest(config: Dict, client: RESTClient):
                             'time': bar_time,
                             'price': underlying_price,
                             'reason': 'All price conditions met',
+                            'conditions': cond_details
+                        })
+                    else:
+                        # Sequential phase: check _seq_conds[_seq_phase - 1]
+                        _sc = _seq_conds[_seq_phase - 1]
+                        _max_wait = int(_sc.get('max_wait_bars', 0) or 0)
+                        if _max_wait > 0 and (_bar_idx - _seq_arm_bar_idx) > _max_wait:
+                            # Timed out — reset to phase 0
+                            _seq_phase = 0
+                            _seq_arm_bar_idx = -1
+                            print(f"  SEQ Phase timed out @ {bar_time} — resetting", flush=True)
+                            continue
+                        _sc_conf = {**config, 'price_conditions': [_sc]}
+                        conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
+                            _sc_conf, bar, indicators_cache, trade_date,
+                            bars_by_date=underlying_bars_1min
+                        )
+                        if not conditions_met:
+                            print(f"  SEQ Phase {_seq_phase} not yet met: {condition_reason}", flush=True)
+                            last_condition_reason = condition_reason
+                            continue
+                        if _seq_phase < len(_seq_conds):
+                            # Advance to next sequential phase
+                            _seq_phase += 1
+                            _seq_arm_bar_idx = _bar_idx
+                            print(f"  SEQ Phase {_seq_phase} armed @ {bar_time}", flush=True)
+                            day_entry['events'].append({
+                                'type': 'seq_phase_armed',
+                                'phase': _seq_phase,
+                                'time': bar_time,
+                                'price': underlying_price,
+                            })
+                            continue
+                        # All sequential phases satisfied — enter
+                        _det_str = '  '.join(_fmt_cd(c) for c in cond_details) if cond_details else ''
+                        print(f"  SEQ Final phase met - entering trade" + (f"  [{_det_str}]" if _det_str else ""), flush=True)
+                        day_entry['events'].append({
+                            'type': 'condition_met',
+                            'time': bar_time,
+                            'price': underlying_price,
+                            'reason': 'All sequential conditions met',
                             'conditions': cond_details
                         })
                 

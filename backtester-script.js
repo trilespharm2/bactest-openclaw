@@ -595,9 +595,11 @@ function addPriceCondition() {
     conditionDiv.id = `priceCondition${conditionId}`;
     conditionDiv.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6;';
     
+    const isFirstOptCond = existingConditions.length === 0;
+
     conditionDiv.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <strong class="text-muted">Condition ${conditionId + 1}</strong>
+            <strong class="text-muted"><span id="optCondModeLabel${conditionId}">${isFirstOptCond ? 'Condition 1 — Phase 1: Initial Trigger' : `Condition ${existingConditions.length + 1} — Phase 1: Prerequisite`}</span></strong>
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePriceCondition(${conditionId})">
                 <i class="fas fa-times"></i>
             </button>
@@ -797,6 +799,35 @@ function addPriceCondition() {
             </div>
         </div>
 
+        <!-- Sequential Phase toggle (hidden on first condition; shown on conditions 2+) -->
+        ${isFirstOptCond ? `
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="d-flex align-items-center gap-2 px-1 py-1 rounded" style="background:#f0f4ff;border:1px dashed #a5b4fc;">
+                <i class="fas fa-layer-group" style="color:#6366f1;font-size:13px;"></i>
+                <small style="color:#4b5563;"><strong style="color:#4338ca;">Sequential Phase</strong> — click <em>Add Condition</em> below to enable: each new condition can be set to trigger <em>after</em> the previous one fires, not simultaneously.</small>
+            </div>
+        </div>` : `
+        <div id="optSeqSection${conditionId}" class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="optEntrySeqEnabled${conditionId}" onchange="_updateOptSeqMode(${conditionId})">
+                <label class="form-check-label small fw-bold" for="optEntrySeqEnabled${conditionId}" style="color:#374151;">
+                    Sequential Phase
+                    <span style="font-weight:400;color:#6b7280;">— triggers <em>after</em> previous condition fires, not simultaneously</span>
+                </label>
+            </div>
+            <div id="optSeqFields${conditionId}" style="display:none;" class="mt-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Max Wait Bars <span class="text-muted">(0 = no limit)</span></label>
+                        <input type="number" class="form-control form-control-sm" id="optEntrySeqMaxWait${conditionId}" value="0" min="0" max="500" placeholder="e.g. 10">
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">Entry fires when this condition triggers after the previous phase. Set <strong>Max Wait Bars &gt; 0</strong> to auto-reset and re-arm if this phase does not trigger in time.</small>
+                    </div>
+                </div>
+            </div>
+        </div>`}
+
         <!-- Live Summary -->
         <div id="optEntrySummary${conditionId}" class="mt-2 small text-muted fst-italic condition-summary" style="display:none;"></div>
     `;
@@ -823,21 +854,49 @@ function removePriceCondition(conditionId) {
     checkDayCandleConditions();
 }
 
+// Update sequential mode label + fields visibility for options condition id
+function _updateOptSeqMode(id) {
+    var cb = document.getElementById('optEntrySeqEnabled' + id);
+    var fields = document.getElementById('optSeqFields' + id);
+    if (fields) fields.style.display = (cb && cb.checked) ? 'block' : 'none';
+    _relabelAllPriceConditions();
+}
+
+// Recompute phase labels for all options entry conditions
+function _relabelAllPriceConditions() {
+    const container = document.getElementById('priceConditionsContainer');
+    if (!container) return;
+    const rows = container.querySelectorAll('.price-condition-row');
+    var nextSeqPhase = 2;
+    rows.forEach(function(row, index) {
+        var id = row.id.replace('priceCondition', '');
+        var labelEl = document.getElementById('optCondModeLabel' + id);
+        var seqCb   = document.getElementById('optEntrySeqEnabled' + id);
+        if (!labelEl) return;
+        if (index === 0) {
+            labelEl.textContent = 'Condition 1 — Phase 1: Initial Trigger';
+        } else {
+            var isSeq = seqCb && seqCb.checked;
+            if (isSeq) {
+                labelEl.textContent = `Condition ${index + 1} — Phase ${nextSeqPhase}: Sequential Trigger`;
+                nextSeqPhase++;
+            } else {
+                labelEl.textContent = `Condition ${index + 1} — Phase 1: Prerequisite`;
+            }
+        }
+    });
+}
+
 function renumberPriceConditions() {
     const container = document.getElementById('priceConditionsContainer');
     if (!container) return;
     
     const conditionRows = container.querySelectorAll('.price-condition-row');
-    conditionRows.forEach((row, index) => {
-        // Update the condition header text
-        const header = row.querySelector('strong.text-muted');
-        if (header) {
-            header.textContent = `Condition ${index + 1}`;
-        }
-    });
     
     // Reset counter to match current count (for next add)
     priceConditionCount = conditionRows.length;
+
+    _relabelAllPriceConditions();
 }
 
 function updateConditionFields(conditionId) {
@@ -1451,7 +1510,14 @@ function collectPriceConditions() {
         if (rbEnabled && rbEnabled.checked) {
             condition.restrict_bars = parseInt(document.getElementById(`optEntryRestrictBars${id}`)?.value) || 5;
         }
-        
+
+        // Sequential phase flag (conditions 2+ only)
+        var optSeqCb = document.getElementById(`optEntrySeqEnabled${id}`);
+        condition.is_sequential = !!(optSeqCb && optSeqCb.checked);
+        if (condition.is_sequential) {
+            condition.max_wait_bars = parseInt(document.getElementById(`optEntrySeqMaxWait${id}`)?.value) || 0;
+        }
+
         conditions.push(condition);
     });
     
