@@ -94,6 +94,13 @@ let lwIndicators = [];
 let lwIndicatorNextId = 1;
 let simUserHasDragged = false;
 let simActiveSessionId = null;
+let lwRsiChart = null;
+let lwRsiSeries = null;
+let lwMacdChart = null;
+let lwMacdHistSeries = null;
+let lwMacdLineSeries2 = null;
+let lwMacdSignalSeries = null;
+let _lwTsSyncing = false;
 
 const SIM_API_RATE_LIMIT = 3;
 const SIM_API_RATE_WINDOW = 60000;
@@ -847,12 +854,15 @@ function saveCurrentSessionState() {
             legs: t.legs ? t.legs.map(l => ({ ...l, optionBars: [] })) : []
         })),
         createdAt: simActiveSessionId || new Date().toISOString(),
-        indicators: lwIndicators.map(ind => ({
-            type: ind.type,
-            period: ind.period,
-            color: ind.color,
-            lineWidth: ind.lineWidth || 2
-        }))
+        indicators: lwIndicators.map(ind => {
+            const base = { type: ind.type, period: ind.period, color: ind.color, lineWidth: ind.lineWidth || 2 };
+            if (ind.type === 'macd') {
+                base.shortPeriod  = ind.shortPeriod  || 12;
+                base.longPeriod   = ind.longPeriod   || 26;
+                base.signalPeriod = ind.signalPeriod || 9;
+            }
+            return base;
+        })
     };
 
     let activeSessions = [];
@@ -1266,9 +1276,16 @@ function createLWChart() {
         }
     });
 
-    lwChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    lwChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         if (lwChart && lwChart._userScrolling) {
             simUserHasDragged = true;
+        }
+        if (!_lwTsSyncing && range) {
+            _lwTsSyncing = true;
+            try {
+                if (lwRsiChart) lwRsiChart.timeScale().setVisibleLogicalRange(range);
+                if (lwMacdChart) lwMacdChart.timeScale().setVisibleLogicalRange(range);
+            } finally { _lwTsSyncing = false; }
         }
     });
 
@@ -1311,6 +1328,8 @@ function destroyLWChart() {
         lwIndicators.forEach(ind => { ind.series = null; });
         lwIndicators = [];
         lwIndicatorNextId = 1;
+        destroyRSIPane();
+        destroyMACDPane();
         refreshIndicatorsList();
     }
 }
@@ -1384,6 +1403,76 @@ function computeVWAP(bars, period) {
     return result;
 }
 
+function computeRSI(bars, period) {
+    const result = [];
+    if (bars.length < period + 1) return result;
+    let gains = 0, losses = 0;
+    for (let i = 1; i <= period; i++) {
+        const diff = bars[i].close - bars[i - 1].close;
+        if (diff > 0) gains += diff; else losses -= diff;
+    }
+    let avgGain = gains / period, avgLoss = losses / period;
+    const rsi0 = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    result.push({ time: Math.floor(bars[period].timestamp / 1000), value: rsi0 });
+    for (let i = period + 1; i < bars.length; i++) {
+        const diff = bars[i].close - bars[i - 1].close;
+        avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period;
+        avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
+        const rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+        result.push({ time: Math.floor(bars[i].timestamp / 1000), value: rsi });
+    }
+    return result;
+}
+
+function _emaArray(bars, period) {
+    if (bars.length < period) return [];
+    let sum = 0;
+    for (let i = 0; i < period; i++) sum += bars[i].close;
+    const k = 2 / (period + 1);
+    let ema = sum / period;
+    const result = [{ idx: period - 1, time: Math.floor(bars[period - 1].timestamp / 1000), value: ema }];
+    for (let i = period; i < bars.length; i++) {
+        ema = bars[i].close * k + ema * (1 - k);
+        result.push({ idx: i, time: Math.floor(bars[i].timestamp / 1000), value: ema });
+    }
+    return result;
+}
+
+function computeMACD(bars, shortPeriod, longPeriod, signalPeriod) {
+    const shortEma = _emaArray(bars, shortPeriod);
+    const longEma  = _emaArray(bars, longPeriod);
+    const shortMap = {};
+    for (const d of shortEma) shortMap[d.idx] = d.value;
+    const macdLine = [];
+    for (const d of longEma) {
+        const sv = shortMap[d.idx];
+        if (sv !== undefined) macdLine.push({ time: d.time, value: sv - d.value });
+    }
+    const signalLine = [];
+    if (macdLine.length >= signalPeriod) {
+        let sum = 0;
+        for (let i = 0; i < signalPeriod; i++) sum += macdLine[i].value;
+        let sig = sum / signalPeriod;
+        signalLine.push({ time: macdLine[signalPeriod - 1].time, value: sig });
+        const k = 2 / (signalPeriod + 1);
+        for (let i = signalPeriod; i < macdLine.length; i++) {
+            sig = macdLine[i].value * k + sig * (1 - k);
+            signalLine.push({ time: macdLine[i].time, value: sig });
+        }
+    }
+    const histogram = [];
+    const offset = macdLine.length - signalLine.length;
+    for (let i = 0; i < signalLine.length; i++) {
+        const diff = macdLine[offset + i].value - signalLine[i].value;
+        histogram.push({ time: signalLine[i].time, value: diff, color: diff >= 0 ? 'rgba(8,153,129,0.85)' : 'rgba(242,54,69,0.85)' });
+    }
+    return {
+        macdLine: macdLine.map(d => ({ time: d.time, value: d.value })),
+        signalLine,
+        histogram
+    };
+}
+
 function deduplicateTimeSeries(data) {
     if (data.length <= 1) return data;
     const seen = new Set();
@@ -1400,18 +1489,22 @@ function deduplicateTimeSeries(data) {
 function updateAllIndicators() {
     if (!lwChart || simVisibleBars.length === 0) return;
     for (const ind of lwIndicators) {
-        let data = [];
         try {
-            if (ind.type === 'sma') {
-                data = computeSMA(simVisibleBars, ind.period);
-            } else if (ind.type === 'ema') {
-                data = computeEMA(simVisibleBars, ind.period);
-            } else if (ind.type === 'vwap') {
-                data = computeVWAP(simVisibleBars, ind.period);
-            }
-            data = deduplicateTimeSeries(data);
-            if (ind.series) {
-                ind.series.setData(data);
+            if (ind.type === 'sma' && ind.series) {
+                ind.series.setData(deduplicateTimeSeries(computeSMA(simVisibleBars, ind.period)));
+            } else if (ind.type === 'ema' && ind.series) {
+                ind.series.setData(deduplicateTimeSeries(computeEMA(simVisibleBars, ind.period)));
+            } else if (ind.type === 'vwap' && ind.series) {
+                ind.series.setData(deduplicateTimeSeries(computeVWAP(simVisibleBars, ind.period)));
+            } else if (ind.type === 'rsi' && lwRsiSeries) {
+                lwRsiSeries.setData(deduplicateTimeSeries(computeRSI(simVisibleBars, ind.period)));
+            } else if (ind.type === 'macd' && lwMacdHistSeries) {
+                const { macdLine, signalLine, histogram } = computeMACD(
+                    simVisibleBars, ind.shortPeriod || 12, ind.longPeriod || 26, ind.signalPeriod || 9
+                );
+                lwMacdHistSeries.setData(deduplicateTimeSeries(histogram));
+                if (lwMacdLineSeries2) lwMacdLineSeries2.setData(deduplicateTimeSeries(macdLine));
+                if (lwMacdSignalSeries) lwMacdSignalSeries.setData(deduplicateTimeSeries(signalLine));
             }
         } catch (e) {
             console.warn('Indicator update error for ' + ind.label + ':', e);
@@ -1421,13 +1514,32 @@ function updateAllIndicators() {
 
 function onSimIndicatorTypeChange() {
     const type = document.getElementById('simIndicatorType').value;
-    const periodGroup = document.getElementById('simIndicatorPeriodGroup');
-    const periodInput = document.getElementById('simIndicatorPeriod');
-    if (periodGroup) {
-        periodGroup.style.display = 'block';
-    }
-    if (periodInput && type === 'vwap') {
-        periodInput.value = '14';
+    const periodGroup   = document.getElementById('simIndicatorPeriodGroup');
+    const macdGroup     = document.getElementById('simMACDPeriodGroup');
+    const lwGroup       = document.getElementById('simIndicatorLineWidthGroup');
+    const colorGroup    = document.getElementById('simIndicatorColorGroup');
+    const periodInput   = document.getElementById('simIndicatorPeriod');
+    const colorInput    = document.getElementById('simIndicatorColor');
+
+    if (type === 'macd') {
+        if (periodGroup) periodGroup.style.display = 'none';
+        if (macdGroup)   macdGroup.style.display   = 'block';
+        if (lwGroup)     lwGroup.style.display      = 'none';
+        if (colorGroup)  colorGroup.style.display   = 'none';
+    } else if (type === 'rsi') {
+        if (periodGroup) periodGroup.style.display = 'block';
+        if (macdGroup)   macdGroup.style.display   = 'none';
+        if (lwGroup)     lwGroup.style.display      = 'none';
+        if (colorGroup)  colorGroup.style.display   = 'block';
+        if (periodInput) periodInput.value = '14';
+        if (colorInput)  colorInput.value  = '#7c3aed';
+    } else {
+        if (periodGroup) periodGroup.style.display = 'block';
+        if (macdGroup)   macdGroup.style.display   = 'none';
+        if (lwGroup)     lwGroup.style.display      = 'block';
+        if (colorGroup)  colorGroup.style.display   = 'block';
+        if (type === 'vwap' && periodInput) periodInput.value = '14';
+        if (colorInput && (type === 'sma' || type === 'ema' || type === 'vwap')) colorInput.value = '#2962ff';
     }
 }
 
@@ -1448,9 +1560,6 @@ function getMaxIndicators() {
 function addSimIndicator(config) {
     if (!lwChart) return;
     const type = config ? config.type : document.getElementById('simIndicatorType').value;
-    const period = config ? config.period : (parseInt(document.getElementById('simIndicatorPeriod').value) || 20);
-    const color = config ? config.color : (document.getElementById('simIndicatorColor').value || '#2962ff');
-    const lineWidth = config ? (config.lineWidth || 2) : (parseInt(document.getElementById('simIndicatorLineWidth').value) || 2);
 
     var maxInd = getMaxIndicators();
     if (lwIndicators.length >= maxInd) {
@@ -1460,31 +1569,60 @@ function addSimIndicator(config) {
         return;
     }
 
+    if (type === 'rsi') {
+        if (lwIndicators.some(i => i.type === 'rsi')) { alert('RSI is already on the chart.'); return; }
+        const period = config ? (config.period || 14) : (parseInt(document.getElementById('simIndicatorPeriod').value) || 14);
+        const color  = config ? (config.color || '#7c3aed') : (document.getElementById('simIndicatorColor').value || '#7c3aed');
+        if (period < 2 || period > 500) { alert('Period must be between 2 and 500.'); return; }
+        const id = lwIndicatorNextId++;
+        const label = 'RSI(' + period + ')';
+        const ind = { id, type: 'rsi', period, color, lineWidth: 2, label, series: null };
+        lwIndicators.push(ind);
+        createRSIPane(ind);
+        refreshIndicatorsList();
+        saveCurrentSessionState();
+        return;
+    }
+
+    if (type === 'macd') {
+        if (lwIndicators.some(i => i.type === 'macd')) { alert('MACD is already on the chart.'); return; }
+        const shortPeriod  = config ? (config.shortPeriod  || 12) : (parseInt(document.getElementById('simMACDShort').value)  || 12);
+        const longPeriod   = config ? (config.longPeriod   || 26) : (parseInt(document.getElementById('simMACDLong').value)   || 26);
+        const signalPeriod = config ? (config.signalPeriod || 9)  : (parseInt(document.getElementById('simMACDSignal').value) || 9);
+        const id = lwIndicatorNextId++;
+        const label = 'MACD(' + shortPeriod + ',' + longPeriod + ',' + signalPeriod + ')';
+        const ind = { id, type: 'macd', period: 0, color: '#2962ff', lineWidth: 2, label, series: null, shortPeriod, longPeriod, signalPeriod };
+        lwIndicators.push(ind);
+        createMACDPane(ind);
+        refreshIndicatorsList();
+        saveCurrentSessionState();
+        return;
+    }
+
+    const period    = config ? config.period    : (parseInt(document.getElementById('simIndicatorPeriod').value)    || 20);
+    const color     = config ? config.color     : (document.getElementById('simIndicatorColor').value               || '#2962ff');
+    const lineWidth = config ? (config.lineWidth || 2) : (parseInt(document.getElementById('simIndicatorLineWidth').value) || 2);
+
     if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
         alert('Period must be between 2 and 500.');
         return;
     }
 
-    const id = lwIndicatorNextId++;
+    const id    = lwIndicatorNextId++;
     const label = type === 'vwap' ? 'VWAP(' + period + ')' : type.toUpperCase() + '(' + period + ')';
-
     const series = lwChart.addLineSeries({
-        color: color,
-        lineWidth: lineWidth,
-        priceLineVisible: false,
-        lastValueVisible: true,
-        crosshairMarkerVisible: false,
-        title: label
+        color, lineWidth, priceLineVisible: false, lastValueVisible: true,
+        crosshairMarkerVisible: false, title: label
     });
 
     const ind = { id, type, period, color, lineWidth, label, series };
     lwIndicators.push(ind);
 
     let data = [];
-    if (type === 'sma') data = computeSMA(simVisibleBars, period);
-    else if (type === 'ema') data = computeEMA(simVisibleBars, period);
+    if (type === 'sma')  data = computeSMA(simVisibleBars, period);
+    else if (type === 'ema')  data = computeEMA(simVisibleBars, period);
     else if (type === 'vwap') data = computeVWAP(simVisibleBars, period);
-    series.setData(data);
+    series.setData(deduplicateTimeSeries(data));
 
     refreshIndicatorsList();
     saveCurrentSessionState();
@@ -1494,7 +1632,11 @@ function removeSimIndicator(id) {
     const idx = lwIndicators.findIndex(ind => ind.id === id);
     if (idx === -1) return;
     const ind = lwIndicators[idx];
-    if (ind.series && lwChart) {
+    if (ind.type === 'rsi') {
+        destroyRSIPane();
+    } else if (ind.type === 'macd') {
+        destroyMACDPane();
+    } else if (ind.series && lwChart) {
         try { lwChart.removeSeries(ind.series); } catch(e) {}
     }
     lwIndicators.splice(idx, 1);
@@ -1505,13 +1647,108 @@ function removeSimIndicator(id) {
 function clearAllSimIndicators() {
     while (lwIndicators.length > 0) {
         const ind = lwIndicators.pop();
-
-        if (ind.series && lwChart) {
+        if (ind.type === 'rsi') {
+            destroyRSIPane();
+        } else if (ind.type === 'macd') {
+            destroyMACDPane();
+        } else if (ind.series && lwChart) {
             try { lwChart.removeSeries(ind.series); } catch(e) {}
         }
     }
     refreshIndicatorsList();
     saveCurrentSessionState();
+}
+
+function _makeSubChart(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container || typeof LightweightCharts === 'undefined') return null;
+    const chart = LightweightCharts.createChart(container, {
+        layout: { background: { type: 'solid', color: '#f8f9fd' }, textColor: '#6a6d78', fontSize: 10 },
+        grid: { vertLines: { color: '#e8eaf0' }, horzLines: { color: '#e8eaf0' } },
+        rightPriceScale: { borderColor: '#d1d4dc', scaleMargins: { top: 0.08, bottom: 0.08 } },
+        timeScale: { borderColor: '#d1d4dc', timeVisible: false, secondsVisible: false, visible: false },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        handleScroll: { vertTouchDrag: false }
+    });
+    chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (_lwTsSyncing || !range || !lwChart) return;
+        _lwTsSyncing = true;
+        try {
+            lwChart.timeScale().setVisibleLogicalRange(range);
+            if (lwRsiChart  && lwRsiChart  !== chart) lwRsiChart.timeScale().setVisibleLogicalRange(range);
+            if (lwMacdChart && lwMacdChart !== chart) lwMacdChart.timeScale().setVisibleLogicalRange(range);
+        } finally { _lwTsSyncing = false; }
+    });
+    const ro = new ResizeObserver(entries => {
+        const { width, height } = entries[0].contentRect;
+        try { chart.applyOptions({ width, height }); } catch(e) {}
+    });
+    ro.observe(container);
+    chart._ro = ro;
+    return chart;
+}
+
+function createRSIPane(ind) {
+    const pane = document.getElementById('simRSIPanelContainer');
+    if (!pane) return;
+    pane.style.display = 'block';
+    lwRsiChart = _makeSubChart('simRSIChartInner');
+    if (!lwRsiChart) return;
+    lwRsiSeries = lwRsiChart.addLineSeries({
+        color: ind.color || '#7c3aed', lineWidth: 2,
+        priceLineVisible: false, lastValueVisible: true, title: ind.label || 'RSI'
+    });
+    lwRsiSeries.createPriceLine({ price: 70, color: '#f23645', lineWidth: 1, lineStyle: 2, axisLabelVisible: true,  title: '70' });
+    lwRsiSeries.createPriceLine({ price: 50, color: '#9598a1', lineWidth: 1, lineStyle: 3, axisLabelVisible: false, title: '' });
+    lwRsiSeries.createPriceLine({ price: 30, color: '#089981', lineWidth: 1, lineStyle: 2, axisLabelVisible: true,  title: '30' });
+    lwRsiSeries.setData(deduplicateTimeSeries(computeRSI(simVisibleBars, ind.period)));
+    if (lwChart) {
+        try { const r = lwChart.timeScale().getVisibleLogicalRange(); if (r) lwRsiChart.timeScale().setVisibleLogicalRange(r); } catch(e) {}
+    }
+}
+
+function destroyRSIPane() {
+    if (lwRsiChart) {
+        try { if (lwRsiChart._ro) lwRsiChart._ro.disconnect(); } catch(e) {}
+        try { lwRsiChart.remove(); } catch(e) {}
+        lwRsiChart = null; lwRsiSeries = null;
+    }
+    const pane = document.getElementById('simRSIPanelContainer');
+    if (pane) pane.style.display = 'none';
+}
+
+function createMACDPane(ind) {
+    const pane = document.getElementById('simMACDPanelContainer');
+    if (!pane) return;
+    pane.style.display = 'block';
+    lwMacdChart = _makeSubChart('simMACDChartInner');
+    if (!lwMacdChart) return;
+    const sp = ind.shortPeriod || 12, lp = ind.longPeriod || 26, sig = ind.signalPeriod || 9;
+    const { macdLine, signalLine, histogram } = computeMACD(simVisibleBars, sp, lp, sig);
+    lwMacdHistSeries = lwMacdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false, title: '' });
+    lwMacdHistSeries.setData(deduplicateTimeSeries(histogram));
+    lwMacdLineSeries2 = lwMacdChart.addLineSeries({
+        color: '#2962ff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'MACD'
+    });
+    lwMacdLineSeries2.setData(deduplicateTimeSeries(macdLine));
+    lwMacdLineSeries2.createPriceLine({ price: 0, color: '#9598a1', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
+    lwMacdSignalSeries = lwMacdChart.addLineSeries({
+        color: '#ff6d00', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'Signal'
+    });
+    lwMacdSignalSeries.setData(deduplicateTimeSeries(signalLine));
+    if (lwChart) {
+        try { const r = lwChart.timeScale().getVisibleLogicalRange(); if (r) lwMacdChart.timeScale().setVisibleLogicalRange(r); } catch(e) {}
+    }
+}
+
+function destroyMACDPane() {
+    if (lwMacdChart) {
+        try { if (lwMacdChart._ro) lwMacdChart._ro.disconnect(); } catch(e) {}
+        try { lwMacdChart.remove(); } catch(e) {}
+        lwMacdChart = null; lwMacdHistSeries = null; lwMacdLineSeries2 = null; lwMacdSignalSeries = null;
+    }
+    const pane = document.getElementById('simMACDPanelContainer');
+    if (pane) pane.style.display = 'none';
 }
 
 function refreshIndicatorsList() {
@@ -1536,7 +1773,15 @@ function refreshIndicatorsList() {
     for (const ind of lwIndicators) {
         html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid #f0f3fa;">';
         html += '<div style="display:flex; align-items:center; gap:6px;">';
-        html += '<span style="width:12px; height:12px; border-radius:50%; background:' + ind.color + '; display:inline-block;"></span>';
+        if (ind.type === 'macd') {
+            html += '<span style="display:inline-flex;gap:2px;align-items:center;">' +
+                '<span style="width:5px;height:12px;border-radius:2px;background:#2962ff;display:inline-block;"></span>' +
+                '<span style="width:5px;height:12px;border-radius:2px;background:#ff6d00;display:inline-block;"></span>' +
+                '<span style="width:5px;height:12px;border-radius:2px;background:#089981;display:inline-block;"></span>' +
+                '</span>';
+        } else {
+            html += '<span style="width:12px; height:12px; border-radius:50%; background:' + ind.color + '; display:inline-block;"></span>';
+        }
         html += '<span style="font-size:12px; color:#191919;">' + ind.label + '</span>';
         html += '</div>';
         html += '<button type="button" onclick="removeSimIndicator(' + ind.id + ')" style="background:none; border:none; color:#f23645; cursor:pointer; font-size:13px; padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>';
@@ -2765,11 +3010,6 @@ function checkOptionTpSlThresholds() {
     const currentTimestamp = currentMinuteBar.timestamp;
     const positionsToClose = [];
 
-    // Index options settle at 16:00; equity/ETF options trade until 16:15
-    const SIM_INDEX_SYMS = new Set(['SPX', 'SPXW', 'NDX', 'RUT', 'XSP', 'VIX']);
-    const _simUndSym = ((document.getElementById('simSymbol') || {}).value || '').toUpperCase().trim();
-    const _expMins = SIM_INDEX_SYMS.has(_simUndSym) ? 960 : 975;  // 16:00 vs 16:15
-
     for (const pos of simOpenOptionPositions) {
         if (pos.status !== 'open') continue;
         const unrealizedPnl = calculateOptionPositionPnl(pos, currentTimestamp);
@@ -2798,7 +3038,7 @@ function checkOptionTpSlThresholds() {
         const currentDateStr = `${cY}-${cM}-${cD}`;
         const currentTimeET = currentDate.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
         const [etH, etMi] = currentTimeET.split(':').map(Number);
-        const isPastExpiration = currentDateStr > pos.expiration || (currentDateStr === pos.expiration && (etH * 60 + etMi) >= _expMins);
+        const isPastExpiration = currentDateStr > pos.expiration || (currentDateStr === pos.expiration && (etH * 60 + etMi) >= 960);
         if (isPastExpiration) positionsToClose.push({ pos, reason: 'Expiration' });
     }
 
@@ -2857,24 +3097,7 @@ function closeOptionPosition(positionId, closeQuantity = null, reason = 'Manual'
     let pnl = 0;
     const legExitPrices = [];
 
-    // For expiration closes: use the last bar of the expiration day at or after 16:00 ET
-    // (preferably 16:15). Scan backwards from the current bar to find it.
-    let underlyingAtClose;
-    if (reason === 'Expiration') {
-        const _expDate = pos.expiration;
-        let _lastExpBar = null;
-        for (let _bi = Math.min(simCurrentMinuteIndex - 1, simMinuteBarsCache.length - 1); _bi >= 0; _bi--) {
-            const _b = simMinuteBarsCache[_bi];
-            const _bDateET = new Date(_b.timestamp).toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
-            const [_bM, _bD, _bY] = _bDateET.split('/');
-            const _bDateStr = `${_bY}-${_bM}-${_bD}`;
-            if (_bDateStr === _expDate) { _lastExpBar = _b; break; }
-            if (_bDateStr < _expDate) break;  // went past expiration day — no bar found
-        }
-        underlyingAtClose = (_lastExpBar || currentMinuteBar).close;
-    } else {
-        underlyingAtClose = currentMinuteBar.close;
-    }
+    const underlyingAtClose = currentMinuteBar.close;
 
     // For manual closes: find the common timestamp across all legs (latest time all legs
     // have simultaneous data) to prevent cross-leg timing artifacts causing pnl > credit.
