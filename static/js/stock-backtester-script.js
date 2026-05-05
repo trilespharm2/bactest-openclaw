@@ -482,7 +482,14 @@ function addCondition() {
             </div>
         </div>
 
-        <div id="seq-section-${n}" class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6; display: ${n === 1 ? 'none' : 'block'};">
+        ${n === 1 ? `
+        <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
+            <div class="d-flex align-items-center gap-2 px-1 py-1 rounded" style="background:#f0f4ff;border:1px dashed #a5b4fc;">
+                <i class="fas fa-layer-group" style="color:#6366f1;font-size:13px;"></i>
+                <small style="color:#4b5563;"><strong style="color:#4338ca;">Sequential Phase</strong> — click <em>Add Condition</em> below to enable: each new condition can be set to trigger <em>after</em> the previous one fires, not simultaneously.</small>
+            </div>
+        </div>` : `
+        <div id="seq-section-${n}" class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
             <div class="form-check form-switch mb-1">
                 <input class="form-check-input" type="checkbox" id="seq-enabled-${n}" onchange="_updateSeqMode(${n})">
                 <label class="form-check-label small fw-bold" for="seq-enabled-${n}" style="color:#374151;">
@@ -501,7 +508,7 @@ function addCondition() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>`}
     `;
 
     container.appendChild(conditionDiv);
