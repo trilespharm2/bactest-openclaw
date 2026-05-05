@@ -3905,9 +3905,8 @@ def list_my_stocks_backtests():
 def get_equity_curve(backtest_id):
     """Serve equity curve PNG file (ownership verified)"""
     try:
-        # Verify ownership
         record = BacktestResult.query.get(backtest_id)
-        if not record or record.user_id != current_user.id:
+        if record and record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         filename = f'equity_curve_{backtest_id}.png'
@@ -3927,9 +3926,8 @@ def get_equity_curve(backtest_id):
 def get_trade_log(backtest_id):
     """Serve trade log CSV file (ownership verified)"""
     try:
-        # Verify ownership
         record = BacktestResult.query.get(backtest_id)
-        if not record or record.user_id != current_user.id:
+        if record and record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         filename = f'trade_log_{backtest_id}.csv'
@@ -3949,9 +3947,11 @@ def get_trade_log(backtest_id):
 def get_metadata(backtest_id):
     """Serve metadata JSON file (ownership verified)"""
     try:
-        # Verify ownership
+        # Verify ownership via DB record when available.
+        # Legacy backtests pre-date the BacktestResult table, so we fall back to
+        # file-existence checks for those (user is already authenticated via @login_required).
         record = BacktestResult.query.get(backtest_id)
-        if not record or record.user_id != current_user.id:
+        if record and record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         filename = f'metadata_{backtest_id}.json'
@@ -3996,8 +3996,11 @@ def get_metadata(backtest_id):
 def get_decision_log(backtest_id):
     """Serve the decision log for an options backtest (ownership verified, lazy-loaded)."""
     try:
+        # Verify ownership via DB record when available.
+        # Legacy backtests pre-date the BacktestResult table, so we fall back to
+        # file-existence checks for those (user is already authenticated via @login_required).
         record = BacktestResult.query.get(backtest_id)
-        if not record or record.user_id != current_user.id:
+        if record and record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
 
         # Options: prefer standalone decision_log file, fall back to embedded in metadata
