@@ -600,7 +600,7 @@ async function loadPageContent(pageName) {
                     scriptName = 'static/js/strategy-guide-script.js';
                 }
                 if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
-                    scriptName = 'backtest-result-detail-script.js';
+                    scriptName = 'backtest-result-detail-script.js?v=2';
                     if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         scriptName = null;
