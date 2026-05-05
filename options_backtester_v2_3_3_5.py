@@ -5070,6 +5070,47 @@ def run_backtest(config: Dict, client: RESTClient):
                             decision_log.append(day_entry)
                             continue
 
+            # Validate iron condor strike ordering.
+            # For a Short Iron Condor the short legs must straddle the underlying:
+            #   Long Put < Short Put < underlying < Short Call < Long Call
+            # If both short legs are ITM (short put above underlying AND/OR short call
+            # below underlying) the position value is mathematically locked near the
+            # initial credit and TP/SL targets become unreachable.  Skip with a clear
+            # explanation so the user knows to fix their leg configuration.
+            if 'iron condor' in _strat_name_lower:
+                _ic_puts  = [l for l in legs_info if l.get('type', '').upper() == 'P']
+                _ic_calls = [l for l in legs_info if l.get('type', '').upper() == 'C']
+                _ic_short_puts  = [l for l in _ic_puts  if l.get('position') == 'short']
+                _ic_short_calls = [l for l in _ic_calls if l.get('position') == 'short']
+                if _ic_short_puts and _ic_short_calls:
+                    _ic_sp_strike = max(l['strike'] for l in _ic_short_puts)
+                    _ic_sc_strike = min(l['strike'] for l in _ic_short_calls)
+                    _ic_inverted_put  = _ic_sp_strike > underlying_price
+                    _ic_inverted_call = _ic_sc_strike < underlying_price
+                    if _ic_inverted_put or _ic_inverted_call:
+                        _ic_problems = []
+                        if _ic_inverted_put:
+                            _ic_problems.append(
+                                f"Short Put strike {_ic_sp_strike} is above underlying "
+                                f"{underlying_price:.2f} (ITM put — should be below underlying)"
+                            )
+                        if _ic_inverted_call:
+                            _ic_problems.append(
+                                f"Short Call strike {_ic_sc_strike} is below underlying "
+                                f"{underlying_price:.2f} (ITM call — should be above underlying)"
+                            )
+                        _ic_reason = (
+                            "Inverted iron condor strikes: " + "; ".join(_ic_problems) +
+                            ". With both short legs ITM the position value is fixed and "
+                            "TP/SL targets cannot be reached. "
+                            "Fix: set Short Put direction to 'below' and Short Call direction "
+                            "to 'above' the underlying price."
+                        )
+                        print(f"  ❌ SKIPPING - {_ic_reason}")
+                        day_entry['events'].append({'type': 'skip', 'reason': _ic_reason})
+                        decision_log.append(day_entry)
+                        continue
+
             # Check net premium filter
             min_premium = config.get('net_premium_min')
             max_premium = config.get('net_premium_max')
