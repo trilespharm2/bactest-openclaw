@@ -208,6 +208,7 @@ import numpy as np
 import pytz
 from scipy.stats import norm
 from scipy.optimize import brentq
+from scipy.stats import linregress as _opt_linregress
 
 # ==================== CONFIGURATION ====================
 
@@ -876,6 +877,130 @@ def get_indicator_value_for_date(indicators_cache: Dict, metric: str, target_dat
     return best_value
 
 
+def _opt_get_tc_bars(bars_by_date: Dict, trade_date, bar_time: Optional[str], time_window: str):
+    """Return a list of bar dicts for the trend-capture time window (lookahead-safe)."""
+    try:
+        from datetime import timedelta
+        trade_date_str = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]
+        sorted_dates = sorted(bars_by_date.keys())
+
+        if time_window == 'prior_day':
+            prior_dates = [d for d in sorted_dates if d < trade_date_str]
+            if not prior_dates:
+                return None
+            return sorted(bars_by_date.get(prior_dates[-1], []), key=lambda x: x.get('time', ''))
+
+        elif time_window == 'day_of_entry':
+            if bar_time is None:
+                # Prerequisite call (no bar reference) — fall back to prior day
+                prior_dates = [d for d in sorted_dates if d < trade_date_str]
+                if not prior_dates:
+                    return None
+                return sorted(bars_by_date.get(prior_dates[-1], []), key=lambda x: x.get('time', ''))
+            today_bars = sorted(bars_by_date.get(trade_date_str, []), key=lambda x: x.get('time', ''))
+            bars = [b for b in today_bars if b.get('time', '') < bar_time]
+            return bars if bars else None
+
+        elif time_window in ('week_of_entry', 'month_of_entry'):
+            td = datetime.strptime(trade_date_str, '%Y-%m-%d') if isinstance(trade_date_str, str) else trade_date
+            if time_window == 'week_of_entry':
+                week_start = (td - timedelta(days=td.weekday())).strftime('%Y-%m-%d')
+                window_start = week_start
+            else:
+                window_start = td.replace(day=1).strftime('%Y-%m-%d')
+            result = []
+            for d in sorted_dates:
+                if d < window_start or d > trade_date_str:
+                    continue
+                day_bars = sorted(bars_by_date.get(d, []), key=lambda x: x.get('time', ''))
+                if d == trade_date_str:
+                    if bar_time is None:
+                        continue
+                    day_bars = [b for b in day_bars if b.get('time', '') < bar_time]
+                result.extend(day_bars)
+            return result if result else None
+    except Exception:
+        return None
+
+
+def _opt_compute_tc_slope(tc_params: Dict, bars_by_date: Dict, trade_date, bar_time: Optional[str]):
+    """Compute OLS slope (and R) for a trend-capture config side.
+
+    Returns (slope, r_value, checks_pass) or (None, None, False) on failure.
+    `checks_pass` means: direction OK + optional slope-value check + optional R check.
+    """
+    try:
+        interval    = tc_params.get('interval', '1hr')
+        time_window = tc_params.get('time_window', 'day_of_entry')
+        price_type  = tc_params.get('price_type', 'lowest_low')
+        slope_dir   = tc_params.get('slope_dir', 'negative')
+        interval_mins = {'15min': 15, '30min': 30, '1hr': 60, '2hr': 120}.get(interval, 60)
+
+        bars = _opt_get_tc_bars(bars_by_date, trade_date, bar_time, time_window)
+        if not bars or len(bars) < 2:
+            return None, None, False
+
+        price_col = 'high' if price_type == 'highest_high' else 'low'
+
+        def _time_to_mins(t):
+            try:
+                h, m = t.split(':')
+                return int(h) * 60 + int(m)
+            except Exception:
+                return 0
+
+        bucket_vals: Dict = {}
+        for bar in bars:
+            t_mins = _time_to_mins(bar.get('time', '00:00'))
+            bucket_key = (bar.get('date', ''), t_mins // interval_mins)
+            val = bar.get(price_col)
+            if val is None:
+                continue
+            if bucket_key not in bucket_vals:
+                bucket_vals[bucket_key] = []
+            bucket_vals[bucket_key].append(val)
+
+        if len(bucket_vals) < 2:
+            return None, None, False
+
+        sorted_keys = sorted(bucket_vals.keys())
+        if price_type == 'highest_high':
+            agg_vals = [max(bucket_vals[k]) for k in sorted_keys]
+        else:
+            agg_vals = [min(bucket_vals[k]) for k in sorted_keys]
+
+        if len(agg_vals) < 2:
+            return None, None, False
+
+        x = np.arange(len(agg_vals), dtype=float)
+        y = np.array(agg_vals, dtype=float)
+        reg = _opt_linregress(x, y)
+        slope   = float(reg.slope)
+        r_value = float(reg.rvalue)
+
+        # Direction check
+        if slope_dir == 'negative' and slope >= 0:
+            return slope, r_value, False
+        if slope_dir == 'positive' and slope <= 0:
+            return slope, r_value, False
+
+        def _chk(a, op, b):
+            return {'>': a > b, '<': a < b, '>=': a >= b, '<=': a <= b,
+                    '==': abs(a - b) < 1e-10}.get(op, False)
+
+        if tc_params.get('slope_val_enabled'):
+            if not _chk(slope, tc_params.get('slope_op', '>'), float(tc_params.get('slope_val', 0) or 0)):
+                return slope, r_value, False
+
+        if tc_params.get('r_enabled'):
+            if not _chk(r_value, tc_params.get('r_op', '>'), float(tc_params.get('r_val', 0) or 0)):
+                return slope, r_value, False
+
+        return slope, r_value, True
+    except Exception:
+        return None, None, False
+
+
 def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cache: Dict, 
                                           trade_date: datetime = None,
                                           bars_by_date: Dict = None) -> Tuple[bool, str]:
@@ -915,7 +1040,44 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             comparator = condition.get('comparator', 'value')
             left_params = condition.get('left', {})
             right_params = condition.get('right', {})
-            
+
+            # ── Trend Capture ────────────────────────────────────────────────
+            if metric == 'trend_capture':
+                _bar_time = bar.get('time', '')[:5] if bar else None
+                _tc_left  = condition.get('tc_left', {})
+                _l_slope, _l_r, _l_ok = _opt_compute_tc_slope(_tc_left, bars_by_date or {}, trade_date, _bar_time)
+                if not _l_ok:
+                    _cond_details.append({'metric': 'trend_capture', 'met': False,
+                        'left_label': 'TC slope', 'left_value': _l_slope or 0,
+                        'operator': operator, 'right_label': 'threshold', 'right_value': 0,
+                        'effective_right': 0, 'threshold': 0, 'threshold_unit': 'percent', 'series_type': 'tc'})
+                    return False, f"Trend capture condition {idx+1} not met (direction/data)", _cond_details
+                _tc_met = True
+                _r_slope_val = 0.0
+                if comparator == 'compare_trend_capture':
+                    _tc_right = condition.get('tc_right', {})
+                    _r_slope_val, _r_r, _r_ok = _opt_compute_tc_slope(_tc_right, bars_by_date or {}, trade_date, _bar_time)
+                    if not _r_ok:
+                        _cond_details.append({'metric': 'trend_capture', 'met': False,
+                            'left_label': 'TC slope', 'left_value': _l_slope,
+                            'operator': operator, 'right_label': 'TC slope (right)', 'right_value': 0,
+                            'effective_right': 0, 'threshold': 0, 'threshold_unit': 'percent', 'series_type': 'tc'})
+                        return False, f"Trend capture condition {idx+1} right side not met", _cond_details
+                    def _chk_op(a, op, b):
+                        return {'>': a > b, '<': a < b, '>=': a >= b, '<=': a <= b,
+                                '==': abs(a - b) < 1e-10}.get(op, False)
+                    _tc_met = _chk_op(_l_slope, operator, _r_slope_val)
+                _cond_details.append({'metric': 'trend_capture', 'met': _tc_met,
+                    'left_label': 'TC slope', 'left_value': round(_l_slope, 6),
+                    'operator': operator,
+                    'right_label': 'TC slope (right)' if comparator == 'compare_trend_capture' else 'pass',
+                    'right_value': round(_r_slope_val, 6), 'effective_right': round(_r_slope_val, 6),
+                    'threshold': 0, 'threshold_unit': 'percent', 'series_type': 'tc'})
+                if not _tc_met:
+                    return False, f"TC: {_l_slope:.6f} {operator} {_r_slope_val:.6f} — failed", _cond_details
+                continue
+            # ────────────────────────────────────────────────────────────────
+
             # Check if using day candles
             left_candle_type = left_params.get('candle_type', 'minute')
             left_day_offset = int(left_params.get('day', 0))
