@@ -25,6 +25,41 @@ from sqlalchemy import text
 
 from database import db
 
+# ---------------------------------------------------------------------------
+# Lightweight per-file cache for the backtest list endpoints.
+# Key: absolute file path  →  value: (mtime_ns, stripped_dict)
+# The stripped dict never contains heavy fields (decision_log, trades, etc.)
+# so repeat page-loads re-use the cached object instead of re-parsing disk.
+# ---------------------------------------------------------------------------
+_backtest_list_cache: dict = {}
+
+# Fields that are too heavy for the list view and must be stripped before
+# caching / returning.  They remain available on the per-backtest detail API.
+_HEAVY_FIELDS = frozenset(['decision_log', 'trades'])
+
+def _load_backtest_summary(filepath: str) -> dict | None:
+    """
+    Read *filepath* and return a dict with heavy fields stripped.
+    Returns None on any error.  Results are memoised by file mtime so that
+    an unchanged file is never parsed twice across requests.
+    """
+    try:
+        mtime = os.stat(filepath).st_mtime_ns
+    except OSError:
+        return None
+    cached = _backtest_list_cache.get(filepath)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        with open(filepath, 'r') as fh:
+            data = json.load(fh)
+        for field in _HEAVY_FIELDS:
+            data.pop(field, None)
+        _backtest_list_cache[filepath] = (mtime, data)
+        return data
+    except Exception:
+        return None
+
 try:
     from flask_migrate import Migrate
 except ImportError:
@@ -3667,31 +3702,33 @@ def run_backtest():
 @app.route('/api/backtests/list', methods=['GET'])
 @login_required
 def list_backtests():
-    """List user's saved options backtests - redirects to user-specific endpoint"""
+    """List user's saved options backtests — returns lightweight summaries only.
+
+    Heavy per-trade/per-day fields (decision_log, trades) are intentionally
+    excluded here; they are available via the per-backtest detail endpoints.
+    Results are memoised by file mtime so unchanged files are never re-parsed.
+    """
     try:
         backtests = BacktestResult.query.filter_by(
             user_id=current_user.id,
             backtest_type='options'
         ).order_by(BacktestResult.created_at.desc()).all()
-        
+
         results = []
         for record in backtests:
             metadata_path = os.path.join('backtest_results', f'metadata_{record.id}.json')
             if os.path.exists(metadata_path):
-                try:
-                    with open(metadata_path, 'r') as f:
-                        metadata = json.load(f)
-                        metadata['status'] = record.status or 'completed'
-                        results.append(metadata)
-                except Exception as e:
-                    print(f"Error reading metadata for {record.id}: {e}")
+                metadata = _load_backtest_summary(metadata_path)
+                if metadata is None:
                     continue
+                metadata['status'] = record.status or 'completed'
+                results.append(metadata)
             elif record.status == 'running':
                 config_data = {}
                 if record.config_json:
                     try:
                         config_data = json.loads(record.config_json)
-                    except:
+                    except Exception:
                         pass
                 results.append({
                     'id': record.id,
@@ -3700,11 +3737,10 @@ def list_backtests():
                     'config': config_data,
                     'summary': {}
                 })
-        
+
         results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-        
         return jsonify({'backtests': results})
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -3735,7 +3771,9 @@ def delete_backtest(backtest_id):
             if os.path.exists(filepath):
                 os.remove(filepath)
                 deleted_files.append(filename)
-        
+            # Evict from list cache so next load reflects the deletion
+            _backtest_list_cache.pop(os.path.abspath(filepath), None)
+
         # Delete from database
         if record:
             db.session.delete(record)
@@ -3863,25 +3901,22 @@ def list_my_options_backtests():
 @app.route('/api/my/backtests/stocks', methods=['GET'])
 @login_required
 def list_my_stocks_backtests():
-    """List stock backtests for the current authenticated user"""
+    """List stock backtests for the current authenticated user — lightweight summaries only."""
     try:
         backtests = BacktestResult.query.filter_by(
-            user_id=current_user.id, 
+            user_id=current_user.id,
             backtest_type='stocks'
         ).order_by(BacktestResult.created_at.desc()).all()
-        
+
         results = []
         for record in backtests:
             result_data = record.to_dict()
             metadata_path = os.path.join('stock_backtest_v3_results', f'{record.id}.json')
             if os.path.exists(metadata_path):
-                try:
-                    with open(metadata_path, 'r') as f:
-                        file_data = json.load(f)
-                        result_data['config'] = file_data.get('config', {})
-                        result_data['summary'] = file_data.get('summary', {})
-                except:
-                    pass
+                file_data = _load_backtest_summary(metadata_path)
+                if file_data:
+                    result_data['config'] = file_data.get('config', {})
+                    result_data['summary'] = file_data.get('summary', {})
             if result_data.get('status') == 'running':
                 progress_path = os.path.join('backtest_results', f'progress_{record.id}.json')
                 if os.path.exists(progress_path):
@@ -3893,7 +3928,7 @@ def list_my_stocks_backtests():
             results.append(result_data)
 
         return jsonify({'backtests': results})
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -4805,35 +4840,29 @@ def list_stocks_backtests_v3():
         for record in records:
             backtest_id = record.id
             filepath = os.path.join(output_dir, f'{backtest_id}.json')
-            
+
             if os.path.exists(filepath):
-                try:
-                    with open(filepath, 'r') as f:
-                        data = json.load(f)
-                    
-                    summary = data.get('summary', {})
-                    meta = data.get('metadata', {})
-                    config = data.get('config', {})
-
-                    # Use metadata as fallback if summary is empty, but never
-                    # iterate through trades in the list endpoint — that causes
-                    # worker timeouts when many large result files are present.
-                    if not summary and meta:
-                        summary = meta
-
-                    backtests.append({
-                        'id': backtest_id,
-                        'name': config.get('name', 'Unnamed'),
-                        'timestamp': record.created_at.isoformat() if record.created_at else '',
-                        'total_trades': summary.get('total_trades', meta.get('total_trades', 0)),
-                        'symbol_count': meta.get('symbol_count', 0),
-                        'config': config,
-                        'summary': summary,
-                        'status': record.status or 'completed'
-                    })
-                except Exception as e:
-                    print(f"Error reading {backtest_id}.json: {e}")
+                data = _load_backtest_summary(filepath)
+                if data is None:
                     continue
+
+                summary = data.get('summary', {})
+                meta = data.get('metadata', {})
+                config = data.get('config', {})
+
+                if not summary and meta:
+                    summary = meta
+
+                backtests.append({
+                    'id': backtest_id,
+                    'name': config.get('name', 'Unnamed'),
+                    'timestamp': record.created_at.isoformat() if record.created_at else '',
+                    'total_trades': summary.get('total_trades', meta.get('total_trades', 0)),
+                    'symbol_count': meta.get('symbol_count', 0),
+                    'config': config,
+                    'summary': summary,
+                    'status': record.status or 'completed'
+                })
             elif record.status == 'running':
                 config_data = {}
                 if record.config_json:
@@ -4891,7 +4920,9 @@ def delete_stocks_backtest_v3(backtest_id):
                 filepath = os.path.join(output_dir, filename)
                 os.remove(filepath)
                 files_deleted += 1
-        
+                # Evict from list cache so next load reflects the deletion
+                _backtest_list_cache.pop(os.path.abspath(filepath), None)
+
         # Delete database record
         db.session.delete(record)
         db.session.commit()
@@ -4912,79 +4943,60 @@ def delete_stocks_backtest_v3(backtest_id):
 
 @app.route('/api/dashboard/top-backtests', methods=['GET'])
 def get_dashboard_top_backtests():
-    """Get top backtest results for dashboard display"""
+    """Get top backtest results for dashboard display.
+
+    Reads from the DB (fast) for aggregate stats and falls back to the
+    mtime-cached file summaries only for fields not stored in the DB.
+    Never iterates over trades/decision_log in a list-style endpoint.
+    """
     try:
         results = {
             'options_backtests': [],
             'stock_backtests': []
         }
-        
-        # Get options backtest results
-        options_dir = 'backtest_results'
-        if os.path.exists(options_dir):
-            json_files = [f for f in os.listdir(options_dir) if f.endswith('.json')]
-            options_results = []
-            
-            for filename in json_files:
+
+        # ── Options: read from DB rows (instant) ────────────────────────────
+        options_records = BacktestResult.query.filter_by(
+            backtest_type='options', status='completed'
+        ).order_by(BacktestResult.total_return.desc()).limit(5).all()
+
+        for record in options_records:
+            results['options_backtests'].append({
+                'id': record.id,
+                'symbol': record.symbol or 'N/A',
+                'strategy': record.strategy or 'N/A',
+                'total_pnl': record.total_pnl or 0,
+                'total_return': record.total_return or 0,
+                'win_rate': record.win_rate or 0,
+                'total_trades': record.total_trades or 0,
+                'timestamp': record.created_at.isoformat() if record.created_at else '',
+            })
+
+        # ── Stocks: read from DB rows (instant) ─────────────────────────────
+        stock_records = BacktestResult.query.filter_by(
+            backtest_type='stocks', status='completed'
+        ).order_by(BacktestResult.total_pnl.desc()).limit(5).all()
+
+        for record in stock_records:
+            config_data = {}
+            if record.config_json:
                 try:
-                    filepath = os.path.join(options_dir, filename)
-                    with open(filepath, 'r') as f:
-                        data = json.load(f)
-                        if 'summary' in data:
-                            options_results.append({
-                                'id': data.get('id', filename.replace('.json', '')),
-                                'symbol': data.get('config', {}).get('symbol', 'N/A'),
-                                'strategy': data.get('config', {}).get('strategy', 'N/A'),
-                                'total_pnl': data.get('summary', {}).get('total_pnl', 0),
-                                'total_return': data.get('summary', {}).get('total_return', 0),
-                                'win_rate': data.get('summary', {}).get('win_rate', 0),
-                                'total_trades': data.get('summary', {}).get('total_trades', 0),
-                                'equity_curve': data.get('files', {}).get('image', None),
-                                'timestamp': data.get('timestamp', '')
-                            })
-                except Exception as e:
-                    continue
-            
-            # Sort by total_return descending and get top 5
-            options_results.sort(key=lambda x: x.get('total_return', 0), reverse=True)
-            results['options_backtests'] = options_results[:5]
-        
-        # Get stock backtest results
-        stocks_dir = 'stock_backtest_v3_results'
-        if os.path.exists(stocks_dir):
-            json_files = [f for f in os.listdir(stocks_dir) if f.endswith('.json')]
-            stock_results = []
-            
-            for filename in json_files:
-                try:
-                    filepath = os.path.join(stocks_dir, filename)
-                    with open(filepath, 'r') as f:
-                        data = json.load(f)
-                        trades = data.get('trades', [])
-                        total_pnl = sum(t.get('pnl', 0) for t in trades)
-                        total_pnl_pct = sum(t.get('pnl_pct', 0) for t in trades)
-                        wins = len([t for t in trades if t.get('pnl', 0) > 0])
-                        win_rate = (wins / len(trades) * 100) if trades else 0
-                        
-                        stock_results.append({
-                            'id': data.get('backtest_id', filename.replace('.json', '')),
-                            'name': data.get('config', {}).get('name', 'N/A'),
-                            'symbol': data.get('config', {}).get('symbol', 'N/A'),
-                            'total_pnl': round(total_pnl, 2),
-                            'total_return': round(total_pnl_pct, 2),
-                            'win_rate': round(win_rate, 2),
-                            'total_trades': len(trades),
-                            'timestamp': data.get('timestamp', '')
-                        })
-                except Exception as e:
-                    continue
-            
-            # Sort by total_pnl descending and get top 5
-            stock_results.sort(key=lambda x: x.get('total_pnl', 0), reverse=True)
-            results['stock_backtests'] = stock_results[:5]
-        
+                    config_data = json.loads(record.config_json)
+                except Exception:
+                    pass
+            results['stock_backtests'].append({
+                'id': record.id,
+                'name': config_data.get('name', 'N/A'),
+                'symbol': record.symbol or config_data.get('symbol', 'N/A'),
+                'total_pnl': record.total_pnl or 0,
+                'total_return': record.total_return or 0,
+                'win_rate': record.win_rate or 0,
+                'total_trades': record.total_trades or 0,
+                'timestamp': record.created_at.isoformat() if record.created_at else '',
+            })
+
         return jsonify(results)
-    
+
     except Exception as e:
         print(f"Error getting dashboard backtests: {e}")
         return jsonify({'error': str(e)}), 500
