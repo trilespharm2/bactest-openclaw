@@ -1697,8 +1697,10 @@ function collectPriceConditions() {
             if (comparator === 'compare_trend_capture') {
                 condition.tc_right = _readTcSide('tcRight');
             }
+            if (comparator === 'value') {
+                condition.compare_value = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
+            }
             delete condition.left;
-            delete condition.compare_value;
             delete condition.right;
             delete condition.threshold;
         } else if (comparator === 'value') {
@@ -3354,7 +3356,7 @@ function validateOptionsConfig(config) {
                         errors.push(`${label}: RSI window must be between 2 and 100`);
                     }
                 }
-                if (pc.comparator === 'value' && pc.compare_value === undefined) {
+                if (pc.comparator === 'value' && pc.compare_value === undefined && pc.metric !== 'trend_capture') {
                     errors.push(`${label}: Compare value is required when comparing to a fixed value`);
                 }
                 if (pc.comparator !== 'value' && pc.threshold) {
