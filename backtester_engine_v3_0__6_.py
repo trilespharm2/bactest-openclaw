@@ -942,10 +942,20 @@ class BacktesterEngine:
                 return grouped_data.get_group(prev_date).copy()
 
             elif time_window == 'day_of_entry':
+                # When called as a prerequisite (entry_ts=None), there is no reference bar yet.
+                # Fall back to prior_day to avoid lookahead bias.
+                if entry_ts is None:
+                    prev_idx = current_date_index - 1
+                    if prev_idx < 0:
+                        return None
+                    prev_date = dates[prev_idx]
+                    if prev_date not in grouped_data.groups:
+                        return None
+                    return grouped_data.get_group(prev_date).copy()
                 if current_date not in grouped_data.groups:
                     return None
                 data = grouped_data.get_group(current_date).copy()
-                if entry_ts is not None and 'timestamp' in data.columns:
+                if 'timestamp' in data.columns:
                     data = data[data['timestamp'] < entry_ts]
                 return data if not data.empty else None
 
@@ -965,8 +975,13 @@ class BacktesterEngine:
                     if d not in grouped_data.groups:
                         continue
                     day_data = grouped_data.get_group(d).copy()
-                    if d == current_date and entry_ts is not None and 'timestamp' in day_data.columns:
-                        day_data = day_data[day_data['timestamp'] < entry_ts]
+                    if d == current_date:
+                        # Prerequisite call (entry_ts=None): exclude current day entirely
+                        # to avoid lookahead; bar-level call: filter strictly before entry_ts
+                        if entry_ts is None:
+                            continue
+                        if 'timestamp' in day_data.columns:
+                            day_data = day_data[day_data['timestamp'] < entry_ts]
                     if not day_data.empty:
                         frames.append(day_data)
                 if not frames:
