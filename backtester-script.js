@@ -704,13 +704,6 @@ function addPriceCondition() {
                             <option value="lowest_low" selected>Lowest Low</option>
                         </select>
                     </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label class="form-label small">Slope Direction</label>
-                        <select class="form-select form-select-sm" id="tcLeftSlopeDir${conditionId}">
-                            <option value="negative" selected>Negative ↘</option>
-                            <option value="positive">Positive ↗</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="row g-2 mt-1">
                     <div class="col-12">
@@ -784,13 +777,6 @@ function addPriceCondition() {
                         <select class="form-select form-select-sm" id="tcRightPriceType${conditionId}">
                             <option value="highest_high">Highest High</option>
                             <option value="lowest_low" selected>Lowest Low</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label class="form-label small">Slope Direction</label>
-                        <select class="form-select form-select-sm" id="tcRightSlopeDir${conditionId}">
-                            <option value="negative" selected>Negative ↘</option>
-                            <option value="positive">Positive ↗</option>
                         </select>
                     </div>
                 </div>
@@ -1559,20 +1545,18 @@ function buildOptConditionDesc(n, isExit) {
             var intervalEl  = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'Interval' + n);
             var windowEl    = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'TimeWindow' + n);
             var priceEl     = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'PriceType' + n);
-            var slopeEl     = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'SlopeDir' + n);
             var interval    = intervalEl ? intervalEl.value : '1hr';
             var window_     = windowEl  ? windowEl.value   : 'day_of_entry';
             var pt          = priceEl   ? priceEl.value    : 'lowest_low';
-            var dir         = slopeEl   ? slopeEl.value    : 'negative';
             var ptLabel = pt === 'highest_high' ? 'HH' : 'LL';
             var winLabel = {'day_of_entry':'today','prior_day':'prev day','week_of_entry':'this week','month_of_entry':'this month'}[window_] || window_;
-            return 'TC(' + interval + ', ' + ptLabel + ', ' + winLabel + ', ' + (dir === 'negative' ? '↘' : '↗') + ')';
+            return 'TC(' + interval + ', ' + ptLabel + ', ' + winLabel + ')';
         }
         var leftTcDesc = _tcDesc('left');
         if (comparator === 'compare_trend_capture') {
             return leftTcDesc + ' ' + operator + ' ' + _tcDesc('right');
         }
-        return leftTcDesc + ' — slope direction met';
+        return leftTcDesc + ' ' + operator + ' ' + (compareValue !== undefined && compareValue !== '' ? compareValue : '?');
     }
 
     function sideDesc(m, day, candle, mult, series, timeframe) {
@@ -1684,7 +1668,7 @@ function collectPriceConditions() {
                     interval:          document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
                     time_window:       document.getElementById(prefix + 'TimeWindow' + id)?.value || 'day_of_entry',
                     price_type:        document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
-                    slope_dir:         document.getElementById(prefix + 'SlopeDir' + id)?.value || 'negative',
+
                     slope_val_enabled: !!(sveEnabled && sveEnabled.checked),
                     slope_op:          document.getElementById(prefix + 'SlopeOp' + id)?.value || '>',
                     slope_val:         parseFloat(document.getElementById(prefix + 'SlopeVal' + id)?.value) || 0,
