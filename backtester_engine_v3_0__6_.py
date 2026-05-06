@@ -13,8 +13,10 @@ import os
 from datetime import datetime, timedelta
 from polygon.rest import RESTClient
 import pandas as pd
+import numpy as np
 import csv
 from typing import List, Dict, Optional, Tuple, Any
+from scipy.stats import linregress as _linregress
 
 class BacktesterEngine:
     def __init__(self, api_key: str):
@@ -918,6 +920,162 @@ class BacktesterEngine:
             return None
         return None
 
+    # ------------------------------------------------------------------
+    # Trend Capture helpers
+    # ------------------------------------------------------------------
+
+    def _get_tc_window_data(self, grouped_data, dates, current_date_index, time_window, entry_ts):
+        """Return a DataFrame of minute bars for the requested trend-capture time window.
+
+        All data is guaranteed to be STRICTLY BEFORE entry_ts (lookahead-safe).
+        """
+        try:
+            current_date = dates[current_date_index]
+
+            if time_window == 'prior_day':
+                prev_idx = current_date_index - 1
+                if prev_idx < 0:
+                    return None
+                prev_date = dates[prev_idx]
+                if prev_date not in grouped_data.groups:
+                    return None
+                return grouped_data.get_group(prev_date).copy()
+
+            elif time_window == 'day_of_entry':
+                if current_date not in grouped_data.groups:
+                    return None
+                data = grouped_data.get_group(current_date).copy()
+                if entry_ts is not None and 'timestamp' in data.columns:
+                    data = data[data['timestamp'] < entry_ts]
+                return data if not data.empty else None
+
+            elif time_window in ('week_of_entry', 'month_of_entry'):
+                current_pd = pd.Timestamp(current_date)
+                if time_window == 'week_of_entry':
+                    window_start = current_pd - pd.Timedelta(days=current_pd.dayofweek)
+                else:
+                    window_start = current_pd.replace(day=1)
+                frames = []
+                for d in dates:
+                    pd_d = pd.Timestamp(d)
+                    if pd_d < window_start:
+                        continue
+                    if pd_d > current_pd:
+                        break
+                    if d not in grouped_data.groups:
+                        continue
+                    day_data = grouped_data.get_group(d).copy()
+                    if d == current_date and entry_ts is not None and 'timestamp' in day_data.columns:
+                        day_data = day_data[day_data['timestamp'] < entry_ts]
+                    if not day_data.empty:
+                        frames.append(day_data)
+                if not frames:
+                    return None
+                return pd.concat(frames, ignore_index=True)
+        except Exception:
+            return None
+        return None
+
+    def _compute_trend_capture_slope(self, condition, side, grouped_data, dates,
+                                     current_date_index, current_candle):
+        """Compute the OLS slope (and R) for a trend-capture config on one side.
+
+        Returns (slope, r_value, checks_pass) or (None, None, False) on failure.
+        `checks_pass` means: direction OK + optional slope-value check + optional R check.
+        """
+        try:
+            p = f'tc_{side}_'
+            interval    = condition.get(p + 'interval',    '1hr')
+            time_window = condition.get(p + 'time_window', 'day_of_entry')
+            price_type  = condition.get(p + 'price_type',  'lowest_low')
+            slope_dir   = condition.get(p + 'slope_dir',   'negative')
+
+            interval_mins = {'15min': 15, '30min': 30, '1hr': 60, '2hr': 120}.get(interval, 60)
+
+            entry_ts = None
+            if current_candle is not None:
+                entry_ts = current_candle.get('timestamp')
+
+            raw = self._get_tc_window_data(grouped_data, dates, current_date_index,
+                                           time_window, entry_ts)
+            if raw is None or raw.empty or 'timestamp' not in raw.columns:
+                return None, None, False
+
+            raw = raw.copy()
+            raw['timestamp'] = pd.to_datetime(raw['timestamp'])
+            raw = raw.set_index('timestamp').sort_index()
+
+            price_col = 'high' if price_type == 'highest_high' else 'low'
+            if price_col not in raw.columns:
+                return None, None, False
+
+            rule = f'{interval_mins}min'
+            if price_type == 'highest_high':
+                resampled = raw[price_col].resample(rule).max().dropna()
+            else:
+                resampled = raw[price_col].resample(rule).min().dropna()
+
+            if len(resampled) < 2:
+                return None, None, False
+
+            x = np.arange(len(resampled), dtype=float)
+            y = resampled.values.astype(float)
+            result = _linregress(x, y)
+            slope   = float(result.slope)
+            r_value = float(result.rvalue)
+
+            # Direction check
+            if slope_dir == 'negative' and slope >= 0:
+                return slope, r_value, False
+            if slope_dir == 'positive' and slope <= 0:
+                return slope, r_value, False
+
+            # Optional slope-value check
+            if condition.get(p + 'slope_val_enabled'):
+                op  = condition.get(p + 'slope_op', '>')
+                thr = float(condition.get(p + 'slope_val', 0) or 0)
+                if not self._evaluate_operator(slope, op, thr):
+                    return slope, r_value, False
+
+            # Optional R-value check
+            if condition.get(p + 'r_enabled'):
+                r_op  = condition.get(p + 'r_op', '>')
+                r_thr = float(condition.get(p + 'r_val', 0) or 0)
+                if not self._evaluate_operator(r_value, r_op, r_thr):
+                    return slope, r_value, False
+
+            return slope, r_value, True
+
+        except Exception:
+            return None, None, False
+
+    def _check_trend_capture_condition(self, condition, grouped_data, dates,
+                                       current_date_index, current_candle):
+        """Evaluate a trend_capture metric condition.
+
+        comparator='value'               → boolean: does the left trend pass its config?
+        comparator='compare_trend_capture' → left_slope (operator) right_slope,
+                                            both sides must individually pass their config.
+        """
+        left_slope, left_r, left_ok = self._compute_trend_capture_slope(
+            condition, 'left', grouped_data, dates, current_date_index, current_candle)
+        if not left_ok:
+            return False
+
+        comparator = condition.get('comparator', 'value')
+        if comparator == 'compare_trend_capture':
+            right_slope, right_r, right_ok = self._compute_trend_capture_slope(
+                condition, 'right', grouped_data, dates, current_date_index, current_candle)
+            if not right_ok:
+                return False
+            operation = condition.get('operation', '>')
+            return self._compare(left_slope, operation, right_slope)
+
+        # comparator == 'value': boolean result (direction + optional checks already verified)
+        return True
+
+    # ------------------------------------------------------------------
+
     def check_custom_condition(self, condition: Dict, grouped_data: Dict, dates: List,
                               current_date_index: int, current_candle: Optional[pd.Series] = None) -> bool:
         """
@@ -927,6 +1085,9 @@ class BacktesterEngine:
         """
         if condition.get('type') == 'velocity':
             return self.check_velocity_condition(condition, grouped_data, dates, current_date_index, current_candle)
+
+        if condition.get('left_type') == 'trend_capture':
+            return self._check_trend_capture_condition(condition, grouped_data, dates, current_date_index, current_candle)
 
         # Apply optional time window filter
         if condition.get('time_window_enabled') and current_candle is not None:

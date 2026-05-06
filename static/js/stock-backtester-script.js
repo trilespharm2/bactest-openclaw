@@ -277,7 +277,8 @@ const STOCK_METRICS = [
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
-    { value: 'macd', label: 'MACD' }
+    { value: 'macd', label: 'MACD' },
+    { value: 'trend_capture', label: 'Trend Capture' }
 ];
 
 function setCrossOperators(selectId, include) {
@@ -302,6 +303,105 @@ function setCrossOperators(selectId, include) {
     } else {
         if (crossVals.indexOf(sel.value) !== -1) sel.value = '>';
     }
+}
+
+function toggleTCOptional(side, field, n) {
+    var fieldsId = 'tc-' + side + '-' + field + '-fields-' + n;
+    var enabledId = 'tc-' + side + '-' + field + '-enabled-' + n;
+    var cb = document.getElementById(enabledId);
+    var fields = document.getElementById(fieldsId);
+    if (fields) fields.style.display = (cb && cb.checked) ? 'flex' : 'none';
+}
+
+function _buildTCPanel(side, n) {
+    var s = 'tc-' + side;
+    return `
+        <div id="${s}-panel-${n}" class="mt-2 p-3 rounded" style="display:none; background:#f0f7ff; border:1px solid #bfdbfe;">
+            <div class="fw-semibold mb-2" style="font-size:11px; color:#1e40af; text-transform:uppercase; letter-spacing:0.6px;">
+                <i class="fas fa-wave-square me-1"></i>Trend Capture Config
+            </div>
+            <div class="row g-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Interval</label>
+                    <select class="form-select form-select-sm" id="${s}-interval-${n}">
+                        <option value="15min">15 min</option>
+                        <option value="30min">30 min</option>
+                        <option value="1hr" selected>1 hr</option>
+                        <option value="2hr">2 hr</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Time Window</label>
+                    <select class="form-select form-select-sm" id="${s}-time-window-${n}">
+                        <option value="day_of_entry" selected>Day of Entry</option>
+                        <option value="prior_day">Prior Day</option>
+                        <option value="week_of_entry">Week of Entry</option>
+                        <option value="month_of_entry">Month of Entry</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Price Type</label>
+                    <select class="form-select form-select-sm" id="${s}-price-type-${n}">
+                        <option value="highest_high">Highest High</option>
+                        <option value="lowest_low" selected>Lowest Low</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Slope Direction</label>
+                    <select class="form-select form-select-sm" id="${s}-slope-dir-${n}">
+                        <option value="negative" selected>Negative</option>
+                        <option value="positive">Positive</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="${s}-slope-val-enabled-${n}" onchange="toggleTCOptional('${side}','slope-val',${n})">
+                    <label class="form-check-label small" for="${s}-slope-val-enabled-${n}">
+                        Slope Value <span class="text-muted">(optional)</span>
+                    </label>
+                </div>
+                <div id="${s}-slope-val-fields-${n}" style="display:none;" class="row g-2 mt-1 ms-1 align-items-center">
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="${s}-slope-op-${n}" style="width:72px;">
+                            <option value=">">&gt;</option>
+                            <option value="<">&lt;</option>
+                            <option value=">=">&gt;=</option>
+                            <option value="<=">&lt;=</option>
+                            <option value="=">=</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" class="form-control form-control-sm" id="${s}-slope-val-${n}" step="0.0001" placeholder="e.g. -0.05">
+                    </div>
+                    <div class="col-12"><small class="text-muted">Slope is price change per bar. Negative slope example: -0.05 means price drops ~$0.05 per interval.</small></div>
+                </div>
+            </div>
+            <div class="mt-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="${s}-r-enabled-${n}" onchange="toggleTCOptional('${side}','r',${n})">
+                    <label class="form-check-label small" for="${s}-r-enabled-${n}">
+                        R Value <span class="text-muted">(optional — measures trend linearity, 0–1)</span>
+                    </label>
+                </div>
+                <div id="${s}-r-fields-${n}" style="display:none;" class="row g-2 mt-1 ms-1 align-items-center">
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="${s}-r-op-${n}" style="width:72px;">
+                            <option value="<">&lt;</option>
+                            <option value=">">&gt;</option>
+                            <option value=">=">&gt;=</option>
+                            <option value="<=">&lt;=</option>
+                            <option value="=">=</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" class="form-control form-control-sm" id="${s}-r-val-${n}" step="0.01" min="-1" max="1" placeholder="e.g. -0.7">
+                    </div>
+                    <div class="col-12"><small class="text-muted">Positive slope: R between 0 and 1. Negative slope: R between -1 and 0. Closer to ±1 = stronger linear trend.</small></div>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 const STOCK_SERIES_TYPES = [
@@ -373,6 +473,7 @@ function addCondition() {
                     </select>
                 </div>
             </div>
+            ${_buildTCPanel('left', n)}
         </div>
 
         <div class="condition-operator mb-3">
@@ -456,6 +557,11 @@ function addCondition() {
             </div>
         </div>
 
+        <div id="tc-right-wrapper-${n}" style="display:none;" class="mb-3">
+            <label class="form-label fw-bold">Right Side — Trend Capture</label>
+            ${_buildTCPanel('right', n)}
+        </div>
+
         <div id="cond-summary-${n}" class="mt-2 px-2 py-1 rounded" style="background:#e8f4fd;color:#1e40af;font-size:11px;font-family:monospace;display:none;"></div>
 
         <div class="mt-2 pt-2" style="border-top: 1px dashed #dee2e6;">
@@ -531,7 +637,23 @@ function updateStockConditionFields(n) {
     var leftSeriesLabel = document.getElementById('left-series-label-' + n);
     var comparator = document.getElementById('comparator-' + n);
 
-    if (val === 'current_price') {
+    // Always hide the TC left panel first; show it only for trend_capture
+    var tcLeftPanel = document.getElementById('tc-left-panel-' + n);
+    if (tcLeftPanel) tcLeftPanel.style.display = 'none';
+
+    if (val === 'trend_capture') {
+        if (leftDayGroup) leftDayGroup.style.display = 'none';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'none';
+        if (leftMultGroup) leftMultGroup.style.display = 'none';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
+        if (tcLeftPanel) tcLeftPanel.style.display = 'block';
+        updateStockComparatorOptions(n, ['value', 'compare_trend_capture']);
+        setCrossOperators('operator-' + n, false);
+        updateThresholdUnitOptions(n, val, false);
+        updateStockRightSide(n);
+        return;
+    } else if (val === 'current_price') {
         if (leftDayGroup) leftDayGroup.style.display = 'none';
         if (leftCandleGroup) leftCandleGroup.style.display = 'none';
         if (leftMultGroup) leftMultGroup.style.display = 'none';
@@ -593,7 +715,7 @@ function updateStockConditionFields(n) {
 function updateStockComparatorOptions(n, options) {
     var sel = document.getElementById('comparator-' + n);
     if (!sel) return;
-    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume' };
+    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume', 'compare_trend_capture': 'Trend Capture' };
     sel.innerHTML = options.map(function(o) { return '<option value="' + o + '">' + (labels[o] || o) + '</option>'; }).join('');
 }
 
@@ -618,8 +740,22 @@ function updateStockRightSide(n) {
     var comp = comparator.value;
     var isEquals = operator && (operator.value === '=' || operator.value === '==');
 
-    // Enable cross operators for current_price/price when RHS is SMA or EMA
+    // Handle Trend Capture comparator
     var leftMetric = (document.getElementById('metric-' + n) || {}).value || '';
+    var tcRightWrapper = document.getElementById('tc-right-wrapper-' + n);
+    if (leftMetric === 'trend_capture') {
+        rightSide.style.display = 'none';
+        valueGroup.style.display = 'none';
+        if (tcRightWrapper) tcRightWrapper.style.display = (comp === 'compare_trend_capture') ? 'block' : 'none';
+        // Show/hide the TC right panel inside the wrapper
+        var tcRightPanel = document.getElementById('tc-right-panel-' + n);
+        if (tcRightPanel) tcRightPanel.style.display = (comp === 'compare_trend_capture') ? 'block' : 'none';
+        updateConditionSummary(n, false);
+        return;
+    }
+    if (tcRightWrapper) tcRightWrapper.style.display = 'none';
+
+    // Enable cross operators for current_price/price when RHS is SMA or EMA
     if (leftMetric === 'current_price' || leftMetric === 'price') {
         setCrossOperators('operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
     }
@@ -1084,6 +1220,26 @@ function buildConditionDesc(n, isExit) {
         'cross_up': 'crosses above', 'cross_down': 'crosses below', 'cross_either': 'crosses'
     }[operator] || operator;
 
+    // Trend Capture description
+    if (metric === 'trend_capture') {
+        var tcInterval = (document.getElementById('tc-left-interval-' + n) || {}).value || '1hr';
+        var tcTW = (document.getElementById('tc-left-time-window-' + n) || {}).value || 'day_of_entry';
+        var tcPT = (document.getElementById('tc-left-price-type-' + n) || {}).value || 'lowest_low';
+        var tcSD = (document.getElementById('tc-left-slope-dir-' + n) || {}).value || 'negative';
+        var twMap = { 'day_of_entry': 'Day', 'prior_day': 'Prev Day', 'week_of_entry': 'Week', 'month_of_entry': 'Month' };
+        var ptMap = { 'highest_high': 'HH', 'lowest_low': 'LL' };
+        var tcLeftStr = 'TC(' + tcInterval + ', ' + (twMap[tcTW] || tcTW) + ', ' + (ptMap[tcPT] || tcPT) + ', ' + tcSD + ')';
+        if (comparator === 'compare_trend_capture') {
+            var rInterval = (document.getElementById('tc-right-interval-' + n) || {}).value || '1hr';
+            var rTW = (document.getElementById('tc-right-time-window-' + n) || {}).value || 'day_of_entry';
+            var rPT = (document.getElementById('tc-right-price-type-' + n) || {}).value || 'lowest_low';
+            var rSD = (document.getElementById('tc-right-slope-dir-' + n) || {}).value || 'negative';
+            var tcRightStr = 'TC(' + rInterval + ', ' + (twMap[rTW] || rTW) + ', ' + (ptMap[rPT] || rPT) + ', ' + rSD + ')';
+            return tcLeftStr + ' slope ' + opSym + ' ' + tcRightStr + ' slope';
+        }
+        return tcLeftStr;
+    }
+
     if (comparator === 'value') {
         var fixedVal = (document.getElementById(p + 'compare-value-' + n) || {}).value;
         var numStr = fixedVal ? Number(fixedVal).toLocaleString() : '?';
@@ -1402,7 +1558,49 @@ async function collectFormData() {
                 comparator: comparator
             };
 
-            if (comparator === 'value') {
+            // --- Trend Capture fields ---
+            if (metric === 'trend_capture') {
+                const _tcField = (pfx, field) => (document.getElementById('tc-' + pfx + '-' + field + '-' + id) || {}).value || null;
+                const _tcBool  = (pfx, field) => { var el = document.getElementById('tc-' + pfx + '-' + field + '-' + id); return !!(el && el.checked); };
+                condition.tc_left_interval    = _tcField('left', 'interval')    || '1hr';
+                condition.tc_left_time_window = _tcField('left', 'time-window') || 'day_of_entry';
+                condition.tc_left_price_type  = _tcField('left', 'price-type')  || 'lowest_low';
+                condition.tc_left_slope_dir   = _tcField('left', 'slope-dir')   || 'negative';
+                condition.tc_left_slope_val_enabled = _tcBool('left', 'slope-val-enabled');
+                if (condition.tc_left_slope_val_enabled) {
+                    condition.tc_left_slope_op  = _tcField('left', 'slope-op')  || '>';
+                    condition.tc_left_slope_val = parseFloat(_tcField('left', 'slope-val')) || 0;
+                }
+                condition.tc_left_r_enabled = _tcBool('left', 'r-enabled');
+                if (condition.tc_left_r_enabled) {
+                    condition.tc_left_r_op  = _tcField('left', 'r-op')  || '<';
+                    condition.tc_left_r_val = parseFloat(_tcField('left', 'r-val')) || 0;
+                }
+                if (comparator === 'compare_trend_capture') {
+                    condition.tc_right_interval    = _tcField('right', 'interval')    || '1hr';
+                    condition.tc_right_time_window = _tcField('right', 'time-window') || 'day_of_entry';
+                    condition.tc_right_price_type  = _tcField('right', 'price-type')  || 'lowest_low';
+                    condition.tc_right_slope_dir   = _tcField('right', 'slope-dir')   || 'negative';
+                    condition.tc_right_slope_val_enabled = _tcBool('right', 'slope-val-enabled');
+                    if (condition.tc_right_slope_val_enabled) {
+                        condition.tc_right_slope_op  = _tcField('right', 'slope-op')  || '>';
+                        condition.tc_right_slope_val = parseFloat(_tcField('right', 'slope-val')) || 0;
+                    }
+                    condition.tc_right_r_enabled = _tcBool('right', 'r-enabled');
+                    if (condition.tc_right_r_enabled) {
+                        condition.tc_right_r_op  = _tcField('right', 'r-op')  || '<';
+                        condition.tc_right_r_val = parseFloat(_tcField('right', 'r-val')) || 0;
+                    }
+                }
+                // Trend Capture is self-contained; skip standard right-side fields
+                condition.right_type = 'trend_capture';
+                condition.right_fixed_value = 0;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '%';
+                condition.threshold_value = 0;
+            } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
                 condition.right_day = 0;
