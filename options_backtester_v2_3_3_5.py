@@ -4527,9 +4527,18 @@ def run_backtest(config: Dict, client: RESTClient):
             _all_price_conds = price_conditions or []
             _prereq_conds = [c for c in _all_price_conds if not c.get('is_sequential')]
             _seq_conds    = [c for c in _all_price_conds if c.get('is_sequential')]
+            # Group sequential conditions by their prerequisite phase.
+            # seq_prereq_phase: which phase must complete before this group arms.
+            # Default (backward-compat): i-th seq condition depends on phase i+1 → linear chain.
+            _seq_groups = {}  # prereq_phase_num → [conditions]
+            for _i, _sc in enumerate(_seq_conds):
+                _pp = int(_sc.get('seq_prereq_phase') or (_i + 1))
+                _seq_groups.setdefault(_pp, []).append(_sc)
+            _seq_group_prereqs = sorted(_seq_groups.keys())
             # Per-day sequential state (resets each day)
-            _seq_phase = 0        # 0 = checking phase-1; k>0 = waiting for _seq_conds[k-1]
-            _seq_arm_bar_idx = -1 # bar index when phase last advanced
+            # _current_phase=1 → checking initial prereqs; 2+ → checking group for prereq=phase-1
+            _current_phase = 1
+            _seq_arm_bar_idx = -1 # bar index when current phase was armed
 
             def _fmt_cd(c):
                 base = f"{c['left_label']} {c['left_value']:.2f} {c['operator']} {c['right_label']} {c['right_value']:.2f}"
@@ -4570,11 +4579,12 @@ def run_backtest(config: Dict, client: RESTClient):
                             'reason': preset_reason
                         })
                 
-                # Check custom price conditions — sequential state machine
+                # Check custom price conditions — group-based concurrent state machine
+                # _current_phase=1: checking initial prereqs; N>1: checking concurrent group for prereq=N-1
                 if price_conditions:
                     cond_details = []
-                    if _seq_phase == 0:
-                        # Phase 1: check all non-sequential (simultaneous) conditions
+                    if _current_phase == 1:
+                        # Phase 1: check all non-sequential (simultaneous) prerequisites
                         if _prereq_conds:
                             _pconf = {**config, 'price_conditions': _prereq_conds}
                             conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
@@ -4585,9 +4595,9 @@ def run_backtest(config: Dict, client: RESTClient):
                                 print(f"  Conditions not met: {condition_reason}", flush=True)
                                 last_condition_reason = condition_reason
                                 continue
-                        if _seq_conds:
-                            # Phase 1 satisfied — arm phase 2, don't enter yet
-                            _seq_phase = 1
+                        if _seq_group_prereqs:
+                            # Phase 1 satisfied — arm first sequential group
+                            _current_phase = 2
                             _seq_arm_bar_idx = _bar_idx
                             print(f"  SEQ Phase 1 armed @ {bar_time}", flush=True)
                             day_entry['events'].append({
@@ -4608,37 +4618,50 @@ def run_backtest(config: Dict, client: RESTClient):
                             'conditions': cond_details
                         })
                     else:
-                        # Sequential phase: check _seq_conds[_seq_phase - 1]
-                        _sc = _seq_conds[_seq_phase - 1]
-                        _max_wait = int(_sc.get('max_wait_bars', 0) or 0)
+                        # Sequential group phase: check all conditions whose prereq = _current_phase - 1
+                        _prereq_key = _current_phase - 1
+                        _group = _seq_groups.get(_prereq_key, [])
+                        # Max wait: use the maximum across all conditions in the group
+                        _max_wait = max((int(_c.get('max_wait_bars', 0) or 0) for _c in _group), default=0)
                         if _max_wait > 0 and (_bar_idx - _seq_arm_bar_idx) > _max_wait:
-                            # Timed out — reset to phase 0
-                            _seq_phase = 0
+                            # Timed out — reset to phase 1
+                            _current_phase = 1
                             _seq_arm_bar_idx = -1
-                            print(f"  SEQ Phase timed out @ {bar_time} — resetting", flush=True)
+                            print(f"  SEQ Phase {_current_phase} timed out @ {bar_time} — resetting", flush=True)
                             continue
-                        _sc_conf = {**config, 'price_conditions': [_sc]}
-                        conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
-                            _sc_conf, bar, indicators_cache, trade_date,
-                            bars_by_date=underlying_bars_1min
-                        )
-                        if not conditions_met:
-                            print(f"  SEQ Phase {_seq_phase} not yet met: {condition_reason}", flush=True)
+                        # Check all conditions in the group simultaneously (AND logic)
+                        _group_met = True
+                        _group_details = []
+                        for _sc in _group:
+                            _sc_conf = {**config, 'price_conditions': [_sc]}
+                            _sc_met, condition_reason, _sc_details = evaluate_price_conditions_with_cache(
+                                _sc_conf, bar, indicators_cache, trade_date,
+                                bars_by_date=underlying_bars_1min
+                            )
+                            _group_details.extend(_sc_details)
+                            if not _sc_met:
+                                _group_met = False
+                                break
+                        if not _group_met:
+                            print(f"  SEQ Phase {_current_phase} not yet met: {condition_reason}", flush=True)
                             last_condition_reason = condition_reason
                             continue
-                        if _seq_phase < len(_seq_conds):
-                            # Advance to next sequential phase
-                            _seq_phase += 1
+                        # Group met — check if a further group depends on the phase we just completed
+                        _next_prereq = _current_phase  # next group waits for phase = _current_phase
+                        if _next_prereq in _seq_groups:
+                            # Advance to the next sequential group
+                            _current_phase += 1
                             _seq_arm_bar_idx = _bar_idx
-                            print(f"  SEQ Phase {_seq_phase} armed @ {bar_time}", flush=True)
+                            print(f"  SEQ Phase {_current_phase} armed @ {bar_time}", flush=True)
                             day_entry['events'].append({
                                 'type': 'seq_phase_armed',
-                                'phase': _seq_phase,
+                                'phase': _current_phase,
                                 'time': bar_time,
                                 'price': underlying_price,
                             })
                             continue
-                        # All sequential phases satisfied — enter
+                        # All groups satisfied — fall through to entry
+                        cond_details = _group_details
                         _det_str = '  '.join(_fmt_cd(c) for c in cond_details) if cond_details else ''
                         print(f"  SEQ Final phase met - entering trade" + (f"  [{_det_str}]" if _det_str else ""), flush=True)
                         day_entry['events'].append({

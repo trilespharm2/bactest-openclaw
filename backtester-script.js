@@ -936,17 +936,23 @@ function addPriceCondition() {
                 <input class="form-check-input" type="checkbox" id="optEntrySeqEnabled${conditionId}" onchange="_updateOptSeqMode(${conditionId})">
                 <label class="form-check-label small fw-bold" for="optEntrySeqEnabled${conditionId}" style="color:#374151;">
                     Sequential Phase
-                    <span style="font-weight:400;color:#6b7280;">— triggers <em>after</em> previous condition fires, not simultaneously</span>
+                    <span style="font-weight:400;color:#6b7280;">— triggers <em>after</em> a selected phase fires, not simultaneously</span>
                 </label>
             </div>
             <div id="optSeqFields${conditionId}" style="display:none;" class="mt-2">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Triggers after</label>
+                        <select class="form-select form-select-sm" id="optEntrySeqPrereqPhase${conditionId}" onchange="_relabelAllPriceConditions()">
+                            <option value="1">Phase 1 (Initial)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
                         <label class="form-label small">Max Wait Bars <span class="text-muted">(0 = no limit)</span></label>
                         <input type="number" class="form-control form-control-sm" id="optEntrySeqMaxWait${conditionId}" value="0" min="0" max="500" placeholder="e.g. 10">
                     </div>
                     <div class="col-12">
-                        <small class="text-muted">Entry fires when this condition triggers after the previous phase. Set <strong>Max Wait Bars &gt; 0</strong> to auto-reset and re-arm if this phase does not trigger in time.</small>
+                        <small class="text-muted">Arms after the selected phase fires. Conditions sharing the same prerequisite phase are checked <strong>simultaneously</strong> (concurrent group). Set <strong>Max Wait Bars &gt; 0</strong> to auto-reset if not triggered in time.</small>
                     </div>
                 </div>
             </div>
@@ -986,28 +992,72 @@ function _updateOptSeqMode(id) {
     _relabelAllPriceConditions();
 }
 
-// Recompute phase labels for all options entry conditions
+// Recompute phase labels and prereq dropdowns for all options entry conditions
 function _relabelAllPriceConditions() {
     const container = document.getElementById('priceConditionsContainer');
     if (!container) return;
     const rows = container.querySelectorAll('.price-condition-row');
-    var nextSeqPhase = 2;
+
+    // First pass: snapshot current seq state so we can compute available phases
+    var condData = [];
+    rows.forEach(function(row, index) {
+        var id = row.id.replace('priceCondition', '');
+        var seqCb = document.getElementById('optEntrySeqEnabled' + id);
+        var isSeq = index > 0 && seqCb && seqCb.checked;
+        var prereqEl = document.getElementById('optEntrySeqPrereqPhase' + id);
+        var prereqPhase = isSeq ? (parseInt(prereqEl && prereqEl.value) || 1) : null;
+        condData.push({ id: id, index: index, isSeq: isSeq, prereqPhase: prereqPhase });
+    });
+
+    // Second pass: update labels and prereq dropdowns
     rows.forEach(function(row, index) {
         var id = row.id.replace('priceCondition', '');
         var labelEl = document.getElementById('optCondModeLabel' + id);
         var seqCb   = document.getElementById('optEntrySeqEnabled' + id);
         if (!labelEl) return;
+
         if (index === 0) {
             labelEl.textContent = 'Condition 1 — Phase 1: Initial Trigger';
-        } else {
-            var isSeq = seqCb && seqCb.checked;
-            if (isSeq) {
-                labelEl.textContent = `Condition ${index + 1} — Phase ${nextSeqPhase}: Sequential Trigger`;
-                nextSeqPhase++;
-            } else {
-                labelEl.textContent = `Condition ${index + 1} — Phase 1: Prerequisite`;
-            }
+            return;
         }
+
+        var isSeq = seqCb && seqCb.checked;
+        if (!isSeq) {
+            labelEl.textContent = 'Condition ' + (index + 1) + ' — Phase 1: Prerequisite (simultaneous)';
+            return;
+        }
+
+        // Populate prereq dropdown: Phase 1 always available; Phase N+1 available if any
+        // earlier seq condition has prereqPhase=N (meaning it creates phase N+1)
+        var prereqEl = document.getElementById('optEntrySeqPrereqPhase' + id);
+        if (prereqEl) {
+            var currentVal = parseInt(prereqEl.value) || 1;
+            var availPhases = [1];
+            for (var j = 0; j < index; j++) {
+                var d = condData[j];
+                if (d.isSeq && d.prereqPhase) {
+                    var generated = d.prereqPhase + 1;
+                    if (availPhases.indexOf(generated) === -1) availPhases.push(generated);
+                }
+            }
+            availPhases.sort(function(a, b) { return a - b; });
+            // Clamp stored value to available options
+            if (availPhases.indexOf(currentVal) === -1) currentVal = availPhases[availPhases.length - 1];
+            prereqEl.innerHTML = availPhases.map(function(ph) {
+                var label = ph === 1 ? 'Phase 1 (Initial)' : 'Phase ' + ph;
+                return '<option value="' + ph + '"' + (ph === currentVal ? ' selected' : '') + '>' + label + '</option>';
+            }).join('');
+            condData[index].prereqPhase = currentVal;
+        }
+
+        var prereqPhase = condData[index].prereqPhase || 1;
+        var myPhase = prereqPhase + 1;
+        // Check if concurrent (another seq condition sharing the same prereqPhase)
+        var concurrentCount = condData.filter(function(d, i) {
+            return i !== index && d.isSeq && d.prereqPhase === prereqPhase;
+        }).length;
+        var concurrentNote = concurrentCount > 0 ? ' (concurrent)' : '';
+        labelEl.textContent = 'Condition ' + (index + 1) + ' — Phase ' + myPhase + ': Sequential Trigger' + concurrentNote;
     });
 }
 
@@ -1780,6 +1830,8 @@ function collectPriceConditions() {
         condition.is_sequential = !!(optSeqCb && optSeqCb.checked);
         if (condition.is_sequential) {
             condition.max_wait_bars = parseInt(document.getElementById(`optEntrySeqMaxWait${id}`)?.value) || 0;
+            var prereqEl = document.getElementById(`optEntrySeqPrereqPhase${id}`);
+            condition.seq_prereq_phase = parseInt(prereqEl?.value) || 1;
         }
 
         conditions.push(condition);
