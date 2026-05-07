@@ -616,13 +616,23 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 raw_bars = indicators.get('_1min_raw', [])
                 if raw_bars:
                     price_data = {}
+                    _none_count = 0
                     for bar in raw_bars:
                         ts = bar.get('t')
                         if ts is not None:
-                            price_data[int(ts)] = bar.get(field)
+                            val = bar.get(field)
+                            # Fallback: for vwap (field='vw'), use close when vw is absent
+                            # (index tickers like I:SPX have no transactions, so vw is null)
+                            if val is None and field == 'vw':
+                                val = bar.get('c')
+                                _none_count += 1
+                            price_data[int(ts)] = val
                     indicators['price'] = price_data
+                    _sample_keys = sorted(price_data.keys())[:3]
+                    _sample_vals = [price_data[k] for k in _sample_keys]
                     print(f"[Prefetch] PRICE (from _1min_raw): {len(price_data)} bars, "
-                          f"series={series_type}, field={field}", flush=True)
+                          f"series={series_type}, field={field}, vw_fallbacks={_none_count}, "
+                          f"sample_ts={_sample_keys}, sample_vals={_sample_vals}", flush=True)
                 else:
                     # Fallback: separate REST call (may have timestamp misalignment)
                     price_multiplier = int(params.get('multiplier', 1) or 1)
