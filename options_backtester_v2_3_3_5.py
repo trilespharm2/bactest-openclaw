@@ -1374,9 +1374,14 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             elif operator == '==':
                 met = abs(left_value - right_value) < 0.0001
             elif operator in ('cross_up', 'cross_down', 'cross_either'):
-                # Need the previous bar's values — step back by each side's timeframe width.
-                # Default timeframe must match _sma_ema_key (uses 5 as default).
-                _ltf_mins = int(left_params.get('timeframe_minutes', 5))
+                # Need the previous bar's values.
+                # For sma/ema/vwap metrics: step back by timeframe_minutes (must match _sma_ema_key default=5).
+                # For price metric: step back by multiplier minutes (price data is stored at bar resolution).
+                if metric in ('sma', 'ema', 'vwap'):
+                    _ltf_mins = int(left_params.get('timeframe_minutes', 5))
+                else:
+                    # price: use the bar's own multiplier so we look exactly one bar back
+                    _ltf_mins = int(left_params.get('multiplier', 1))
                 _prev_left_ts = bar_timestamp - _ltf_mins * 60000
 
                 # Previous left value
@@ -1384,8 +1389,15 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     _lw = int(left_params.get('window', 14))
                     _lkey = f'{metric}_w{_lw}_t{_ltf_mins}'
                     prev_left = find_closest_indicator_value(indicators_cache.get(_lkey, {}), _prev_left_ts)
+                    if prev_left is None:
+                        print(f"  [cross] WARN: prev_left=None for key={_lkey} prev_ts={_prev_left_ts} "
+                              f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
                 elif metric == 'price':
-                    prev_left = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_left_ts)
+                    _price_cache = indicators_cache.get('price', {})
+                    prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
+                    if prev_left is None:
+                        print(f"  [cross] WARN: prev_left=None from price cache "
+                              f"(size={len(_price_cache)}) prev_ts={_prev_left_ts}", flush=True)
                 else:
                     prev_left = None
 
@@ -1411,6 +1423,9 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     _rw = int(right_params.get('window', 14))
                     _rkey = f'{right_metric}_w{_rw}_t{_rtf_mins}'
                     prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_right_ts)
+                    if prev_right is None:
+                        print(f"  [cross] WARN: prev_right=None for key={_rkey} prev_ts={_prev_right_ts} "
+                              f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
                 elif right_metric == 'price':
                     prev_right = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_right_ts)
                 else:
@@ -1425,6 +1440,13 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         met = _cross_down
                     else:
                         met = _cross_up or _cross_down
+                    if met:
+                        print(f"  [cross] FIRED {operator}: prev_L={prev_left:.4f} prev_R={prev_right:.4f} "
+                              f"cur_L={left_value:.4f} cur_R={right_value:.4f}", flush=True)
+                else:
+                    print(f"  [cross] SKIP {operator}: prev_left={prev_left} prev_right={prev_right} "
+                          f"cur_L={left_value:.4f} cur_R={right_value:.4f} "
+                          f"lookback_L={_ltf_mins}min lookback_R={_rtf_mins}min", flush=True)
 
             # Build left/right labels for the decision log
             _left_label = left_params.get('series_type', metric).upper() if metric == 'price' else metric.upper()
