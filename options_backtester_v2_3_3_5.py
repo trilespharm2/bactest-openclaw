@@ -1395,9 +1395,13 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 elif metric == 'price':
                     _price_cache = indicators_cache.get('price', {})
                     prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
-                    if prev_left is None:
-                        print(f"  [cross] WARN: prev_left=None from price cache "
-                              f"(size={len(_price_cache)}) prev_ts={_prev_left_ts}", flush=True)
+                    if prev_left is None and not indicators_cache.get('_price_cache_diag_done'):
+                        _pkeys = sorted(_price_cache.keys())
+                        _pkey_sample = _pkeys[:3] + _pkeys[-3:] if len(_pkeys) >= 6 else _pkeys
+                        print(f"  [cross] PRICE-CACHE-DIAG: size={len(_price_cache)} "
+                              f"bar_ts={bar_timestamp} prev_ts={_prev_left_ts} "
+                              f"first3={_pkeys[:3]} last3={_pkeys[-3:]}", flush=True)
+                        indicators_cache['_price_cache_diag_done'] = True
                 else:
                     prev_left = None
 
