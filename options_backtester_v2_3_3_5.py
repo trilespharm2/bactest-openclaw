@@ -877,48 +877,40 @@ def get_indicator_value_for_date(indicators_cache: Dict, metric: str, target_dat
     return best_value
 
 
-def _opt_get_tc_bars(bars_by_date: Dict, trade_date, bar_time: Optional[str], time_window: str):
-    """Return a list of bar dicts for the trend-capture time window (lookahead-safe)."""
+def _opt_get_tc_bars(bars_by_date: Dict, trade_date, bar_time: Optional[str], time_window):
+    """Return a list of bar dicts for the trend-capture time window (lookahead-safe).
+
+    time_window is an integer N (>= 1):
+      1 = today's bars strictly before bar_time
+      2 = prior trading day (all bars) + today before bar_time
+      N = N-1 prior trading days + today before bar_time
+    When bar_time is None (prerequisite call), today is excluded entirely.
+    """
     try:
-        from datetime import timedelta
         trade_date_str = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]
         sorted_dates = sorted(bars_by_date.keys())
 
-        if time_window == 'prior_day':
-            prior_dates = [d for d in sorted_dates if d < trade_date_str]
-            if not prior_dates:
-                return None
-            return sorted(bars_by_date.get(prior_dates[-1], []), key=lambda x: x.get('time', ''))
+        n = int(time_window) if time_window is not None else 1
+        if n < 1:
+            n = 1
 
-        elif time_window == 'day_of_entry':
-            if bar_time is None:
-                # Prerequisite call (no bar reference) — fall back to prior day
-                prior_dates = [d for d in sorted_dates if d < trade_date_str]
-                if not prior_dates:
-                    return None
-                return sorted(bars_by_date.get(prior_dates[-1], []), key=lambda x: x.get('time', ''))
+        # Determine which dates to include
+        prior_dates = [d for d in sorted_dates if d < trade_date_str]
+        n_prior = n - 1  # number of prior days to include
+
+        included_dates = prior_dates[-(n_prior):] if n_prior > 0 else []
+
+        result = []
+        for d in included_dates:
+            day_bars = sorted(bars_by_date.get(d, []), key=lambda x: x.get('time', ''))
+            result.extend(day_bars)
+
+        # Add today's bars (before bar_time), unless prerequisite call
+        if bar_time is not None:
             today_bars = sorted(bars_by_date.get(trade_date_str, []), key=lambda x: x.get('time', ''))
-            bars = [b for b in today_bars if b.get('time', '') < bar_time]
-            return bars if bars else None
+            result.extend([b for b in today_bars if b.get('time', '') < bar_time])
 
-        elif time_window in ('week_of_entry', 'month_of_entry'):
-            td = datetime.strptime(trade_date_str, '%Y-%m-%d') if isinstance(trade_date_str, str) else trade_date
-            if time_window == 'week_of_entry':
-                week_start = (td - timedelta(days=td.weekday())).strftime('%Y-%m-%d')
-                window_start = week_start
-            else:
-                window_start = td.replace(day=1).strftime('%Y-%m-%d')
-            result = []
-            for d in sorted_dates:
-                if d < window_start or d > trade_date_str:
-                    continue
-                day_bars = sorted(bars_by_date.get(d, []), key=lambda x: x.get('time', ''))
-                if d == trade_date_str:
-                    if bar_time is None:
-                        continue
-                    day_bars = [b for b in day_bars if b.get('time', '') < bar_time]
-                result.extend(day_bars)
-            return result if result else None
+        return result if result else None
     except Exception:
         return None
 
@@ -931,9 +923,8 @@ def _opt_compute_tc_slope(tc_params: Dict, bars_by_date: Dict, trade_date, bar_t
     """
     try:
         interval    = tc_params.get('interval', '1hr')
-        time_window = tc_params.get('time_window', 'day_of_entry')
+        time_window = tc_params.get('time_window', 1)
         price_type  = tc_params.get('price_type', 'lowest_low')
-        slope_dir   = tc_params.get('slope_dir', 'negative')
         interval_mins = {'15min': 15, '30min': 30, '1hr': 60, '2hr': 120}.get(interval, 60)
 
         bars = _opt_get_tc_bars(bars_by_date, trade_date, bar_time, time_window)
@@ -978,19 +969,9 @@ def _opt_compute_tc_slope(tc_params: Dict, bars_by_date: Dict, trade_date, bar_t
         slope   = float(reg.slope)
         r_value = float(reg.rvalue)
 
-        # Direction check
-        if slope_dir == 'negative' and slope >= 0:
-            return slope, r_value, False
-        if slope_dir == 'positive' and slope <= 0:
-            return slope, r_value, False
-
         def _chk(a, op, b):
             return {'>': a > b, '<': a < b, '>=': a >= b, '<=': a <= b,
                     '==': abs(a - b) < 1e-10}.get(op, False)
-
-        if tc_params.get('slope_val_enabled'):
-            if not _chk(slope, tc_params.get('slope_op', '>'), float(tc_params.get('slope_val', 0) or 0)):
-                return slope, r_value, False
 
         if tc_params.get('r_enabled'):
             if not _chk(r_value, tc_params.get('r_op', '>'), float(tc_params.get('r_val', 0) or 0)):

@@ -6841,11 +6841,28 @@
           <optgroup label="Sub-panel">
             <option value="rsi">RSI</option>
             <option value="macd">MACD</option>
+            <option value="trend_capture">Trend Capture</option>
           </optgroup>
         </select>
         <div id="dtIndPeriodWrap" style="display:flex;align-items:center;gap:4px;">
           <label style="font-size:11px;color:#64748b;white-space:nowrap;">Period:</label>
           <input type="number" id="dtIndPeriod" value="20" min="2" max="500" style="font-size:12px;padding:4px 6px;border:1px solid #d1d4dc;border-radius:6px;width:60px;">
+        </div>
+        <div id="dtTcParamsWrap" style="display:none;align-items:center;gap:6px;">
+          <select id="dtTcInterval" style="font-size:12px;padding:4px 6px;border:1px solid #d1d4dc;border-radius:6px;background:#fff;color:#1e2330;cursor:pointer;">
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60" selected>1 hr</option>
+            <option value="120">2 hr</option>
+          </select>
+          <select id="dtTcPriceType" style="font-size:12px;padding:4px 6px;border:1px solid #d1d4dc;border-radius:6px;background:#fff;color:#1e2330;cursor:pointer;">
+            <option value="lowest_low" selected>Lowest Low</option>
+            <option value="highest_high">Highest High</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:3px;">
+            <label style="font-size:11px;color:#64748b;white-space:nowrap;">Days:</label>
+            <input type="number" id="dtTcDays" value="1" min="1" max="30" style="font-size:12px;padding:4px 6px;border:1px solid #d1d4dc;border-radius:6px;width:48px;">
+          </div>
         </div>
         <div style="display:flex;align-items:center;gap:4px;">
           <label style="font-size:11px;color:#64748b;white-space:nowrap;">Width:</label>

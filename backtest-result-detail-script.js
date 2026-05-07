@@ -867,13 +867,63 @@ function _closeDtChartModal() {
 function _dtOnIndTypeChange() {
     var type = document.getElementById('dtIndType').value;
     var periodWrap = document.getElementById('dtIndPeriodWrap');
-    var colorWrap  = document.getElementById('dtIndColorWrap');
-    var widthWrap  = document.getElementById('dtIndWidthWrap');
-    // MACD has fixed params (12,26,9) — hide period; RSI defaults to 14
-    if (periodWrap) periodWrap.style.display = (type === 'macd') ? 'none' : 'flex';
+    var tcWrap     = document.getElementById('dtTcParamsWrap');
+    // MACD and Trend Capture have their own param UI — hide standard period
+    var hidePeriod = (type === 'macd' || type === 'trend_capture');
+    if (periodWrap) periodWrap.style.display = hidePeriod ? 'none' : 'flex';
+    if (tcWrap)     tcWrap.style.display     = (type === 'trend_capture') ? 'flex' : 'none';
     if (type === 'rsi' && document.getElementById('dtIndPeriod')) {
         document.getElementById('dtIndPeriod').value = 14;
     }
+}
+
+// ─── Trend Capture computation ───────────────────────────────────────────────
+// Computes OLS regression on interval-bucketed HH or LL prices.
+// Returns { points: [{time, value}], line: [{time, value}], slope } or null.
+function _dtComputeTC(bars, intervalMins, priceType, nDays) {
+    if (!bars || bars.length < 2) return null;
+    var col = priceType === 'highest_high' ? 'high' : 'low';
+    var tfMs = intervalMins * 60 * 1000;
+
+    // Only use bars from the last nDays calendar days relative to last bar
+    var lastTs = bars[bars.length - 1].timestamp;
+    var cutoffTs = lastTs - nDays * 24 * 60 * 60 * 1000;
+    var useBars = bars.filter(function(b) { return b.timestamp >= cutoffTs; });
+    if (useBars.length < 2) useBars = bars;
+
+    // Group into interval buckets
+    var buckets = {}, bucketOrder = [];
+    useBars.forEach(function(b) {
+        var key = Math.floor(b.timestamp / tfMs) * tfMs;
+        if (!buckets[key]) { buckets[key] = []; bucketOrder.push(key); }
+        buckets[key].push(b[col]);
+    });
+    bucketOrder.sort(function(a, b) { return a - b; });
+    if (bucketOrder.length < 2) return null;
+
+    var bucketVals = bucketOrder.map(function(k) {
+        var vals = buckets[k];
+        return priceType === 'highest_high' ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
+    });
+
+    // OLS regression
+    var n = bucketVals.length;
+    var sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    for (var i = 0; i < n; i++) {
+        sumX += i; sumY += bucketVals[i]; sumXY += i * bucketVals[i]; sumX2 += i * i;
+    }
+    var denom = n * sumX2 - sumX * sumX;
+    if (denom === 0) return null;
+    var slope = (n * sumXY - sumX * sumY) / denom;
+    var intercept = (sumY - slope * sumX) / n;
+
+    var points = bucketOrder.map(function(k, i) {
+        return { time: Math.floor(k / 1000), value: bucketVals[i] };
+    });
+    var line = bucketOrder.map(function(k, i) {
+        return { time: Math.floor(k / 1000), value: intercept + slope * i };
+    });
+    return { points: points, line: line, slope: slope };
 }
 
 // ─── Computation helpers ─────────────────────────────────────────────────────
@@ -1093,6 +1143,31 @@ function _dtCreateIndSeries(chart, ind) {
         return macdSeries;
     }
 
+    // ── Trend Capture overlay (bucket prices + regression line) ─────────────
+    if (ind.type === 'trend_capture') {
+        var tcResult = _dtComputeTC(_dtModalBars, ind.tcInterval, ind.tcPriceType, ind.tcDays);
+        if (!tcResult) return null;
+        var ptClean  = _dtDedup(tcResult.points.filter(filterFn));
+        var lineClean = _dtDedup(tcResult.line.filter(filterFn));
+        // Bucket prices as dotted line
+        var pointsSeries = chart.addLineSeries({
+            color: ind.color, lineWidth: 1, lineStyle: 1,
+            priceLineVisible: false, lastValueVisible: false,
+            crosshairMarkerVisible: true, title: ''
+        });
+        pointsSeries.setData(ptClean);
+        // Regression line (solid)
+        var regSeries = chart.addLineSeries({
+            color: ind.color, lineWidth: ind.lineWidth,
+            priceLineVisible: false, lastValueVisible: true,
+            crosshairMarkerVisible: false,
+            title: ind.label + '(slope=' + tcResult.slope.toFixed(2) + ')'
+        });
+        regSeries.setData(lineClean);
+        ind.extraSeries = [pointsSeries];
+        return regSeries;
+    }
+
     // ── Overlay indicators (SMA / EMA / VWAP) ───────────────────────────────
     var data = [];
     if (ind.type === 'sma')       data = _dtComputeSMA(_dtModalBars, ind.period);
@@ -1120,7 +1195,7 @@ function _dtAddIndicator() {
     var lineWidth = parseInt(document.getElementById('dtIndWidth').value) || 2;
 
     // Sub-panel types use fixed params; overlay types need period validation
-    if (type !== 'macd' && (period < 2 || period > 500)) {
+    if (type !== 'macd' && type !== 'trend_capture' && (period < 2 || period > 500)) {
         alert('Period must be between 2 and 500.'); return;
     }
     if (_dtModalDayBars.length === 0) {
@@ -1128,11 +1203,25 @@ function _dtAddIndicator() {
     }
 
     var id = _dtModalIndNextId++;
-    var label = type === 'macd' ? 'MACD(12,26,9)'
+    var label, ind;
+
+    if (type === 'trend_capture') {
+        var tcIntervalMins = parseInt(document.getElementById('dtTcInterval')?.value) || 60;
+        var tcPriceType    = document.getElementById('dtTcPriceType')?.value || 'lowest_low';
+        var tcDays         = parseInt(document.getElementById('dtTcDays')?.value) || 1;
+        var ptLabel        = tcPriceType === 'highest_high' ? 'HH' : 'LL';
+        var tfLabel        = tcIntervalMins === 15 ? '15m' : tcIntervalMins === 30 ? '30m' : tcIntervalMins === 60 ? '1h' : '2h';
+        label = 'TC(' + tfLabel + ',' + ptLabel + ',' + tcDays + 'd)';
+        ind = { id: id, type: type, period: 1, color: color, lineWidth: lineWidth, label: label,
+                tcInterval: tcIntervalMins, tcPriceType: tcPriceType, tcDays: tcDays,
+                series: null, isSubPanel: false, subChart: null, subDiv: null, subRo: null, extraSeries: null };
+    } else {
+        label = type === 'macd' ? 'MACD(12,26,9)'
               : type === 'rsi'  ? 'RSI(' + period + ')'
               : type.toUpperCase() + '(' + period + ')';
-    var ind = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label,
+        ind = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label,
                 series: null, isSubPanel: false, subChart: null, subDiv: null, subRo: null, extraSeries: null };
+    }
 
     ind.series = _dtCreateIndSeries(body._lwModalChart, ind);
     _dtModalIndicators.push(ind);

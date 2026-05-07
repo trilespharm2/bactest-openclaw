@@ -927,69 +927,44 @@ class BacktesterEngine:
     def _get_tc_window_data(self, grouped_data, dates, current_date_index, time_window, entry_ts):
         """Return a DataFrame of minute bars for the requested trend-capture time window.
 
+        time_window is an integer N (>= 1):
+          1 = today's bars strictly before entry_ts
+          2 = prior trading day (all) + today before entry_ts
+          N = N-1 prior trading days + today before entry_ts
+        When entry_ts is None (prerequisite call), today is excluded entirely.
         All data is guaranteed to be STRICTLY BEFORE entry_ts (lookahead-safe).
         """
         try:
             current_date = dates[current_date_index]
+            n = int(time_window) if time_window is not None else 1
+            if n < 1:
+                n = 1
+            n_prior = n - 1
 
-            if time_window == 'prior_day':
-                prev_idx = current_date_index - 1
-                if prev_idx < 0:
-                    return None
-                prev_date = dates[prev_idx]
-                if prev_date not in grouped_data.groups:
-                    return None
-                return grouped_data.get_group(prev_date).copy()
-
-            elif time_window == 'day_of_entry':
-                # When called as a prerequisite (entry_ts=None), there is no reference bar yet.
-                # Fall back to prior_day to avoid lookahead bias.
-                if entry_ts is None:
-                    prev_idx = current_date_index - 1
-                    if prev_idx < 0:
-                        return None
-                    prev_date = dates[prev_idx]
-                    if prev_date not in grouped_data.groups:
-                        return None
-                    return grouped_data.get_group(prev_date).copy()
-                if current_date not in grouped_data.groups:
-                    return None
-                data = grouped_data.get_group(current_date).copy()
-                if 'timestamp' in data.columns:
-                    data = data[data['timestamp'] < entry_ts]
-                return data if not data.empty else None
-
-            elif time_window in ('week_of_entry', 'month_of_entry'):
-                current_pd = pd.Timestamp(current_date)
-                if time_window == 'week_of_entry':
-                    window_start = current_pd - pd.Timedelta(days=current_pd.dayofweek)
-                else:
-                    window_start = current_pd.replace(day=1)
-                frames = []
-                for d in dates:
-                    pd_d = pd.Timestamp(d)
-                    if pd_d < window_start:
-                        continue
-                    if pd_d > current_pd:
-                        break
+            frames = []
+            # Include prior days
+            if n_prior > 0:
+                prior_start = max(0, current_date_index - n_prior)
+                for i in range(prior_start, current_date_index):
+                    d = dates[i]
                     if d not in grouped_data.groups:
                         continue
-                    day_data = grouped_data.get_group(d).copy()
-                    if d == current_date:
-                        # Prerequisite call (entry_ts=None): exclude current day entirely
-                        # to avoid lookahead; bar-level call: filter strictly before entry_ts
-                        if entry_ts is None:
-                            continue
-                        if 'timestamp' in day_data.columns:
-                            day_data = day_data[day_data['timestamp'] < entry_ts]
+                    frames.append(grouped_data.get_group(d).copy())
+
+            # Include today (only when we have an entry_ts reference)
+            if entry_ts is not None:
+                if current_date in grouped_data.groups:
+                    day_data = grouped_data.get_group(current_date).copy()
+                    if 'timestamp' in day_data.columns:
+                        day_data = day_data[day_data['timestamp'] < entry_ts]
                     if not day_data.empty:
                         frames.append(day_data)
-                if not frames:
-                    return None
-                return pd.concat(frames, ignore_index=True)
+
+            if not frames:
+                return None
+            return pd.concat(frames, ignore_index=True)
         except Exception:
             return None
-        return None
 
     def _compute_trend_capture_slope(self, condition, side, grouped_data, dates,
                                      current_date_index, current_candle):
@@ -1001,9 +976,8 @@ class BacktesterEngine:
         try:
             p = f'tc_{side}_'
             interval    = condition.get(p + 'interval',    '1hr')
-            time_window = condition.get(p + 'time_window', 'day_of_entry')
+            time_window = condition.get(p + 'time_window', 1)
             price_type  = condition.get(p + 'price_type',  'lowest_low')
-            slope_dir   = condition.get(p + 'slope_dir',   'negative')
 
             interval_mins = {'15min': 15, '30min': 30, '1hr': 60, '2hr': 120}.get(interval, 60)
 
@@ -1038,19 +1012,6 @@ class BacktesterEngine:
             result = _linregress(x, y)
             slope   = float(result.slope)
             r_value = float(result.rvalue)
-
-            # Direction check
-            if slope_dir == 'negative' and slope >= 0:
-                return slope, r_value, False
-            if slope_dir == 'positive' and slope <= 0:
-                return slope, r_value, False
-
-            # Optional slope-value check
-            if condition.get(p + 'slope_val_enabled'):
-                op  = condition.get(p + 'slope_op', '>')
-                thr = float(condition.get(p + 'slope_val', 0) or 0)
-                if not self._evaluate_operator(slope, op, thr):
-                    return slope, r_value, False
 
             # Optional R-value check
             if condition.get(p + 'r_enabled'):
