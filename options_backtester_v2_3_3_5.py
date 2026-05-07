@@ -566,11 +566,12 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     print(f"[Prefetch] Symbol: {underlying_sym}", flush=True)
     print(f"{'='*60}\n", flush=True)
     
-    # Pre-pass: if any SMA/EMA/VWAP conditions exist, fetch 1-min bars ONCE.
-    # All SMA/EMA/VWAP computations share this single fetch; no duplicate API calls.
+    # Pre-pass: if any SMA/EMA/VWAP or 'price' conditions exist, fetch 1-min bars ONCE.
+    # Price metric also reuses _1min_raw so its timestamps match SMA/EMA/VWAP timestamps exactly.
     sma_ema_keys = [k for k in metrics_config if k.startswith('sma_') or k.startswith('ema_') or k.startswith('vwap_')]
-    if sma_ema_keys:
-        max_window = max(int(metrics_config[k].get('window', 14)) for k in sma_ema_keys)
+    _needs_1min_raw = bool(sma_ema_keys) or ('price' in metrics_config)
+    if _needs_1min_raw:
+        max_window = max((int(metrics_config[k].get('window', 14)) for k in sma_ema_keys), default=14)
         buffer_days = max(5, (max_window // 390 + 2) * 3)
         extended_start = start_date - timedelta(days=buffer_days)
         extended_start_str = extended_start.strftime("%Y-%m-%d")
@@ -605,25 +606,40 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     for metric, params in metrics_config.items():
         try:
             if metric == 'price':
-                # Fetch minute bars for intraday comparisons
+                # Build price cache from _1min_raw so timestamps are identical to
+                # the bars used for SMA/EMA/VWAP — a separate REST call returns
+                # timestamps with a different alignment, causing find_closest_indicator_value
+                # to always return None for the cross lookback.
                 series_type = params.get('series_type', 'close')
-                price_multiplier = int(params.get('multiplier', 1) or 1)
-                url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/{price_multiplier}/minute/{start_str}/{end_str}"
-                print(f"[Prefetch] Fetching PRICE MINUTE data: {start_str} to {end_str}...", flush=True)
-                
-                response = requests.get(url, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true'})
-                if response.status_code == 200:
-                    data = response.json()
-                    results = data.get('results', [])
+                field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
+                field = field_map.get(series_type, 'c')
+                raw_bars = indicators.get('_1min_raw', [])
+                if raw_bars:
                     price_data = {}
-                    price_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c', 'vwap': 'vw'}
-                    for bar in results:
+                    for bar in raw_bars:
                         ts = bar.get('t')
-                        price_data[ts] = bar.get(price_map.get(series_type, 'c'))
+                        if ts is not None:
+                            price_data[int(ts)] = bar.get(field)
                     indicators['price'] = price_data
-                    print(f"[Prefetch] PRICE: got {len(results)} minute bars", flush=True)
+                    print(f"[Prefetch] PRICE (from _1min_raw): {len(price_data)} bars, "
+                          f"series={series_type}, field={field}", flush=True)
                 else:
-                    print(f"[Prefetch] PRICE error: {response.status_code}", flush=True)
+                    # Fallback: separate REST call (may have timestamp misalignment)
+                    price_multiplier = int(params.get('multiplier', 1) or 1)
+                    url = f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}/range/{price_multiplier}/minute/{start_str}/{end_str}"
+                    print(f"[Prefetch] PRICE fallback REST call: {start_str} to {end_str}...", flush=True)
+                    response = requests.get(url, params={'apiKey': api_key, 'limit': 50000, 'adjusted': 'true'})
+                    if response.status_code == 200:
+                        results = response.json().get('results', [])
+                        price_data = {}
+                        for bar in results:
+                            ts = bar.get('t')
+                            if ts is not None:
+                                price_data[int(ts)] = bar.get(field)
+                        indicators['price'] = price_data
+                        print(f"[Prefetch] PRICE fallback: got {len(results)} bars", flush=True)
+                    else:
+                        print(f"[Prefetch] PRICE fallback error: {response.status_code}", flush=True)
             
             elif metric == 'price_day':
                 # Fetch day bars for daily comparisons
