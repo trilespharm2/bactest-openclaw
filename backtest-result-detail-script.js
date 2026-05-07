@@ -694,6 +694,7 @@ var _dtModalIndNextId   = 0;
 var _dtModalBars        = [];   // seed + current-day bars (at current TF) — used for SMA/EMA warmup
 var _dtModalDayBars     = [];   // current-day bars (at current TF) — used for VWAP
 var _dtModalCutoffTs    = 0;    // Unix seconds of first current-day bar; SMA/EMA output filtered to >= this
+var _dtModalEntryTs     = 0;    // Unix seconds of actual trade entry bar (used for TC "prior to entry" filter)
 
 // ─── DT Modal timeframe state ────────────────────────────────────────────────
 var _dtCurrentTf        = 1;    // active timeframe in minutes (1, 5, 15, 30, 60)
@@ -767,6 +768,8 @@ function _dtRebuildModalChart() {
     _dtModalBars     = _dtAggregateBars(_dtRawAllBars, _dtCurrentTf);
     _dtModalDayBars  = _dtAggregateBars(_dtRawDayBars, _dtCurrentTf);
     _dtModalCutoffTs = _dtModalDayBars.length > 0 ? Math.floor(_dtModalDayBars[0].timestamp / 1000) : 0;
+    var _s = _dtCurrentStored;
+    _dtModalEntryTs  = (_s && _s.entryTime && _s.day) ? _toTs(_s.day.date, _s.entryTime) : _dtModalCutoffTs;
 
     setTimeout(function() {
         var priceDiv = document.createElement('div');
@@ -832,6 +835,7 @@ function _openDtChartModal(idx) {
     _dtModalBars     = _dtRawAllBars.slice();
     _dtModalDayBars  = _dtRawDayBars.slice();
     _dtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;
+    _dtModalEntryTs  = stored.entryTime ? _toTs(stored.day.date, stored.entryTime) : _dtModalCutoffTs;
 
     var modal = document.getElementById('dtChartModal');
     modal.style.display = 'flex';
@@ -1145,9 +1149,10 @@ function _dtCreateIndSeries(chart, ind) {
 
     // ── Trend Capture overlay (bucket prices + regression line) ─────────────
     if (ind.type === 'trend_capture') {
-        // "Prior to entry only": compute TC using bars strictly before the entry cutoff
-        var tcBars = ind.tcPriorOnly && _dtModalCutoffTs
-            ? _dtModalBars.filter(function(b) { return b.timestamp < _dtModalCutoffTs * 1000; })
+        // "Prior to entry only": compute TC using bars strictly before the actual entry time
+        var _tcEntryCutoff = _dtModalEntryTs || _dtModalCutoffTs;
+        var tcBars = ind.tcPriorOnly && _tcEntryCutoff
+            ? _dtModalBars.filter(function(b) { return b.timestamp < _tcEntryCutoff * 1000; })
             : _dtModalBars;
         var tcResult = _dtComputeTC(tcBars, ind.tcInterval, ind.tcPriceType, ind.tcDays);
         if (!tcResult) return null;
