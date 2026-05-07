@@ -754,6 +754,27 @@ function addPriceCondition() {
                 <div class="row g-2 mt-1">
                     <div class="col-12">
                         <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" id="tcRightSlopeEnabled${conditionId}" onchange="toggleOptTimeWindow('tcRightSlopeFields${conditionId}', this.checked)">
+                            <label class="form-check-label small text-muted" for="tcRightSlopeEnabled${conditionId}">Optional: Slope direction check</label>
+                        </div>
+                        <div id="tcRightSlopeFields${conditionId}" style="display:none;" class="row g-2 mb-2">
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label small">Slope Operator</label>
+                                <select class="form-select form-select-sm" id="tcRightSlopeOp${conditionId}">
+                                    <option value=">">&gt;</option><option value="<">&lt;</option>
+                                    <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label small">Slope Value</label>
+                                <input type="number" class="form-control form-control-sm" id="tcRightSlopeVal${conditionId}" value="0" step="0.01" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-12">
+                        <div class="form-check form-switch mb-1">
                             <input class="form-check-input" type="checkbox" id="tcRightREnabled${conditionId}">
                             <label class="form-check-label small text-muted" for="tcRightREnabled${conditionId}">Optional: R² linearity check</label>
                         </div>
@@ -1044,7 +1065,7 @@ function updateConditionFields(conditionId) {
             if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
             if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
             if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
         case 'price':
@@ -1054,7 +1075,7 @@ function updateConditionFields(conditionId) {
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
 
@@ -1307,29 +1328,40 @@ function updateRightSideVisibility(conditionId) {
     const valueInputGroup = document.getElementById(`valueInputGroup${conditionId}`);
     const metric = document.getElementById(`metric${conditionId}`)?.value;
     const isEquals = (operator === '==' || operator === '=');
-    
+
     if (!rightSide || !valueInputGroup) return;
 
-    // Enable cross operators for current_price when RHS is SMA, EMA, or VWAP
+    // Whether price metric is being compared to TC line value
+    var isPriceTc = (comparator === 'compare_trend_capture') && (metric === 'current_price' || metric === 'price');
+
+    // Cross operators: price vs TC supports crosses; current_price vs SMA/EMA/VWAP also
     if (metric === 'current_price') {
-        var crossOk = comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_vwap';
+        var crossOk = comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_vwap' || isPriceTc;
         setCrossOperators('operator' + conditionId, crossOk);
     }
-    
-    // TC right panel: show/hide based on comparator
+    if (metric === 'price') {
+        setCrossOperators('operator' + conditionId, isPriceTc);
+    }
+
+    // TC right panel: always show when comparator=compare_trend_capture
     var tcRightPanelEl = document.getElementById('tcRightPanel' + conditionId);
     if (tcRightPanelEl) tcRightPanelEl.style.display = (comparator === 'compare_trend_capture') ? 'block' : 'none';
 
-    if (comparator === 'value' || comparator === 'compare_trend_capture') {
+    if (comparator === 'value') {
         rightSide.style.display = 'none';
-        valueInputGroup.style.display = comparator === 'value' ? 'block' : 'none';
+        valueInputGroup.style.display = 'block';
+    } else if (comparator === 'compare_trend_capture' && !isPriceTc) {
+        // TC slope vs TC slope: hide standard right side entirely
+        rightSide.style.display = 'none';
+        valueInputGroup.style.display = 'none';
     } else {
+        // All standard comparators + price-vs-TC (show rightSide so threshold is visible)
         rightSide.style.display = 'block';
         valueInputGroup.style.display = 'none';
-        
+
         // Update right side fields based on comparator type
         updateRightSideFields(conditionId, comparator);
-        
+
         var thresholdUnit = document.getElementById(`thresholdUnit${conditionId}`);
         var thresholdValue = document.getElementById(`thresholdValue${conditionId}`);
         var threshUnitCol = thresholdUnit ? thresholdUnit.closest('.col-md-3') : null;
@@ -1409,6 +1441,16 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightMacdShortGroup) rightMacdShortGroup.style.display = 'block';
         if (rightMacdLongGroup) rightMacdLongGroup.style.display = 'block';
         if (rightMacdSignalGroup) rightMacdSignalGroup.style.display = 'block';
+    } else if (comparator === 'compare_trend_capture') {
+        // Price vs TC line: hide all standard right-side fields (TC config shown in tcRightPanel)
+        if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
+        var _rDayGrp   = document.getElementById('rightDayGroup' + conditionId);
+        var _rCndlGrp  = document.getElementById('rightCandleTypeGroup' + conditionId);
+        var _rMultGrp  = document.getElementById('rightMultiplierGroup' + conditionId);
+        if (_rDayGrp)   _rDayGrp.style.display = 'none';
+        if (_rCndlGrp)  _rCndlGrp.style.display = 'none';
+        if (_rMultGrp)  _rMultGrp.style.display = 'none';
     }
 }
 
@@ -1537,6 +1579,25 @@ function buildOptConditionDesc(n, isExit) {
         return leftDesc + ' ' + opLabel + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
+    // Price vs Trend Capture line value
+    if (comparator === 'compare_trend_capture') {
+        var _tcInt  = document.getElementById((isExit ? 'optExitTcRightInterval' : 'tcRightInterval') + n)?.value
+                   || document.getElementById('tcRightInterval' + n)?.value || '1hr';
+        var _tcWin  = parseInt(document.getElementById((isExit ? 'optExitTcRightTimeWindow' : 'tcRightTimeWindow') + n)?.value
+                   || document.getElementById('tcRightTimeWindow' + n)?.value) || 1;
+        var _tcPt   = document.getElementById((isExit ? 'optExitTcRightPriceType' : 'tcRightPriceType') + n)?.value
+                   || document.getElementById('tcRightPriceType' + n)?.value || 'lowest_low';
+        var _ptLbl  = _tcPt === 'highest_high' ? 'HH' : 'LL';
+        var _tcLbl  = 'TC(' + _tcInt + ', ' + _ptLbl + ', ' + _tcWin + 'd)';
+        var _thUnit = !isExit ? (document.getElementById('thresholdUnit' + n)?.value || 'percent') : 'percent';
+        var _thVal  = !isExit ? (parseFloat(document.getElementById('thresholdValue' + n)?.value) || 0) : 0;
+        var _thSufx = '';
+        if (_thVal && _thVal !== 0 && ['cross_up','cross_down','cross_either'].indexOf(operator) === -1) {
+            _thSufx = _thUnit === 'dollar' ? ' by $' + _thVal : ' by ' + _thVal + '%';
+        }
+        return leftDesc + ' ' + opLabel + ' ' + _tcLbl + _thSufx;
+    }
+
     var rightMetric = comparator.replace('compare_', '');
     var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
@@ -1612,14 +1673,18 @@ function collectPriceConditions() {
         // Trend Capture fields
         if (metric === 'trend_capture') {
             function _readTcSide(prefix) {
-                var rEnabled = document.getElementById(prefix + 'REnabled' + id);
+                var rEnabled     = document.getElementById(prefix + 'REnabled' + id);
+                var slopeEnabled = document.getElementById(prefix + 'SlopeEnabled' + id);
                 return {
-                    interval:    document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
-                    time_window: parseInt(document.getElementById(prefix + 'TimeWindow' + id)?.value) || 1,
-                    price_type:  document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
-                    r_enabled:   !!(rEnabled && rEnabled.checked),
-                    r_op:        document.getElementById(prefix + 'ROp' + id)?.value || '>',
-                    r_val:       parseFloat(document.getElementById(prefix + 'RVal' + id)?.value) || 0
+                    interval:              document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
+                    time_window:           parseInt(document.getElementById(prefix + 'TimeWindow' + id)?.value) || 1,
+                    price_type:            document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
+                    slope_filter_enabled:  !!(slopeEnabled && slopeEnabled.checked),
+                    slope_op:              document.getElementById(prefix + 'SlopeOp' + id)?.value || '>',
+                    slope_val:             parseFloat(document.getElementById(prefix + 'SlopeVal' + id)?.value) || 0,
+                    r_enabled:             !!(rEnabled && rEnabled.checked),
+                    r_op:                  document.getElementById(prefix + 'ROp' + id)?.value || '>',
+                    r_val:                 parseFloat(document.getElementById(prefix + 'RVal' + id)?.value) || 0
                 };
             }
             condition.tc_left = _readTcSide('tcLeft');
@@ -1632,6 +1697,25 @@ function collectPriceConditions() {
             delete condition.left;
             delete condition.right;
             delete condition.threshold;
+        } else if (comparator === 'compare_trend_capture') {
+            // Price vs TC line value: read TC config from tcRightPanel
+            var _slopeEn = document.getElementById('tcRightSlopeEnabled' + id);
+            var _rEn     = document.getElementById('tcRightREnabled' + id);
+            condition.tc_right = {
+                interval:             document.getElementById('tcRightInterval' + id)?.value || '1hr',
+                time_window:          parseInt(document.getElementById('tcRightTimeWindow' + id)?.value) || 1,
+                price_type:           document.getElementById('tcRightPriceType' + id)?.value || 'lowest_low',
+                slope_filter_enabled: !!(  _slopeEn && _slopeEn.checked),
+                slope_op:             document.getElementById('tcRightSlopeOp' + id)?.value || '>',
+                slope_val:            parseFloat(document.getElementById('tcRightSlopeVal' + id)?.value) || 0,
+                r_enabled:            !!(_rEn && _rEn.checked),
+                r_op:                 document.getElementById('tcRightROp' + id)?.value || '>',
+                r_val:                parseFloat(document.getElementById('tcRightRVal' + id)?.value) || 0
+            };
+            condition.threshold = {
+                unit:  document.getElementById('thresholdUnit' + id)?.value || 'percent',
+                value: parseFloat(document.getElementById('thresholdValue' + id)?.value) || 0
+            };
         } else if (comparator === 'value') {
             condition.compare_value = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
         } else {

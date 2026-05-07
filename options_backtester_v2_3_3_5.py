@@ -982,6 +982,83 @@ def _opt_compute_tc_slope(tc_params: Dict, bars_by_date: Dict, trade_date, bar_t
         return None, None, False
 
 
+def _opt_compute_tc_line_value(tc_params: Dict, bars_by_date: Dict, trade_date, bar_time: Optional[str]):
+    """Compute OLS regression on TC bars and return the predicted value at the last bucket.
+
+    Returns (slope, intercept, n_buckets, r_value, ok).
+    `ok` is False when data is insufficient or optional slope/R filters fail.
+    """
+    try:
+        interval      = tc_params.get('interval', '1hr')
+        time_window   = tc_params.get('time_window', 1)
+        price_type    = tc_params.get('price_type', 'lowest_low')
+        interval_mins = {'15min': 15, '30min': 30, '1hr': 60, '2hr': 120}.get(interval, 60)
+
+        bars = _opt_get_tc_bars(bars_by_date, trade_date, bar_time, time_window)
+        if not bars or len(bars) < 2:
+            return None, None, None, None, False
+
+        price_col = 'high' if price_type == 'highest_high' else 'low'
+
+        def _time_to_mins(t):
+            try:
+                h, m = t.split(':')
+                return int(h) * 60 + int(m)
+            except Exception:
+                return 0
+
+        bucket_vals: Dict = {}
+        for b in bars:
+            t_mins     = _time_to_mins(b.get('time', '00:00'))
+            bucket_key = (b.get('date', ''), t_mins // interval_mins)
+            val        = b.get(price_col)
+            if val is None:
+                continue
+            if bucket_key not in bucket_vals:
+                bucket_vals[bucket_key] = []
+            bucket_vals[bucket_key].append(val)
+
+        if len(bucket_vals) < 2:
+            return None, None, None, None, False
+
+        sorted_keys = sorted(bucket_vals.keys())
+        if price_type == 'highest_high':
+            agg_vals = [max(bucket_vals[k]) for k in sorted_keys]
+        else:
+            agg_vals = [min(bucket_vals[k]) for k in sorted_keys]
+
+        if len(agg_vals) < 2:
+            return None, None, None, None, False
+
+        x   = np.arange(len(agg_vals), dtype=float)
+        y   = np.array(agg_vals, dtype=float)
+        reg = _opt_linregress(x, y)
+        slope     = float(reg.slope)
+        intercept = float(reg.intercept)
+        r_value   = float(reg.rvalue)
+        n_buckets = len(agg_vals)
+
+        def _chk(a, op, b):
+            return {'>': a > b, '<': a < b, '>=': a >= b, '<=': a <= b,
+                    '==': abs(a - b) < 1e-10}.get(op, False)
+
+        # Optional slope direction filter
+        if tc_params.get('slope_filter_enabled'):
+            slope_op  = tc_params.get('slope_op', '>')
+            slope_val = float(tc_params.get('slope_val', 0) or 0)
+            if not _chk(slope, slope_op, slope_val):
+                return slope, intercept, n_buckets, r_value, False
+
+        # Optional R² linearity filter
+        if tc_params.get('r_enabled'):
+            if not _chk(r_value, tc_params.get('r_op', '>'), float(tc_params.get('r_val', 0) or 0)):
+                return slope, intercept, n_buckets, r_value, False
+
+        return slope, intercept, n_buckets, r_value, True
+    except Exception:
+        return None, None, None, None, False
+
+
 def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cache: Dict, 
                                           trade_date: datetime = None,
                                           bars_by_date: Dict = None) -> Tuple[bool, str]:
@@ -1125,6 +1202,34 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 right_value = condition.get('compare_value', 0)
                 _raw_right = right_value
                 threshold = {}
+            elif comparator == 'compare_trend_capture':
+                # Price vs TC regression line value (no lookahead — uses bars strictly before bar_time)
+                _bar_time_tc = bar.get('time', '')[:5] if bar else None
+                _tc_right_cfg = condition.get('tc_right', {})
+                _tc_s, _tc_i, _tc_n, _tc_r, _tc_ok = _opt_compute_tc_line_value(
+                    _tc_right_cfg, bars_by_date or {}, trade_date, _bar_time_tc)
+                if not _tc_ok or _tc_s is None:
+                    _cond_details.append({'metric': metric, 'met': False,
+                        'left_label': 'price', 'left_value': left_value or 0,
+                        'operator': operator, 'right_label': 'TC line',
+                        'right_value': 0, 'effective_right': 0,
+                        'threshold': 0, 'threshold_unit': 'percent', 'series_type': 'tc'})
+                    return False, f"Trend capture comparison unavailable for condition {idx+1} (slope filter or insufficient data)", _cond_details
+                # TC line value = OLS predicted price at the last observed bucket
+                _tc_line_val = _tc_i + _tc_s * (_tc_n - 1)
+                right_value  = _tc_line_val
+                _raw_right   = right_value
+                threshold    = condition.get('threshold', {})
+                if threshold:
+                    threshold_value = threshold.get('value', 0)
+                    threshold_unit  = threshold.get('unit', 'percent')
+                    if operator in ('<', '<='):
+                        right_value = right_value * (1 - threshold_value / 100) if threshold_unit == 'percent' \
+                                      else right_value - threshold_value
+                    else:
+                        right_value = right_value * (1 + threshold_value / 100) if threshold_unit == 'percent' \
+                                      else right_value + threshold_value
+                # Fall through to the shared comparison block below
             else:
                 right_metric = comparator.replace('compare_', '')
                 right_candle_type = right_params.get('candle_type', 'minute')
@@ -1286,6 +1391,19 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 # Previous right value
                 if comparator == 'value':
                     prev_right = right_value  # constant — never changes
+                elif comparator == 'compare_trend_capture':
+                    # Compute TC line value at the previous bar's time
+                    _date_str_cx = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]
+                    _day_bars_cx = sorted((bars_by_date or {}).get(_date_str_cx, []), key=lambda b: b.get('time', ''))
+                    _cur_t_cx    = bar.get('time', '')[:5]
+                    _cur_idx_cx  = next((i for i, b in enumerate(_day_bars_cx) if b.get('time', '')[:5] >= _cur_t_cx), None)
+                    if _cur_idx_cx is not None and _cur_idx_cx > 0:
+                        _prev_bt    = _day_bars_cx[_cur_idx_cx - 1].get('time', '')[:5]
+                        _ps, _pi, _pn, _, _pok = _opt_compute_tc_line_value(
+                            condition.get('tc_right', {}), bars_by_date or {}, trade_date, _prev_bt)
+                        prev_right = (_pi + _ps * (_pn - 1)) if _pok and _pn else None
+                    else:
+                        prev_right = None
                 elif right_metric in ('sma', 'ema', 'vwap'):
                     _rtf = int(right_params.get('timeframe_minutes', _tf_mins))
                     _rw = int(right_params.get('window', 14))

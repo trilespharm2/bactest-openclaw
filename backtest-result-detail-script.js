@@ -1145,10 +1145,17 @@ function _dtCreateIndSeries(chart, ind) {
 
     // ── Trend Capture overlay (bucket prices + regression line) ─────────────
     if (ind.type === 'trend_capture') {
-        var tcResult = _dtComputeTC(_dtModalBars, ind.tcInterval, ind.tcPriceType, ind.tcDays);
+        // "Prior to entry only": compute TC using bars strictly before the entry cutoff
+        var tcBars = ind.tcPriorOnly && _dtModalCutoffTs
+            ? _dtModalBars.filter(function(b) { return b.timestamp < _dtModalCutoffTs * 1000; })
+            : _dtModalBars;
+        var tcResult = _dtComputeTC(tcBars, ind.tcInterval, ind.tcPriceType, ind.tcDays);
         if (!tcResult) return null;
-        var ptClean  = _dtDedup(tcResult.points.filter(filterFn));
-        var lineClean = _dtDedup(tcResult.line.filter(filterFn));
+        // When prior-only, show all computed points (no filterFn cutoff needed — data already ends at entry)
+        var ptFilter   = ind.tcPriorOnly ? function(){ return true; } : filterFn;
+        var lineFilter = ind.tcPriorOnly ? function(){ return true; } : filterFn;
+        var ptClean   = _dtDedup(tcResult.points.filter(ptFilter));
+        var lineClean = _dtDedup(tcResult.line.filter(lineFilter));
         // Bucket prices as dotted line
         var pointsSeries = chart.addLineSeries({
             color: ind.color, lineWidth: 1, lineStyle: 1,
@@ -1209,11 +1216,12 @@ function _dtAddIndicator() {
         var tcIntervalMins = parseInt(document.getElementById('dtTcInterval')?.value) || 60;
         var tcPriceType    = document.getElementById('dtTcPriceType')?.value || 'lowest_low';
         var tcDays         = parseInt(document.getElementById('dtTcDays')?.value) || 1;
+        var tcPriorOnly    = !!(document.getElementById('dtTcPriorOnly')?.checked);
         var ptLabel        = tcPriceType === 'highest_high' ? 'HH' : 'LL';
         var tfLabel        = tcIntervalMins === 15 ? '15m' : tcIntervalMins === 30 ? '30m' : tcIntervalMins === 60 ? '1h' : '2h';
-        label = 'TC(' + tfLabel + ',' + ptLabel + ',' + tcDays + 'd)';
+        label = 'TC(' + tfLabel + ',' + ptLabel + ',' + tcDays + 'd)' + (tcPriorOnly ? '[pre]' : '');
         ind = { id: id, type: type, period: 1, color: color, lineWidth: lineWidth, label: label,
-                tcInterval: tcIntervalMins, tcPriceType: tcPriceType, tcDays: tcDays,
+                tcInterval: tcIntervalMins, tcPriceType: tcPriceType, tcDays: tcDays, tcPriorOnly: tcPriorOnly,
                 series: null, isSubPanel: false, subChart: null, subDiv: null, subRo: null, extraSeries: null };
     } else {
         label = type === 'macd' ? 'MACD(12,26,9)'
