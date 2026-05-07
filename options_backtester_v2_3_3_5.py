@@ -1443,6 +1443,10 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     if met:
                         print(f"  [cross] FIRED {operator}: prev_L={prev_left:.4f} prev_R={prev_right:.4f} "
                               f"cur_L={left_value:.4f} cur_R={right_value:.4f}", flush=True)
+                    else:
+                        print(f"  [cross] NO-FIRE {operator}: prev_L={prev_left:.4f} prev_R={prev_right:.4f} "
+                              f"cur_L={left_value:.4f} cur_R={right_value:.4f} "
+                              f"(need prev_L<prev_R & cur_L>=cur_R for cross_up)", flush=True)
                 else:
                     print(f"  [cross] SKIP {operator}: prev_left={prev_left} prev_right={prev_right} "
                           f"cur_L={left_value:.4f} cur_R={right_value:.4f} "
