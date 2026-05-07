@@ -1374,21 +1374,24 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
             elif operator == '==':
                 met = abs(left_value - right_value) < 0.0001
             elif operator in ('cross_up', 'cross_down', 'cross_either'):
-                # Need the previous bar's values — step back by timeframe width
-                _tf_mins = int(left_params.get('timeframe_minutes', 1))
-                _prev_ts = bar_timestamp - _tf_mins * 60000
+                # Need the previous bar's values — step back by each side's timeframe width.
+                # Default timeframe must match _sma_ema_key (uses 5 as default).
+                _ltf_mins = int(left_params.get('timeframe_minutes', 5))
+                _prev_left_ts = bar_timestamp - _ltf_mins * 60000
 
                 # Previous left value
                 if metric in ('sma', 'ema', 'vwap'):
                     _lw = int(left_params.get('window', 14))
-                    _lkey = f'{metric}_w{_lw}_t{_tf_mins}'
-                    prev_left = find_closest_indicator_value(indicators_cache.get(_lkey, {}), _prev_ts)
+                    _lkey = f'{metric}_w{_lw}_t{_ltf_mins}'
+                    prev_left = find_closest_indicator_value(indicators_cache.get(_lkey, {}), _prev_left_ts)
                 elif metric == 'price':
-                    prev_left = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_ts)
+                    prev_left = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_left_ts)
                 else:
                     prev_left = None
 
-                # Previous right value
+                # Previous right value (uses right side's own timeframe)
+                _rtf_mins = int(right_params.get('timeframe_minutes', 5))
+                _prev_right_ts = bar_timestamp - _rtf_mins * 60000
                 if comparator == 'value':
                     prev_right = right_value  # constant — never changes
                 elif comparator == 'compare_trend_capture':
@@ -1405,12 +1408,11 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     else:
                         prev_right = None
                 elif right_metric in ('sma', 'ema', 'vwap'):
-                    _rtf = int(right_params.get('timeframe_minutes', _tf_mins))
                     _rw = int(right_params.get('window', 14))
-                    _rkey = f'{right_metric}_w{_rw}_t{_rtf}'
-                    prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_ts)
+                    _rkey = f'{right_metric}_w{_rw}_t{_rtf_mins}'
+                    prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_right_ts)
                 elif right_metric == 'price':
-                    prev_right = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_ts)
+                    prev_right = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_right_ts)
                 else:
                     prev_right = None
 
