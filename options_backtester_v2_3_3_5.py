@@ -2469,7 +2469,7 @@ def fetch_aggs_with_retry(client: RESTClient, max_retries: int = 5, **kwargs) ->
         except Exception as e:
             err = str(e).lower()
             if "429" in err or "too many" in err or "rate" in err:
-                wait = 15 * attempt  # 15 s, 30 s, 45 s …
+                wait = attempt  # 1 s, 2 s, 3 s …
                 print(f"  [429] Rate-limited by Polygon (attempt {attempt}/{max_retries}). "
                       f"Waiting {wait}s before retry...", flush=True)
                 time.sleep(wait)
@@ -3623,9 +3623,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             calculated_strikes.append(strike)
             print(f"    {leg_name}: Strike {strike}")
     
-    # Add delay after delta-based selection to prevent rate limiting before OHLCV fetch
-    if delta_leg_data:
-        time.sleep(0.5)  # 500ms delay before OHLCV fetch
+    # No artificial delay needed — rate limiting handled by retry logic if a 429 occurs
 
     # STEP 1b: Auto-correct strike collisions caused by rounding.
     # When dollar_underlying amounts are close together (e.g. $4 vs $5 above SPX),
