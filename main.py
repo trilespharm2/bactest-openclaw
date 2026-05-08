@@ -5711,14 +5711,14 @@ def start_dashboard_cache():
         _run_periodic(_refresh_gainers_losers, 30, 'gainers_losers')
     else:
         print("⚠️  Webull not available — gainers/losers feed disabled")
-    _run_periodic(_refresh_indices, 30, 'indices')
-    _run_periodic(_refresh_most_active, 60, 'most_active')
-    _run_periodic(_refresh_trending, 60, 'trending')
-    _run_periodic(_refresh_sectors, 60, 'sectors')
-    _run_periodic(_refresh_earnings, 300, 'earnings')
-    _run_periodic(_refresh_news, 300, 'news')
-    _run_periodic(_refresh_treasury, 120, 'treasury')
-    _run_periodic(_refresh_economic, 120, 'economic')
+    _run_periodic(_refresh_indices, 900, 'indices')
+    _run_periodic(_refresh_most_active, 900, 'most_active')
+    _run_periodic(_refresh_trending, 900, 'trending')
+    _run_periodic(_refresh_sectors, 900, 'sectors')
+    _run_periodic(_refresh_earnings, 900, 'earnings')
+    _run_periodic(_refresh_news, 900, 'news')
+    _run_periodic(_refresh_treasury, 900, 'treasury')
+    _run_periodic(_refresh_economic, 900, 'economic')
     _run_periodic(_refresh_fred, 600, 'fred')
 
 
