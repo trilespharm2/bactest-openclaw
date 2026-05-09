@@ -453,6 +453,52 @@ function displayConfiguration(metadata) {
         
         html += `</div></div>`;
     }
+
+    // Entry Conditions
+    const entryType = config.options_entry_type || 'none';
+    if (entryType === 'preset' && config.preset_condition) {
+        const presetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
+        const condName = presetNames[config.preset_condition] || ('Preset #' + config.preset_condition);
+        let pLine = condName + ': ' + (config.preset_operator || '>') + ' ' + (config.preset_threshold || 0) + '%';
+        if (config.preset_condition === '5') pLine += ' over ' + (config.velocity_lookback || 5) + ' min';
+        html += `<div class="stat-card" style="grid-column: 1 / -1; background:#f0fdf4; border:1px solid #bbf7d0;">
+            <div class="stat-label">Entry Conditions</div>
+            <div class="stat-value" style="font-size:13px;">${pLine}</div>
+        </div>`;
+    } else if (entryType === 'custom' && config.price_conditions && config.price_conditions.length > 0) {
+        const opLbl = op => ({'cross_up':'↑ Cross Up','cross_down':'↓ Cross Down','cross_either':'↕ Crosses','>=':'≥','<=':'≤','==':'=','><':'≠'}[op] || op);
+        const sideFmt = (metric, sideObj) => {
+            const s = sideObj || {};
+            const day = parseInt(s.day) || 0;
+            const candle = s.candle_type || 'minute';
+            const series = s.series_type || 'close';
+            const win = s.window ? '(' + s.window + ')' : '';
+            const tf = s.timeframe_minutes || (parseInt(s.multiplier) || 1);
+            const isCP = metric === 'PRICE' && day === 0 && candle === 'minute' && series === 'vwap';
+            if (isCP) return 'Current Price';
+            const cFmt = c => c === 'minute' ? tf + 'min' : c === 'hour' ? (parseInt(s.multiplier)||1) + 'hr' : c === 'day' ? ((parseInt(s.multiplier)||1) > 1 ? (parseInt(s.multiplier)||1) + 'day' : 'day') : c;
+            return metric.toUpperCase() + win + ' ' + series + ' [day ' + day + ', ' + cFmt(candle) + ']';
+        };
+        const condLines = config.price_conditions.map(pc => {
+            const metric = (pc.metric || 'price').toUpperCase();
+            const leftDesc = sideFmt(metric, pc.left);
+            const op = opLbl(pc.operator || '>');
+            let rightDesc = '';
+            if (pc.comparator === 'value') {
+                rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
+            } else {
+                const rightMetric = (pc.comparator || '').replace('compare_', '');
+                rightDesc = sideFmt(rightMetric, pc.right);
+                const tv = parseFloat((pc.threshold || {}).value);
+                if (tv) rightDesc += ' ±' + tv + ((pc.threshold.unit === 'percent') ? '%' : '$');
+            }
+            return leftDesc + ' ' + op + ' ' + rightDesc;
+        });
+        html += `<div class="stat-card" style="grid-column: 1 / -1; background:#f0fdf4; border:1px solid #bbf7d0;">
+            <div class="stat-label">Entry Conditions</div>
+            <div>${condLines.map(l => `<div style="font-size:13px; padding:3px 0; border-bottom:1px dashed #d1fae5;">${l}</div>`).join('')}</div>
+        </div>`;
+    }
     
     list.innerHTML = html;
 }

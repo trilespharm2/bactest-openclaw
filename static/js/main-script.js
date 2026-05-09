@@ -651,7 +651,7 @@ async function loadPageContent(pageName) {
                 console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
                 if (pageName === 'backtester') {
-                    scriptName = 'backtester-script.js?v=2';
+                    scriptName = 'backtester-script.js?v=3';
                 }
                 if (pageName === 'stockBacktester') {
                     scriptName = 'stock-backtester-script.js';

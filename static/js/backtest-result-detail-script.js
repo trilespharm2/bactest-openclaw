@@ -342,21 +342,32 @@ function _renderOptConfig(config) {
         return candle;
     };
 
-    var fmtConditionSide = function(metric, sideObj, isLeft) {
+    var opLabel = function(op) {
+        var map = {'cross_up':'↑ Cross Up','cross_down':'↓ Cross Down','cross_either':'↕ Crosses','>=':'≥','<=':'≤','==':'=','><':'≠'};
+        return map[op] || op;
+    };
+
+    var fmtConditionSide = function(metric, sideObj) {
         var left = sideObj || {};
         var leftDay = parseInt(left.day) || 0;
         var leftCandle = left.candle_type || 'minute';
         var leftSeries = left.series_type || 'close';
         var leftWindow = left.window ? '(' + left.window + ')' : '';
-        var leftMult = parseInt(left.multiplier) || 1;
+        var leftTf = left.timeframe_minutes || (parseInt(left.multiplier) || 1);
         var isCurrentPrice = metric === 'PRICE' && leftDay === 0 && leftCandle === 'minute' && leftSeries === 'vwap';
         if (isCurrentPrice) return 'Current Price';
-        return metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + candleFmtDetail(leftCandle, leftMult) + ']';
+        var cFmt = function(c, tf) {
+            if (c === 'minute') return tf + 'min';
+            if (c === 'hour') return (parseInt(left.multiplier) || 1) + 'hr';
+            if (c === 'day') return (parseInt(left.multiplier) || 1) > 1 ? (parseInt(left.multiplier) || 1) + 'day' : 'day';
+            return c;
+        };
+        return metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + cFmt(leftCandle, leftTf) + ']';
     };
 
     var fmtCondition = function(pc) {
         var metric = (pc.metric || 'price').toUpperCase();
-        var op = pc.operator || '>';
+        var op = opLabel(pc.operator || '>');
         var leftDesc = fmtConditionSide(metric, pc.left);
         var rightDesc = '';
         if (pc.comparator === 'value') {

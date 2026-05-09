@@ -3084,47 +3084,40 @@ function buildOptConfigSummaryHtml(config) {
             conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}%`;
         }
     } else if (config.price_conditions && config.price_conditions.length > 0) {
-        conditionsHtml = config.price_conditions.map(function(pc, idx) {
-            var metric = (pc.metric || 'price').toUpperCase();
-            var left = pc.left || {};
-            var leftDay = parseInt(left.day) || 0;
-            var leftCandle = left.candle_type || 'minute';
-            var leftSeries = left.series_type || 'close';
-            var leftWindow = left.window ? '(' + left.window + ')' : '';
-            var leftMult = parseInt(left.multiplier) || 1;
-            var isCurrentPrice = metric === 'PRICE' && leftDay === 0 && leftCandle === 'minute' && leftSeries === 'vwap';
-            var candleFmt = function(candle, mult) {
-                var m = parseInt(mult) || 1;
-                if (candle === 'minute') return m + 'min';
-                if (candle === 'hour') return m + 'hr';
-                if (candle === 'day') return m > 1 ? m + 'day' : 'day';
-                return candle;
+        var _opLabel = function(op) {
+            var map = {'cross_up':'↑ Cross Up','cross_down':'↓ Cross Down','cross_either':'↕ Crosses','>=':'≥','<=':'≤','==':'=','><':'≠'};
+            return map[op] || op;
+        };
+        var _sideFmt = function(metric, sideObj) {
+            var s = sideObj || {};
+            var day = parseInt(s.day) || 0;
+            var candle = s.candle_type || 'minute';
+            var series = s.series_type || 'close';
+            var window = s.window ? '(' + s.window + ')' : '';
+            var isCurrentPrice = metric === 'PRICE' && day === 0 && candle === 'minute' && series === 'vwap';
+            if (isCurrentPrice) return 'Current Price';
+            var candleFmt = function(c, tf, mult) {
+                if (c === 'minute') return (tf || parseInt(mult) || 1) + 'min';
+                if (c === 'hour') return (parseInt(mult) || 1) + 'hr';
+                if (c === 'day') return (parseInt(mult) || 1) > 1 ? (parseInt(mult) || 1) + 'day' : 'day';
+                return c;
             };
-            var leftDesc = isCurrentPrice ? 'Current Price' : (metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + candleFmt(leftCandle, leftMult) + ']');
-
-            var op = pc.operator || '>';
-
+            return metric + window + ' ' + series + ' [day ' + day + ', ' + candleFmt(candle, s.timeframe_minutes, s.multiplier) + ']';
+        };
+        conditionsHtml = config.price_conditions.map(function(pc) {
+            var metric = (pc.metric || 'price').toUpperCase();
+            var leftDesc = _sideFmt(metric, pc.left);
+            var op = _opLabel(pc.operator || '>');
             var rightDesc = '';
             if (pc.comparator === 'value') {
                 rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
             } else {
                 var rightMetric = (pc.comparator || '').replace('compare_', '').toUpperCase();
-                var right = pc.right || {};
-                var rightDay = parseInt(right.day) || 0;
-                var rightCandle = right.candle_type || 'minute';
-                var rightMult = parseInt(right.multiplier) || 1;
-                var rightSeries = right.series_type || 'close';
-                var rightWindow = right.window ? '(' + right.window + ')' : '';
-                rightDesc = rightMetric + rightWindow + ' ' + rightSeries + ' [day ' + rightDay + ', ' + candleFmt(rightCandle, rightMult) + ']';
-
+                rightDesc = _sideFmt(rightMetric, pc.right);
                 var threshold = pc.threshold || {};
                 var threshVal = parseFloat(threshold.value);
-                if (threshVal) {
-                    var unit = threshold.unit === 'percent' ? '%' : '$';
-                    rightDesc += ' ±' + threshVal + unit;
-                }
+                if (threshVal) rightDesc += ' ±' + threshVal + (threshold.unit === 'percent' ? '%' : '$');
             }
-
             return '<div style="margin-bottom:4px;">' + leftDesc + ' ' + op + ' ' + rightDesc + '</div>';
         }).join('');
     }
@@ -4141,14 +4134,15 @@ function applyOptionsConfig(rawConfig) {
     }
     if (legsArray && legsArray.length > 0) {
         legsArray.forEach((leg, index) => {
-            var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${index}"]`);
+            var legIdx = (leg.original_index != null) ? leg.original_index : index;
+            var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${legIdx}"]`);
             var method = leg.method || leg.config_type || '';
             if (methodSelect && method) {
                 methodSelect.value = method;
                 // handleLegMethodChange is synchronous (sets innerHTML), so params
                 // container is available immediately after dispatching change.
                 methodSelect.dispatchEvent(new Event('change'));
-                var paramsContainer = document.getElementById(`legParams${index}`);
+                var paramsContainer = document.getElementById(`legParams${legIdx}`);
                 if (paramsContainer) {
                     // When leg.params exists, 'method' inside it is the delta sub-method
                     // (closest/above/below/etc.), NOT the config_type — so don't exclude it.
@@ -4253,6 +4247,9 @@ function applyOptionsConfig(rawConfig) {
     if (entryTypeRadio) {
         entryTypeRadio.checked = true;
         if (typeof updateOptionsEntryType === 'function') updateOptionsEntryType();
+        document.querySelectorAll('.bt-toggle-btn[data-radio="optionsEntryType"]').forEach(function(b) {
+            b.classList.toggle('on', b.dataset.val === entryType);
+        });
     }
 
     if (entryType === 'preset') {
@@ -4449,6 +4446,16 @@ function applyPriceConditions(conditions) {
                 document.getElementById(`comparator${id}`).value = condition.comparator || 'value';
                 updateRightSideVisibility(id);
             }
+            // Explicitly ensure cross operators are present/absent before setting value.
+            // This is defensive: updateConditionFields+updateRightSideVisibility should
+            // already handle it, but we guarantee the correct state here.
+            (function() {
+                var _m = document.getElementById('metric' + id) ? document.getElementById('metric' + id).value : metricToSet;
+                var _c = condition.comparator || 'value';
+                var _needsCross = (_m === 'sma' || _m === 'ema' || _m === 'vwap') ||
+                    (_m === 'current_price' && (_c === 'compare_sma' || _c === 'compare_ema' || _c === 'compare_vwap'));
+                setCrossOperators('operator' + id, _needsCross);
+            })();
             // Operator after — cross options are now present in the select
             if (document.getElementById(`operator${id}`)) document.getElementById(`operator${id}`).value = condition.operator || '>';
 
