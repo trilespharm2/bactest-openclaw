@@ -153,8 +153,9 @@ def main():
             print("ERROR: POLYGON_API_KEY environment variable not set")
             sys.exit(1)
         
-        # Create REST client
-        client = RESTClient(api_key)
+        # Create REST client (30s per-request timeout so a stalled Polygon call
+        # cannot hang the entire backtest subprocess indefinitely)
+        client = RESTClient(api_key, timeout=30)
         
         # Run backtest
         print(f"\n{'='*80}")

@@ -6447,7 +6447,7 @@ def main():
     
     try:
         config = get_user_config()
-        client = RESTClient(API_KEY)
+        client = RESTClient(API_KEY, timeout=30)
         
         trades, equity, decision_log = run_backtest(config, client)
         
