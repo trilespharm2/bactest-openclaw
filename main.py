@@ -3997,7 +3997,11 @@ def get_metadata(backtest_id):
         
         with open(filepath, 'r') as f:
             metadata = json.load(f)
-        
+
+        # Strip heavy fields — decision_log is served via its own endpoint
+        metadata.pop('decision_log', None)
+        metadata.pop('trades', None)
+
         summary = metadata.get('summary') or {}
         if 'avg_win' not in summary or 'avg_loss' not in summary:
             trade_log_path = os.path.join('backtest_results', f'trade_log_{backtest_id}.csv')
@@ -4015,7 +4019,7 @@ def get_metadata(backtest_id):
                         metadata['summary'] = summary
                 except Exception:
                     pass
-        
+
         return jsonify(metadata)
         
     except Exception as e:
@@ -4356,20 +4360,11 @@ def run_backtester_script(config, api_key):
                 print(f"  {key}: {value}")
         print(f"{'='*60}\n")
         
-        # Load decision log if it exists
-        dl_path = os.path.join(output_dir, f'decision_log_{backtest_id}.json')
-        decision_log_data = []
-        if os.path.exists(dl_path):
-            try:
-                with open(dl_path, 'r') as f:
-                    decision_log_data = json.load(f)
-                print(f"  ✅ Decision log loaded: {len(decision_log_data)} days")
-            except Exception as e:
-                print(f"  ⚠️ Error loading decision log: {e}")
-        
-        metadata['decision_log'] = decision_log_data
-        
+        # decision_log is saved separately — never embed it in metadata to avoid
+        # inflating the metadata file to tens of MB.
         metadata_path = os.path.join(output_dir, f'metadata_{backtest_id}.json')
+        metadata.pop('decision_log', None)
+        metadata.pop('trades', None)
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         print(f"  ✅ Metadata saved: {metadata_path}")
@@ -4466,21 +4461,16 @@ def run_backtester_script_with_id(config, api_key, backtest_id):
             error_context = '\n'.join(output_lines[-20:]) if output_lines else 'No output captured'
             raise Exception(f"Backtest script failed: {error_context}")
         
-        # Update metadata to completed status and add decision log
+        # Update metadata to completed status
+        # decision_log is kept in its own file and never embedded in metadata
+        # to avoid inflating the metadata file to tens of MB.
         metadata_path = os_module.path.join(output_dir, f'metadata_{backtest_id}.json')
         if os_module.path.exists(metadata_path):
             with open(metadata_path, 'r') as f:
                 metadata = json_module.load(f)
             metadata['status'] = 'completed'
-            
-            dl_path = os_module.path.join(output_dir, f'decision_log_{backtest_id}.json')
-            if os_module.path.exists(dl_path):
-                try:
-                    with open(dl_path, 'r') as f:
-                        metadata['decision_log'] = json_module.load(f)
-                except Exception:
-                    metadata['decision_log'] = []
-            
+            metadata.pop('decision_log', None)
+            metadata.pop('trades', None)
             with open(metadata_path, 'w') as f:
                 json_module.dump(metadata, f, indent=2)
         
