@@ -155,7 +155,7 @@ def main():
         
         # Create REST client (30s per-request timeout so a stalled Polygon call
         # cannot hang the entire backtest subprocess indefinitely)
-        client = RESTClient(api_key, timeout=30)
+        client = RESTClient(api_key, connect_timeout=10, read_timeout=30)
         
         # Run backtest
         print(f"\n{'='*80}")
