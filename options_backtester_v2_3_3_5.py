@@ -199,6 +199,7 @@ import csv
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 import pandas as pd
@@ -2136,98 +2137,103 @@ class DeltaStrikeSelector:
         candidates = []
         date_str = timestamp.strftime("%Y-%m-%d")
         
+        # Phase 1: Fetch OHLCV for ALL strikes in parallel (unlimited Polygon plan)
+        print(f"    ⚡ Fetching {len(strikes)} strikes in parallel...")
+
+        def _fetch_strike(strike):
+            sym = self._format_option_symbol(strike)
+            try:
+                aggs = list(self.client.list_aggs(
+                    sym, 1, "minute", date_str, date_str,
+                    adjusted="true", limit=100
+                ))
+                return strike, sym, aggs, None
+            except Exception as e:
+                return strike, sym, [], e
+
+        with ThreadPoolExecutor(max_workers=len(strikes)) as _pool:
+            _fetched = list(_pool.map(_fetch_strike, strikes))
+
+        _strike_data = {s: (sym, aggs, err) for s, sym, aggs, err in _fetched}
+
+        # Phase 2: Evaluate in the original directional order
+        target_ts = int(timestamp.timestamp() * 1000)
         strikes_checked = 0
         for strike in strikes:
             strikes_checked += 1
-            try:
-                # Format option symbol
-                symbol = self._format_option_symbol(strike)
-                
-                # Debug: Show first 5 strikes being checked
+            sym, aggs, err = _strike_data[strike]
+
+            if strikes_checked <= 5:
+                print(f"    → Checking strike ${strike}: {sym}")
+
+            if err:
                 if strikes_checked <= 5:
-                    print(f"    → Checking strike ${strike}: {symbol}")
-                
-                rate_limit_option_request()
-                
-                # Fetch OHLCV data
-                aggs = list(self.client.list_aggs(
-                    symbol, 1, "minute",
-                    date_str, date_str,
-                    adjusted="true", limit=100
-                ))
-                
-                if not aggs:
-                    if strikes_checked <= 5:
-                        print(f"      ⚠ No data from API for {symbol}")
-                    continue
-                
-                # Find closest price to timestamp
-                target_ts = int(timestamp.timestamp() * 1000)
-                closest_agg = min(aggs, key=lambda x: abs(x.timestamp - target_ts))
-                option_price = closest_agg.close
-                
-                # Skip if price is too low (likely stale/worthless)
-                if option_price < 0.01:
-                    if strikes_checked <= 5:
-                        print(f"      ⚠ Price too low: ${option_price}")
-                    continue
-                
-                # Calculate IV and Greeks
-                calc = GreeksCalculator(underlying_price, strike, T, 
-                                       self.r, self.q, self.option_type)
-                iv = calc.calculate_implied_volatility(option_price)
-                
-                if iv is None:
-                    if strikes_checked <= 5:
-                        print(f"      ⚠ Could not calculate IV")
-                    continue
-                
-                greeks = calc.calculate_greeks(iv)
-                delta = greeks['delta']
-                
-                # Show delta for first 5 strikes
-                if strikes_checked <= 5:
-                    print(f"      ✓ Got delta: {delta:.4f}")
-                
-                # Check if this strike meets criteria
-                meets_criteria = False
-                
-                if method == "closest":
-                    meets_criteria = True
-                elif method == "above":
-                    if self.option_type == 'call':
-                        meets_criteria = delta >= target_delta
-                    else:
-                        meets_criteria = delta <= target_delta
-                elif method == "below":
-                    if self.option_type == 'call':
-                        meets_criteria = delta <= target_delta
-                    else:
-                        meets_criteria = delta >= target_delta
-                elif method == "between":
-                    if delta_min is not None and delta_max is not None:
-                        meets_criteria = delta_min <= delta <= delta_max
-                elif method == "exactly":
-                    meets_criteria = abs(delta - target_delta) <= tolerance
-                
-                if meets_criteria:
-                    delta_diff = abs(delta - target_delta)
-                    candidates.append((strike, option_price, delta, delta_diff))
-                    print(f"    ✓ ${strike}: Δ={delta:.3f}, Price=${option_price:.2f}")
-                    
-                    # Early exit: for "closest" method, stop once we find delta within 0.05 of target
-                    # For other methods, stop on exact tolerance match
-                    if method == "closest" and delta_diff < 0.05:
-                        print(f"    ⚡ Found close match (Δ diff={delta_diff:.3f}), stopping search")
-                        break
-                    elif delta_diff < tolerance:
-                        break
-            
-            except Exception as e:
-                if strikes_checked <= 5:
-                    print(f"      ✗ Error: {str(e)[:50]}")
+                    print(f"      ✗ Error: {str(err)[:50]}")
                 continue
-        
+
+            if not aggs:
+                if strikes_checked <= 5:
+                    print(f"      ⚠ No data from API for {sym}")
+                continue
+
+            # Find closest price to timestamp
+            closest_agg = min(aggs, key=lambda x: abs(x.timestamp - target_ts))
+            option_price = closest_agg.close
+
+            # Skip if price is too low (likely stale/worthless)
+            if option_price < 0.01:
+                if strikes_checked <= 5:
+                    print(f"      ⚠ Price too low: ${option_price}")
+                continue
+
+            # Calculate IV and Greeks
+            calc = GreeksCalculator(underlying_price, strike, T,
+                                    self.r, self.q, self.option_type)
+            iv = calc.calculate_implied_volatility(option_price)
+
+            if iv is None:
+                if strikes_checked <= 5:
+                    print(f"      ⚠ Could not calculate IV")
+                continue
+
+            greeks = calc.calculate_greeks(iv)
+            delta = greeks['delta']
+
+            if strikes_checked <= 5:
+                print(f"      ✓ Got delta: {delta:.4f}")
+
+            # Check if this strike meets criteria
+            meets_criteria = False
+
+            if method == "closest":
+                meets_criteria = True
+            elif method == "above":
+                if self.option_type == 'call':
+                    meets_criteria = delta >= target_delta
+                else:
+                    meets_criteria = delta <= target_delta
+            elif method == "below":
+                if self.option_type == 'call':
+                    meets_criteria = delta <= target_delta
+                else:
+                    meets_criteria = delta >= target_delta
+            elif method == "between":
+                if delta_min is not None and delta_max is not None:
+                    meets_criteria = delta_min <= delta <= delta_max
+            elif method == "exactly":
+                meets_criteria = abs(delta - target_delta) <= tolerance
+
+            if meets_criteria:
+                delta_diff = abs(delta - target_delta)
+                candidates.append((strike, option_price, delta, delta_diff))
+                print(f"    ✓ ${strike}: Δ={delta:.3f}, Price=${option_price:.2f}")
+
+                if method == "closest" and delta_diff < 0.05:
+                    print(f"    ⚡ Found close match (Δ diff={delta_diff:.3f}), stopping search")
+                    break
+                elif delta_diff < tolerance:
+                    break
+
         print(f"    📊 Checked {strikes_checked} strikes, found {len(candidates)} candidates")
         
         if not candidates:
@@ -3701,36 +3707,36 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     # For monitoring range, use the farthest expiration
     max_exp_date = max(leg_exp_dates) if leg_exp_dates else exp_date
     
-    # STEP 3: Fetch OHLCV for ALL contracts simultaneously (PRIMARY - FAST!)
-    print(f"  Fetching OHLCV for {len(option_symbols)} contracts simultaneously...")
+    # STEP 3: Fetch OHLCV for ALL contracts in parallel (unlimited Polygon plan)
+    print(f"  Fetching OHLCV for {len(option_symbols)} contracts in parallel...")
     option_data = {}
     missing_indices = []
-    
-    for i, symbol in enumerate(option_symbols):
+
+    def _fetch_leg_ohlcv(args):
+        i, symbol = args
         leg_exp = leg_exp_dates[i] if i < len(leg_exp_dates) else exp_date
         try:
-            aggs = []
-            for a in client.list_aggs(
-                symbol,
-                10,
-                "second",
+            aggs = list(client.list_aggs(
+                symbol, 10, "second",
                 trade_date.strftime("%Y-%m-%d"),
                 leg_exp.strftime("%Y-%m-%d"),
-                adjusted="true",
-                sort="asc",
-                limit=50000
-            ):
-                aggs.append(a)
-            
-            if len(aggs) > 0:
+                adjusted="true", sort="asc", limit=50000
+            ))
+            return i, symbol, aggs, None
+        except Exception as e:
+            return i, symbol, [], e
+
+    with ThreadPoolExecutor(max_workers=len(option_symbols)) as _pool:
+        for i, symbol, aggs, err in _pool.map(_fetch_leg_ohlcv, enumerate(option_symbols)):
+            if err:
+                missing_indices.append(i)
+                print(f"  ✗ {symbol}: Error fetching OHLCV: {err}")
+            elif len(aggs) > 0:
                 option_data[symbol] = aggs
                 print(f"  ✓ {symbol}: {len(aggs)} 10-sec bars")
             else:
                 missing_indices.append(i)
                 print(f"  ✗ {symbol}: No OHLCV data")
-        except Exception as e:
-            missing_indices.append(i)
-            print(f"  ✗ {symbol}: Error fetching OHLCV: {e}")
     
     # STEP 4: If all data found, validate and return success!
     if len(missing_indices) == 0:
