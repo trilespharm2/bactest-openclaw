@@ -4150,13 +4150,21 @@ function applyOptionsConfig(rawConfig) {
                 methodSelect.dispatchEvent(new Event('change'));
                 var paramsContainer = document.getElementById(`legParams${index}`);
                 if (paramsContainer) {
+                    // When leg.params exists, 'method' inside it is the delta sub-method
+                    // (closest/above/below/etc.), NOT the config_type — so don't exclude it.
                     var params = leg.params || leg;
+                    var excludeFromParams = leg.params
+                        ? ['index', 'config_type', 'name', 'type', 'position', 'original_index', 'params']
+                        : ['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'];
                     Object.keys(params).forEach(key => {
-                        if (['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'].indexOf(key) === -1) {
+                        if (excludeFromParams.indexOf(key) === -1) {
                             var input = paramsContainer.querySelector(`[data-param="${key}"]`);
                             if (input) input.value = params[key];
                         }
                     });
+                    // Fire change on delta-method-select so tolerance/range divs show correctly
+                    var dms = paramsContainer.querySelector('.delta-method-select');
+                    if (dms) dms.dispatchEvent(new Event('change'));
                 }
             }
         });
@@ -4435,13 +4443,20 @@ function applyPriceConditions(conditions) {
                 if (document.getElementById(`leftMacdComponent${id}`)) document.getElementById(`leftMacdComponent${id}`).value = condition.left?.component || 'histogram';
             }
             
-            // Operator and comparator
-            if (document.getElementById(`operator${id}`)) document.getElementById(`operator${id}`).value = condition.operator || '>';
+            // Comparator first so updateRightSideVisibility can add cross operators
+            // before we attempt to set the operator value.
             if (document.getElementById(`comparator${id}`)) {
                 document.getElementById(`comparator${id}`).value = condition.comparator || 'value';
                 updateRightSideVisibility(id);
             }
-            
+            // Operator after — cross options are now present in the select
+            if (document.getElementById(`operator${id}`)) document.getElementById(`operator${id}`).value = condition.operator || '>';
+
+            // Left-side timeframe (shown for SMA/EMA/VWAP metrics)
+            if (document.getElementById(`leftTimeframe${id}`) && condition.left?.timeframe_minutes) {
+                document.getElementById(`leftTimeframe${id}`).value = String(condition.left.timeframe_minutes);
+            }
+
             // Value or right side
             if (condition.comparator === 'value') {
                 if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value || 0;
@@ -4452,7 +4467,10 @@ function applyPriceConditions(conditions) {
                     if (document.getElementById(`rightMultiplier${id}`)) document.getElementById(`rightMultiplier${id}`).value = condition.right?.multiplier || 1;
                     if (document.getElementById(`rightSeriesType${id}`)) document.getElementById(`rightSeriesType${id}`).value = condition.right?.series_type || 'close';
                     if (document.getElementById(`rightWindow${id}`)) document.getElementById(`rightWindow${id}`).value = condition.right?.window || 14;
-                    
+                    // Right-side timeframe (shown for compare_sma/ema/vwap comparators)
+                    if (document.getElementById(`rightTimeframe${id}`) && condition.right?.timeframe_minutes) {
+                        document.getElementById(`rightTimeframe${id}`).value = String(condition.right.timeframe_minutes);
+                    }
                     // Threshold
                     if (condition.threshold) {
                         if (document.getElementById(`thresholdUnit${id}`)) document.getElementById(`thresholdUnit${id}`).value = condition.threshold?.unit || 'percent';
