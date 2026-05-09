@@ -156,6 +156,17 @@ async function _loadOptResults(id) {
         _optDetailState.config = metadata.config || {};
         _displayOptDetail(metadata);
 
+        // Decision log is stripped from metadata and served separately
+        try {
+            var dlResp = await authFetch('/api/files/decision-log/' + id);
+            if (dlResp.ok) {
+                var decisionLog = await dlResp.json();
+                if (Array.isArray(decisionLog) && decisionLog.length > 0) {
+                    _buildOptDetailDecisionTree(decisionLog);
+                }
+            }
+        } catch(dlErr) { console.warn('Could not load decision log:', dlErr); }
+
     } catch (e) {
         _showOptError(e.message);
     }
@@ -1268,6 +1279,19 @@ async function _loadStkResults(id) {
         _stkDetailState.data = data;
         _stkDetailState.config = data.config || {};
         _displayStkDetail(data);
+
+        // Decision log may not be in the results payload — fetch separately if missing
+        if (!data.decision_log || data.decision_log.length === 0) {
+            try {
+                var dlResp = await authFetch('/api/files/decision-log/' + id);
+                if (dlResp.ok) {
+                    var decisionLog = await dlResp.json();
+                    if (Array.isArray(decisionLog) && decisionLog.length > 0) {
+                        _buildStkDetailDecisionTree(decisionLog, data.config || {});
+                    }
+                }
+            } catch(dlErr) { console.warn('Could not load decision log:', dlErr); }
+        }
 
     } catch(e) {
         _showStkError(e.message);

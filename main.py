@@ -4026,6 +4026,28 @@ def get_metadata(backtest_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/files/decision-log/<backtest_id>', methods=['GET'])
+@login_required
+def get_decision_log(backtest_id):
+    """Serve the decision log JSON for a backtest (ownership verified)"""
+    try:
+        record = BacktestResult.query.get(backtest_id)
+        if not record or record.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        filepath = os.path.join('backtest_results', f'decision_log_{backtest_id}.json')
+        if not os.path.exists(filepath):
+            return jsonify([])
+
+        with open(filepath, 'r') as f:
+            decision_log = json.load(f)
+
+        return jsonify(decision_log)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 def run_backtester_script(config, api_key):
     """
     Execute the backtest_wrapper.py script with config
