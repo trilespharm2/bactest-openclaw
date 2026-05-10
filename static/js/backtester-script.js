@@ -711,34 +711,8 @@ function addPriceCondition() {
                             <option value="lowest_low" selected>Lowest Low</option>
                         </select>
                     </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label class="form-label small">Slope Direction</label>
-                        <select class="form-select form-select-sm" id="tcLeftSlopeDir${conditionId}">
-                            <option value="negative" selected>Negative ↘</option>
-                            <option value="positive">Positive ↗</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="row g-2 mt-1">
-                    <div class="col-12">
-                        <div class="form-check form-switch mb-1">
-                            <input class="form-check-input" type="checkbox" id="tcLeftSlopeValEnabled${conditionId}">
-                            <label class="form-check-label small text-muted" for="tcLeftSlopeValEnabled${conditionId}">Optional: Slope value check</label>
-                        </div>
-                        <div id="tcLeftSlopeValFields${conditionId}" style="display:none;" class="row g-2">
-                            <div class="col-md-3 col-sm-6">
-                                <label class="form-label small">Operator</label>
-                                <select class="form-select form-select-sm" id="tcLeftSlopeOp${conditionId}">
-                                    <option value=">">&gt;</option><option value="<">&lt;</option>
-                                    <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <label class="form-label small">Slope value</label>
-                                <input type="number" class="form-control form-control-sm" id="tcLeftSlopeVal${conditionId}" step="0.001" placeholder="e.g. -0.05">
-                            </div>
-                        </div>
-                    </div>
                     <div class="col-12">
                         <div class="form-check form-switch mb-1">
                             <input class="form-check-input" type="checkbox" id="tcLeftREnabled${conditionId}">
@@ -793,34 +767,8 @@ function addPriceCondition() {
                             <option value="lowest_low" selected>Lowest Low</option>
                         </select>
                     </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label class="form-label small">Slope Direction</label>
-                        <select class="form-select form-select-sm" id="tcRightSlopeDir${conditionId}">
-                            <option value="negative" selected>Negative ↘</option>
-                            <option value="positive">Positive ↗</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="row g-2 mt-1">
-                    <div class="col-12">
-                        <div class="form-check form-switch mb-1">
-                            <input class="form-check-input" type="checkbox" id="tcRightSlopeValEnabled${conditionId}">
-                            <label class="form-check-label small text-muted" for="tcRightSlopeValEnabled${conditionId}">Optional: Slope value check</label>
-                        </div>
-                        <div id="tcRightSlopeValFields${conditionId}" style="display:none;" class="row g-2">
-                            <div class="col-md-3 col-sm-6">
-                                <label class="form-label small">Operator</label>
-                                <select class="form-select form-select-sm" id="tcRightSlopeOp${conditionId}">
-                                    <option value=">">&gt;</option><option value="<">&lt;</option>
-                                    <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3 col-sm-6">
-                                <label class="form-label small">Slope value</label>
-                                <input type="number" class="form-control form-control-sm" id="tcRightSlopeVal${conditionId}" step="0.001" placeholder="e.g. -0.05">
-                            </div>
-                        </div>
-                    </div>
                     <div class="col-12">
                         <div class="form-check form-switch mb-1">
                             <input class="form-check-input" type="checkbox" id="tcRightREnabled${conditionId}">
@@ -1260,9 +1208,7 @@ function updateConditionFields(conditionId) {
                         cb.onchange = function() { flds.style.display = this.checked ? '' : 'none'; };
                     }
                 }
-                _wireTcToggle('tcLeftSlopeValEnabled' + conditionId, 'tcLeftSlopeValFields' + conditionId);
                 _wireTcToggle('tcLeftREnabled' + conditionId, 'tcLeftRFields' + conditionId);
-                _wireTcToggle('tcRightSlopeValEnabled' + conditionId, 'tcRightSlopeValFields' + conditionId);
                 _wireTcToggle('tcRightREnabled' + conditionId, 'tcRightRFields' + conditionId);
             })();
             updateComparatorOptions(conditionId, ['value', 'compare_trend_capture']);
@@ -1772,19 +1718,14 @@ function collectPriceConditions() {
         // Trend Capture fields
         if (metric === 'trend_capture') {
             function _readTcSide(prefix) {
-                var sveEnabled = document.getElementById(prefix + 'SlopeValEnabled' + id);
-                var rEnabled   = document.getElementById(prefix + 'REnabled' + id);
+                var rEnabled = document.getElementById(prefix + 'REnabled' + id);
                 return {
-                    interval:          document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
-                    time_window:       document.getElementById(prefix + 'TimeWindow' + id)?.value || 'day_of_entry',
-                    price_type:        document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
-                    slope_dir:         document.getElementById(prefix + 'SlopeDir' + id)?.value || 'negative',
-                    slope_val_enabled: !!(sveEnabled && sveEnabled.checked),
-                    slope_op:          document.getElementById(prefix + 'SlopeOp' + id)?.value || '>',
-                    slope_val:         parseFloat(document.getElementById(prefix + 'SlopeVal' + id)?.value) || 0,
-                    r_enabled:         !!(rEnabled && rEnabled.checked),
-                    r_op:              document.getElementById(prefix + 'ROp' + id)?.value || '>',
-                    r_val:             parseFloat(document.getElementById(prefix + 'RVal' + id)?.value) || 0
+                    interval:    document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
+                    time_window: document.getElementById(prefix + 'TimeWindow' + id)?.value || 'day_of_entry',
+                    price_type:  document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
+                    r_enabled:   !!(rEnabled && rEnabled.checked),
+                    r_op:        document.getElementById(prefix + 'ROp' + id)?.value || '>',
+                    r_val:       parseFloat(document.getElementById(prefix + 'RVal' + id)?.value) || 0
                 };
             }
             condition.tc_left = _readTcSide('tcLeft');
