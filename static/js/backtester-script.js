@@ -812,8 +812,12 @@ function addPriceCondition() {
                     </select>
                 </div>
                 <div class="col-md-3" id="valueInputGroup${conditionId}">
-                    <label class="form-label">Value</label>
+                    <label class="form-label" id="valueInputLabel${conditionId}">Value</label>
                     <input type="number" class="form-control" id="compareValue${conditionId}" step="0.01" placeholder="e.g., 50">
+                </div>
+                <div class="col-md-3" id="valueInputGroupHigh${conditionId}" style="display:none;">
+                    <label class="form-label">High</label>
+                    <input type="number" class="form-control" id="compareValueHigh${conditionId}" step="0.01" placeholder="e.g., 80">
                 </div>
             </div>
         </div>
@@ -1364,10 +1368,19 @@ function updateRightSideVisibility(conditionId) {
     var tcRightPanelEl = document.getElementById('tcRightPanel' + conditionId);
     if (tcRightPanelEl) tcRightPanelEl.style.display = (comparator === 'compare_trend_capture') ? 'block' : 'none';
 
+    const isBetween = operator === '><';
+    const valueInputGroupHigh = document.getElementById(`valueInputGroupHigh${conditionId}`);
+    const valueInputLabel = document.getElementById(`valueInputLabel${conditionId}`);
+
     if (comparator === 'value' || comparator === 'compare_trend_capture') {
         rightSide.style.display = 'none';
         valueInputGroup.style.display = comparator === 'value' ? 'block' : 'none';
+        if (comparator === 'value') {
+            if (valueInputLabel) valueInputLabel.textContent = isBetween ? 'Low' : 'Value';
+            if (valueInputGroupHigh) valueInputGroupHigh.style.display = isBetween ? 'block' : 'none';
+        }
     } else {
+        if (valueInputGroupHigh) valueInputGroupHigh.style.display = 'none';
         rightSide.style.display = 'block';
         valueInputGroup.style.display = 'none';
         
@@ -1482,7 +1495,7 @@ function buildOptConditionDesc(n, isExit) {
     function getVal(id) { return (document.getElementById(id) || {}).value; }
 
     var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe;
-    var compareValue, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
+    var compareValue, compareValueHigh, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
 
     if (isExit) {
         metric         = getVal('optExitMetric' + n) || 'current_price';
@@ -1511,6 +1524,7 @@ function buildOptConditionDesc(n, isExit) {
         leftSeries     = getVal('leftSeriesType' + n) || 'close';
         leftTimeframe  = parseInt(getVal('leftTimeframe' + n) || '5') || 5;
         compareValue   = getVal('compareValue' + n);
+        compareValueHigh = getVal('compareValueHigh' + n);
         rightDay       = parseInt(getVal('rightDay' + n) || '0');
         rightCandle    = getVal('rightCandleType' + n) || 'minute';
         rightMult      = parseInt(getVal('rightMultiplier' + n) || '1');
@@ -1540,14 +1554,12 @@ function buildOptConditionDesc(n, isExit) {
             var intervalEl  = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'Interval' + n);
             var windowEl    = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'TimeWindow' + n);
             var priceEl     = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'PriceType' + n);
-            var slopeEl     = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'SlopeDir' + n);
             var interval    = intervalEl ? intervalEl.value : '1hr';
             var window_     = windowEl  ? windowEl.value   : 'day_of_entry';
             var pt          = priceEl   ? priceEl.value    : 'lowest_low';
-            var dir         = slopeEl   ? slopeEl.value    : 'negative';
             var ptLabel = pt === 'highest_high' ? 'HH' : 'LL';
             var winLabel = {'day_of_entry':'today','prior_day':'prev day','week_of_entry':'this week','month_of_entry':'this month'}[window_] || window_;
-            return 'TC(' + interval + ', ' + ptLabel + ', ' + winLabel + ', ' + (dir === 'negative' ? '↘' : '↗') + ')';
+            return 'TC(' + interval + ', ' + ptLabel + ', ' + winLabel + ')';
         }
         var leftTcDesc = _tcDesc('left');
         if (comparator === 'compare_trend_capture') {
@@ -1581,6 +1593,11 @@ function buildOptConditionDesc(n, isExit) {
     }[operator] || operator;
 
     if (comparator === 'value') {
+        if (operator === '><') {
+            var lo = compareValue !== '' && compareValue !== undefined ? compareValue : '?';
+            var hi = compareValueHigh !== '' && compareValueHigh !== undefined ? compareValueHigh : '?';
+            return leftDesc + ' between ' + lo + ' and ' + hi;
+        }
         return leftDesc + ' ' + opLabel + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
@@ -1657,7 +1674,13 @@ function collectPriceConditions() {
         }
         
         if (comparator === 'value') {
-            condition.compare_value = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
+            const _op = document.getElementById(`operator${id}`)?.value || '>';
+            if (_op === '><') {
+                condition.compare_value_low  = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
+                condition.compare_value_high = parseFloat(document.getElementById(`compareValueHigh${id}`)?.value) || 0;
+            } else {
+                condition.compare_value = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
+            }
         } else {
             // Right side values
             condition.right = {
@@ -3105,7 +3128,11 @@ function buildOptConfigSummaryHtml(config) {
             var op = _opLabel(pc.operator || '>');
             var rightDesc = '';
             if (pc.comparator === 'value') {
-                rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
+                if (pc.operator === '><') {
+                    rightDesc = String(pc.compare_value_low != null ? pc.compare_value_low : '?') + ' — ' + String(pc.compare_value_high != null ? pc.compare_value_high : '?');
+                } else {
+                    rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
+                }
             } else {
                 var rightMetric = (pc.comparator || '').replace('compare_', '').toUpperCase();
                 rightDesc = _sideFmt(rightMetric, pc.right);
@@ -3347,8 +3374,14 @@ function validateOptionsConfig(config) {
                         errors.push(`${label}: RSI window must be between 2 and 100`);
                     }
                 }
-                if (pc.comparator === 'value' && pc.compare_value === undefined) {
-                    errors.push(`${label}: Compare value is required when comparing to a fixed value`);
+                if (pc.comparator === 'value' && pc.metric !== 'trend_capture') {
+                    if (pc.operator === '><') {
+                        if (pc.compare_value_low === undefined || pc.compare_value_high === undefined) {
+                            errors.push(`${label}: Both Low and High values are required for Between`);
+                        }
+                    } else if (pc.compare_value === undefined) {
+                        errors.push(`${label}: Compare value is required when comparing to a fixed value`);
+                    }
                 }
                 if (pc.comparator !== 'value' && pc.threshold) {
                     if (pc.threshold.unit === 'percent' && pc.comparator === 'compare_rsi') {
@@ -4461,7 +4494,10 @@ function applyPriceConditions(conditions) {
 
             // Value or right side
             if (condition.comparator === 'value') {
-                if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value || 0;
+                if (condition.operator === '><') {
+                    if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value_low ?? 0;
+                    if (document.getElementById(`compareValueHigh${id}`)) document.getElementById(`compareValueHigh${id}`).value = condition.compare_value_high ?? 0;
+                } else if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value || 0;
             } else if (condition.right) {
                 setTimeout(() => {
                     if (document.getElementById(`rightDay${id}`)) document.getElementById(`rightDay${id}`).value = condition.right?.day || '0';

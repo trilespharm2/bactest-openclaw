@@ -437,8 +437,9 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
             elif operator == '==':
                 met = abs(left_value - right_value) < 0.0001
             elif operator == '><':
-                # Between - not fully implemented
-                met = False
+                low  = float(condition.get('compare_value_low',  0) or 0)
+                high = float(condition.get('compare_value_high', 0) or 0)
+                met  = low < left_value < high
             elif operator in ('cross_up', 'cross_down', 'cross_either'):
                 # Cross: need previous candle's values (1 minute back)
                 prev_ts = entry_timestamp - 60000

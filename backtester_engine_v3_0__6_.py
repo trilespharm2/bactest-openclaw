@@ -1349,7 +1349,8 @@ class BacktesterEngine:
         
         return False, None, None
     
-    def _evaluate_operator(self, value: float, operator: str, threshold: float) -> bool:
+    def _evaluate_operator(self, value: float, operator: str, threshold: float,
+                           threshold_high: float = None) -> bool:
         """Evaluate operator comparison"""
         if operator == '>':
             return value > threshold
@@ -1361,6 +1362,9 @@ class BacktesterEngine:
             return value <= threshold
         elif operator == '=':
             return abs(value - threshold) < 0.01
+        elif operator == '><':
+            high = threshold_high if threshold_high is not None else threshold
+            return threshold < value < high
         else:
             return False
     
@@ -1473,7 +1477,7 @@ class BacktesterEngine:
 
         return False, None
 
-    def _compare(self, left, op, right):
+    def _compare(self, left, op, right, right_high=None):
         """Compare two values with the given operator"""
         try:
             left = float(left)
@@ -1485,6 +1489,9 @@ class BacktesterEngine:
         elif op == '>=': return left >= right
         elif op == '<=': return left <= right
         elif op == '=': return abs(left - right) < 1e-9
+        elif op == '><':
+            high = float(right_high) if right_high is not None else right
+            return right < left < high
         return False
     
     def calculate_pnl(self, entry_price: float, exit_price: float, 
