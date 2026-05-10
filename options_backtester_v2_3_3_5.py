@@ -918,7 +918,9 @@ def _opt_get_tc_bars(bars_by_date: Dict, trade_date, bar_time: Optional[str], ti
         trade_date_str = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]
         sorted_dates = sorted(bars_by_date.keys())
 
-        n = int(time_window) if time_window is not None else 1
+        _tw_map = {'day_of_entry': 1, 'prior_day': 2, 'week_of_entry': 5, 'month_of_entry': 22}
+        tw = _tw_map.get(str(time_window), time_window)
+        n = int(tw) if tw is not None else 1
         if n < 1:
             n = 1
 

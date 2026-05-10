@@ -936,7 +936,9 @@ class BacktesterEngine:
         """
         try:
             current_date = dates[current_date_index]
-            n = int(time_window) if time_window is not None else 1
+            _tw_map = {'day_of_entry': 1, 'prior_day': 2, 'week_of_entry': 5, 'month_of_entry': 22}
+            tw = _tw_map.get(str(time_window), time_window)
+            n = int(tw) if tw is not None else 1
             if n < 1:
                 n = 1
             n_prior = n - 1
