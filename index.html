@@ -1736,9 +1736,14 @@
                           <i class="fas fa-tools me-2"></i>Custom Condition Builder - Compare indicators to define entry triggers
                         </div>
                         <div id="priceConditionsContainer"></div>
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPriceCondition()">
-                          <i class="fas fa-plus me-1"></i>Add Condition
-                        </button>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                          <button type="button" class="btn btn-outline-primary btn-sm" onclick="addPriceCondition()">
+                            <i class="fas fa-plus me-1"></i>Add Condition
+                          </button>
+                          <button type="button" class="btn btn-outline-danger btn-sm" id="clearAllConditionsBtn" style="display:none;" onclick="clearAllPriceConditions()">
+                            <i class="fas fa-trash me-1"></i>Clear All
+                          </button>
+                        </div>
                       </div>
                       </div>
                     </div>
@@ -4766,7 +4771,7 @@
     <script src="/settings-script.js"></script>
     <script src="/static/js/app-dialogs.js"></script>
     <script src="/static/js/tier-restrictions.js"></script>
-    <script src="/static/js/main-script.js?v=14"></script>
+    <script src="/static/js/main-script.js?v=15"></script>
 
     <script>
       // Close sidebar when clicking outside (on main content area)

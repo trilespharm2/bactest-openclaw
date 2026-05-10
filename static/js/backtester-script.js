@@ -1006,6 +1006,7 @@ function addPriceCondition() {
     });
 
     updateConditionFields(conditionId);
+    _updateClearAllConditionsBtn();
 }
 
 function removePriceCondition(conditionId) {
@@ -1058,10 +1059,35 @@ function renumberPriceConditions() {
     
     const conditionRows = container.querySelectorAll('.price-condition-row');
     
-    // Reset counter to match current count (for next add)
-    priceConditionCount = conditionRows.length;
+    // Use max existing element ID + 1 to avoid collisions when a non-last
+    // condition is removed (e.g. remove id=0, keep id=1 → count must be 2,
+    // not 1, so the next addPriceCondition uses id=2 not id=1).
+    let maxId = -1;
+    conditionRows.forEach(row => {
+        const id = parseInt(row.id.replace('priceCondition', ''), 10);
+        if (!isNaN(id) && id > maxId) maxId = id;
+    });
+    priceConditionCount = maxId + 1;
 
+    _updateClearAllConditionsBtn();
     _relabelAllPriceConditions();
+}
+
+function _updateClearAllConditionsBtn() {
+    const btn = document.getElementById('clearAllConditionsBtn');
+    if (!btn) return;
+    const container = document.getElementById('priceConditionsContainer');
+    const count = container ? container.querySelectorAll('.price-condition-row').length : 0;
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+function clearAllPriceConditions() {
+    const container = document.getElementById('priceConditionsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    priceConditionCount = 0;
+    _updateClearAllConditionsBtn();
+    checkDayCandleConditions();
 }
 
 function updateConditionFields(conditionId) {
@@ -1870,6 +1896,27 @@ function initializeBacktesterPage() {
             sessionStorage.removeItem('optionsBacktestUseTemplate');
             applyOptionsConfig(config);
             console.log('Applied options config from Use Template');
+            // Show a dismissible notice so the user knows the previous config was restored
+            setTimeout(function() {
+                var existingBanner = document.getElementById('useTemplateBanner');
+                if (existingBanner) existingBanner.remove();
+                var condCount = (config.priceConditions || config.price_conditions || []).length;
+                var entryType = config.optionsEntryType || config.options_entry_type || 'none';
+                var condNote = '';
+                if (entryType === 'custom' && condCount > 0) {
+                    condNote = ' <strong>' + condCount + ' entry condition' + (condCount > 1 ? 's' : '') + '</strong> were restored. Review or clear them before running.';
+                } else if (entryType === 'preset') {
+                    condNote = ' A <strong>preset entry condition</strong> was restored. Review before running.';
+                }
+                var banner = document.createElement('div');
+                banner.id = 'useTemplateBanner';
+                banner.className = 'alert alert-warning alert-dismissible fade show';
+                banner.style.cssText = 'margin: 0 0 16px 0; border-radius: 8px; font-size: 13px;';
+                banner.innerHTML = '<i class="fas fa-clone me-2"></i><strong>Previous configuration loaded.</strong>' + condNote +
+                    ' <button type="button" class="btn-close" onclick="this.closest(\'#useTemplateBanner\').remove()" style="float:right; background:none; border:none; font-size:16px; line-height:1; opacity:0.6; cursor:pointer;">&times;</button>';
+                var form = document.getElementById('backtestForm');
+                if (form) form.parentNode.insertBefore(banner, form);
+            }, 200);
         } catch (e) {
             console.error('Error applying Use Template config:', e);
         }
@@ -4487,6 +4534,8 @@ function applyPriceConditions(conditions) {
             }
         }, 50);
     });
+    // Ensure Clear All button reflects current state after conditions are restored
+    setTimeout(_updateClearAllConditionsBtn, 100);
 }
 
 
