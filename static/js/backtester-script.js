@@ -67,6 +67,11 @@ function setCrossOperators(selectId, include) {
     var sel = document.getElementById(selectId);
     if (!sel) return;
     var crossVals = ['cross_up', 'cross_down', 'cross_either'];
+    // Early-exit if already in the right state — avoids removing the selected
+    // option from the DOM (which resets the value to the first option).
+    var hasCross = !!sel.querySelector('option[value="cross_up"]');
+    if (hasCross === !!include) return;
+    var savedVal = sel.value;
     crossVals.forEach(function(v) {
         var ex = sel.querySelector('option[value="' + v + '"]');
         if (ex) ex.remove();
@@ -78,6 +83,8 @@ function setCrossOperators(selectId, include) {
             opt.textContent = o.label;
             sel.appendChild(opt);
         });
+        // Restore a previously-selected cross value if any
+        if (crossVals.indexOf(savedVal) !== -1) sel.value = savedVal;
     } else {
         if (crossVals.indexOf(sel.value) !== -1) sel.value = '>';
     }
