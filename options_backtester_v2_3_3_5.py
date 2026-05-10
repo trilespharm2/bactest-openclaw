@@ -693,7 +693,11 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 if timeframe_minutes <= 1:
                     # Use 1-min bars directly
                     timestamps = [bar.get('t') for bar in raw_bars]
-                    prices = [bar.get(field) for bar in raw_bars]
+                    if metric_type == 'vwap':
+                        # Fallback to close when vw is absent (e.g. index tickers like I:SPX have no volume)
+                        prices = [bar.get('vw') if bar.get('vw') is not None else bar.get('c') for bar in raw_bars]
+                    else:
+                        prices = [bar.get(field) for bar in raw_bars]
                 else:
                     # Aggregate 1-min bars to the user's chosen timeframe
                     df = pd.DataFrame(raw_bars)
@@ -708,9 +712,13 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                     agg_map = {k: v for k, v in agg_map.items() if k in df.columns}
                     resampled = df.resample(f'{timeframe_minutes}min').agg(agg_map).dropna(subset=['c'])
                     timestamps = [int(ts.timestamp() * 1000) for ts in resampled.index]
-                    # For VWAP: use vw field; for SMA/EMA: use the specified price field
+                    # For VWAP: use vw field; fall back to close for index tickers (I:SPX etc.) with no volume
                     if metric_type == 'vwap':
-                        prices = resampled['vw'].tolist() if 'vw' in resampled.columns else resampled['c'].tolist()
+                        if 'vw' in resampled.columns and resampled['vw'].notna().any():
+                            prices = resampled['vw'].tolist()
+                        else:
+                            prices = resampled['c'].tolist()
+                            print(f"[Prefetch] {metric}: vw absent/null for index ticker — falling back to close price", flush=True)
                     else:
                         prices = resampled[field].tolist() if field in resampled.columns else resampled['c'].tolist()
 
