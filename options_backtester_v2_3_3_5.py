@@ -690,12 +690,33 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                 # For VWAP metric, always use the 'vw' field regardless of series_type
                 field = 'vw' if metric_type == 'vwap' else field_map.get(series_type, 'c')
 
+                # For the volume-weighted VWAP path we may carry a separate volume series
+                _vwap_vol_series = None
+
                 if timeframe_minutes <= 1:
                     # Use 1-min bars directly
                     timestamps = [bar.get('t') for bar in raw_bars]
                     if metric_type == 'vwap':
-                        # Fallback to close when vw is absent (e.g. index tickers like I:SPX have no volume)
-                        prices = [bar.get('vw') if bar.get('vw') is not None else bar.get('c') for bar in raw_bars]
+                        vw_vals = [bar.get('vw') for bar in raw_bars]
+                        _has_vw = any(v is not None for v in vw_vals)
+                        if _has_vw:
+                            # Polygon pre-computed per-bar VWAP — use directly, fill gaps with close
+                            prices = [v if v is not None else bar.get('c') for v, bar in zip(vw_vals, raw_bars)]
+                        else:
+                            # No vw field: compute per-bar typical price and collect volume for weighted rolling
+                            _tp_list, _vol_list = [], []
+                            for bar in raw_bars:
+                                h, l, c = bar.get('h'), bar.get('l'), bar.get('c')
+                                tp = (h + l + c) / 3.0 if (h is not None and l is not None and c is not None) else (c or 0.0)
+                                _tp_list.append(tp)
+                                _vol_list.append(bar.get('v') or 0.0)
+                            prices = _tp_list
+                            _has_vol = any(v > 0 for v in _vol_list)
+                            if _has_vol:
+                                _vwap_vol_series = _vol_list
+                                print(f"[Prefetch] {metric}: vw absent — computing rolling VWAP from volume × (H+L+C)/3", flush=True)
+                            else:
+                                print(f"[Prefetch] {metric}: no vw or volume data — using simple rolling mean of (H+L+C)/3", flush=True)
                     else:
                         prices = [bar.get(field) for bar in raw_bars]
                 else:
@@ -706,32 +727,64 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                         continue
                     df['_ts'] = pd.to_datetime(df['t'], unit='ms', utc=True)
                     df = df.set_index('_ts').sort_index()
-                    agg_map = {'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}
-                    if 'vw' in df.columns:
-                        agg_map['vw'] = 'mean'
-                    agg_map = {k: v for k, v in agg_map.items() if k in df.columns}
-                    resampled = df.resample(f'{timeframe_minutes}min').agg(agg_map).dropna(subset=['c'])
-                    timestamps = [int(ts.timestamp() * 1000) for ts in resampled.index]
-                    # For VWAP: use vw field; fall back to close for index tickers (I:SPX etc.) with no volume
+
                     if metric_type == 'vwap':
-                        if 'vw' in resampled.columns and resampled['vw'].notna().any():
-                            prices = resampled['vw'].tolist()
+                        # Determine per-bar price: prefer vw, then typical price, then close
+                        _has_vw = 'vw' in df.columns and df['vw'].notna().any()
+                        _has_vol = 'v' in df.columns and df['v'].notna().any() and (df['v'].fillna(0) > 0).any()
+                        if _has_vw:
+                            df['_bar_price'] = df['vw']
                         else:
-                            prices = resampled['c'].tolist()
-                            print(f"[Prefetch] {metric}: vw absent/null for index ticker — falling back to close price", flush=True)
+                            if all(c in df.columns for c in ['h', 'l', 'c']):
+                                df['_bar_price'] = (df['h'] + df['l'] + df['c']) / 3.0
+                                print(f"[Prefetch] {metric}: vw absent — using (H+L+C)/3", flush=True)
+                            else:
+                                df['_bar_price'] = df['c']
+                                print(f"[Prefetch] {metric}: vw and H/L absent — using close price", flush=True)
+
+                        if _has_vol:
+                            # Volume-weighted VWAP per bucket: Σ(price×vol) / Σ(vol)
+                            df['_vol_safe'] = df['v'].fillna(0.0)
+                            df['_vwp'] = df['_bar_price'] * df['_vol_safe']
+                            _ragg = {k: v for k, v in {'_vwp': 'sum', '_vol_safe': 'sum', 'c': 'last'}.items() if k in df.columns}
+                            _rs = df.resample(f'{timeframe_minutes}min').agg(_ragg).dropna(subset=['c'])
+                            timestamps = [int(ts.timestamp() * 1000) for ts in _rs.index]
+                            _denom = _rs['_vol_safe'].replace(0.0, float('nan'))
+                            prices = (_rs['_vwp'] / _denom).fillna(_rs['c']).tolist()
+                        else:
+                            # No volume — simple mean of bar prices per bucket
+                            _ragg = {k: v for k, v in {'_bar_price': 'mean', 'c': 'last'}.items() if k in df.columns}
+                            _rs = df.resample(f'{timeframe_minutes}min').agg(_ragg).dropna(subset=['c'])
+                            timestamps = [int(ts.timestamp() * 1000) for ts in _rs.index]
+                            prices = _rs['_bar_price'].tolist()
+                            if not _has_vw:
+                                print(f"[Prefetch] {metric}: no volume data — using simple mean of (H+L+C)/3 per bucket", flush=True)
                     else:
+                        agg_map = {'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}
+                        agg_map = {k: v for k, v in agg_map.items() if k in df.columns}
+                        resampled = df.resample(f'{timeframe_minutes}min').agg(agg_map).dropna(subset=['c'])
+                        timestamps = [int(ts.timestamp() * 1000) for ts in resampled.index]
                         prices = resampled[field].tolist() if field in resampled.columns else resampled['c'].tolist()
 
-                price_series = pd.Series(prices, dtype=float)
-
-                # Same formula as simulated trading engine
-                if metric_type == 'sma':
-                    rolled = price_series.rolling(window=window, min_periods=window).mean()
-                elif metric_type == 'ema':
-                    rolled = price_series.ewm(span=window, adjust=False).mean()
+                # Compute rolling indicator
+                if metric_type == 'vwap' and _vwap_vol_series is not None:
+                    # Proper volume-weighted rolling VWAP for 1-min path
+                    _price_s = pd.Series(prices, dtype=float)
+                    _vol_s   = pd.Series(_vwap_vol_series, dtype=float)
+                    _vwp_s   = _price_s * _vol_s
+                    _rolled_vwp = _vwp_s.rolling(window=window, min_periods=window).sum()
+                    _rolled_vol = _vol_s.rolling(window=window, min_periods=window).sum().replace(0.0, float('nan'))
+                    rolled = (_rolled_vwp / _rolled_vol).fillna(_price_s.rolling(window=window, min_periods=window).mean())
                 else:
-                    # VWAP: rolling mean of per-bar VWAP values
-                    rolled = price_series.rolling(window=window, min_periods=window).mean()
+                    price_series = pd.Series(prices, dtype=float)
+                    # Same formula as simulated trading engine
+                    if metric_type == 'sma':
+                        rolled = price_series.rolling(window=window, min_periods=window).mean()
+                    elif metric_type == 'ema':
+                        rolled = price_series.ewm(span=window, adjust=False).mean()
+                    else:
+                        # VWAP (resampled path, or 1-min with no volume): rolling mean of per-bucket values
+                        rolled = price_series.rolling(window=window, min_periods=window).mean()
 
                 indicator_data = {}
                 for ts, val in zip(timestamps, rolled.values):
