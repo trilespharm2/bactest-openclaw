@@ -544,7 +544,7 @@ async function loadPageContent(pageName) {
                 homePage.innerHTML = dashboardPage.innerHTML;
 
                 // Load and initialise the dashboard widget script
-                await loadScript('dashboard-script.js?v=4', 'dashboard');
+                await loadScript('/static/js/dashboard-script.js?v=4', 'dashboard');
             }
 
             homePage.classList.add('active');
@@ -583,24 +583,24 @@ async function loadPageContent(pageName) {
                 
                 if (pageName === 'stockBacktester') {
                     fileName = 'stock-backtester';
-                    scriptName = 'stock-backtester-script.js?v=2';
+                    scriptName = '/static/js/stock-backtester-script.js?v=2';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
-                    scriptName = 'simulated-trading-script.js';
+                    scriptName = '/static/js/simulated-trading-script.js';
                 }
                 if (pageName === 'screener') {
-                    scriptName = 'static/js/screener-script.js';
+                    scriptName = '/static/js/screener-script.js';
                 }
                 if (pageName === 'notifications') {
-                    scriptName = 'static/js/notifications-script.js';
+                    scriptName = '/static/js/notifications-script.js';
                 }
                 if (pageName === 'strategyGuide') {
                     fileName = 'strategy-guide';
-                    scriptName = 'static/js/strategy-guide-script.js';
+                    scriptName = '/static/js/strategy-guide-script.js';
                 }
                 if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
-                    scriptName = 'backtest-result-detail-script.js?v=2';
+                    scriptName = '/static/js/backtest-result-detail-script.js?v=2';
                     if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         scriptName = null;
@@ -651,13 +651,13 @@ async function loadPageContent(pageName) {
                 console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
                 if (pageName === 'backtester') {
-                    scriptName = 'backtester-script.js?v=3';
+                    scriptName = '/static/js/backtester-script.js?v=3';
                 }
                 if (pageName === 'stockBacktester') {
-                    scriptName = 'stock-backtester-script.js';
+                    scriptName = '/static/js/stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
-                    scriptName = 'simulated-trading-script.js';
+                    scriptName = '/static/js/simulated-trading-script.js';
                     if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
@@ -665,16 +665,16 @@ async function loadPageContent(pageName) {
                     }
                 }
                 if (pageName === 'screener') {
-                    scriptName = 'static/js/screener-script.js';
+                    scriptName = '/static/js/screener-script.js';
                 }
                 if (pageName === 'notifications') {
-                    scriptName = 'static/js/notifications-script.js';
+                    scriptName = '/static/js/notifications-script.js';
                 }
                 if (pageName === 'strategyGuide') {
-                    scriptName = 'static/js/strategy-guide-script.js';
+                    scriptName = '/static/js/strategy-guide-script.js';
                 }
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
-                    scriptName = 'simulated-results-script.js';
+                    scriptName = '/static/js/simulated-results-script.js';
                     if (loadedScripts.has('simResults') || loadedScripts.has('simResultDetail')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
@@ -682,7 +682,7 @@ async function loadPageContent(pageName) {
                     }
                 }
                 if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
-                    scriptName = 'backtest-result-detail-script.js?v=2';
+                    scriptName = '/static/js/backtest-result-detail-script.js?v=2';
                     if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
