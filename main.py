@@ -8185,6 +8185,7 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
         base_url = 'https://api.tradier.com/v1'
         api_key  = decrypt_value(cfg.live_api_key_enc)
 
+    api_key = api_key.strip() if api_key else None
     if not api_key:
         return jsonify({'error': 'API key not configured'}), 400
 
@@ -8218,9 +8219,9 @@ def _tradier_account_id():
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if not cfg:
         return None
-    if cfg.mode == 'paper':
-        return decrypt_value(cfg.paper_account_id_enc)
-    return decrypt_value(cfg.live_account_id_enc)
+    raw = cfg.paper_account_id_enc if cfg.mode == 'paper' else cfg.live_account_id_enc
+    val = decrypt_value(raw)
+    return val.strip() if val else None
 
 
 @app.route('/api/bot/tradier/balances', methods=['GET'])
@@ -8270,7 +8271,7 @@ def bot_tradier_quote():
         return jsonify({'error': 'symbol required'}), 400
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if cfg and cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
-        live_key = decrypt_value(cfg.paper_live_api_key_enc)
+        live_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip()
         if live_key:
             try:
                 r = requests.get(
@@ -8306,7 +8307,7 @@ def bot_tradier_option_chains():
     from models import BotConfig, decrypt_value
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if cfg and cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
-        live_key = decrypt_value(cfg.paper_live_api_key_enc)
+        live_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip()
         if live_key:
             try:
                 r = requests.get(

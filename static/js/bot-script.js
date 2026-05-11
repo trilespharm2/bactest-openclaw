@@ -195,7 +195,11 @@ async function botLoadBalances() {
     const resp = await fetch('/api/bot/tradier/balances');
     const data = await resp.json();
     const bal  = data?.balances;
-    if (!bal) { body.innerHTML = `<div class="bot-empty"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i><div class="mt-2">${data.error || 'Could not load balances'}</div></div>`; return; }
+    if (!bal) {
+      const detail = data.detail ? `<br><small style="color:#9098a9;word-break:break-all;">${data.detail}</small>` : '';
+      body.innerHTML = `<div class="bot-empty"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i><div class="mt-2">${data.error || 'Could not load balances'}${detail}</div><div class="mt-3"><button class="btn btn-sm btn-outline-primary" onclick="botSwitchView('config')"><i class="fas fa-cog me-1"></i>Check Settings</button></div></div>`;
+      return;
+    }
     const b = bal.cash || bal.margin || {};
     const rows = [
       { label:'Account',       val: (bal.account_number || '—') + (bal.account_type ? ` (${bal.account_type})` : '') },
@@ -220,9 +224,12 @@ async function botLoadPositions() {
     const data = await resp.json();
     const raw  = data?.positions?.position;
     if (!raw) {
-      body.innerHTML = data.error
-        ? `<div class="bot-empty py-4"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i><div class="mt-2">${data.error}</div></div>`
-        : '<div class="bot-empty py-4"><i class="fas fa-inbox"></i><div class="mt-2">No open positions</div></div>';
+      if (data.error) {
+        const detail = data.detail ? `<br><small style="color:#9098a9;word-break:break-all;">${data.detail}</small>` : '';
+        body.innerHTML = `<div class="bot-empty py-4"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i><div class="mt-2">${data.error}${detail}</div></div>`;
+      } else {
+        body.innerHTML = '<div class="bot-empty py-4"><i class="fas fa-inbox"></i><div class="mt-2">No open positions</div></div>';
+      }
       return;
     }
     const positions = Array.isArray(raw) ? raw : [raw];
@@ -240,9 +247,12 @@ async function botLoadOrders() {
     const data = await resp.json();
     const raw  = data?.orders?.order;
     if (!raw) {
-      body.innerHTML = data.error
-        ? `<div class="bot-empty py-4"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i><div class="mt-2">${data.error}</div></div>`
-        : '<div class="bot-empty py-4"><i class="fas fa-inbox"></i><div class="mt-2">No open orders</div></div>';
+      if (data.error) {
+        const detail = data.detail ? `<br><small style="color:#9098a9;word-break:break-all;">${data.detail}</small>` : '';
+        body.innerHTML = `<div class="bot-empty py-4"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i><div class="mt-2">${data.error}${detail}</div></div>`;
+      } else {
+        body.innerHTML = '<div class="bot-empty py-4"><i class="fas fa-inbox"></i><div class="mt-2">No open orders</div></div>';
+      }
       return;
     }
     const orders = Array.isArray(raw) ? raw : [raw];
