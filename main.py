@@ -8199,7 +8199,15 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
         else:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
             resp = requests.post(url, headers=headers, data=body, timeout=15)
-        return jsonify(resp.json()), resp.status_code
+        # 204 No Content or genuinely empty body (e.g. no positions/orders)
+        if not resp.text or not resp.text.strip():
+            return jsonify({}), 200
+        try:
+            return jsonify(resp.json()), resp.status_code
+        except ValueError:
+            # Tradier returned HTML (auth failure, maintenance page, etc.)
+            snippet = resp.text[:300].replace('<', '&lt;')
+            return jsonify({'error': f'Tradier returned non-JSON (HTTP {resp.status_code})', 'detail': snippet}), resp.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 502
 
@@ -8270,6 +8278,8 @@ def bot_tradier_quote():
                     headers={'Authorization': f'Bearer {live_key}', 'Accept': 'application/json'},
                     params={'symbols': symbol}, timeout=10
                 )
+                if not r.text or not r.text.strip():
+                    return jsonify({}), 200
                 return jsonify(r.json()), r.status_code
             except Exception:
                 pass
@@ -8305,6 +8315,8 @@ def bot_tradier_option_chains():
                     params={'symbol': symbol, 'expiration': expiration, 'greeks': 'true'},
                     timeout=15
                 )
+                if not r.text or not r.text.strip():
+                    return jsonify({}), 200
                 return jsonify(r.json()), r.status_code
             except Exception:
                 pass
