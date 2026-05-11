@@ -653,15 +653,30 @@ function npChainScroll(dir) {
   el.scrollBy({ top: dir === 'up' ? -200 : 200, behavior: 'smooth' });
 }
 
-// ── Trade Summary ──────────────────────────────────────────────────
+// ── General payoff-at-price function (works for any strategy) ──────
+function npPayoffAt(price, stratKey) {
+  const strat = NP_STRATEGIES[stratKey];
+  if (!strat) return 0;
+  let pnl = 0;
+  strat.legs.forEach((leg, i) => {
+    const ls = _npLegStrikes[i]; if (!ls) return;
+    const mid = (ls.bid + ls.ask) / 2;
+    const mult = leg.side === 'buy' ? 1 : -1;
+    const intrinsic = leg.opType === 'call'
+      ? Math.max(0, price - ls.strike)
+      : Math.max(0, ls.strike - price);
+    pnl += mult * (intrinsic - mid);
+  });
+  return parseFloat((pnl * 100).toFixed(2));
+}
+
 function npShowSummary(stratKey) {
   const strat = NP_STRATEGIES[stratKey];
   if (!strat) return;
   const legs = strat.legs;
   const nLegs = legs.length;
 
-  // Calculate credit/debit (positive = credit received, negative = debit paid)
-  // Credit = sum of (sell legs' bid) - sum of (buy legs' ask)   [conservative mid]
+  // Net credit/debit across all legs
   let creditMid = 0;
   for (let i = 0; i < nLegs; i++) {
     const ls = _npLegStrikes[i]; if (!ls) continue;
@@ -671,12 +686,30 @@ function npShowSummary(stratKey) {
   }
   _npPrice = Math.abs(parseFloat(creditMid.toFixed(2)));
 
-  // Build stats
-  let stats = [];
-  const credit = creditMid > 0;
-  const flow = credit ? 'Credit' : 'Debit';
-  stats.push({ label: credit ? 'Credit' : 'Debit', val: _fmt$(Math.abs(creditMid)), cls: credit ? 'green' : 'red' });
-  stats.push({ label: 'Mid Price', val: _fmt$(Math.abs(creditMid)) });
+  // Determine x-range from actual strikes
+  const strikes = [];
+  for (let i = 0; i < nLegs; i++) { if (_npLegStrikes[i]) strikes.push(_npLegStrikes[i].strike); }
+  if (!strikes.length) return;
+  const minK = Math.min(...strikes), maxK = Math.max(...strikes);
+  const spread = maxK - minK || Math.max(...strikes.map(Math.abs)) * 0.03 || 5;
+  const xL = minK - spread * 2, xR = maxK + spread * 2;
+
+  // Sample payoff across the range to find max/min and breakevens
+  const N = 600;
+  const prices = Array.from({ length: N + 1 }, (_, i) => xL + (xR - xL) * i / N);
+  const pnls   = prices.map(p => npPayoffAt(p, stratKey));
+  const maxPnl  = Math.max(...pnls);
+  const minPnl  = Math.min(...pnls);
+  const UNLIMITED = 9500; // treat anything beyond this as "unlimited"
+
+  // Find breakevens (sign changes)
+  const breakevens = [];
+  for (let i = 0; i < pnls.length - 1; i++) {
+    if (pnls[i] * pnls[i + 1] < 0) {
+      const t = pnls[i] / (pnls[i] - pnls[i + 1]);
+      breakevens.push(prices[i] + t * (prices[i + 1] - prices[i]));
+    }
+  }
 
   // DTE
   const exp = document.getElementById('npExp')?.value;
@@ -685,144 +718,239 @@ function npShowSummary(stratKey) {
     const d = Math.round((new Date(exp + 'T00:00:00') - new Date()) / 86400000);
     dte = d >= 0 ? d + (d === 1 ? ' day' : ' days') : '0 days';
   }
-  stats.push({ label: 'DTE', val: dte });
 
-  // Breakeven / max profit / max loss per strategy
-  let maxProfit = null, maxLoss = null, breakeven = null;
-  const s0 = _npLegStrikes[0], s1 = _npLegStrikes[1];
-  const s2 = _npLegStrikes[2], s3 = _npLegStrikes[3];
-
-  if (stratKey === 'short_call_spread' || stratKey === 'short_put_spread') {
-    maxProfit = Math.abs(creditMid) * 100;
-    const width = Math.abs((s1?.strike || 0) - (s0?.strike || 0));
-    maxLoss = (width - Math.abs(creditMid)) * 100;
-    breakeven = stratKey === 'short_call_spread'
-      ? (s0?.strike || 0) + Math.abs(creditMid)
-      : (s0?.strike || 0) - Math.abs(creditMid);
-  } else if (stratKey === 'long_call_spread' || stratKey === 'long_put_spread') {
-    maxLoss   = Math.abs(creditMid) * 100;
-    const width = Math.abs((s1?.strike || 0) - (s0?.strike || 0));
-    maxProfit = (width - Math.abs(creditMid)) * 100;
-    breakeven = stratKey === 'long_call_spread'
-      ? (s0?.strike || 0) + Math.abs(creditMid)
-      : (s0?.strike || 0) - Math.abs(creditMid);
-  } else if (stratKey === 'long_call' || stratKey === 'long_put') {
-    maxLoss = Math.abs(creditMid) * 100;
-    maxProfit = null; // unlimited / large
-  } else if (stratKey === 'short_call' || stratKey === 'short_put') {
-    maxProfit = Math.abs(creditMid) * 100;
-    maxLoss   = null;
-  } else if (stratKey === 'iron_condor') {
-    maxProfit = Math.abs(creditMid) * 100;
-    const putWidth  = Math.abs((s1?.strike || 0) - (s0?.strike || 0));
-    const callWidth = Math.abs((s3?.strike || 0) - (s2?.strike || 0));
-    maxLoss = (Math.max(putWidth, callWidth) - Math.abs(creditMid)) * 100;
-  }
-
-  if (breakeven != null) stats.push({ label: 'Breakeven', val: breakeven.toFixed(2) });
-  if (maxProfit != null) stats.push({ label: 'Max Profit', val: _fmt$(maxProfit), cls: 'green' });
-  else stats.push({ label: 'Max Profit', val: 'Unlimited' });
-  if (maxLoss   != null) stats.push({ label: 'Max Loss',   val: _fmt$(-maxLoss),   cls: 'red' });
-  else stats.push({ label: 'Max Loss', val: 'Unlimited', cls: 'red' });
-
-  if (maxProfit && maxLoss) {
-    const rr = maxProfit / maxLoss;
+  // Build stats grid
+  const credit = creditMid > 0;
+  const stats = [
+    { label: credit ? 'Credit' : 'Debit', val: _fmt$(Math.abs(creditMid)), cls: credit ? 'green' : 'red' },
+    { label: 'Mid Price',    val: _fmt$(Math.abs(creditMid)) },
+    { label: 'DTE',          val: dte },
+    { label: 'Breakeven',    val: breakevens.length ? breakevens.map(b => b.toFixed(2)).join(' / ') : '—' },
+    { label: 'Max Profit',   val: maxPnl >= UNLIMITED ? 'Unlimited' : _fmt$(maxPnl),  cls: 'green' },
+    { label: 'Max Loss',     val: minPnl <= -UNLIMITED ? 'Unlimited' : _fmt$(minPnl), cls: 'red' },
+  ];
+  if (maxPnl > 0 && minPnl < 0 && maxPnl < UNLIMITED && Math.abs(minPnl) < UNLIMITED) {
+    const rr = maxPnl / Math.abs(minPnl);
     stats.push({ label: 'Reward / Risk', val: (rr * 100).toFixed(0) + '%', cls: rr >= 1 ? 'green' : 'blue' });
   }
 
   const grid = document.getElementById('npSummaryGrid');
   if (grid) {
-    grid.innerHTML = stats.map(s => `<div class="np-summary-cell"><div class="np-summary-label">${s.label}</div><div class="np-summary-value ${s.cls||''}">${s.val}</div></div>`).join('');
+    grid.innerHTML = stats.map(s =>
+      `<div class="np-summary-cell"><div class="np-summary-label">${s.label}</div><div class="np-summary-value ${s.cls || ''}">${s.val}</div></div>`
+    ).join('');
   }
 
-  // Payoff diagram
-  npDrawPayoff(stratKey);
-
+  npDrawPayoff(stratKey, { xL, xR, strikes, breakevens, maxPnl, minPnl });
   _show('npTradeSummary', true);
 }
 
 function npHideSummary() { _show('npTradeSummary', false); }
 
-// ── Simple SVG Payoff Diagram ──────────────────────────────────────
-function npDrawPayoff(stratKey) {
+// ── Interactive Canvas Payoff Diagram ─────────────────────────────
+function npDrawPayoff(stratKey, info) {
   const wrap = document.getElementById('npPayoffWrap');
-  if (!wrap) return;
-  const s0 = _npLegStrikes[0], s1 = _npLegStrikes[1];
-  if (!s0) { wrap.innerHTML = ''; return; }
+  if (!wrap || !info) { if (wrap) wrap.innerHTML = ''; return; }
 
-  const W = 480, H = 140, PAD = { t:12, r:12, b:28, l:48 };
-  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+  wrap.innerHTML = `
+    <div class="np-payoff-wrap" style="position:relative;margin-top:16px;">
+      <canvas id="npPayoffCanvas" style="width:100%;height:220px;display:block;cursor:crosshair;border-radius:10px;border:1px solid #eef0f3;"></canvas>
+      <div id="npPayoffTip" style="display:none;position:absolute;background:#1a1a2e;color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:10;top:8px;"></div>
+    </div>`;
 
-  let points = []; // [ {x:price, y:pnl} ]
-  const mid = (ls) => ls ? (ls.bid + ls.ask) / 2 : 0;
-  const creditVal = (() => {
-    let c = 0;
-    const legs = NP_STRATEGIES[stratKey]?.legs || [];
-    legs.forEach((l, i) => { const ls = _npLegStrikes[i]; if (!ls) return; const m = (ls.bid+ls.ask)/2; c += l.side==='sell' ? m : -m; });
-    return c;
-  })();
-  const cred100 = creditVal * 100;
+  const canvas = document.getElementById('npPayoffCanvas');
+  if (!canvas) return;
 
-  const k0 = s0.strike, k1 = s1?.strike;
+  const dpr = window.devicePixelRatio || 1;
+  requestAnimationFrame(() => {
+    const W = canvas.offsetWidth, H = 220;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
 
-  if (stratKey === 'short_call_spread' && k1) {
-    const maxP = cred100, maxL = -(((k1-k0)-creditVal)*100);
-    const xL = k0 - (k1-k0)*2, xR = k1 + (k1-k0)*2;
-    points = [{x:xL,y:maxP},{x:k0,y:maxP},{x:k1,y:maxL},{x:xR,y:maxL}];
-  } else if (stratKey === 'long_call_spread' && k1) {
-    const maxL = -cred100, maxP = (((k1-k0)+creditVal)*100);
-    const xL = k0-(k1-k0)*2, xR = k1+(k1-k0)*2;
-    points = [{x:xL,y:maxL},{x:k0,y:maxL},{x:k1,y:maxP},{x:xR,y:maxP}];
-  } else if (stratKey === 'short_put_spread' && k1) {
-    const maxP = cred100, maxL = -(((k0-k1)-creditVal)*100);
-    const xL = k1-(k0-k1)*2, xR = k0+(k0-k1)*2;
-    points = [{x:xL,y:maxL},{x:k1,y:maxL},{x:k0,y:maxP},{x:xR,y:maxP}];
-  } else if (stratKey === 'long_put_spread' && k1) {
-    const maxL = -cred100, maxP = ((k0-k1)+creditVal)*100;
-    const xL = k1-(k0-k1)*2, xR = k0+(k0-k1)*2;
-    points = [{x:xL,y:maxP},{x:k1,y:maxL},{x:k0,y:maxL},{x:xR,y:maxL}];
-  } else if (stratKey === 'iron_condor') {
-    const s2=_npLegStrikes[2],s3=_npLegStrikes[3];
-    if (!s2||!s3) { wrap.innerHTML=''; return; }
-    const maxP=cred100,maxL=-(Math.max(k0-k1||0,(s3?.strike||0)-(s2?.strike||0))-creditVal)*100;
-    const xL=(s1?.strike||k0)-Math.abs(creditVal)*10, xR=(s3?.strike||k0)+Math.abs(creditVal)*10;
-    points=[{x:xL,y:maxL},{x:s1?.strike||k0,y:maxL},{x:k0,y:maxP},{x:s2?.strike||k0,y:maxP},{x:s3?.strike||k0,y:maxL},{x:xR,y:maxL}];
-  } else {
-    wrap.innerHTML = ''; return;
+    const redraw = (mx) => npRenderPayoff(ctx, W, H, stratKey, info, mx);
+    redraw(null);
+
+    canvas.addEventListener('mousemove', e => {
+      const r = canvas.getBoundingClientRect();
+      const mx = e.clientX - r.left;
+      redraw(mx);
+      // Tooltip
+      const PAD_L = 58;
+      const iW = W - PAD_L - 12;
+      const tip = document.getElementById('npPayoffTip');
+      if (tip && mx >= PAD_L && mx <= PAD_L + iW) {
+        const price = info.xL + (mx - PAD_L) / iW * (info.xR - info.xL);
+        const pnl = npPayoffAt(price, stratKey);
+        const col = pnl >= 0 ? '#10b981' : '#ef4444';
+        tip.style.display = 'block';
+        tip.style.left = (Math.min(mx + 12, W - 160)) + 'px';
+        tip.innerHTML = `<span style="color:#9098a9;">$${price.toFixed(2)}</span>&nbsp;&nbsp;<span style="color:${col};font-weight:700;">${pnl >= 0 ? '+' : ''}${_fmt$(pnl)}</span>`;
+      } else if (tip) tip.style.display = 'none';
+    });
+    canvas.addEventListener('mouseleave', () => {
+      redraw(null);
+      const tip = document.getElementById('npPayoffTip');
+      if (tip) tip.style.display = 'none';
+    });
+  });
+}
+
+function npRenderPayoff(ctx, W, H, stratKey, info, mouseX) {
+  const PAD_L = 58, PAD_R = 12, PAD_T = 14, PAD_B = 34;
+  const iW = W - PAD_L - PAD_R, iH = H - PAD_T - PAD_B;
+  const { xL, xR, strikes, breakevens } = info;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Sample P&L across x-range
+  const N = Math.max(200, Math.floor(iW));
+  const xs   = Array.from({ length: N + 1 }, (_, i) => xL + (xR - xL) * i / N);
+  const ys   = xs.map(x => npPayoffAt(x, stratKey));
+  const yMax = Math.max(...ys, 0);
+  const yMin = Math.min(...ys, 0);
+  const yRange = yMax - yMin || 1;
+
+  const cx = x => PAD_L + (x - xL) / (xR - xL) * iW;
+  const cy = y => PAD_T + (1 - (y - yMin) / yRange) * iH;
+  const zero_y = cy(0);
+
+  // Build pixel path
+  const pts = xs.map((x, i) => ({ px: cx(x), py: cy(ys[i]) }));
+
+  const tracePath = () => {
+    ctx.moveTo(pts[0].px, pts[0].py);
+    for (let i = 1; i <= N; i++) ctx.lineTo(pts[i].px, pts[i].py);
+  };
+
+  // Green fill (profit zone)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(PAD_L, PAD_T, iW, Math.max(0, zero_y - PAD_T));
+  ctx.clip();
+  ctx.beginPath();
+  tracePath();
+  ctx.lineTo(pts[N].px, zero_y); ctx.lineTo(pts[0].px, zero_y); ctx.closePath();
+  ctx.fillStyle = 'rgba(16,185,129,0.13)';
+  ctx.fill();
+  ctx.restore();
+
+  // Red fill (loss zone)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(PAD_L, zero_y, iW, Math.max(0, H - PAD_B - zero_y));
+  ctx.clip();
+  ctx.beginPath();
+  tracePath();
+  ctx.lineTo(pts[N].px, zero_y); ctx.lineTo(pts[0].px, zero_y); ctx.closePath();
+  ctx.fillStyle = 'rgba(239,68,68,0.11)';
+  ctx.fill();
+  ctx.restore();
+
+  // Grid lines + Y-axis labels
+  ctx.font = '10px Inter,system-ui,sans-serif';
+  ctx.textAlign = 'right';
+  const ySteps = 4;
+  for (let i = 0; i <= ySteps; i++) {
+    const val = yMin + (yMax - yMin) * i / ySteps;
+    const y   = cy(val);
+    ctx.fillStyle = '#9098a9';
+    const label = Math.abs(val) >= 1000
+      ? (val >= 0 ? '+' : '') + (val / 1000).toFixed(1) + 'k'
+      : (val >= 0 ? '+' : '') + _fmt$(Math.round(val));
+    ctx.fillText(label, PAD_L - 6, y + 3.5);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y);
+    ctx.strokeStyle = i === 0 ? '#dee2e6' : '#f0f1f3';
+    ctx.lineWidth = i === 0 ? 1 : 0.5;
+    ctx.stroke();
   }
 
-  if (!points.length) { wrap.innerHTML=''; return; }
+  // Zero line (bold)
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, zero_y); ctx.lineTo(W - PAD_R, zero_y);
+  ctx.strokeStyle = '#c8ccd3';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
 
-  const xVals = points.map(p=>p.x), yVals = points.map(p=>p.y);
-  const xMin = Math.min(...xVals), xMax = Math.max(...xVals);
-  const yMin = Math.min(...yVals, 0), yMax = Math.max(...yVals, 0);
-  const yRange = yMax - yMin || 1, xRange = xMax - xMin || 1;
-  const sx = p => PAD.l + (p.x - xMin) / xRange * iW;
-  const sy = p => PAD.t + (1 - (p.y - yMin) / yRange) * iH;
-  const zero_y = sy({y:0});
+  // Breakeven dashed lines + labels
+  ctx.setLineDash([4, 3]);
+  breakevens.forEach(be => {
+    if (be < xL || be > xR) return;
+    const bx = cx(be);
+    ctx.beginPath();
+    ctx.moveTo(bx, PAD_T); ctx.lineTo(bx, H - PAD_B);
+    ctx.strokeStyle = '#9098a9';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
 
-  // Build path
-  const pts = points.map(p => `${sx(p).toFixed(1)},${sy(p).toFixed(1)}`).join(' ');
-  // Green area (above zero), Red area (below zero)
-  const pathPts = points.map(p => `${sx(p).toFixed(1)} ${sy(p).toFixed(1)}`);
-  const closedPath = `M ${pathPts.join(' L ')} L ${sx(points[points.length-1]).toFixed(1)} ${zero_y.toFixed(1)} L ${sx(points[0]).toFixed(1)} ${zero_y.toFixed(1)} Z`;
+  // Current price dashed line
+  if (_npLastPrice && _npLastPrice >= xL && _npLastPrice <= xR) {
+    const cpx = cx(_npLastPrice);
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cpx, PAD_T); ctx.lineTo(cpx, H - PAD_B);
+    ctx.strokeStyle = '#1b55e2';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
-  // Current price line
-  const cpLine = _npLastPrice
-    ? `<line x1="${sx({x:_npLastPrice}).toFixed(1)}" y1="${PAD.t}" x2="${sx({x:_npLastPrice}).toFixed(1)}" y2="${H-PAD.b}" stroke="#9098a9" stroke-width="1.5" stroke-dasharray="4 3"/>`
-    : '';
+  // X-axis strike labels
+  ctx.font = '10px Inter,system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#495057';
+  // Combine strikes + breakevens for x-axis labels
+  const xLabels = [...new Set([...strikes, ...breakevens.map(b => parseFloat(b.toFixed(0)))])].sort((a,b) => a-b);
+  xLabels.forEach(k => {
+    if (k < xL || k > xR) return;
+    const kx = cx(k);
+    ctx.fillStyle = strikes.includes(k) ? '#1a1a2e' : '#9098a9';
+    ctx.fillText(k.toFixed(0), kx, H - PAD_B + 14);
+    ctx.beginPath();
+    ctx.moveTo(kx, H - PAD_B); ctx.lineTo(kx, H - PAD_B + 4);
+    ctx.strokeStyle = '#dee2e6';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
 
-  wrap.innerHTML = `<div class="np-payoff-wrap"><svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-    <defs>
-      <clipPath id="aboveZero"><rect x="${PAD.l}" y="${PAD.t}" width="${iW}" height="${(zero_y-PAD.t).toFixed(1)}"/></clipPath>
-      <clipPath id="belowZero"><rect x="${PAD.l}" y="${zero_y.toFixed(1)}" width="${iW}" height="${(H-PAD.b-zero_y).toFixed(1)}"/></clipPath>
-    </defs>
-    <path d="${closedPath}" fill="#10b981" fill-opacity=".18" clip-path="url(#aboveZero)"/>
-    <path d="${closedPath}" fill="#ef4444" fill-opacity=".18" clip-path="url(#belowZero)"/>
-    <line x1="${PAD.l}" y1="${zero_y.toFixed(1)}" x2="${W-PAD.r}" y2="${zero_y.toFixed(1)}" stroke="#dee2e6" stroke-width="1"/>
-    <polyline points="${pts}" fill="none" stroke="#1b55e2" stroke-width="2" stroke-linejoin="round"/>
-    ${cpLine}
-  </svg></div>`;
+  // Main payoff line
+  ctx.beginPath();
+  tracePath();
+  ctx.strokeStyle = '#1b55e2';
+  ctx.lineWidth = 2.2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Hover crosshair
+  if (mouseX !== null && mouseX >= PAD_L && mouseX <= PAD_L + iW) {
+    const price = xL + (mouseX - PAD_L) / iW * (xR - xL);
+    const pnl   = npPayoffAt(price, stratKey);
+    const my    = cy(pnl);
+
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(mouseX, PAD_T); ctx.lineTo(mouseX, H - PAD_B);
+    ctx.strokeStyle = '#6c757d';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dot on payoff line
+    const dotCol = pnl >= 0 ? '#10b981' : '#ef4444';
+    ctx.beginPath();
+    ctx.arc(mouseX, my, 5, 0, Math.PI * 2);
+    ctx.fillStyle = dotCol;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(mouseX, my, 5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 }
 
 // ── Order quantity / price steppers ────────────────────────────────
@@ -890,16 +1018,20 @@ async function npPlaceTrade() {
     // Option order (single-leg class=option, multi-leg class=multileg)
     const legs = strat.legs;
     const rawOrderType = document.getElementById('npOrderType')?.value || 'limit';
-    // credit/debit are UI labels only — Tradier only accepts limit/market/stop/stop_limit
-    const orderType = (rawOrderType === 'credit' || rawOrderType === 'debit') ? 'limit' : rawOrderType;
-    const isMulti   = legs.length > 1;
+    const isMulti = legs.length > 1;
+    // Tradier multileg accepts: credit / debit / market / even  (NOT limit)
+    // Tradier single-leg accepts: limit / market / stop / stop_limit
+    const orderType = isMulti
+      ? rawOrderType                                                           // credit/debit/market pass through
+      : (rawOrderType === 'credit' || rawOrderType === 'debit') ? 'limit' : rawOrderType; // remap for single-leg
     body = {
       class:    isMulti ? 'multileg' : 'option',
       symbol:   sym,
       type:     orderType,
       duration: 'day',
-      price:    _npPrice,
     };
+    // Include price only when not a market order
+    if (orderType !== 'market') body.price = _npPrice;
     if (!isMulti) {
       // Single-leg: flat params
       const ls = _npLegStrikes[0];
