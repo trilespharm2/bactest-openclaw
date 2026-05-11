@@ -8124,6 +8124,170 @@ except Exception as exc:
     traceback.print_exc()
 
 
+# =============================================================================
+# BOT ROUTES — Tradier brokerage configuration & API proxy
+# =============================================================================
+
+@app.route('/api/bot/config', methods=['GET'])
+@login_required
+def bot_get_config():
+    from models import BotConfig
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        return jsonify({'configured': False})
+    return jsonify({'configured': True, **cfg.to_dict_masked()})
+
+
+@app.route('/api/bot/config', methods=['POST'])
+@login_required
+def bot_save_config():
+    from models import BotConfig, encrypt_value, decrypt_value
+    data = request.get_json() or {}
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        cfg = BotConfig(user_id=current_user.id)
+        db.session.add(cfg)
+
+    cfg.brokerage = data.get('brokerage', 'tradier')
+    cfg.mode = data.get('mode', 'paper')
+
+    def _enc_if_real(field_val, existing_enc):
+        if field_val and not field_val.startswith('••••'):
+            return encrypt_value(field_val)
+        return existing_enc
+
+    cfg.paper_account_id_enc      = _enc_if_real(data.get('paper_account_id', ''),      cfg.paper_account_id_enc)
+    cfg.paper_api_key_enc         = _enc_if_real(data.get('paper_api_key', ''),         cfg.paper_api_key_enc)
+    cfg.paper_live_account_id_enc = _enc_if_real(data.get('paper_live_account_id', ''), cfg.paper_live_account_id_enc)
+    cfg.paper_live_api_key_enc    = _enc_if_real(data.get('paper_live_api_key', ''),    cfg.paper_live_api_key_enc)
+    cfg.live_account_id_enc       = _enc_if_real(data.get('live_account_id', ''),       cfg.live_account_id_enc)
+    cfg.live_api_key_enc          = _enc_if_real(data.get('live_api_key', ''),          cfg.live_api_key_enc)
+
+    try:
+        db.session.commit()
+        return jsonify({'success': True, **cfg.to_dict_masked()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _tradier_proxy(path, method='GET', params=None, body=None):
+    """Helper: call Tradier API using the current user's stored credentials."""
+    from models import BotConfig, decrypt_value
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        return jsonify({'error': 'No bot configuration found'}), 400
+
+    if cfg.mode == 'paper':
+        base_url = 'https://sandbox.tradier.com/v1'
+        api_key  = decrypt_value(cfg.paper_api_key_enc)
+    else:
+        base_url = 'https://api.tradier.com/v1'
+        api_key  = decrypt_value(cfg.live_api_key_enc)
+
+    if not api_key:
+        return jsonify({'error': 'API key not configured'}), 400
+
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Accept': 'application/json',
+    }
+    url = f'{base_url}/{path.lstrip("/")}'
+    try:
+        if method == 'GET':
+            resp = requests.get(url, headers=headers, params=params, timeout=15)
+        else:
+            headers['Content-Type'] = 'application/x-www-form-urlencoded'
+            resp = requests.post(url, headers=headers, data=body, timeout=15)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 502
+
+
+def _tradier_account_id():
+    """Return the active account_id for the current user's bot config."""
+    from models import BotConfig, decrypt_value
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        return None
+    if cfg.mode == 'paper':
+        return decrypt_value(cfg.paper_account_id_enc)
+    return decrypt_value(cfg.live_account_id_enc)
+
+
+@app.route('/api/bot/tradier/balances', methods=['GET'])
+@login_required
+def bot_tradier_balances():
+    acct = _tradier_account_id()
+    if not acct:
+        return jsonify({'error': 'Account ID not configured'}), 400
+    return _tradier_proxy(f'/accounts/{acct}/balances')
+
+
+@app.route('/api/bot/tradier/positions', methods=['GET'])
+@login_required
+def bot_tradier_positions():
+    acct = _tradier_account_id()
+    if not acct:
+        return jsonify({'error': 'Account ID not configured'}), 400
+    return _tradier_proxy(f'/accounts/{acct}/positions')
+
+
+@app.route('/api/bot/tradier/orders', methods=['GET'])
+@login_required
+def bot_tradier_orders():
+    acct = _tradier_account_id()
+    if not acct:
+        return jsonify({'error': 'Account ID not configured'}), 400
+    return _tradier_proxy(f'/accounts/{acct}/orders', params={'includeTags': 'true'})
+
+
+@app.route('/api/bot/tradier/orders', methods=['POST'])
+@login_required
+def bot_tradier_place_order():
+    acct = _tradier_account_id()
+    if not acct:
+        return jsonify({'error': 'Account ID not configured'}), 400
+    data = request.get_json() or {}
+    body = {k: v for k, v in data.items()}
+    return _tradier_proxy(f'/accounts/{acct}/orders', method='POST', body=body)
+
+
+@app.route('/api/bot/tradier/options/expirations', methods=['GET'])
+@login_required
+def bot_tradier_option_expirations():
+    symbol = request.args.get('symbol', '')
+    if not symbol:
+        return jsonify({'error': 'symbol required'}), 400
+    return _tradier_proxy('/markets/options/expirations', params={'symbol': symbol, 'includeAllRoots': 'true'})
+
+
+@app.route('/api/bot/tradier/options/chains', methods=['GET'])
+@login_required
+def bot_tradier_option_chains():
+    symbol     = request.args.get('symbol', '')
+    expiration = request.args.get('expiration', '')
+    if not symbol or not expiration:
+        return jsonify({'error': 'symbol and expiration required'}), 400
+    # For live quotes in paper mode, use the live-quote key if configured
+    from models import BotConfig, decrypt_value
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if cfg and cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
+        live_key = decrypt_value(cfg.paper_live_api_key_enc)
+        if live_key:
+            try:
+                r = requests.get(
+                    'https://api.tradier.com/v1/markets/options/chains',
+                    headers={'Authorization': f'Bearer {live_key}', 'Accept': 'application/json'},
+                    params={'symbol': symbol, 'expiration': expiration, 'greeks': 'true'},
+                    timeout=15
+                )
+                return jsonify(r.json()), r.status_code
+            except Exception:
+                pass
+    return _tradier_proxy('/markets/options/chains', params={'symbol': symbol, 'expiration': expiration, 'greeks': 'true'})
+
+
 if __name__ == '__main__':
     startup_state = initialize_app_runtime(
         enable_scheduler=env_bool('ENABLE_SCHEDULER', True),
@@ -8164,6 +8328,7 @@ if __name__ == '__main__':
         print('⚠️  ADMIN_BOOTSTRAP_ENABLED is on but ADMIN_EMAIL or ADMIN_PASSWORD is missing')
     print(f"\nAvailable Backtester Endpoints:")
     print(f"  • Options Backtest: POST /api/backtest/run")
+    print(f"  • Bot Config: GET/POST /api/bot/config")
     if STOCKS_V3_WRAPPER_AVAILABLE:
         print(f"  • Stocks V3 Backtest: POST /api/stocks-backtest-v3/run")
     print(f"\nPress CTRL+C to stop the server\n")

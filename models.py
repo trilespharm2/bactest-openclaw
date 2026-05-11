@@ -181,6 +181,51 @@ class NotificationDelivery(db.Model):
         }
 
 
+class BotConfig(db.Model):
+    __tablename__ = 'bot_configs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    brokerage = db.Column(db.String(50), default='tradier')
+    mode = db.Column(db.String(10), default='paper')  # 'paper' or 'live'
+
+    # Paper / sandbox credentials
+    paper_account_id_enc   = db.Column(db.Text, nullable=True)
+    paper_api_key_enc      = db.Column(db.Text, nullable=True)
+    # Optional live-quote credentials used in paper mode
+    paper_live_account_id_enc = db.Column(db.Text, nullable=True)
+    paper_live_api_key_enc    = db.Column(db.Text, nullable=True)
+
+    # Live trading credentials
+    live_account_id_enc = db.Column(db.Text, nullable=True)
+    live_api_key_enc    = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('bot_config', uselist=False))
+
+    def to_dict_masked(self):
+        def _mask(val):
+            if not val:
+                return ''
+            dec = decrypt_value(val)
+            if not dec:
+                return ''
+            return '••••' + dec[-4:] if len(dec) >= 4 else '••••'
+
+        return {
+            'brokerage': self.brokerage,
+            'mode': self.mode,
+            'paper_account_id':      decrypt_value(self.paper_account_id_enc) or '',
+            'paper_api_key':         _mask(self.paper_api_key_enc),
+            'paper_live_account_id': decrypt_value(self.paper_live_account_id_enc) or '',
+            'paper_live_api_key':    _mask(self.paper_live_api_key_enc),
+            'live_account_id':       decrypt_value(self.live_account_id_enc) or '',
+            'live_api_key':          _mask(self.live_api_key_enc),
+        }
+
+
 class UserNotificationChannel(db.Model):
     __tablename__ = 'user_notification_channels'
     

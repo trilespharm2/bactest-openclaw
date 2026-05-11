@@ -595,6 +595,9 @@ async function loadPageContent(pageName) {
                 if (pageName === 'notifications') {
                     scriptName = '/static/js/notifications-script.js';
                 }
+                if (pageName === 'bot') {
+                    scriptName = '/static/js/bot-script.js';
+                }
                 if (pageName === 'strategyGuide') {
                     fileName = 'strategy-guide';
                     scriptName = '/static/js/strategy-guide-script.js';
@@ -669,6 +672,9 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'notifications') {
                     scriptName = '/static/js/notifications-script.js';
+                }
+                if (pageName === 'bot') {
+                    scriptName = '/static/js/bot-script.js';
                 }
                 if (pageName === 'strategyGuide') {
                     scriptName = '/static/js/strategy-guide-script.js';
@@ -788,6 +794,8 @@ function initializePage(pageName) {
         } else if (pageName === 'notifications' && typeof initNotificationsPage === 'function') {
             initNotificationsPage();
             setTimeout(() => setupLoginRequiredFields('#notificationsPage'), 100);
+        } else if (pageName === 'bot' && typeof initBotPage === 'function') {
+            initBotPage();
         } else if (pageName === 'simulatedTrading' && typeof initSimulatedTrading === 'function') {
             initSimulatedTrading();
         } else if (pageName === 'simTradingActive' && typeof initSimTradingActive === 'function') {
