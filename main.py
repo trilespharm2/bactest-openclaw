@@ -8357,24 +8357,21 @@ def bot_tradier_orders():
 @app.route('/api/bot/tradier/orders', methods=['POST'])
 @login_required
 def bot_tradier_place_order():
-    from urllib.parse import quote_plus
     acct = _tradier_account_id()
     if not acct:
         return jsonify({'error': 'Account ID not configured'}), 400
     data = request.get_json() or {}
 
-    # Build form body manually so bracket keys like option_symbol[0] stay literal
-    # (requests.post(data=dict) percent-encodes [ and ] which some servers reject)
-    parts = []
-    for k, v in data.items():
-        # encode the value but leave key brackets as-is
-        encoded_key   = quote_plus(str(k), safe='[]')
-        encoded_value = quote_plus(str(v))
-        parts.append(f'{encoded_key}={encoded_value}')
-    body_str = '&'.join(parts)
+    # Multileg orders use a dedicated endpoint: /orders/multileg
+    order_class = data.get('class', '')
+    if order_class == 'multileg':
+        endpoint = f'/accounts/{acct}/orders/multileg'
+    else:
+        endpoint = f'/accounts/{acct}/orders'
 
-    app.logger.info('[Tradier] place_order form body: %s', body_str)
-    return _tradier_proxy(f'/accounts/{acct}/orders', method='POST', body=body_str)
+    body = {k: str(v) for k, v in data.items()}
+    app.logger.info('[Tradier] place_order endpoint=%s body=%s', endpoint, body)
+    return _tradier_proxy(endpoint, method='POST', body=body)
 
 
 @app.route('/api/bot/tradier/orders/<int:order_id>', methods=['DELETE'])
