@@ -99,6 +99,67 @@ async function botSaveConfig() {
   finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save me-2"></i>Save & Connect'; }
 }
 
+// ── Test Connection ────────────────────────────────────────────────
+async function botTestConnection() {
+  const btn = document.getElementById('botTestBtn');
+  const res = document.getElementById('botDiagnoseResult');
+  if (!res) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Testing…';
+  res.style.display = 'none';
+  try {
+    const resp = await fetch('/api/bot/tradier/diagnose');
+    const d = await resp.json();
+    if (d.error && !d.mode) {
+      res.innerHTML = `<div class="alert alert-danger py-2" style="font-size:13px;"><i class="fas fa-times-circle me-1"></i>${d.error}</div>`;
+      res.style.display = '';
+      return;
+    }
+    const active = d.mode === 'paper' ? d.paper : d.live;
+    const key    = d.mode === 'paper' ? active.api_key    : active.api_key;
+    const acct   = d.mode === 'paper' ? active.account_id : active.account_id;
+    const probe  = d.probe || {};
+
+    const keyRow  = key.stored
+      ? `<tr><td>API Key</td><td style="color:#10b981;"><i class="fas fa-check-circle me-1"></i>Stored (len=${key.stripped_len}, prefix=${key.prefix}…${key.suffix}${key.has_whitespace ? ' <span style="color:#f59e0b;">⚠ had whitespace</span>' : ''})</td></tr>`
+      : `<tr><td>API Key</td><td style="color:#ef4444;"><i class="fas fa-times-circle me-1"></i>Not stored</td></tr>`;
+    const acctRow = acct.stored
+      ? `<tr><td>Account ID</td><td style="color:#10b981;"><i class="fas fa-check-circle me-1"></i>${acct.value}${acct.has_whitespace ? ' <span style="color:#f59e0b;">⚠ had whitespace</span>' : ''}</td></tr>`
+      : `<tr><td>Account ID</td><td style="color:#ef4444;"><i class="fas fa-times-circle me-1"></i>Not stored</td></tr>`;
+
+    let probeHtml;
+    if (probe.ok) {
+      const profile = probe.body?.profile;
+      const name = profile ? `${profile.name} (${profile.account?.account_number || ''})` : 'OK';
+      probeHtml = `<tr><td>Live Auth Test</td><td style="color:#10b981;"><i class="fas fa-check-circle me-1"></i>${name}</td></tr>`;
+    } else {
+      const rawDetail = probe.raw
+        ? `<br><small style="color:#9098a9;word-break:break-all;">${probe.raw.replace(/</g,'&lt;')}</small>`
+        : (probe.error ? `<br><small style="color:#9098a9;">${probe.error}</small>` : '');
+      probeHtml = `<tr><td>Live Auth Test</td><td style="color:#ef4444;"><i class="fas fa-times-circle me-1"></i>Failed (HTTP ${probe.http_status || '?'})${rawDetail}</td></tr>`;
+    }
+
+    res.innerHTML = `
+      <div class="bot-field-group">
+        <div class="bot-field-group-title"><i class="fas fa-stethoscope" style="color:#1b55e2;"></i>Connection Diagnostic — mode: <strong>${d.mode}</strong></div>
+        <table class="bot-table w-100" style="font-size:12px;">
+          <tbody>
+            ${keyRow}
+            ${acctRow}
+            ${probeHtml}
+          </tbody>
+        </table>
+      </div>`;
+    res.style.display = '';
+  } catch (e) {
+    res.innerHTML = `<div class="alert alert-danger py-2" style="font-size:13px;">Network error: ${e.message}</div>`;
+    res.style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plug me-2"></i>Test Connection';
+  }
+}
+
 // ── View Management ────────────────────────────────────────────────
 function botShowView(view) {
   const cfg        = document.getElementById('botConfigView');

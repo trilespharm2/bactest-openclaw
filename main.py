@@ -8194,12 +8194,21 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
         'Accept': 'application/json',
     }
     url = f'{base_url}/{path.lstrip("/")}'
+
+    # Server-side debug logging (key prefix only — never log full key)
+    key_hint = f'{api_key[:6]}…{api_key[-4:]}' if len(api_key) > 10 else '(short?)'
+    app.logger.info('[Tradier] %s %s  key=%s  key_len=%d', method, url, key_hint, len(api_key))
+
     try:
         if method == 'GET':
             resp = requests.get(url, headers=headers, params=params, timeout=15)
         else:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
             resp = requests.post(url, headers=headers, data=body, timeout=15)
+
+        app.logger.info('[Tradier] response HTTP %d  body_len=%d  content_type=%s',
+                        resp.status_code, len(resp.text), resp.headers.get('Content-Type', ''))
+
         # 204 No Content or genuinely empty body (e.g. no positions/orders)
         if not resp.text or not resp.text.strip():
             return jsonify({}), 200
@@ -8207,10 +8216,99 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
             return jsonify(resp.json()), resp.status_code
         except ValueError:
             # Tradier returned HTML (auth failure, maintenance page, etc.)
+            app.logger.warning('[Tradier] non-JSON body (HTTP %d): %s', resp.status_code, resp.text[:500])
             snippet = resp.text[:300].replace('<', '&lt;')
             return jsonify({'error': f'Tradier returned non-JSON (HTTP {resp.status_code})', 'detail': snippet}), resp.status_code
     except Exception as e:
+        app.logger.error('[Tradier] request exception: %s', e)
         return jsonify({'error': str(e)}), 502
+
+
+@app.route('/api/bot/tradier/diagnose', methods=['GET'])
+@login_required
+def bot_tradier_diagnose():
+    """Return safe diagnostic info about stored credentials without exposing values."""
+    from models import BotConfig, decrypt_value
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        return jsonify({'error': 'No bot configuration found'}), 404
+
+    def _key_info(enc):
+        val = decrypt_value(enc)
+        if not val:
+            return {'stored': False}
+        stripped = val.strip()
+        return {
+            'stored': True,
+            'raw_len': len(val),
+            'stripped_len': len(stripped),
+            'has_whitespace': len(val) != len(stripped),
+            'prefix': stripped[:6] if len(stripped) >= 6 else '(short)',
+            'suffix': stripped[-4:] if len(stripped) >= 4 else '(short)',
+        }
+
+    def _acct_info(enc):
+        val = decrypt_value(enc)
+        if not val:
+            return {'stored': False}
+        stripped = val.strip()
+        return {
+            'stored': True,
+            'raw_len': len(val),
+            'stripped_len': len(stripped),
+            'has_whitespace': len(val) != len(stripped),
+            'value': stripped,          # account IDs are not secret
+        }
+
+    diag = {
+        'mode': cfg.mode,
+        'brokerage': cfg.brokerage,
+        'paper': {
+            'account_id': _acct_info(cfg.paper_account_id_enc),
+            'api_key':    _key_info(cfg.paper_api_key_enc),
+            'live_quote_account_id': _acct_info(cfg.paper_live_account_id_enc),
+            'live_quote_api_key':    _key_info(cfg.paper_live_api_key_enc),
+        },
+        'live': {
+            'account_id': _acct_info(cfg.live_account_id_enc),
+            'api_key':    _key_info(cfg.live_api_key_enc),
+        },
+    }
+
+    # Also make a live probe to Tradier profile endpoint (no account ID needed)
+    try:
+        if cfg.mode == 'paper':
+            base_url = 'https://sandbox.tradier.com/v1'
+            api_key  = (decrypt_value(cfg.paper_api_key_enc) or '').strip()
+        else:
+            base_url = 'https://api.tradier.com/v1'
+            api_key  = (decrypt_value(cfg.live_api_key_enc) or '').strip()
+
+        if api_key:
+            probe = requests.get(
+                f'{base_url}/user/profile',
+                headers={'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'},
+                timeout=10,
+            )
+            try:
+                probe_json = probe.json()
+                diag['probe'] = {
+                    'http_status': probe.status_code,
+                    'ok': probe.status_code == 200,
+                    'body': probe_json,
+                }
+            except ValueError:
+                diag['probe'] = {
+                    'http_status': probe.status_code,
+                    'ok': False,
+                    'raw': probe.text[:400],
+                }
+        else:
+            diag['probe'] = {'ok': False, 'error': 'No API key stored'}
+    except Exception as ex:
+        diag['probe'] = {'ok': False, 'error': str(ex)}
+
+    return jsonify(diag)
 
 
 def _tradier_account_id():
