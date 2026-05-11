@@ -8362,12 +8362,9 @@ def bot_tradier_place_order():
         return jsonify({'error': 'Account ID not configured'}), 400
     data = request.get_json() or {}
 
-    # Multileg orders use a dedicated endpoint: /orders/multileg
-    order_class = data.get('class', '')
-    if order_class == 'multileg':
-        endpoint = f'/accounts/{acct}/orders/multileg'
-    else:
-        endpoint = f'/accounts/{acct}/orders'
+    # All order classes (equity, option, multileg) use the same /orders endpoint.
+    # The `class` field in the body tells Tradier which type it is.
+    endpoint = f'/accounts/{acct}/orders'
 
     body = {k: str(v) for k, v in data.items()}
     app.logger.info('[Tradier] place_order endpoint=%s body=%s', endpoint, body)
