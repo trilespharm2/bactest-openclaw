@@ -8206,7 +8206,10 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
             resp = requests.delete(url, headers=headers, timeout=15)
         else:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            resp = requests.post(url, headers=headers, data=body, timeout=15)
+            # body may be a pre-encoded string (preserves literal brackets) or a plain dict
+            resp = requests.post(url, headers=headers,
+                                 data=body if isinstance(body, str) else body,
+                                 timeout=15)
 
         app.logger.info('[Tradier] response HTTP %d  body_len=%d  content_type=%s',
                         resp.status_code, len(resp.text), resp.headers.get('Content-Type', ''))
@@ -8354,12 +8357,24 @@ def bot_tradier_orders():
 @app.route('/api/bot/tradier/orders', methods=['POST'])
 @login_required
 def bot_tradier_place_order():
+    from urllib.parse import quote_plus
     acct = _tradier_account_id()
     if not acct:
         return jsonify({'error': 'Account ID not configured'}), 400
     data = request.get_json() or {}
-    body = {k: v for k, v in data.items()}
-    return _tradier_proxy(f'/accounts/{acct}/orders', method='POST', body=body)
+
+    # Build form body manually so bracket keys like option_symbol[0] stay literal
+    # (requests.post(data=dict) percent-encodes [ and ] which some servers reject)
+    parts = []
+    for k, v in data.items():
+        # encode the value but leave key brackets as-is
+        encoded_key   = quote_plus(str(k), safe='[]')
+        encoded_value = quote_plus(str(v))
+        parts.append(f'{encoded_key}={encoded_value}')
+    body_str = '&'.join(parts)
+
+    app.logger.info('[Tradier] place_order form body: %s', body_str)
+    return _tradier_proxy(f'/accounts/{acct}/orders', method='POST', body=body_str)
 
 
 @app.route('/api/bot/tradier/orders/<int:order_id>', methods=['DELETE'])
