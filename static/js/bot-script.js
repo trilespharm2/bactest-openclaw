@@ -15,19 +15,20 @@ let _npLegStrikes   = {};     // { legIdx: { strike, optType, bid, ask, delta, t
 let _npSymTimer     = null;
 
 // Strategy definitions: legs ordered as they appear in the UI
+// creditType: 'credit' = spread receives premium, 'debit' = spread pays premium, null = single-leg (limit/market)
 const NP_STRATEGIES = {
-  equity_buy:        { name:'Buy Stock',         type:'equity',  legs:[] },
-  equity_sell:       { name:'Sell Stock',         type:'equity',  legs:[] },
-  long_call:         { name:'Long Call',          type:'option',  legs:[{label:'CALL',       side:'buy',  opType:'call'}] },
-  long_put:          { name:'Long Put',           type:'option',  legs:[{label:'PUT',        side:'buy',  opType:'put'}] },
-  short_call:        { name:'Short Call',         type:'option',  legs:[{label:'CALL',       side:'sell', opType:'call'}] },
-  short_put:         { name:'Short Put',          type:'option',  legs:[{label:'PUT',        side:'sell', opType:'put'}] },
-  short_call_spread: { name:'Short Call Spread',  type:'option',  legs:[{label:'SHORT CALL', side:'sell', opType:'call'},{label:'LONG CALL', side:'buy',  opType:'call'}] },
-  long_call_spread:  { name:'Long Call Spread',   type:'option',  legs:[{label:'LONG CALL',  side:'buy',  opType:'call'},{label:'SHORT CALL',side:'sell', opType:'call'}] },
-  short_put_spread:  { name:'Short Put Spread',   type:'option',  legs:[{label:'SHORT PUT',  side:'sell', opType:'put'}, {label:'LONG PUT',  side:'buy',  opType:'put'}] },
-  long_put_spread:   { name:'Long Put Spread',    type:'option',  legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'}] },
-  iron_condor:       { name:'Iron Condor',        type:'option',  legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'},{label:'SHORT CALL',side:'sell',opType:'call'},{label:'LONG CALL',side:'buy',opType:'call'}] },
-  iron_butterfly:    { name:'Iron Butterfly',     type:'option',  legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'},{label:'SHORT CALL',side:'sell',opType:'call'},{label:'LONG CALL',side:'buy',opType:'call'}] },
+  equity_buy:        { name:'Buy Stock',         type:'equity',  creditType:null,     legs:[] },
+  equity_sell:       { name:'Sell Stock',         type:'equity',  creditType:null,     legs:[] },
+  long_call:         { name:'Long Call',          type:'option',  creditType:null,     legs:[{label:'CALL',       side:'buy',  opType:'call'}] },
+  long_put:          { name:'Long Put',           type:'option',  creditType:null,     legs:[{label:'PUT',        side:'buy',  opType:'put'}] },
+  short_call:        { name:'Short Call',         type:'option',  creditType:null,     legs:[{label:'CALL',       side:'sell', opType:'call'}] },
+  short_put:         { name:'Short Put',          type:'option',  creditType:null,     legs:[{label:'PUT',        side:'sell', opType:'put'}] },
+  short_call_spread: { name:'Short Call Spread',  type:'option',  creditType:'credit', legs:[{label:'LONG CALL',  side:'buy',  opType:'call'},{label:'SHORT CALL',side:'sell', opType:'call'}] },
+  long_call_spread:  { name:'Long Call Spread',   type:'option',  creditType:'debit',  legs:[{label:'LONG CALL',  side:'buy',  opType:'call'},{label:'SHORT CALL',side:'sell', opType:'call'}] },
+  short_put_spread:  { name:'Short Put Spread',   type:'option',  creditType:'credit', legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'}] },
+  long_put_spread:   { name:'Long Put Spread',    type:'option',  creditType:'debit',  legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'}] },
+  iron_condor:       { name:'Iron Condor',        type:'option',  creditType:'credit', legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'},{label:'SHORT CALL',side:'sell',opType:'call'},{label:'LONG CALL',side:'buy',opType:'call'}] },
+  iron_butterfly:    { name:'Iron Butterfly',     type:'option',  creditType:'credit', legs:[{label:'LONG PUT',   side:'buy',  opType:'put'}, {label:'SHORT PUT', side:'sell', opType:'put'},{label:'SHORT CALL',side:'sell',opType:'call'},{label:'LONG CALL',side:'buy',opType:'call'}] },
 };
 
 // ── Init ───────────────────────────────────────────────────────────
@@ -351,6 +352,25 @@ async function npFetchQuote(sym) {
   } catch (_) {}
 }
 
+// Update the Order Type dropdown options based on the strategy's credit/debit classification
+function npUpdateOrderTypeOpts(stratKey) {
+  const sel = document.getElementById('npOrderType');
+  if (!sel) return;
+  const strat = NP_STRATEGIES[stratKey];
+  if (!strat || strat.type === 'equity') return;
+  const ct = strat.creditType;
+  if (ct === 'credit') {
+    sel.innerHTML = '<option value="credit">Credit</option><option value="market">Market</option>';
+    sel.value = 'credit';
+  } else if (ct === 'debit') {
+    sel.innerHTML = '<option value="debit">Debit</option><option value="market">Market</option>';
+    sel.value = 'debit';
+  } else {
+    sel.innerHTML = '<option value="limit">Limit</option><option value="market">Market</option>';
+    sel.value = 'limit';
+  }
+}
+
 function npOnStrategyChange() {
   const key  = document.getElementById('npStrat')?.value;
   const strat = NP_STRATEGIES[key];
@@ -377,6 +397,7 @@ function npOnStrategyChange() {
     _show('npLegsRow', true); _show('npEquityDetails', false);
     _show('npOrderDivider', false); _show('npOrderDetails', false); _show('npPlaceRow', false);
     npRenderLegs(key);
+    npUpdateOrderTypeOpts(key);
     // auto-load expirations if symbol present
     const sym = document.getElementById('npSym')?.value.trim();
     if (sym && _npExpirations.length === 0) npLoadExpirations();
@@ -868,7 +889,9 @@ async function npPlaceTrade() {
   } else {
     // Option order (single-leg class=option, multi-leg class=multileg)
     const legs = strat.legs;
-    const orderType = document.getElementById('npOrderType')?.value || 'limit';
+    const rawOrderType = document.getElementById('npOrderType')?.value || 'limit';
+    // credit/debit are UI labels only — Tradier only accepts limit/market/stop/stop_limit
+    const orderType = (rawOrderType === 'credit' || rawOrderType === 'debit') ? 'limit' : rawOrderType;
     const isMulti   = legs.length > 1;
     body = {
       class:    isMulti ? 'multileg' : 'option',
