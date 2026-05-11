@@ -1,183 +1,116 @@
 <!-- Bot Page - Dashboard SPA Compatible -->
 <style>
-.bot-card {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    margin-bottom: 20px;
-    overflow: hidden;
-}
-.bot-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
-    border-bottom: 1px solid #eef0f3;
-    background: #fafbfc;
-}
-.bot-card-header h5 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: #1a1a2e;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.bot-card-body { padding: 20px; }
+/* ── card shell ─────────────────────────────────────── */
+.bot-card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:20px;overflow:hidden}
+.bot-card-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eef0f3;background:#fafbfc}
+.bot-card-header h5{margin:0;font-size:15px;font-weight:600;color:#1a1a2e;display:flex;align-items:center;gap:8px}
+.bot-card-body{padding:20px}
 
-.bot-mode-toggle {
-    display: flex;
-    background: #f1f3f7;
-    border-radius: 10px;
-    padding: 4px;
-    gap: 4px;
-}
-.bot-mode-btn {
-    flex: 1;
-    padding: 9px 16px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    font-size: 14px;
-    font-weight: 500;
-    color: #6c757d;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.bot-mode-btn.active {
-    background: #fff;
-    color: #1b55e2;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-.bot-mode-btn.live-active {
-    background: #fff;
-    color: #ef4444;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
+/* ── mode toggle (config) ────────────────────────────── */
+.bot-mode-toggle{display:flex;background:#f1f3f7;border-radius:10px;padding:4px;gap:4px}
+.bot-mode-btn{flex:1;padding:9px 16px;border:none;border-radius:8px;background:transparent;font-size:14px;font-weight:500;color:#6c757d;cursor:pointer;transition:all .2s}
+.bot-mode-btn.active{background:#fff;color:#1b55e2;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.bot-mode-btn.live-active{background:#fff;color:#ef4444;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.bot-field-group{background:#f8f9fc;border:1px solid #e9ecef;border-radius:10px;padding:16px}
+.bot-field-group-title{font-size:13px;font-weight:600;color:#495057;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 
-.bot-field-group {
-    background: #f8f9fc;
-    border: 1px solid #e9ecef;
-    border-radius: 10px;
-    padding: 16px;
-}
-.bot-field-group-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
+/* ── subnav ──────────────────────────────────────────── */
+.bot-subnav{display:flex;gap:4px;margin-bottom:20px;background:#f1f3f7;border-radius:10px;padding:4px;width:fit-content}
+.bot-subnav-btn{padding:8px 18px;border:none;border-radius:8px;background:transparent;font-size:13px;font-weight:500;color:#6c757d;cursor:pointer;transition:all .2s}
+.bot-subnav-btn.active{background:#fff;color:#1b55e2;box-shadow:0 2px 6px rgba(0,0,0,.08)}
 
-.bot-subnav {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 20px;
-    background: #f1f3f7;
-    border-radius: 10px;
-    padding: 4px;
-    width: fit-content;
-}
-.bot-subnav-btn {
-    padding: 8px 18px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    font-size: 13px;
-    font-weight: 500;
-    color: #6c757d;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.bot-subnav-btn.active {
-    background: #fff;
-    color: #1b55e2;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
+/* ── balance / table ─────────────────────────────────── */
+.bot-stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.bot-stat-item{background:#f8f9fc;border-radius:10px;padding:14px 16px;border:1px solid #eef0f3}
+.bot-stat-label{font-size:11px;color:#9098a9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.bot-stat-value{font-size:15px;font-weight:700;color:#1a1a2e}
+.bot-table{width:100%;border-collapse:collapse;font-size:13px}
+.bot-table th{padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9098a9;font-weight:600;border-bottom:1px solid #eef0f3}
+.bot-table td{padding:10px 12px;border-bottom:1px solid #f5f6f8;color:#333;vertical-align:middle}
+.bot-table tr:last-child td{border-bottom:none}
+.bot-table tr:hover td{background:#f8f9fc}
+.bot-empty{text-align:center;padding:32px 20px;color:#9098a9;font-size:13px}
+.bot-empty i{font-size:28px;margin-bottom:8px;display:block}
+.badge-side{font-size:11px;padding:3px 8px;border-radius:20px}
+.badge-buy{background:#d1fae5;color:#065f46}.badge-sell{background:#fee2e2;color:#991b1b}
+.badge-open{background:#dbeafe;color:#1d4ed8}.badge-filled{background:#d1fae5;color:#065f46}
+.badge-canceled{background:#f3f4f6;color:#6b7280}.badge-pending{background:#fef3c7;color:#92400e}
+.bot-refresh-btn{background:none;border:none;color:#9098a9;cursor:pointer;padding:4px 8px;border-radius:6px;font-size:13px;transition:all .2s}
+.bot-refresh-btn:hover{background:#eef0f3;color:#1b55e2}
+.bot-mode-badge-paper{background:#dbeafe;color:#1d4ed8;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.bot-mode-badge-live{background:#fee2e2;color:#991b1b;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
 
-.bot-stat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
-}
-.bot-stat-item {
-    background: #f8f9fc;
-    border-radius: 10px;
-    padding: 14px 16px;
-    border: 1px solid #eef0f3;
-}
-.bot-stat-label {
-    font-size: 11px;
-    color: #9098a9;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-}
-.bot-stat-value {
-    font-size: 18px;
-    font-weight: 700;
-    color: #1a1a2e;
-}
+/* ── NEW POSITION ─────────────────────────────────────── */
+.np-header-row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.np-field-group{display:flex;flex-direction:column;gap:5px}
+.np-field-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#9098a9}
+.np-sym-input{width:90px;padding:8px 10px;border:1.5px solid #dee2e6;border-radius:8px;font-size:15px;font-weight:600;color:#1a1a2e;outline:none;text-transform:uppercase}
+.np-sym-input:focus{border-color:#1b55e2;box-shadow:0 0 0 3px rgba(27,85,226,.1)}
+.np-select{padding:8px 10px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;color:#1a1a2e;outline:none;background:#fff;cursor:pointer;min-width:160px}
+.np-select:focus{border-color:#1b55e2;box-shadow:0 0 0 3px rgba(27,85,226,.1)}
+.np-exp-picker{display:flex;align-items:center;gap:4px}
+.np-exp-nav{width:28px;height:36px;border:1.5px solid #dee2e6;border-radius:8px;background:#fff;color:#495057;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.np-exp-nav:hover{border-color:#1b55e2;color:#1b55e2}
+.np-exp-load{width:36px;height:36px;border:1.5px solid #dee2e6;border-radius:8px;background:#fff;color:#6c757d;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.np-exp-load:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff}
+.np-price-badge{background:#f0f4ff;border:1px solid #c7d7fd;color:#1b55e2;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600}
 
-.bot-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.bot-table th {
-    padding: 8px 12px;
-    text-align: left;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #9098a9;
-    font-weight: 600;
-    border-bottom: 1px solid #eef0f3;
-}
-.bot-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f5f6f8;
-    color: #333;
-    vertical-align: middle;
-}
-.bot-table tr:last-child td { border-bottom: none; }
-.bot-table tr:hover td { background: #f8f9fc; }
+.np-divider{height:1px;background:#eef0f3;margin:20px 0}
 
-.bot-empty {
-    text-align: center;
-    padding: 32px 20px;
-    color: #9098a9;
-    font-size: 13px;
-}
-.bot-empty i { font-size: 28px; margin-bottom: 8px; display: block; }
+.np-legs-row{display:flex;gap:24px;flex-wrap:wrap;padding:4px 0}
+.np-leg-group{display:flex;flex-direction:column;gap:6px}
+.np-leg-select-btn{display:flex;align-items:center;gap:0;border:1.5px solid #dee2e6;border-radius:8px;background:#fff;cursor:pointer;overflow:hidden;transition:all .2s;font-size:14px;height:36px}
+.np-leg-select-btn.active-leg{border-color:#1b55e2;box-shadow:0 0 0 3px rgba(27,85,226,.12)}
+.np-leg-select-btn.selected{border-color:#10b981;background:#f0fdf4}
+.np-leg-select-inner{padding:0 12px;color:#1a1a2e;font-weight:600;flex:1;display:flex;align-items:center;gap:4px}
+.np-leg-select-inner .np-sel-placeholder{color:#9098a9;font-weight:400}
+.np-leg-arrow{padding:0 8px;color:#6c757d;font-size:10px}
+.np-leg-adj{width:28px;height:100%;border:none;background:#f1f3f7;color:#495057;cursor:pointer;font-size:16px;line-height:1;font-weight:700;transition:background .2s;display:flex;align-items:center;justify-content:center}
+.np-leg-adj:hover{background:#dbeafe;color:#1b55e2}
+.np-leg-adj-strike{padding:0 10px;font-weight:700;font-size:14px;color:#1a1a2e;background:#fff;display:flex;align-items:center}
+.np-leg-adj-border{width:1px;height:100%;background:#dee2e6}
 
-.badge-side { font-size: 11px; padding: 3px 8px; border-radius: 20px; }
-.badge-buy  { background: #d1fae5; color: #065f46; }
-.badge-sell { background: #fee2e2; color: #991b1b; }
-.badge-open { background: #dbeafe; color: #1d4ed8; }
-.badge-filled { background: #d1fae5; color: #065f46; }
-.badge-canceled { background: #f3f4f6; color: #6b7280; }
-.badge-pending { background: #fef3c7; color: #92400e; }
+.np-chain-section{border:1.5px solid #e8ebf0;border-radius:10px;overflow:hidden;margin-top:4px}
+.np-chain-scroll{max-height:340px;overflow-y:auto}
+.np-chain-top-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;background:#f8f9fc;cursor:pointer;font-size:12px;color:#1b55e2;font-weight:600;border:none;width:100%;border-bottom:1px solid #eef0f3;transition:background .2s}
+.np-chain-top-btn:hover{background:#eff6ff}
+.np-chain-bottom-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;background:#f8f9fc;cursor:pointer;font-size:12px;color:#1b55e2;font-weight:600;border:none;width:100%;border-top:1px solid #eef0f3;transition:background .2s}
+.np-chain-bottom-btn:hover{background:#eff6ff}
+.np-chain-table{width:100%;border-collapse:collapse;font-size:12px}
+.np-chain-table th{padding:7px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#9098a9;font-weight:700;background:#fafbfc;border-bottom:1px solid #eef0f3;text-align:right}
+.np-chain-table th:first-child{text-align:left}
+.np-chain-table td{padding:8px 10px;border-bottom:1px solid #f5f6f8;text-align:right;cursor:pointer;color:#333}
+.np-chain-table td:first-child{text-align:left;font-weight:700}
+.np-chain-table tr:hover td{background:#eff6ff}
+.np-chain-table tr.np-chain-selected td{background:#f0fdf4;color:#065f46}
+.np-chain-table tr.np-chain-selected td:first-child{color:#065f46}
+.np-chain-atm-row td{background:#fef3c7 !important;font-weight:600}
+.np-chain-atm-divider{background:#f8f3d4;padding:5px 10px;font-size:11px;color:#92400e;font-weight:600;display:flex;align-items:center;gap:8px}
 
-.opt-chain-table { font-size: 12px; }
-.opt-chain-table td, .opt-chain-table th { padding: 6px 8px; }
-.opt-chain-strike { background: #eef2ff; font-weight: 700; color: #3730a3; text-align: center; }
+.np-summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border:1px solid #eef0f3;border-radius:10px;overflow:hidden;margin-top:16px}
+.np-summary-cell{padding:12px 16px;border-right:1px solid #eef0f3;border-bottom:1px solid #eef0f3;font-size:13px}
+.np-summary-cell:nth-child(2n){border-right:none}
+.np-summary-cell:nth-last-child(-n+2){border-bottom:none}
+.np-summary-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#9098a9;font-weight:700;margin-bottom:3px}
+.np-summary-value{font-size:15px;font-weight:700;color:#1a1a2e}
+.np-summary-value.green{color:#10b981}.np-summary-value.red{color:#ef4444}.np-summary-value.blue{color:#1b55e2}
 
-.new-position-form .form-label { font-size: 12px; font-weight: 600; color: #495057; }
+.np-payoff-wrap{margin-top:16px;border-radius:10px;overflow:hidden;border:1px solid #eef0f3}
+.np-payoff-wrap svg{display:block}
 
-.bot-refresh-btn {
-    background: none;
-    border: none;
-    color: #9098a9;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 13px;
-    transition: all 0.2s;
-}
-.bot-refresh-btn:hover { background: #eef0f3; color: #1b55e2; }
+.np-section-title{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:14px}
+.np-order-row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end}
+.np-order-field{display:flex;flex-direction:column;gap:6px}
+.np-stepper{display:flex;align-items:center;border:1.5px solid #dee2e6;border-radius:8px;overflow:hidden;height:38px}
+.np-stepper-btn{width:36px;height:100%;border:none;background:#f1f3f7;color:#333;cursor:pointer;font-size:18px;font-weight:700;transition:background .2s;display:flex;align-items:center;justify-content:center}
+.np-stepper-btn:hover{background:#dbeafe;color:#1b55e2}
+.np-stepper-val{flex:1;min-width:80px;text-align:center;font-weight:600;font-size:14px;color:#1a1a2e;padding:0 8px;white-space:nowrap}
+.np-stepper-border{width:1px;height:100%;background:#dee2e6}
 
-.bot-mode-badge-paper { background: #dbeafe; color: #1d4ed8; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-.bot-mode-badge-live  { background: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.np-place-btn{width:100%;padding:13px;background:#1b55e2;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.3px;transition:background .2s}
+.np-place-btn:hover{background:#1545c4}
+.np-place-btn:disabled{background:#93aee0;cursor:not-allowed}
+.np-place-row{padding-top:20px}
 </style>
 
 <div class="container-fluid py-3" id="botPageRoot">
@@ -201,7 +134,7 @@
         </div>
     </div>
 
-    <!-- Sub-navigation (only visible in dashboard mode) -->
+    <!-- Sub-navigation -->
     <div class="bot-subnav" id="botSubnav" style="display:none;">
         <button class="bot-subnav-btn active" onclick="botSwitchView('dashboard')">
             <i class="fas fa-tachometer-alt me-1"></i>Dashboard
@@ -220,16 +153,12 @@
                         <h5><i class="fas fa-plug" style="color:#1b55e2;"></i>Brokerage Setup</h5>
                     </div>
                     <div class="bot-card-body">
-
-                        <!-- Brokerage -->
                         <div class="mb-4">
                             <label class="form-label fw-semibold" style="font-size:13px;">Brokerage</label>
                             <select class="form-select form-select-sm" id="botBrokerage" style="max-width:220px;">
                                 <option value="tradier">Tradier</option>
                             </select>
                         </div>
-
-                        <!-- Mode toggle -->
                         <div class="mb-4">
                             <label class="form-label fw-semibold" style="font-size:13px;">Trading Mode</label>
                             <div class="bot-mode-toggle">
@@ -241,13 +170,9 @@
                                 </button>
                             </div>
                         </div>
-
-                        <!-- Paper fields -->
                         <div id="botPaperFields">
                             <div class="bot-field-group mb-3">
-                                <div class="bot-field-group-title">
-                                    <i class="fas fa-flask" style="color:#3b82f6;"></i>Sandbox Credentials
-                                </div>
+                                <div class="bot-field-group-title"><i class="fas fa-flask" style="color:#3b82f6;"></i>Sandbox Credentials</div>
                                 <div class="mb-3">
                                     <label class="form-label small">Sandbox Account ID</label>
                                     <input type="text" class="form-control form-control-sm" id="botPaperAccountId" placeholder="VA12345678">
@@ -256,15 +181,12 @@
                                     <label class="form-label small">Sandbox API Key</label>
                                     <div class="input-group input-group-sm">
                                         <input type="password" class="form-control" id="botPaperApiKey" placeholder="••••••••••••••••">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="botToggleKey('botPaperApiKey', this)"><i class="fas fa-eye"></i></button>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="botToggleKey('botPaperApiKey',this)"><i class="fas fa-eye"></i></button>
                                     </div>
                                 </div>
                             </div>
-
                             <div class="bot-field-group mb-3">
-                                <div class="bot-field-group-title">
-                                    <i class="fas fa-chart-line" style="color:#10b981;"></i>Live Quotes <span style="font-weight:400;color:#9098a9;">(optional — for real-time data in paper mode)</span>
-                                </div>
+                                <div class="bot-field-group-title"><i class="fas fa-chart-line" style="color:#10b981;"></i>Live Quotes <span style="font-weight:400;color:#9098a9;">(optional)</span></div>
                                 <div class="mb-3">
                                     <label class="form-label small">User Account ID</label>
                                     <input type="text" class="form-control form-control-sm" id="botPaperLiveAccountId" placeholder="VA12345678">
@@ -273,22 +195,18 @@
                                     <label class="form-label small">User API Key</label>
                                     <div class="input-group input-group-sm">
                                         <input type="password" class="form-control" id="botPaperLiveApiKey" placeholder="••••••••••••••••">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="botToggleKey('botPaperLiveApiKey', this)"><i class="fas fa-eye"></i></button>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="botToggleKey('botPaperLiveApiKey',this)"><i class="fas fa-eye"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Live fields -->
                         <div id="botLiveFields" style="display:none;">
                             <div class="alert alert-warning d-flex align-items-start gap-2" style="font-size:12px;border-radius:8px;">
                                 <i class="fas fa-exclamation-triangle mt-1" style="flex-shrink:0;"></i>
-                                <span><strong>Live Trading</strong> uses real money. Double-check all credentials before saving.</span>
+                                <span><strong>Live Trading</strong> uses real money. Double-check all credentials.</span>
                             </div>
                             <div class="bot-field-group mb-3">
-                                <div class="bot-field-group-title">
-                                    <i class="fas fa-bolt" style="color:#ef4444;"></i>Live Trading Credentials
-                                </div>
+                                <div class="bot-field-group-title"><i class="fas fa-bolt" style="color:#ef4444;"></i>Live Trading Credentials</div>
                                 <div class="mb-3">
                                     <label class="form-label small">User Account ID</label>
                                     <input type="text" class="form-control form-control-sm" id="botLiveAccountId" placeholder="VA12345678">
@@ -297,13 +215,11 @@
                                     <label class="form-label small">User API Key</label>
                                     <div class="input-group input-group-sm">
                                         <input type="password" class="form-control" id="botLiveApiKey" placeholder="••••••••••••••••">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="botToggleKey('botLiveApiKey', this)"><i class="fas fa-eye"></i></button>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="botToggleKey('botLiveApiKey',this)"><i class="fas fa-eye"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Actions -->
                         <div class="d-flex gap-2 mt-4">
                             <button class="btn btn-primary" id="botSaveBtn" onclick="botSaveConfig()" style="min-width:160px;">
                                 <i class="fas fa-save me-2"></i>Save &amp; Connect
@@ -324,9 +240,7 @@
         <div class="bot-card">
             <div class="bot-card-header">
                 <h5><i class="fas fa-wallet" style="color:#10b981;"></i>Account Balance</h5>
-                <button class="bot-refresh-btn" onclick="botLoadBalances()" title="Refresh">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
+                <button class="bot-refresh-btn" onclick="botLoadBalances()"><i class="fas fa-sync-alt"></i></button>
             </div>
             <div class="bot-card-body" id="botBalanceBody">
                 <div class="bot-empty"><i class="fas fa-spinner fa-spin"></i>Loading...</div>
@@ -337,9 +251,7 @@
         <div class="bot-card">
             <div class="bot-card-header">
                 <h5><i class="fas fa-layer-group" style="color:#6366f1;"></i>Open Positions</h5>
-                <button class="bot-refresh-btn" onclick="botLoadPositions()" title="Refresh">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
+                <button class="bot-refresh-btn" onclick="botLoadPositions()"><i class="fas fa-sync-alt"></i></button>
             </div>
             <div class="bot-card-body p-0" id="botPositionsBody">
                 <div class="bot-empty"><i class="fas fa-spinner fa-spin"></i>Loading...</div>
@@ -350,111 +262,178 @@
         <div class="bot-card">
             <div class="bot-card-header">
                 <h5><i class="fas fa-list-alt" style="color:#f59e0b;"></i>Open Orders</h5>
-                <button class="bot-refresh-btn" onclick="botLoadOrders()" title="Refresh">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
+                <button class="bot-refresh-btn" onclick="botLoadOrders()"><i class="fas fa-sync-alt"></i></button>
             </div>
             <div class="bot-card-body p-0" id="botOrdersBody">
                 <div class="bot-empty"><i class="fas fa-spinner fa-spin"></i>Loading...</div>
             </div>
         </div>
 
-        <!-- New Position -->
+        <!-- ── NEW POSITION ─────────────────────────────────── -->
         <div class="bot-card">
             <div class="bot-card-header">
                 <h5><i class="fas fa-plus-circle" style="color:#1b55e2;"></i>New Position</h5>
+                <span id="npLivePriceBadge" style="display:none;" class="np-price-badge"></span>
             </div>
             <div class="bot-card-body">
-                <div class="row g-3 new-position-form">
-                    <div class="col-sm-4 col-md-2">
-                        <label class="form-label">Symbol</label>
-                        <input type="text" class="form-control form-control-sm text-uppercase" id="npSymbol" placeholder="SPY" maxlength="10">
-                    </div>
-                    <div class="col-sm-4 col-md-2">
-                        <label class="form-label">Class</label>
-                        <select class="form-select form-select-sm" id="npClass" onchange="botToggleOptionFields()">
-                            <option value="equity">Equity</option>
-                            <option value="option">Option</option>
-                        </select>
-                    </div>
-                    <div class="col-sm-4 col-md-2">
-                        <label class="form-label">Side</label>
-                        <select class="form-select form-select-sm" id="npSide">
-                            <option value="buy">Buy</option>
-                            <option value="sell">Sell</option>
-                            <option value="buy_to_open">Buy to Open</option>
-                            <option value="buy_to_close">Buy to Close</option>
-                            <option value="sell_to_open">Sell to Open</option>
-                            <option value="sell_to_close">Sell to Close</option>
-                        </select>
-                    </div>
-                    <div class="col-sm-4 col-md-2">
-                        <label class="form-label">Quantity</label>
-                        <input type="number" class="form-control form-control-sm" id="npQty" value="1" min="1">
-                    </div>
-                    <div class="col-sm-4 col-md-2">
-                        <label class="form-label">Order Type</label>
-                        <select class="form-select form-select-sm" id="npType" onchange="botToggleLimitPrice()">
-                            <option value="market">Market</option>
-                            <option value="limit">Limit</option>
-                            <option value="stop">Stop</option>
-                            <option value="stop_limit">Stop Limit</option>
-                        </select>
-                    </div>
-                    <div class="col-sm-4 col-md-2" id="npPriceGroup">
-                        <label class="form-label">Limit Price</label>
-                        <input type="number" class="form-control form-control-sm" id="npPrice" placeholder="0.00" step="0.01">
-                    </div>
-                    <!-- Option-specific fields -->
-                    <div class="col-sm-4 col-md-3" id="npOptionSymGroup" style="display:none;">
-                        <label class="form-label">Option Symbol</label>
-                        <input type="text" class="form-control form-control-sm text-uppercase" id="npOptionSym" placeholder="SPY240620C00500000">
-                    </div>
-                    <div class="col-12 d-flex gap-2">
-                        <button class="btn btn-primary btn-sm" onclick="botPlaceOrder()">
-                            <i class="fas fa-paper-plane me-1"></i>Place Order
-                        </button>
-                        <div id="npMsg" class="align-self-center" style="font-size:13px;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Option Chain -->
-        <div class="bot-card">
-            <div class="bot-card-header">
-                <h5><i class="fas fa-table" style="color:#8b5cf6;"></i>Option Chain</h5>
-            </div>
-            <div class="bot-card-body">
-                <div class="row g-2 mb-3 align-items-end">
-                    <div class="col-auto">
-                        <label class="form-label small fw-semibold mb-1">Symbol</label>
-                        <input type="text" class="form-control form-control-sm text-uppercase" id="chainSymbol" placeholder="SPY" style="width:100px;" maxlength="10">
+                <!-- Row 1: Symbol · Strategy · Expiration -->
+                <div class="np-header-row">
+                    <div class="np-field-group">
+                        <div class="np-field-label">Symbol</div>
+                        <input type="text" id="npSym" class="np-sym-input" placeholder="SPY"
+                               maxlength="10" oninput="npOnSymbolType(this)">
                     </div>
-                    <div class="col-auto">
-                        <label class="form-label small fw-semibold mb-1">Expiration</label>
-                        <select class="form-select form-select-sm" id="chainExpiration" style="width:150px;">
-                            <option value="">— load expirations —</option>
+                    <div class="np-field-group" style="flex:1;">
+                        <div class="np-field-label">Strategy</div>
+                        <select id="npStrat" class="np-select" onchange="npOnStrategyChange()">
+                            <option value="">Select</option>
+                            <optgroup label="Equity">
+                                <option value="equity_buy">Buy Stock</option>
+                                <option value="equity_sell">Sell Stock</option>
+                            </optgroup>
+                            <optgroup label="Single Options">
+                                <option value="long_call">Long Call</option>
+                                <option value="long_put">Long Put</option>
+                                <option value="short_call">Short Call</option>
+                                <option value="short_put">Short Put</option>
+                            </optgroup>
+                            <optgroup label="Spreads">
+                                <option value="short_call_spread">Short Call Spread</option>
+                                <option value="long_call_spread">Long Call Spread</option>
+                                <option value="short_put_spread">Short Put Spread</option>
+                                <option value="long_put_spread">Long Put Spread</option>
+                            </optgroup>
+                            <optgroup label="Multi-Leg">
+                                <option value="iron_condor">Iron Condor</option>
+                                <option value="iron_butterfly">Iron Butterfly</option>
+                            </optgroup>
                         </select>
                     </div>
-                    <div class="col-auto">
-                        <button class="btn btn-sm btn-outline-primary" onclick="botLoadExpirations()">
-                            <i class="fas fa-calendar-alt me-1"></i>Load Dates
-                        </button>
-                        <button class="btn btn-sm btn-primary ms-1" onclick="botLoadOptionChain()">
-                            <i class="fas fa-table me-1"></i>Load Chain
-                        </button>
+                    <div class="np-field-group" id="npExpGroup" style="display:none;">
+                        <div class="np-field-label">Expiration</div>
+                        <div class="np-exp-picker">
+                            <button class="np-exp-nav" onclick="npStepExp(-1)">&#9664;</button>
+                            <select id="npExp" class="np-select" onchange="npOnExpChange()" style="min-width:130px;">
+                                <option value="">Select date</option>
+                            </select>
+                            <button class="np-exp-nav" onclick="npStepExp(1)">&#9654;</button>
+                            <button class="np-exp-load" onclick="npLoadExpirations()" title="Load expirations">
+                                <i class="fas fa-calendar-alt"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div id="botChainBody">
-                    <div class="bot-empty" style="padding:20px 0;">
-                        <i class="fas fa-table" style="font-size:24px;color:#e0e3ea;"></i>
-                        <div class="mt-2">Enter a symbol and load the option chain</div>
+
+                <!-- Leg selectors -->
+                <div class="np-divider" id="npLegsDivider" style="display:none;"></div>
+                <div id="npLegsRow" class="np-legs-row" style="display:none;"></div>
+
+                <!-- Inline option chain -->
+                <div id="npChainSection" class="np-chain-section" style="display:none;margin-top:14px;">
+                    <button class="np-chain-top-btn" id="npChainTopBtn" onclick="npChainScroll('up')">
+                        &#9650; lower strikes
+                    </button>
+                    <div class="np-chain-scroll" id="npChainScroll">
+                        <table class="np-chain-table">
+                            <thead>
+                                <tr>
+                                    <th>Strike</th>
+                                    <th>Bid</th><th>Ask</th>
+                                    <th>Delta</th><th>Theta</th>
+                                    <th>OI</th><th>OTM %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="npChainBody"></tbody>
+                        </table>
+                    </div>
+                    <button class="np-chain-bottom-btn" id="npChainBotBtn" onclick="npChainScroll('down')">
+                        &#9660; higher strikes
+                    </button>
+                </div>
+
+                <!-- Trade summary -->
+                <div id="npTradeSummary" style="display:none;">
+                    <div class="np-summary-grid" id="npSummaryGrid"></div>
+                    <div id="npPayoffWrap"></div>
+                </div>
+
+                <!-- Divider before order details -->
+                <div class="np-divider" id="npOrderDivider" style="display:none;"></div>
+
+                <!-- Order Details -->
+                <div id="npOrderDetails" style="display:none;">
+                    <div class="np-section-title">Order Details</div>
+                    <div class="np-order-row">
+                        <div class="np-order-field">
+                            <div class="np-field-label">Quantity</div>
+                            <div class="np-stepper">
+                                <button class="np-stepper-btn" onclick="npAdjQty(-1)">&#8722;</button>
+                                <div class="np-stepper-border"></div>
+                                <div class="np-stepper-val" id="npQtyVal">1 contract</div>
+                                <div class="np-stepper-border"></div>
+                                <button class="np-stepper-btn" onclick="npAdjQty(1)">+</button>
+                            </div>
+                        </div>
+                        <div class="np-order-field">
+                            <div class="np-field-label">Final Price</div>
+                            <div class="np-stepper">
+                                <button class="np-stepper-btn" onclick="npAdjPrice(-0.05)">&#8722;</button>
+                                <div class="np-stepper-border"></div>
+                                <div class="np-stepper-val" id="npPriceVal">$0.00</div>
+                                <div class="np-stepper-border"></div>
+                                <button class="np-stepper-btn" onclick="npAdjPrice(0.05)">+</button>
+                            </div>
+                        </div>
+                        <div class="np-order-field">
+                            <div class="np-field-label">Order Type</div>
+                            <select id="npOrderType" class="np-select" style="min-width:120px;">
+                                <option value="limit">Limit</option>
+                                <option value="market">Market</option>
+                                <option value="credit">Credit</option>
+                                <option value="debit">Debit</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+
+                <!-- Equity quick details (no legs needed) -->
+                <div id="npEquityDetails" style="display:none;margin-top:16px;">
+                    <div class="np-section-title">Order Details</div>
+                    <div class="np-order-row">
+                        <div class="np-order-field">
+                            <div class="np-field-label">Quantity (shares)</div>
+                            <div class="np-stepper">
+                                <button class="np-stepper-btn" onclick="npAdjQty(-1)">&#8722;</button>
+                                <div class="np-stepper-border"></div>
+                                <div class="np-stepper-val" id="npEqQtyVal">1 share</div>
+                                <div class="np-stepper-border"></div>
+                                <button class="np-stepper-btn" onclick="npAdjQty(1)">+</button>
+                            </div>
+                        </div>
+                        <div class="np-order-field">
+                            <div class="np-field-label">Order Type</div>
+                            <select id="npEqOrderType" class="np-select" style="min-width:120px;" onchange="npToggleEqPrice()">
+                                <option value="market">Market</option>
+                                <option value="limit">Limit</option>
+                                <option value="stop">Stop</option>
+                            </select>
+                        </div>
+                        <div class="np-order-field" id="npEqPriceField" style="display:none;">
+                            <div class="np-field-label">Price</div>
+                            <input type="number" id="npEqPrice" class="np-sym-input" style="width:100px;" placeholder="0.00" step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Place Trade -->
+                <div class="np-place-row" id="npPlaceRow" style="display:none;">
+                    <button class="np-place-btn" id="npPlaceBtn" onclick="npPlaceTrade()">Place Trade</button>
+                    <div id="npMsg" style="margin-top:10px;font-size:13px;text-align:center;min-height:20px;"></div>
+                </div>
+
+            </div><!-- /bot-card-body -->
+        </div><!-- /bot-card -->
 
     </div><!-- /botDashboardView -->
-
 </div><!-- /botPageRoot -->

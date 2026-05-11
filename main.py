@@ -8253,6 +8253,29 @@ def bot_tradier_place_order():
     return _tradier_proxy(f'/accounts/{acct}/orders', method='POST', body=body)
 
 
+@app.route('/api/bot/tradier/quote', methods=['GET'])
+@login_required
+def bot_tradier_quote():
+    from models import BotConfig, decrypt_value
+    symbol = request.args.get('symbol', '')
+    if not symbol:
+        return jsonify({'error': 'symbol required'}), 400
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if cfg and cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
+        live_key = decrypt_value(cfg.paper_live_api_key_enc)
+        if live_key:
+            try:
+                r = requests.get(
+                    'https://api.tradier.com/v1/markets/quotes',
+                    headers={'Authorization': f'Bearer {live_key}', 'Accept': 'application/json'},
+                    params={'symbols': symbol}, timeout=10
+                )
+                return jsonify(r.json()), r.status_code
+            except Exception:
+                pass
+    return _tradier_proxy('/markets/quotes', params={'symbols': symbol})
+
+
 @app.route('/api/bot/tradier/options/expirations', methods=['GET'])
 @login_required
 def bot_tradier_option_expirations():
