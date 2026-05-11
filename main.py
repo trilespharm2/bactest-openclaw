@@ -8202,6 +8202,8 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
     try:
         if method == 'GET':
             resp = requests.get(url, headers=headers, params=params, timeout=15)
+        elif method == 'DELETE':
+            resp = requests.delete(url, headers=headers, timeout=15)
         else:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
             resp = requests.post(url, headers=headers, data=body, timeout=15)
@@ -8358,6 +8360,15 @@ def bot_tradier_place_order():
     data = request.get_json() or {}
     body = {k: v for k, v in data.items()}
     return _tradier_proxy(f'/accounts/{acct}/orders', method='POST', body=body)
+
+
+@app.route('/api/bot/tradier/orders/<int:order_id>', methods=['DELETE'])
+@login_required
+def bot_tradier_cancel_order(order_id):
+    acct = _tradier_account_id()
+    if not acct:
+        return jsonify({'error': 'Account ID not configured'}), 400
+    return _tradier_proxy(f'/accounts/{acct}/orders/{order_id}', method='DELETE')
 
 
 @app.route('/api/bot/tradier/quote', methods=['GET'])

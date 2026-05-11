@@ -317,9 +317,10 @@ async function botLoadOrders() {
       return;
     }
     const orders = Array.isArray(raw) ? raw : [raw];
-    const sBadge = s => { const m={open:'badge-open',filled:'badge-filled',canceled:'badge-canceled',pending:'badge-pending'}; return `<span class="badge-side ${m[s]||'badge-pending'}">${s}</span>`; };
+    const sBadge  = s => { const m={open:'badge-open',filled:'badge-filled',canceled:'badge-canceled',pending:'badge-pending'}; return `<span class="badge-side ${m[s]||'badge-pending'}">${s}</span>`; };
     const sdBadge = s => { const buy=['buy','buy_to_open','buy_to_close'].includes(s); return `<span class="badge-side ${buy?'badge-buy':'badge-sell'}">${s.replace(/_/g,' ')}</span>`; };
-    body.innerHTML = `<div style="overflow-x:auto;"><table class="bot-table"><thead><tr><th>ID</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Price</th><th>Status</th><th>Date</th></tr></thead><tbody>${orders.map(o => `<tr><td style="color:#9098a9;font-size:11px;">${o.id}</td><td><strong>${o.symbol}</strong></td><td>${sdBadge(o.side)}</td><td>${o.quantity}</td><td style="text-transform:capitalize;">${(o.type||'').replace(/_/g,' ')}</td><td>${o.price ? _fmt$(o.price) : (o.stop_price ? 'Stop '+_fmt$(o.stop_price) : 'Mkt')}</td><td>${sBadge(o.status)}</td><td style="font-size:11px;">${o.create_date ? o.create_date.split('T')[0] : '—'}</td></tr>`).join('')}</tbody></table></div>`;
+    const canCancel = s => ['open','pending','partially_filled'].includes(s);
+    body.innerHTML = `<div style="overflow-x:auto;"><table class="bot-table"><thead><tr><th>ID</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Price</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>${orders.map(o => `<tr><td style="color:#9098a9;font-size:11px;">${o.id}</td><td><strong>${o.symbol}</strong></td><td>${sdBadge(o.side)}</td><td>${o.quantity}</td><td style="text-transform:capitalize;">${(o.type||'').replace(/_/g,' ')}</td><td>${o.price ? _fmt$(o.price) : (o.stop_price ? 'Stop '+_fmt$(o.stop_price) : 'Mkt')}</td><td>${sBadge(o.status)}</td><td style="font-size:11px;">${o.create_date ? o.create_date.split('T')[0] : '—'}</td><td>${canCancel(o.status) ? `<button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:11px;" onclick="botCancelOrder(${o.id},this)"><i class="fas fa-times me-1"></i>Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
   } catch (e) { body.innerHTML = `<div class="bot-empty py-4"><i class="fas fa-times-circle" style="color:#ef4444;"></i><div class="mt-2">${e.message}</div></div>`; }
 }
 
@@ -865,20 +866,30 @@ async function npPlaceTrade() {
     body = { class:'equity', symbol: sym, side, quantity: qty, type: otype, duration:'day' };
     if (otype !== 'market' && price) body.price = price;
   } else {
-    // Multi-leg option order
+    // Option order (single-leg class=option, multi-leg class=multileg)
     const legs = strat.legs;
     const orderType = document.getElementById('npOrderType')?.value || 'limit';
-    body = { class: legs.length === 1 ? 'option' : 'multileg', type: orderType, duration:'day', quantity: _npQty, price: _npPrice };
-    if (legs.length === 1) {
+    const isMulti   = legs.length > 1;
+    body = {
+      class:    isMulti ? 'multileg' : 'option',
+      symbol:   sym,
+      type:     orderType,
+      duration: 'day',
+      price:    _npPrice,
+    };
+    if (!isMulti) {
+      // Single-leg: flat params
       const ls = _npLegStrikes[0];
       body.option_symbol = ls.symbol;
-      body.side = legs[0].side === 'buy' ? 'buy_to_open' : 'sell_to_open';
+      body.side          = legs[0].side === 'buy' ? 'buy_to_open' : 'sell_to_open';
+      body.quantity      = _npQty;
     } else {
+      // Multileg: Tradier expects option_symbol[N], side[N], quantity[N]
       legs.forEach((l, i) => {
         const ls = _npLegStrikes[i]; if (!ls) return;
-        body[`legs[${i}][option_symbol]`] = ls.symbol;
-        body[`legs[${i}][side]`]          = l.side === 'buy' ? 'buy_to_open' : 'sell_to_open';
-        body[`legs[${i}][quantity]`]       = _npQty;
+        body[`option_symbol[${i}]`] = ls.symbol;
+        body[`side[${i}]`]          = l.side === 'buy' ? 'buy_to_open' : 'sell_to_open';
+        body[`quantity[${i}]`]      = _npQty;
       });
     }
   }
@@ -896,6 +907,31 @@ async function npPlaceTrade() {
     }
   } catch (e) { msg.innerHTML = `<span style="color:#ef4444;">Error: ${e.message}</span>`; }
   finally { btn.disabled = false; btn.textContent = 'Place Trade'; }
+}
+
+// ── Cancel Order ───────────────────────────────────────────────────
+async function botCancelOrder(orderId, btn) {
+  if (!confirm(`Cancel order #${orderId}?`)) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  try {
+    const resp = await fetch(`/api/bot/tradier/orders/${orderId}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.order?.status === 'ok' || resp.ok) {
+      btn.closest('tr').querySelectorAll('td')[6].innerHTML =
+        '<span class="badge-side badge-canceled">canceled</span>';
+      btn.remove();
+    } else {
+      const err = data?.errors?.error || data.error || 'Cancel failed';
+      alert(Array.isArray(err) ? err.join(', ') : err);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel';
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel';
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
