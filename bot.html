@@ -111,6 +111,116 @@
 .np-place-btn:hover{background:#1545c4}
 .np-place-btn:disabled{background:#93aee0;cursor:not-allowed}
 .np-place-row{padding-top:20px}
+
+/* ── Strategy Section ──────────────────────────────────────────────── */
+.strat-new-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;background:#1b55e2;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s}
+.strat-new-btn:hover{background:#1545c4}
+.strat-list{padding:0}
+.strat-item{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f1f3;gap:12px}
+.strat-item:last-child{border-bottom:none}
+.strat-item-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+.strat-item-icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.strat-item-icon i{color:#fff;font-size:14px}
+.strat-item-name{font-size:14px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strat-item-meta{font-size:11px;color:#9098a9;margin-top:2px}
+.strat-item-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.strat-toggle-wrap{display:flex;align-items:center;gap:6px}
+.strat-toggle-label{font-size:12px;font-weight:600;width:30px}
+.strat-toggle-label.off{color:#9098a9}
+.strat-toggle-label.live{color:#10b981}
+.strat-toggle{position:relative;width:42px;height:24px;cursor:pointer}
+.strat-toggle input{opacity:0;width:0;height:0}
+.strat-toggle-slider{position:absolute;inset:0;background:#dee2e6;border-radius:24px;transition:.3s}
+.strat-toggle-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.strat-toggle input:checked+.strat-toggle-slider{background:#10b981}
+.strat-toggle input:checked+.strat-toggle-slider:before{transform:translateX(18px)}
+.strat-edit-btn{width:30px;height:30px;border:1px solid #dee2e6;border-radius:7px;background:#fff;color:#6c757d;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s}
+.strat-edit-btn:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff}
+.strat-del-btn{width:30px;height:30px;border:1px solid #dee2e6;border-radius:7px;background:#fff;color:#9098a9;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s}
+.strat-del-btn:hover{border-color:#ef4444;color:#ef4444;background:#fef2f2}
+
+/* ── Strategy Builder Overlay ─────────────────────────────────────── */
+.sb-header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:56px;background:#fff;border-bottom:1px solid #eef0f3;flex-shrink:0;gap:12px}
+.sb-header-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+.sb-back-btn{width:34px;height:34px;border:1.5px solid #dee2e6;border-radius:8px;background:#fff;color:#495057;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;flex-shrink:0}
+.sb-back-btn:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff}
+.sb-name-input{border:none;outline:none;font-size:16px;font-weight:700;color:#1a1a2e;background:transparent;min-width:0;flex:1;max-width:400px}
+.sb-name-input::placeholder{color:#9098a9;font-weight:400}
+.sb-header-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sb-run-btn{padding:7px 16px;border:1.5px solid #dee2e6;border-radius:8px;background:#fff;color:#495057;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.sb-run-btn:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff}
+.sb-save-btn{padding:7px 18px;border:none;border-radius:8px;background:#1b55e2;color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s}
+.sb-save-btn:hover{background:#1545c4}
+
+.sb-body{display:flex;flex:1;min-height:0;overflow:hidden}
+.sb-inputs-panel{width:200px;min-width:180px;background:#fff;border-right:1px solid #eef0f3;padding:20px 16px;display:flex;flex-direction:column;gap:0;position:relative;flex-shrink:0}
+.sb-panel-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#9098a9;margin-bottom:10px}
+.sb-panel-edit-btn{position:absolute;top:18px;right:14px;width:26px;height:26px;border:1px solid #dee2e6;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#6c757d;transition:all .2s}
+.sb-panel-edit-btn:hover{border-color:#1b55e2;color:#1b55e2}
+.sb-inputs-none{font-size:13px;color:#9098a9;margin-bottom:6px}
+.sb-show-help{font-size:12px;color:#1b55e2;cursor:pointer;text-decoration:underline;margin-bottom:8px}
+.sb-show-help:hover{color:#1545c4}
+.sb-inputs-help{background:#f0f4ff;border-radius:8px;padding:10px 12px;font-size:12px;color:#495057;line-height:1.5;margin-bottom:8px}
+.sb-inputs-help p{margin:0}
+.sb-counts{margin-top:auto;border-top:1px solid #eef0f3;padding-top:14px}
+.sb-count-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px}
+.sb-count-label{color:#6c757d;font-weight:500}
+.sb-count-val{font-weight:700;color:#1a1a2e;background:#f1f3f7;border-radius:12px;padding:1px 8px;font-size:11px}
+.sb-count-val.warn{background:#fef3c7;color:#92400e}
+
+.sb-canvas{flex:1;overflow:auto;padding:32px 0;display:flex;flex-direction:column;align-items:center;min-height:0}
+.sb-start-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9098a9;margin-bottom:8px}
+.sb-flow{display:flex;flex-direction:column;align-items:center;gap:0;min-width:360px;width:100%;max-width:600px;padding:0 20px}
+.sb-connector{display:flex;flex-direction:column;align-items:center;gap:0;width:100%}
+.sb-connector-line{width:2px;height:20px;background:#dee2e6}
+.sb-add-btn{width:32px;height:32px;border:2px solid #dee2e6;border-radius:8px;background:#fff;color:#9098a9;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.sb-add-btn:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff;box-shadow:0 2px 8px rgba(27,85,226,.15)}
+.sb-step-card{width:100%;background:#fff;border:1.5px solid #e8ebf0;border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:border-color .2s;cursor:pointer;position:relative}
+.sb-step-card:hover{border-color:#1b55e2;box-shadow:0 2px 10px rgba(27,85,226,.1)}
+.sb-step-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+.sb-step-info{flex:1;min-width:0}
+.sb-step-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#9098a9;margin-bottom:3px}
+.sb-step-label{font-size:14px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-step-desc{font-size:11px;color:#9098a9;margin-top:2px;line-height:1.4}
+.sb-step-del{position:absolute;top:8px;right:10px;width:24px;height:24px;border:none;background:none;color:#dee2e6;cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s}
+.sb-step-del:hover{background:#fef2f2;color:#ef4444}
+
+/* Branch step (Decision) */
+.sb-branch{width:100%;display:flex;gap:12px;align-items:flex-start}
+.sb-branch-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:0}
+.sb-branch-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:12px;margin-bottom:6px}
+.sb-branch-yes{background:#d1fae5;color:#065f46}
+.sb-branch-no{background:#fee2e2;color:#991b1b}
+
+.sb-drawer{width:320px;min-width:280px;background:#fff;border-left:1px solid #eef0f3;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sb-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eef0f3;flex-shrink:0}
+.sb-drawer-title{font-size:15px;font-weight:700;color:#1a1a2e}
+.sb-drawer-close{width:28px;height:28px;border:1.5px solid #dee2e6;border-radius:7px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6c757d;transition:all .2s}
+.sb-drawer-close:hover{border-color:#ef4444;color:#ef4444}
+.sb-drawer-body{flex:1;overflow-y:auto;padding:14px 16px}
+.sb-drawer-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#9098a9;margin-bottom:8px}
+.sb-drawer-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1.5px solid #eef0f3;border-radius:10px;cursor:pointer;margin-bottom:8px;transition:all .2s;background:#fafbfc}
+.sb-drawer-item:hover{border-color:#1b55e2;background:#eff6ff}
+.sb-drawer-item-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.sb-drawer-item-info{flex:1;min-width:0}
+.sb-drawer-item-name{font-size:13px;font-weight:600;color:#1a1a2e}
+.sb-drawer-item-desc{font-size:11px;color:#9098a9;margin-top:1px;line-height:1.4}
+.sb-drawer-item-arrow{color:#dee2e6;font-size:11px;flex-shrink:0}
+.sb-drawer-item:hover .sb-drawer-item-arrow{color:#1b55e2}
+
+/* Step config modal */
+.sb-step-modal{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:10}
+.sb-step-modal-box{background:#fff;border-radius:14px;width:460px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.18);overflow:hidden}
+.sb-step-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eef0f3}
+.sb-step-modal-header span{font-size:16px;font-weight:700;color:#1a1a2e}
+.sb-step-modal-body{padding:20px;max-height:60vh;overflow-y:auto}
+.sb-step-modal-footer{display:flex;gap:10px;padding:14px 20px;border-top:1px solid #eef0f3;justify-content:flex-end}
+.sb-form-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9098a9;margin-bottom:5px}
+.sb-form-row{margin-bottom:14px}
+.sb-form-input{width:100%;padding:9px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;color:#1a1a2e;outline:none;background:#fff}
+.sb-form-input:focus{border-color:#1b55e2;box-shadow:0 0 0 3px rgba(27,85,226,.1)}
+.sb-form-select{width:100%;padding:9px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;color:#1a1a2e;outline:none;background:#fff;cursor:pointer}
+.sb-form-select:focus{border-color:#1b55e2;box-shadow:0 0 0 3px rgba(27,85,226,.1)}
 </style>
 
 <div class="container-fluid py-3" id="botPageRoot">
@@ -248,6 +358,22 @@
             </div>
             <div class="bot-card-body" id="botBalanceBody">
                 <div class="bot-empty"><i class="fas fa-spinner fa-spin"></i>Loading...</div>
+            </div>
+        </div>
+
+        <!-- Strategies -->
+        <div class="bot-card" id="botStrategiesCard">
+            <div class="bot-card-header">
+                <h5><i class="fas fa-robot" style="color:#6366f1;"></i>Strategies</h5>
+                <button class="strat-new-btn" onclick="stratBuilderOpen(null)" title="Create new strategy">
+                    <i class="fas fa-plus"></i> New Strategy
+                </button>
+            </div>
+            <div class="bot-card-body p-0" id="botStrategiesBody">
+                <div class="bot-empty" style="padding:28px 20px;">
+                    <i class="fas fa-robot" style="font-size:28px;margin-bottom:8px;display:block;color:#dee2e6;"></i>
+                    No strategies yet. Click <strong>+ New Strategy</strong> to create one.
+                </div>
             </div>
         </div>
 
@@ -441,3 +567,79 @@
 
     </div><!-- /botDashboardView -->
 </div><!-- /botPageRoot -->
+
+<!-- ===================== STRATEGY BUILDER OVERLAY ===================== -->
+<div id="stratBuilderOverlay" style="display:none;position:fixed;inset:0;z-index:2000;background:#f4f5f8;flex-direction:column;">
+
+    <!-- Builder Header -->
+    <div class="sb-header">
+        <div class="sb-header-left">
+            <button class="sb-back-btn" onclick="stratBuilderClose()"><i class="fas fa-arrow-left"></i></button>
+            <input type="text" id="sbStratName" class="sb-name-input" placeholder="Untitled Strategy" maxlength="60">
+        </div>
+        <div class="sb-header-right">
+            <button class="sb-run-btn" onclick="stratRunTest()"><i class="fas fa-cog me-1"></i>Run Test</button>
+            <button class="sb-save-btn" onclick="stratBuilderSave()"><i class="fas fa-save me-1"></i>Save</button>
+        </div>
+    </div>
+
+    <!-- Builder Body -->
+    <div class="sb-body">
+
+        <!-- Left: Inputs Panel -->
+        <div class="sb-inputs-panel">
+            <div class="sb-panel-title">Inputs</div>
+            <div class="sb-panel-edit-btn" onclick="stratEditInputs()"><i class="fas fa-pen"></i></div>
+            <div id="sbInputsSummary" class="sb-inputs-summary">
+                <div class="sb-inputs-none">No inputs</div>
+                <div class="sb-show-help" onclick="stratToggleHelp()">Show help</div>
+            </div>
+            <div id="sbInputsHelp" class="sb-inputs-help" style="display:none;">
+                <p>Inputs let you pass data into your strategy at runtime — like a specific symbol, a delta target, or a custom threshold.</p>
+            </div>
+            <div class="sb-counts">
+                <div class="sb-count-row"><span class="sb-count-label">Opportunities</span><span class="sb-count-val" id="sbOpportunities">0</span></div>
+                <div class="sb-count-row"><span class="sb-count-label">Warnings</span><span class="sb-count-val warn" id="sbWarnings">0</span></div>
+            </div>
+        </div>
+
+        <!-- Center: Flow Canvas -->
+        <div class="sb-canvas" id="sbCanvas">
+            <div class="sb-start-label">START AUTOMATION</div>
+            <div class="sb-flow" id="sbFlow">
+                <!-- steps rendered by JS -->
+            </div>
+        </div>
+
+        <!-- Right: Add Step Drawer -->
+        <div class="sb-drawer" id="sbDrawer" style="display:none;">
+            <div class="sb-drawer-header">
+                <span class="sb-drawer-title">Add Step</span>
+                <button class="sb-drawer-close" onclick="stratCloseDrawer()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="sb-drawer-body">
+                <div class="sb-drawer-section-label">Actions</div>
+                <div id="sbActionsList"></div>
+                <div class="sb-drawer-section-label" style="margin-top:14px;">Loops</div>
+                <div id="sbLoopsList"></div>
+            </div>
+        </div>
+
+    </div><!-- /sb-body -->
+
+    <!-- Step Config Modal -->
+    <div id="sbStepModal" class="sb-step-modal" style="display:none;">
+        <div class="sb-step-modal-box">
+            <div class="sb-step-modal-header">
+                <span id="sbStepModalTitle">Configure Step</span>
+                <button class="sb-drawer-close" onclick="stratCloseStepModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="sb-step-modal-body" id="sbStepModalBody"></div>
+            <div class="sb-step-modal-footer">
+                <button class="sb-save-btn" onclick="stratSaveStepConfig()">Apply</button>
+                <button class="sb-run-btn" onclick="stratCloseStepModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /stratBuilderOverlay -->

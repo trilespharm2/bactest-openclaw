@@ -246,7 +246,7 @@ function _fmtK(n) {
 }
 
 // ── Load All Dashboard Data ────────────────────────────────────────
-function botLoadAll() { botLoadBalances(); botLoadPositions(); botLoadOrders(); }
+function botLoadAll() { botLoadBalances(); botLoadPositions(); botLoadOrders(); strategiesRender(); }
 
 // ── Account Balance ────────────────────────────────────────────────
 async function botLoadBalances() {
@@ -1093,4 +1093,428 @@ async function botCancelOrder(orderId, btn) {
 function _show(id, visible) {
   const el = document.getElementById(id);
   if (el) el.style.display = visible ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STRATEGY BUILDER
+// ══════════════════════════════════════════════════════════════════
+
+const SB_ACTIONS = [
+  { type:'decision',       icon:'fa-code-branch',  bg:'#fff8e7', color:'#f59e0b', label:'Decision',        desc:'Conditional split into Yes/No paths.' },
+  { type:'conditional',    icon:'fa-check-circle', bg:'#f0fdf4', color:'#10b981', label:'Conditional',     desc:'Conditional action(s) then continue on 1 path.' },
+  { type:'open_position',  icon:'fa-plus-square',  bg:'#eff6ff', color:'#1b55e2', label:'Open Position',   desc:'Place a trade to open a new position.' },
+  { type:'close_position', icon:'fa-minus-square', bg:'#fef2f2', color:'#ef4444', label:'Close Position',  desc:'Place a trade to close a position.' },
+  { type:'notification',   icon:'fa-bell',         bg:'#f5f3ff', color:'#6366f1', label:'Notification',    desc:'Send a notification to yourself.' },
+  { type:'tags',           icon:'fa-tag',          bg:'#fdf4ff', color:'#a855f7', label:'Tags',            desc:'Tag your bot and positions.' },
+];
+const SB_LOOPS = [
+  { type:'loop_positions',   icon:'fa-sync-alt', bg:'#f4f5f8', color:'#6c757d', label:'Positions',   desc:'Run subsequent actions for open positions.' },
+  { type:'loop_symbols',     icon:'fa-list',     bg:'#f4f5f8', color:'#6c757d', label:'Symbols',     desc:'Run subsequent actions for a list of symbols.' },
+  { type:'loop_bot_symbols', icon:'fa-robot',    bg:'#f4f5f8', color:'#6c757d', label:'Bot Symbols', desc:'Run subsequent actions for the bot\'s symbols.' },
+];
+
+// Default config per step type
+function sbDefaultConfig(type) {
+  if (type === 'open_position')  return { symbol:'', strategy:'short_put_spread', dte:30, quantity:1, orderType:'credit' };
+  if (type === 'close_position') return { target:'all', reason:'manual' };
+  if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
+  if (type === 'decision')       return { condition:'delta_above', value:'0.30', label:'Delta > 0.30' };
+  if (type === 'conditional')    return { condition:'time_before', value:'15:30', label:'Before 3:30 PM' };
+  if (type === 'tags')           return { tag:'' };
+  return {};
+}
+
+function sbConfigSummary(step) {
+  const c = step.config || {};
+  if (step.type === 'open_position')  return `${c.symbol||'?'} · ${(NP_STRATEGIES[c.strategy]||{}).name||c.strategy} · ${c.dte||30} DTE`;
+  if (step.type === 'close_position') return `Close ${c.target||'all'} positions`;
+  if (step.type === 'notification')   return c.message || 'Send notification';
+  if (step.type === 'decision')       return c.label || 'Set condition…';
+  if (step.type === 'conditional')    return c.label || 'Set condition…';
+  if (step.type === 'tags')           return c.tag ? `Tag: ${c.tag}` : 'Set tag…';
+  if (step.type === 'loop_positions') return 'For each open position';
+  if (step.type === 'loop_symbols')   return 'For each symbol';
+  if (step.type === 'loop_bot_symbols') return 'For each bot symbol';
+  return '';
+}
+
+// ── Builder state ──────────────────────────────────────────────────
+let _sbEditId    = null;   // strategy id being edited (null = new)
+let _sbSteps     = [];     // array of step objects
+let _sbInsertIdx = -1;     // where to insert the next step
+let _sbEditStepIdx = -1;   // step index being configured in modal
+
+// ── localStorage helpers ───────────────────────────────────────────
+function sbLoad() {
+  try { return JSON.parse(localStorage.getItem('botStrategies') || '[]'); } catch { return []; }
+}
+function sbSave(list) {
+  localStorage.setItem('botStrategies', JSON.stringify(list));
+}
+function sbUUID() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+
+// ── Open/Close builder ────────────────────────────────────────────
+function stratBuilderOpen(stratId) {
+  _sbEditId = stratId;
+  if (stratId) {
+    const list = sbLoad();
+    const s = list.find(x => x.id === stratId);
+    if (!s) return;
+    document.getElementById('sbStratName').value = s.name;
+    _sbSteps = JSON.parse(JSON.stringify(s.steps || []));
+  } else {
+    document.getElementById('sbStratName').value = '';
+    _sbSteps = [];
+  }
+  sbRenderFlow();
+  stratCloseDrawer();
+  document.getElementById('sbStepModal').style.display = 'none';
+  const ov = document.getElementById('stratBuilderOverlay');
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  sbRenderDrawerItems();
+}
+
+function stratBuilderClose() {
+  document.getElementById('stratBuilderOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// ── Save ──────────────────────────────────────────────────────────
+function stratBuilderSave() {
+  const name = (document.getElementById('sbStratName').value || '').trim() || 'Untitled Strategy';
+  const list = sbLoad();
+  if (_sbEditId) {
+    const idx = list.findIndex(x => x.id === _sbEditId);
+    if (idx >= 0) {
+      list[idx].name  = name;
+      list[idx].steps = _sbSteps;
+      list[idx].updatedAt = new Date().toISOString();
+    }
+  } else {
+    list.push({ id: sbUUID(), name, status:'off', steps: _sbSteps, createdAt: new Date().toISOString() });
+  }
+  sbSave(list);
+  stratBuilderClose();
+  strategiesRender();
+}
+
+// ── Run Test (stub) ────────────────────────────────────────────────
+function stratRunTest() {
+  alert('Run Test: simulates the strategy against recent market data. (Coming soon)');
+}
+
+function stratEditInputs() {
+  alert('Inputs: define runtime variables for your strategy. (Coming soon)');
+}
+
+function stratToggleHelp() {
+  const h = document.getElementById('sbInputsHelp');
+  if (h) h.style.display = h.style.display === 'none' ? '' : 'none';
+}
+
+// ── Flow rendering ─────────────────────────────────────────────────
+function sbRenderFlow() {
+  const flow = document.getElementById('sbFlow');
+  if (!flow) return;
+  let html = '';
+
+  // First add-button (before any steps)
+  html += sbAddBtnHTML(0);
+
+  _sbSteps.forEach((step, idx) => {
+    const meta = [...SB_ACTIONS, ...SB_LOOPS].find(m => m.type === step.type) || {};
+    const summary = sbConfigSummary(step);
+
+    // For decision step: show Yes/No branch labels
+    const isBranch = step.type === 'decision';
+
+    html += `
+      <div class="sb-connector"><div class="sb-connector-line"></div></div>
+      <div class="sb-step-card" onclick="stratEditStep(${idx})">
+        <div class="sb-step-icon" style="background:${meta.bg||'#f1f3f7'};color:${meta.color||'#6c757d'}">
+          <i class="fas ${meta.icon||'fa-circle'}"></i>
+        </div>
+        <div class="sb-step-info">
+          <div class="sb-step-type">${meta.label||step.type}</div>
+          <div class="sb-step-desc">${summary}</div>
+        </div>
+        <button class="sb-step-del" onclick="event.stopPropagation();sbRemoveStep(${idx})" title="Remove step">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>`;
+
+    if (isBranch) {
+      html += `
+        <div class="sb-connector"><div class="sb-connector-line"></div></div>
+        <div class="sb-branch">
+          <div class="sb-branch-col">
+            <div class="sb-branch-label sb-branch-yes">Yes</div>
+            ${sbAddBtnHTML(idx + 1, 'yes')}
+          </div>
+          <div class="sb-branch-col">
+            <div class="sb-branch-label sb-branch-no">No</div>
+            ${sbAddBtnHTML(idx + 1, 'no')}
+          </div>
+        </div>`;
+    } else {
+      html += sbAddBtnHTML(idx + 1);
+    }
+  });
+
+  flow.innerHTML = html;
+}
+
+function sbAddBtnHTML(insertIdx, branch) {
+  const extra = branch ? ` data-branch="${branch}"` : '';
+  return `<div class="sb-connector"><div class="sb-connector-line"></div></div>
+    <button class="sb-add-btn" onclick="stratOpenDrawer(${insertIdx})"${extra} title="Add step">+</button>`;
+}
+
+// ── Drawer ─────────────────────────────────────────────────────────
+function sbRenderDrawerItems() {
+  const actionEl = document.getElementById('sbActionsList');
+  const loopEl   = document.getElementById('sbLoopsList');
+  if (!actionEl || !loopEl) return;
+  actionEl.innerHTML = SB_ACTIONS.map(m => sbDrawerItemHTML(m)).join('');
+  loopEl.innerHTML   = SB_LOOPS.map(m => sbDrawerItemHTML(m)).join('');
+}
+
+function sbDrawerItemHTML(m) {
+  return `<div class="sb-drawer-item" onclick="sbAddStep('${m.type}')">
+    <div class="sb-drawer-item-icon" style="background:${m.bg};color:${m.color}"><i class="fas ${m.icon}"></i></div>
+    <div class="sb-drawer-item-info">
+      <div class="sb-drawer-item-name">${m.label}</div>
+      <div class="sb-drawer-item-desc">${m.desc}</div>
+    </div>
+    <i class="fas fa-chevron-right sb-drawer-item-arrow"></i>
+  </div>`;
+}
+
+function stratOpenDrawer(insertIdx) {
+  _sbInsertIdx = insertIdx;
+  document.getElementById('sbDrawer').style.display = 'flex';
+  document.getElementById('sbDrawer').style.flexDirection = 'column';
+}
+
+function stratCloseDrawer() {
+  const d = document.getElementById('sbDrawer');
+  if (d) d.style.display = 'none';
+  _sbInsertIdx = -1;
+}
+
+// ── Add step ───────────────────────────────────────────────────────
+function sbAddStep(type) {
+  const step = { id: sbUUID(), type, config: sbDefaultConfig(type) };
+  const idx  = _sbInsertIdx >= 0 ? _sbInsertIdx : _sbSteps.length;
+  _sbSteps.splice(idx, 0, step);
+  stratCloseDrawer();
+  sbRenderFlow();
+  // Count opportunities/warnings
+  sbUpdateCounts();
+  // Auto-open config modal for certain step types
+  if (['open_position','close_position','notification','decision','conditional','tags'].includes(type)) {
+    stratEditStep(idx);
+  }
+}
+
+function sbRemoveStep(idx) {
+  _sbSteps.splice(idx, 1);
+  sbRenderFlow();
+  sbUpdateCounts();
+}
+
+function sbUpdateCounts() {
+  const ops = _sbSteps.filter(s => s.type === 'open_position').length;
+  const warns = _sbSteps.filter(s => {
+    if (s.type === 'open_position' && !s.config.symbol) return true;
+    if (s.type === 'notification' && !s.config.message) return true;
+    return false;
+  }).length;
+  const oEl = document.getElementById('sbOpportunities');
+  const wEl = document.getElementById('sbWarnings');
+  if (oEl) oEl.textContent = ops;
+  if (wEl) { wEl.textContent = warns; wEl.classList.toggle('warn', warns > 0); }
+}
+
+// ── Step config modal ──────────────────────────────────────────────
+function stratEditStep(idx) {
+  const step = _sbSteps[idx];
+  if (!step) return;
+  _sbEditStepIdx = idx;
+  const meta = [...SB_ACTIONS, ...SB_LOOPS].find(m => m.type === step.type) || {};
+  document.getElementById('sbStepModalTitle').textContent = `Configure: ${meta.label || step.type}`;
+  document.getElementById('sbStepModalBody').innerHTML = sbStepConfigHTML(step);
+  document.getElementById('sbStepModal').style.display = 'flex';
+}
+
+function stratCloseStepModal() {
+  document.getElementById('sbStepModal').style.display = 'none';
+  _sbEditStepIdx = -1;
+}
+
+function stratSaveStepConfig() {
+  if (_sbEditStepIdx < 0) return;
+  const step = _sbSteps[_sbEditStepIdx];
+  if (!step) return;
+  const c = step.config;
+
+  if (step.type === 'open_position') {
+    c.symbol   = (document.getElementById('sbcSymbol')?.value || '').toUpperCase().trim();
+    c.strategy = document.getElementById('sbcStrategy')?.value || c.strategy;
+    c.dte      = parseInt(document.getElementById('sbcDte')?.value) || 30;
+    c.quantity = parseInt(document.getElementById('sbcQty')?.value) || 1;
+    c.orderType = document.getElementById('sbcOrderType')?.value || 'credit';
+  } else if (step.type === 'close_position') {
+    c.target = document.getElementById('sbcTarget')?.value || 'all';
+    c.reason = document.getElementById('sbcReason')?.value || 'manual';
+  } else if (step.type === 'notification') {
+    c.message = (document.getElementById('sbcMessage')?.value || '').trim();
+    c.channel = document.getElementById('sbcChannel')?.value || 'email';
+  } else if (step.type === 'decision' || step.type === 'conditional') {
+    c.condition = document.getElementById('sbcCondition')?.value || c.condition;
+    c.value     = (document.getElementById('sbcCondValue')?.value || '').trim();
+    const cOpts = sbConditionOptions();
+    const cLabel = (cOpts.find(o => o.value === c.condition) || {}).label || c.condition;
+    c.label = `${cLabel} ${c.value}`;
+  } else if (step.type === 'tags') {
+    c.tag = (document.getElementById('sbcTag')?.value || '').trim();
+  }
+
+  stratCloseStepModal();
+  sbRenderFlow();
+  sbUpdateCounts();
+}
+
+function sbConditionOptions() {
+  return [
+    { value:'delta_above',  label:'Delta >' },
+    { value:'delta_below',  label:'Delta <' },
+    { value:'dte_below',    label:'DTE <' },
+    { value:'pnl_above',    label:'P&L % >' },
+    { value:'pnl_below',    label:'P&L % <' },
+    { value:'time_before',  label:'Before time' },
+    { value:'time_after',   label:'After time' },
+    { value:'iv_rank_above',label:'IV Rank >' },
+    { value:'iv_rank_below',label:'IV Rank <' },
+  ];
+}
+
+function sbStepConfigHTML(step) {
+  const c = step.config || {};
+  if (step.type === 'open_position') {
+    const stratOpts = Object.entries(NP_STRATEGIES)
+      .filter(([k]) => !k.startsWith('equity'))
+      .map(([k, v]) => `<option value="${k}" ${c.strategy===k?'selected':''}>${v.name}</option>`)
+      .join('');
+    const otOpts = ['credit','debit','market','limit']
+      .map(t => `<option value="${t}" ${c.orderType===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`)
+      .join('');
+    return `
+      <div class="sb-form-row"><div class="sb-form-label">Symbol</div><input id="sbcSymbol" class="sb-form-input" placeholder="SPX" value="${c.symbol||''}"></div>
+      <div class="sb-form-row"><div class="sb-form-label">Strategy</div><select id="sbcStrategy" class="sb-form-select">${stratOpts}</select></div>
+      <div class="sb-form-row"><div class="sb-form-label">Target DTE</div><input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte||30}"></div>
+      <div class="sb-form-row"><div class="sb-form-label">Quantity (contracts)</div><input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}"></div>
+      <div class="sb-form-row"><div class="sb-form-label">Order Type</div><select id="sbcOrderType" class="sb-form-select">${otOpts}</select></div>`;
+  }
+  if (step.type === 'close_position') {
+    return `
+      <div class="sb-form-row"><div class="sb-form-label">Target Positions</div>
+        <select id="sbcTarget" class="sb-form-select">
+          <option value="all" ${c.target==='all'?'selected':''}>All open positions</option>
+          <option value="profitable" ${c.target==='profitable'?'selected':''}>Profitable positions only</option>
+          <option value="losers" ${c.target==='losers'?'selected':''}>Losing positions only</option>
+        </select></div>
+      <div class="sb-form-row"><div class="sb-form-label">Close Reason</div>
+        <select id="sbcReason" class="sb-form-select">
+          <option value="manual" ${c.reason==='manual'?'selected':''}>Manual / Discretionary</option>
+          <option value="take_profit" ${c.reason==='take_profit'?'selected':''}>Take Profit</option>
+          <option value="stop_loss" ${c.reason==='stop_loss'?'selected':''}>Stop Loss</option>
+          <option value="expiration" ${c.reason==='expiration'?'selected':''}>Near Expiration</option>
+        </select></div>`;
+  }
+  if (step.type === 'notification') {
+    return `
+      <div class="sb-form-row"><div class="sb-form-label">Message</div><input id="sbcMessage" class="sb-form-input" placeholder="Strategy triggered…" value="${c.message||''}"></div>
+      <div class="sb-form-row"><div class="sb-form-label">Channel</div>
+        <select id="sbcChannel" class="sb-form-select">
+          <option value="email" ${c.channel==='email'?'selected':''}>Email</option>
+          <option value="telegram" ${c.channel==='telegram'?'selected':''}>Telegram</option>
+        </select></div>`;
+  }
+  if (step.type === 'decision' || step.type === 'conditional') {
+    const condOpts = sbConditionOptions()
+      .map(o => `<option value="${o.value}" ${c.condition===o.value?'selected':''}>${o.label}</option>`).join('');
+    return `
+      <div class="sb-form-row"><div class="sb-form-label">Condition</div><select id="sbcCondition" class="sb-form-select">${condOpts}</select></div>
+      <div class="sb-form-row"><div class="sb-form-label">Value / Threshold</div><input id="sbcCondValue" class="sb-form-input" placeholder="0.30" value="${c.value||''}"></div>`;
+  }
+  if (step.type === 'tags') {
+    return `<div class="sb-form-row"><div class="sb-form-label">Tag Name</div><input id="sbcTag" class="sb-form-input" placeholder="e.g. high-iv" value="${c.tag||''}"></div>`;
+  }
+  return `<p style="color:#9098a9;font-size:13px;">No configuration needed for this step type.</p>`;
+}
+
+// ── Strategies list (dashboard card) ──────────────────────────────
+function strategiesRender() {
+  const body = document.getElementById('botStrategiesBody');
+  if (!body) return;
+  const list = sbLoad();
+  if (!list.length) {
+    body.innerHTML = `<div class="bot-empty" style="padding:28px 20px;">
+      <i class="fas fa-robot" style="font-size:28px;margin-bottom:8px;display:block;color:#dee2e6;"></i>
+      No strategies yet. Click <strong>+ New Strategy</strong> to create one.
+    </div>`;
+    return;
+  }
+  body.innerHTML = `<div class="strat-list">${list.map(s => stratItemHTML(s)).join('')}</div>`;
+}
+
+function stratItemHTML(s) {
+  const stepsLabel = s.steps?.length ? `${s.steps.length} step${s.steps.length!==1?'s':''}` : 'No steps';
+  const isLive = s.status === 'live';
+  const created = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '';
+  return `<div class="strat-item">
+    <div class="strat-item-left">
+      <div class="strat-item-icon"><i class="fas fa-robot"></i></div>
+      <div>
+        <div class="strat-item-name">${_escHtml(s.name)}</div>
+        <div class="strat-item-meta">${stepsLabel}${created ? ' · Created ' + created : ''}</div>
+      </div>
+    </div>
+    <div class="strat-item-actions">
+      <div class="strat-toggle-wrap">
+        <span class="strat-toggle-label ${isLive?'live':'off'}" id="stratLabel_${s.id}">${isLive?'Live':'Off'}</span>
+        <label class="strat-toggle">
+          <input type="checkbox" ${isLive?'checked':''} onchange="stratToggle('${s.id}',this.checked)">
+          <span class="strat-toggle-slider"></span>
+        </label>
+      </div>
+      <button class="strat-edit-btn" onclick="stratBuilderOpen('${s.id}')" title="Edit"><i class="fas fa-pen"></i></button>
+      <button class="strat-del-btn" onclick="stratDelete('${s.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+    </div>
+  </div>`;
+}
+
+function stratToggle(id, isLive) {
+  const list = sbLoad();
+  const s = list.find(x => x.id === id);
+  if (!s) return;
+  s.status = isLive ? 'live' : 'off';
+  sbSave(list);
+  const lbl = document.getElementById('stratLabel_' + id);
+  if (lbl) { lbl.textContent = isLive ? 'Live' : 'Off'; lbl.className = 'strat-toggle-label ' + (isLive ? 'live' : 'off'); }
+}
+
+function stratDelete(id) {
+  if (!confirm('Delete this strategy?')) return;
+  const list = sbLoad().filter(x => x.id !== id);
+  sbSave(list);
+  strategiesRender();
+}
+
+function _escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
