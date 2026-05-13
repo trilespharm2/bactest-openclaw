@@ -1111,7 +1111,7 @@ const SB_ACTIONS = [
 // Default config per step type
 function sbDefaultConfig(type) {
   if (type === 'time')           return { mode:'exactly', time1:'09:30', time2:'16:00' };
-  if (type === 'metric')         return { metric:'price', period:14, operator:'>', value:'', label:'' };
+  if (type === 'metric')         return { metric:'price', period:14, operator:'>', value:'', compareType:'value', compareIndicator:'ema', comparePeriod:9, label:'' };
   if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30, spreadWidth:5, takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit' };
   if (type === 'close_position') return { target:'all', reason:'manual' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
@@ -1323,14 +1323,26 @@ function stratSaveStepConfig() {
     c.time1 = document.getElementById('sbcTime1')?.value || '09:30';
     c.time2 = document.getElementById('sbcTime2')?.value || '16:00';
   } else if (step.type === 'metric') {
-    c.metric   = document.getElementById('sbcMetric')?.value || 'price';
-    c.period   = parseInt(document.getElementById('sbcPeriod')?.value) || 14;
-    c.operator = document.getElementById('sbcOperator')?.value || '>';
-    c.value    = (document.getElementById('sbcMetricValue')?.value || '').trim();
-    const metricNames = { price:'Price', sma:'SMA', ema:'EMA', rsi:'RSI', macd:'MACD', volume:'Volume', iv_rank:'IV Rank', delta:'Delta', theta:'Theta' };
-    const mName = metricNames[c.metric] || c.metric;
-    const pSuffix = ['sma','ema','rsi'].includes(c.metric) ? `(${c.period})` : '';
-    c.label = `${mName}${pSuffix} ${c.operator} ${c.value}`;
+    c.metric          = document.getElementById('sbcMetric')?.value || 'price';
+    c.period          = parseInt(document.getElementById('sbcPeriod')?.value) || 14;
+    c.operator        = document.getElementById('sbcOperator')?.value || '>';
+    const isCross     = ['crosses_above','crosses_below'].includes(c.operator);
+    c.compareType     = isCross ? (document.getElementById('sbcCompareType')?.value || 'value') : 'value';
+    c.value           = (document.getElementById('sbcMetricValue')?.value || '').trim();
+    c.compareIndicator = document.getElementById('sbcRefMetric')?.value || 'ema';
+    c.comparePeriod   = parseInt(document.getElementById('sbcRefPeriod')?.value) || 9;
+    const _MN = { price:'Price', sma:'SMA', ema:'EMA', rsi:'RSI', macd:'MACD', volume:'Volume', iv_rank:'IV Rank', delta:'Delta', theta:'Theta' };
+    const mName  = _MN[c.metric]  || c.metric;
+    const pSfx   = ['sma','ema','rsi'].includes(c.metric) ? `(${c.period})` : '';
+    const opLbl  = { '>':'>', '<':'<', '>=':'≥', '<=':'≤', '=':'=',
+                     'crosses_above':'crosses above ↑', 'crosses_below':'crosses below ↓' }[c.operator] || c.operator;
+    if (isCross && c.compareType === 'indicator') {
+      const cName = _MN[c.compareIndicator] || c.compareIndicator;
+      const cpSfx = ['sma','ema','rsi'].includes(c.compareIndicator) ? `(${c.comparePeriod})` : '';
+      c.label = `${mName}${pSfx} ${opLbl} ${cName}${cpSfx}`;
+    } else {
+      c.label = `${mName}${pSfx} ${opLbl} ${c.value}`;
+    }
   } else if (step.type === 'open_position') {
     c.symbol        = (document.getElementById('sbcSymbol')?.value || '').toUpperCase().trim();
     c.strategy      = document.getElementById('sbcStrategy')?.value || c.strategy;
@@ -1361,11 +1373,42 @@ function sbTimeModeChange() {
   if (row2) row2.style.display = mode === 'between' ? '' : 'none';
 }
 
-// ── Metric period toggle (inline — called from onchange) ───────────
+// ── Metric toggles (called from onchange) ─────────────────────────
 function sbMetricChange() {
   const m = document.getElementById('sbcMetric')?.value;
   const pr = document.getElementById('sbcPeriodRow');
   if (pr) pr.style.display = ['sma','ema','rsi'].includes(m) ? '' : 'none';
+}
+
+function sbOperatorChange() {
+  const op      = document.getElementById('sbcOperator')?.value || '>';
+  const isCross = ['crosses_above','crosses_below'].includes(op);
+  const ct      = document.getElementById('sbcCompareType')?.value || 'value';
+  const showRef = isCross && ct === 'indicator';
+
+  const ctRow   = document.getElementById('sbcCompareTypeRow');
+  const valRow  = document.getElementById('sbcValueRow');
+  const refRow  = document.getElementById('sbcRefMetricRow');
+  const refPRow = document.getElementById('sbcRefPeriodRow');
+
+  if (ctRow)   ctRow.style.display  = isCross ? '' : 'none';
+  if (valRow)  valRow.style.display = (!isCross || ct === 'value') ? '' : 'none';
+  if (refRow)  refRow.style.display = showRef ? '' : 'none';
+  if (refPRow) {
+    const rm = document.getElementById('sbcRefMetric')?.value || 'ema';
+    refPRow.style.display = (showRef && ['sma','ema','rsi'].includes(rm)) ? '' : 'none';
+  }
+}
+
+function sbCompareTypeChange() { sbOperatorChange(); }
+
+function sbRefMetricChange() {
+  const rm      = document.getElementById('sbcRefMetric')?.value || 'ema';
+  const op      = document.getElementById('sbcOperator')?.value || '>';
+  const isCross = ['crosses_above','crosses_below'].includes(op);
+  const ct      = document.getElementById('sbcCompareType')?.value || 'value';
+  const refPRow = document.getElementById('sbcRefPeriodRow');
+  if (refPRow) refPRow.style.display = (isCross && ct === 'indicator' && ['sma','ema','rsi'].includes(rm)) ? '' : 'none';
 }
 
 function sbStepConfigHTML(step) {
@@ -1395,19 +1438,24 @@ function sbStepConfigHTML(step) {
   // ── Metric ──────────────────────────────────────────────────────
   if (step.type === 'metric') {
     const hasPeriod = ['sma','ema','rsi'].includes(c.metric||'price');
+    const isCross   = ['crosses_above','crosses_below'].includes(c.operator||'>');
+    const ct        = c.compareType || 'value';
+    const showRef   = isCross && ct === 'indicator';
+    const rm        = c.compareIndicator || 'ema';
+    const hasRefP   = showRef && ['sma','ema','rsi'].includes(rm);
     return `
       <div class="sb-form-row">
         <div class="sb-form-label">Metric</div>
         <select id="sbcMetric" class="sb-form-select" onchange="sbMetricChange()">
-          <option value="price"    ${c.metric==='price'?'selected':''}>Price</option>
-          <option value="sma"      ${c.metric==='sma'?'selected':''}>SMA</option>
-          <option value="ema"      ${c.metric==='ema'?'selected':''}>EMA</option>
-          <option value="rsi"      ${c.metric==='rsi'?'selected':''}>RSI</option>
-          <option value="macd"     ${c.metric==='macd'?'selected':''}>MACD</option>
-          <option value="volume"   ${c.metric==='volume'?'selected':''}>Volume</option>
-          <option value="iv_rank"  ${c.metric==='iv_rank'?'selected':''}>IV Rank</option>
-          <option value="delta"    ${c.metric==='delta'?'selected':''}>Delta</option>
-          <option value="theta"    ${c.metric==='theta'?'selected':''}>Theta</option>
+          <option value="price"   ${c.metric==='price'?'selected':''}>Price</option>
+          <option value="sma"     ${c.metric==='sma'?'selected':''}>SMA</option>
+          <option value="ema"     ${c.metric==='ema'?'selected':''}>EMA</option>
+          <option value="rsi"     ${c.metric==='rsi'?'selected':''}>RSI</option>
+          <option value="macd"    ${c.metric==='macd'?'selected':''}>MACD</option>
+          <option value="volume"  ${c.metric==='volume'?'selected':''}>Volume</option>
+          <option value="iv_rank" ${c.metric==='iv_rank'?'selected':''}>IV Rank</option>
+          <option value="delta"   ${c.metric==='delta'?'selected':''}>Delta</option>
+          <option value="theta"   ${c.metric==='theta'?'selected':''}>Theta</option>
         </select>
       </div>
       <div class="sb-form-row" id="sbcPeriodRow" style="${hasPeriod?'':'display:none'}">
@@ -1416,17 +1464,40 @@ function sbStepConfigHTML(step) {
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Operator</div>
-        <select id="sbcOperator" class="sb-form-select">
-          <option value=">"  ${c.operator==='>'?'selected':''}>Greater than (&gt;)</option>
-          <option value="<"  ${c.operator==='<'?'selected':''}>Less than (&lt;)</option>
-          <option value=">=" ${c.operator==='>='?'selected':''}>Greater or equal (&gt;=)</option>
-          <option value="<=" ${c.operator==='<='?'selected':''}>Less or equal (&lt;=)</option>
-          <option value="="  ${c.operator==='='?'selected':''}>Equal (=)</option>
+        <select id="sbcOperator" class="sb-form-select" onchange="sbOperatorChange()">
+          <option value=">"            ${c.operator==='>'?'selected':''}>Greater than (&gt;)</option>
+          <option value="<"            ${c.operator==='<'?'selected':''}>Less than (&lt;)</option>
+          <option value=">="           ${c.operator==='>='?'selected':''}>Greater or equal (&gt;=)</option>
+          <option value="<="           ${c.operator==='<='?'selected':''}>Less or equal (&lt;=)</option>
+          <option value="="            ${c.operator==='='?'selected':''}>Equal (=)</option>
+          <option value="crosses_above" ${c.operator==='crosses_above'?'selected':''}>Crosses Above ↑</option>
+          <option value="crosses_below" ${c.operator==='crosses_below'?'selected':''}>Crosses Below ↓</option>
         </select>
       </div>
-      <div class="sb-form-row">
+      <div class="sb-form-row" id="sbcCompareTypeRow" style="${isCross?'':'display:none'}">
+        <div class="sb-form-label">Compare Against</div>
+        <select id="sbcCompareType" class="sb-form-select" onchange="sbCompareTypeChange()">
+          <option value="value"     ${ct==='value'?'selected':''}>Fixed Value</option>
+          <option value="indicator" ${ct==='indicator'?'selected':''}>Indicator</option>
+        </select>
+      </div>
+      <div class="sb-form-row" id="sbcValueRow" style="${(!isCross || ct==='value')?'':'display:none'}">
         <div class="sb-form-label">Value</div>
         <input id="sbcMetricValue" class="sb-form-input" type="number" step="0.01" placeholder="e.g. 50" value="${c.value||''}">
+      </div>
+      <div class="sb-form-row" id="sbcRefMetricRow" style="${showRef?'':'display:none'}">
+        <div class="sb-form-label">Indicator</div>
+        <select id="sbcRefMetric" class="sb-form-select" onchange="sbRefMetricChange()">
+          <option value="sma"   ${rm==='sma'?'selected':''}>SMA</option>
+          <option value="ema"   ${rm==='ema'?'selected':''}>EMA</option>
+          <option value="rsi"   ${rm==='rsi'?'selected':''}>RSI</option>
+          <option value="macd"  ${rm==='macd'?'selected':''}>MACD</option>
+          <option value="price" ${rm==='price'?'selected':''}>Price</option>
+        </select>
+      </div>
+      <div class="sb-form-row" id="sbcRefPeriodRow" style="${hasRefP?'':'display:none'}">
+        <div class="sb-form-label">Indicator Period</div>
+        <input id="sbcRefPeriod" class="sb-form-input" type="number" min="1" max="200" value="${c.comparePeriod||9}" placeholder="9">
       </div>`;
   }
 
