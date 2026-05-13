@@ -1100,41 +1100,38 @@ function _show(id, visible) {
 // ══════════════════════════════════════════════════════════════════
 
 const SB_ACTIONS = [
-  { type:'decision',       icon:'fa-code-branch',  bg:'#fff8e7', color:'#f59e0b', label:'Decision',        desc:'Conditional split into Yes/No paths.' },
-  { type:'conditional',    icon:'fa-check-circle', bg:'#f0fdf4', color:'#10b981', label:'Conditional',     desc:'Conditional action(s) then continue on 1 path.' },
-  { type:'open_position',  icon:'fa-plus-square',  bg:'#eff6ff', color:'#1b55e2', label:'Open Position',   desc:'Place a trade to open a new position.' },
-  { type:'close_position', icon:'fa-minus-square', bg:'#fef2f2', color:'#ef4444', label:'Close Position',  desc:'Place a trade to close a position.' },
-  { type:'notification',   icon:'fa-bell',         bg:'#f5f3ff', color:'#6366f1', label:'Notification',    desc:'Send a notification to yourself.' },
-  { type:'tags',           icon:'fa-tag',          bg:'#fdf4ff', color:'#a855f7', label:'Tags',            desc:'Tag your bot and positions.' },
-];
-const SB_LOOPS = [
-  { type:'loop_positions',   icon:'fa-sync-alt', bg:'#f4f5f8', color:'#6c757d', label:'Positions',   desc:'Run subsequent actions for open positions.' },
-  { type:'loop_symbols',     icon:'fa-list',     bg:'#f4f5f8', color:'#6c757d', label:'Symbols',     desc:'Run subsequent actions for a list of symbols.' },
-  { type:'loop_bot_symbols', icon:'fa-robot',    bg:'#f4f5f8', color:'#6c757d', label:'Bot Symbols', desc:'Run subsequent actions for the bot\'s symbols.' },
+  { type:'time',           icon:'fa-clock',        bg:'#f0fdf4', color:'#10b981', label:'Time',           desc:'Trigger based on time of day.' },
+  { type:'metric',         icon:'fa-chart-line',   bg:'#fff8e7', color:'#f59e0b', label:'Metric',         desc:'Condition based on a market metric.' },
+  { type:'open_position',  icon:'fa-plus-square',  bg:'#eff6ff', color:'#1b55e2', label:'Open Position',  desc:'Place a trade to open a new position.' },
+  { type:'close_position', icon:'fa-minus-square', bg:'#fef2f2', color:'#ef4444', label:'Close Position', desc:'Place a trade to close a position.' },
+  { type:'notification',   icon:'fa-bell',         bg:'#f5f3ff', color:'#6366f1', label:'Notification',   desc:'Send a notification to yourself.' },
+  { type:'tags',           icon:'fa-tag',          bg:'#fdf4ff', color:'#a855f7', label:'Tags',           desc:'Tag your bot and positions.' },
 ];
 
 // Default config per step type
 function sbDefaultConfig(type) {
-  if (type === 'open_position')  return { symbol:'', strategy:'short_put_spread', dte:30, quantity:1, orderType:'credit' };
+  if (type === 'time')           return { mode:'exactly', time1:'09:30', time2:'16:00' };
+  if (type === 'metric')         return { metric:'price', period:14, operator:'>', value:'', label:'' };
+  if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30, spreadWidth:5, takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit' };
   if (type === 'close_position') return { target:'all', reason:'manual' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
-  if (type === 'decision')       return { condition:'delta_above', value:'0.30', label:'Delta > 0.30' };
-  if (type === 'conditional')    return { condition:'time_before', value:'15:30', label:'Before 3:30 PM' };
   if (type === 'tags')           return { tag:'' };
   return {};
 }
 
 function sbConfigSummary(step) {
   const c = step.config || {};
-  if (step.type === 'open_position')  return `${c.symbol||'?'} · ${(NP_STRATEGIES[c.strategy]||{}).name||c.strategy} · ${c.dte||30} DTE`;
+  if (step.type === 'time') {
+    if (c.mode === 'exactly') return `Exactly at ${c.time1||'--:--'}`;
+    if (c.mode === 'after')   return `After ${c.time1||'--:--'}`;
+    if (c.mode === 'between') return `Between ${c.time1||'--:--'} – ${c.time2||'--:--'}`;
+    return 'Set time…';
+  }
+  if (step.type === 'metric')        return c.label || 'Set metric condition…';
+  if (step.type === 'open_position') return `${c.symbol||'?'} · ${c.strategy||'?'} · ${c.dte||30} DTE`;
   if (step.type === 'close_position') return `Close ${c.target||'all'} positions`;
   if (step.type === 'notification')   return c.message || 'Send notification';
-  if (step.type === 'decision')       return c.label || 'Set condition…';
-  if (step.type === 'conditional')    return c.label || 'Set condition…';
   if (step.type === 'tags')           return c.tag ? `Tag: ${c.tag}` : 'Set tag…';
-  if (step.type === 'loop_positions') return 'For each open position';
-  if (step.type === 'loop_symbols')   return 'For each symbol';
-  if (step.type === 'loop_bot_symbols') return 'For each bot symbol';
   return '';
 }
 
@@ -1206,14 +1203,6 @@ function stratRunTest() {
   alert('Run Test: simulates the strategy against recent market data. (Coming soon)');
 }
 
-function stratEditInputs() {
-  alert('Inputs: define runtime variables for your strategy. (Coming soon)');
-}
-
-function stratToggleHelp() {
-  const h = document.getElementById('sbInputsHelp');
-  if (h) h.style.display = h.style.display === 'none' ? '' : 'none';
-}
 
 // ── Flow rendering ─────────────────────────────────────────────────
 function sbRenderFlow() {
@@ -1221,15 +1210,11 @@ function sbRenderFlow() {
   if (!flow) return;
   let html = '';
 
-  // First add-button (before any steps)
   html += sbAddBtnHTML(0);
 
   _sbSteps.forEach((step, idx) => {
-    const meta = [...SB_ACTIONS, ...SB_LOOPS].find(m => m.type === step.type) || {};
+    const meta = SB_ACTIONS.find(m => m.type === step.type) || {};
     const summary = sbConfigSummary(step);
-
-    // For decision step: show Yes/No branch labels
-    const isBranch = step.type === 'decision';
 
     html += `
       <div class="sb-connector"><div class="sb-connector-line"></div></div>
@@ -1246,22 +1231,7 @@ function sbRenderFlow() {
         </button>
       </div>`;
 
-    if (isBranch) {
-      html += `
-        <div class="sb-connector"><div class="sb-connector-line"></div></div>
-        <div class="sb-branch">
-          <div class="sb-branch-col">
-            <div class="sb-branch-label sb-branch-yes">Yes</div>
-            ${sbAddBtnHTML(idx + 1, 'yes')}
-          </div>
-          <div class="sb-branch-col">
-            <div class="sb-branch-label sb-branch-no">No</div>
-            ${sbAddBtnHTML(idx + 1, 'no')}
-          </div>
-        </div>`;
-    } else {
-      html += sbAddBtnHTML(idx + 1);
-    }
+    html += sbAddBtnHTML(idx + 1);
   });
 
   flow.innerHTML = html;
@@ -1276,10 +1246,8 @@ function sbAddBtnHTML(insertIdx, branch) {
 // ── Drawer ─────────────────────────────────────────────────────────
 function sbRenderDrawerItems() {
   const actionEl = document.getElementById('sbActionsList');
-  const loopEl   = document.getElementById('sbLoopsList');
-  if (!actionEl || !loopEl) return;
+  if (!actionEl) return;
   actionEl.innerHTML = SB_ACTIONS.map(m => sbDrawerItemHTML(m)).join('');
-  loopEl.innerHTML   = SB_LOOPS.map(m => sbDrawerItemHTML(m)).join('');
 }
 
 function sbDrawerItemHTML(m) {
@@ -1314,10 +1282,8 @@ function sbAddStep(type) {
   sbRenderFlow();
   // Count opportunities/warnings
   sbUpdateCounts();
-  // Auto-open config modal for certain step types
-  if (['open_position','close_position','notification','decision','conditional','tags'].includes(type)) {
-    stratEditStep(idx);
-  }
+  // Auto-open config modal for all step types
+  stratEditStep(idx);
 }
 
 function sbRemoveStep(idx) {
@@ -1327,16 +1293,7 @@ function sbRemoveStep(idx) {
 }
 
 function sbUpdateCounts() {
-  const ops = _sbSteps.filter(s => s.type === 'open_position').length;
-  const warns = _sbSteps.filter(s => {
-    if (s.type === 'open_position' && !s.config.symbol) return true;
-    if (s.type === 'notification' && !s.config.message) return true;
-    return false;
-  }).length;
-  const oEl = document.getElementById('sbOpportunities');
-  const wEl = document.getElementById('sbWarnings');
-  if (oEl) oEl.textContent = ops;
-  if (wEl) { wEl.textContent = warns; wEl.classList.toggle('warn', warns > 0); }
+  // placeholder — counts panel removed; called for compatibility
 }
 
 // ── Step config modal ──────────────────────────────────────────────
@@ -1344,7 +1301,7 @@ function stratEditStep(idx) {
   const step = _sbSteps[idx];
   if (!step) return;
   _sbEditStepIdx = idx;
-  const meta = [...SB_ACTIONS, ...SB_LOOPS].find(m => m.type === step.type) || {};
+  const meta = SB_ACTIONS.find(m => m.type === step.type) || {};
   document.getElementById('sbStepModalTitle').textContent = `Configure: ${meta.label || step.type}`;
   document.getElementById('sbStepModalBody').innerHTML = sbStepConfigHTML(step);
   document.getElementById('sbStepModal').style.display = 'flex';
@@ -1361,99 +1318,215 @@ function stratSaveStepConfig() {
   if (!step) return;
   const c = step.config;
 
-  if (step.type === 'open_position') {
-    c.symbol   = (document.getElementById('sbcSymbol')?.value || '').toUpperCase().trim();
-    c.strategy = document.getElementById('sbcStrategy')?.value || c.strategy;
-    c.dte      = parseInt(document.getElementById('sbcDte')?.value) || 30;
-    c.quantity = parseInt(document.getElementById('sbcQty')?.value) || 1;
-    c.orderType = document.getElementById('sbcOrderType')?.value || 'credit';
+  if (step.type === 'time') {
+    c.mode  = document.getElementById('sbcTimeMode')?.value || 'exactly';
+    c.time1 = document.getElementById('sbcTime1')?.value || '09:30';
+    c.time2 = document.getElementById('sbcTime2')?.value || '16:00';
+  } else if (step.type === 'metric') {
+    c.metric   = document.getElementById('sbcMetric')?.value || 'price';
+    c.period   = parseInt(document.getElementById('sbcPeriod')?.value) || 14;
+    c.operator = document.getElementById('sbcOperator')?.value || '>';
+    c.value    = (document.getElementById('sbcMetricValue')?.value || '').trim();
+    const metricNames = { price:'Price', sma:'SMA', ema:'EMA', rsi:'RSI', macd:'MACD', volume:'Volume', iv_rank:'IV Rank', delta:'Delta', theta:'Theta' };
+    const mName = metricNames[c.metric] || c.metric;
+    const pSuffix = ['sma','ema','rsi'].includes(c.metric) ? `(${c.period})` : '';
+    c.label = `${mName}${pSuffix} ${c.operator} ${c.value}`;
+  } else if (step.type === 'open_position') {
+    c.symbol        = (document.getElementById('sbcSymbol')?.value || '').toUpperCase().trim();
+    c.strategy      = document.getElementById('sbcStrategy')?.value || c.strategy;
+    c.dte           = parseInt(document.getElementById('sbcDte')?.value) || 30;
+    c.spreadWidth   = parseFloat(document.getElementById('sbcSpreadWidth')?.value) || 5;
+    c.takeProfitPct = parseFloat(document.getElementById('sbcTakeProfitPct')?.value) || 50;
+    c.stopLossPct   = parseFloat(document.getElementById('sbcStopLossPct')?.value) || 200;
+    c.quantity      = parseInt(document.getElementById('sbcQty')?.value) || 1;
+    c.orderType     = document.getElementById('sbcOrderType')?.value || 'credit';
   } else if (step.type === 'close_position') {
     c.target = document.getElementById('sbcTarget')?.value || 'all';
     c.reason = document.getElementById('sbcReason')?.value || 'manual';
   } else if (step.type === 'notification') {
     c.message = (document.getElementById('sbcMessage')?.value || '').trim();
     c.channel = document.getElementById('sbcChannel')?.value || 'email';
-  } else if (step.type === 'decision' || step.type === 'conditional') {
-    c.condition = document.getElementById('sbcCondition')?.value || c.condition;
-    c.value     = (document.getElementById('sbcCondValue')?.value || '').trim();
-    const cOpts = sbConditionOptions();
-    const cLabel = (cOpts.find(o => o.value === c.condition) || {}).label || c.condition;
-    c.label = `${cLabel} ${c.value}`;
   } else if (step.type === 'tags') {
     c.tag = (document.getElementById('sbcTag')?.value || '').trim();
   }
 
   stratCloseStepModal();
   sbRenderFlow();
-  sbUpdateCounts();
 }
 
-function sbConditionOptions() {
-  return [
-    { value:'delta_above',  label:'Delta >' },
-    { value:'delta_below',  label:'Delta <' },
-    { value:'dte_below',    label:'DTE <' },
-    { value:'pnl_above',    label:'P&L % >' },
-    { value:'pnl_below',    label:'P&L % <' },
-    { value:'time_before',  label:'Before time' },
-    { value:'time_after',   label:'After time' },
-    { value:'iv_rank_above',label:'IV Rank >' },
-    { value:'iv_rank_below',label:'IV Rank <' },
-  ];
+// ── Time mode toggle (inline — called from onchange) ───────────────
+function sbTimeModeChange() {
+  const mode = document.getElementById('sbcTimeMode')?.value;
+  const row2 = document.getElementById('sbcTime2Row');
+  if (row2) row2.style.display = mode === 'between' ? '' : 'none';
+}
+
+// ── Metric period toggle (inline — called from onchange) ───────────
+function sbMetricChange() {
+  const m = document.getElementById('sbcMetric')?.value;
+  const pr = document.getElementById('sbcPeriodRow');
+  if (pr) pr.style.display = ['sma','ema','rsi'].includes(m) ? '' : 'none';
 }
 
 function sbStepConfigHTML(step) {
   const c = step.config || {};
+
+  // ── Time ────────────────────────────────────────────────────────
+  if (step.type === 'time') {
+    return `
+      <div class="sb-form-row">
+        <div class="sb-form-label">Time is</div>
+        <select id="sbcTimeMode" class="sb-form-select" onchange="sbTimeModeChange()">
+          <option value="exactly" ${c.mode==='exactly'?'selected':''}>Exactly</option>
+          <option value="after"   ${c.mode==='after'?'selected':''}>After</option>
+          <option value="between" ${c.mode==='between'?'selected':''}>Between</option>
+        </select>
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Entry</div>
+        <input id="sbcTime1" class="sb-form-input" type="time" value="${c.time1||'09:30'}">
+      </div>
+      <div class="sb-form-row" id="sbcTime2Row" style="${c.mode==='between'?'':'display:none'}">
+        <div class="sb-form-label">End Time</div>
+        <input id="sbcTime2" class="sb-form-input" type="time" value="${c.time2||'16:00'}">
+      </div>`;
+  }
+
+  // ── Metric ──────────────────────────────────────────────────────
+  if (step.type === 'metric') {
+    const hasPeriod = ['sma','ema','rsi'].includes(c.metric||'price');
+    return `
+      <div class="sb-form-row">
+        <div class="sb-form-label">Metric</div>
+        <select id="sbcMetric" class="sb-form-select" onchange="sbMetricChange()">
+          <option value="price"    ${c.metric==='price'?'selected':''}>Price</option>
+          <option value="sma"      ${c.metric==='sma'?'selected':''}>SMA</option>
+          <option value="ema"      ${c.metric==='ema'?'selected':''}>EMA</option>
+          <option value="rsi"      ${c.metric==='rsi'?'selected':''}>RSI</option>
+          <option value="macd"     ${c.metric==='macd'?'selected':''}>MACD</option>
+          <option value="volume"   ${c.metric==='volume'?'selected':''}>Volume</option>
+          <option value="iv_rank"  ${c.metric==='iv_rank'?'selected':''}>IV Rank</option>
+          <option value="delta"    ${c.metric==='delta'?'selected':''}>Delta</option>
+          <option value="theta"    ${c.metric==='theta'?'selected':''}>Theta</option>
+        </select>
+      </div>
+      <div class="sb-form-row" id="sbcPeriodRow" style="${hasPeriod?'':'display:none'}">
+        <div class="sb-form-label">Period</div>
+        <input id="sbcPeriod" class="sb-form-input" type="number" min="1" max="200" value="${c.period||14}" placeholder="14">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Operator</div>
+        <select id="sbcOperator" class="sb-form-select">
+          <option value=">"  ${c.operator==='>'?'selected':''}>Greater than (&gt;)</option>
+          <option value="<"  ${c.operator==='<'?'selected':''}>Less than (&lt;)</option>
+          <option value=">=" ${c.operator==='>='?'selected':''}>Greater or equal (&gt;=)</option>
+          <option value="<=" ${c.operator==='<='?'selected':''}>Less or equal (&lt;=)</option>
+          <option value="="  ${c.operator==='='?'selected':''}>Equal (=)</option>
+        </select>
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Value</div>
+        <input id="sbcMetricValue" class="sb-form-input" type="number" step="0.01" placeholder="e.g. 50" value="${c.value||''}">
+      </div>`;
+  }
+
+  // ── Open Position ────────────────────────────────────────────────
   if (step.type === 'open_position') {
-    const stratOpts = Object.entries(NP_STRATEGIES)
-      .filter(([k]) => !k.startsWith('equity'))
-      .map(([k, v]) => `<option value="${k}" ${c.strategy===k?'selected':''}>${v.name}</option>`)
-      .join('');
-    const otOpts = ['credit','debit','market','limit']
+    const strats = [
+      ['Single Leg', ['Long Call','Long Put','Naked Short Call','Naked Short Put']],
+      ['Vertical Spreads', ['Short Put Spread','Short Call Spread','Long Call Spread','Long Put Spread']],
+      ['Iron Strategies', ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor']],
+      ['Straddles & Strangles', ['Long Straddle','Long Strangle','Short Straddle','Short Strangle']],
+      ['Calendar & Diagonal', ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal']],
+    ];
+    const stratOpts = strats.map(([grp, items]) =>
+      `<optgroup label="${grp}">${items.map(s => `<option value="${s}" ${c.strategy===s?'selected':''}>${s}</option>`).join('')}</optgroup>`
+    ).join('');
+    const otOpts = ['credit','debit','market']
       .map(t => `<option value="${t}" ${c.orderType===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`)
       .join('');
     return `
-      <div class="sb-form-row"><div class="sb-form-label">Symbol</div><input id="sbcSymbol" class="sb-form-input" placeholder="SPX" value="${c.symbol||''}"></div>
-      <div class="sb-form-row"><div class="sb-form-label">Strategy</div><select id="sbcStrategy" class="sb-form-select">${stratOpts}</select></div>
-      <div class="sb-form-row"><div class="sb-form-label">Target DTE</div><input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte||30}"></div>
-      <div class="sb-form-row"><div class="sb-form-label">Quantity (contracts)</div><input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}"></div>
-      <div class="sb-form-row"><div class="sb-form-label">Order Type</div><select id="sbcOrderType" class="sb-form-select">${otOpts}</select></div>`;
+      <div class="sb-form-row">
+        <div class="sb-form-label">Symbol</div>
+        <input id="sbcSymbol" class="sb-form-input" placeholder="e.g. SPX" value="${c.symbol||''}">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Strategy (Section 4)</div>
+        <select id="sbcStrategy" class="sb-form-select">${stratOpts}</select>
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">DTE — Days to Expiration (Section 5)</div>
+        <input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte||30}" placeholder="30">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Spread Width — $ per leg (Section 6)</div>
+        <input id="sbcSpreadWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.spreadWidth||5}" placeholder="5">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Take Profit — % of max profit (Section 7)</div>
+        <input id="sbcTakeProfitPct" class="sb-form-input" type="number" min="0" max="100" step="1" value="${c.takeProfitPct||50}" placeholder="50">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Stop Loss — % of max loss (Section 7)</div>
+        <input id="sbcStopLossPct" class="sb-form-input" type="number" min="0" step="1" value="${c.stopLossPct||200}" placeholder="200">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Quantity — contracts (Section 8)</div>
+        <input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Order Type</div>
+        <select id="sbcOrderType" class="sb-form-select">${otOpts}</select>
+      </div>`;
   }
+
+  // ── Close Position ───────────────────────────────────────────────
   if (step.type === 'close_position') {
     return `
-      <div class="sb-form-row"><div class="sb-form-label">Target Positions</div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Target Positions</div>
         <select id="sbcTarget" class="sb-form-select">
-          <option value="all" ${c.target==='all'?'selected':''}>All open positions</option>
+          <option value="all"       ${c.target==='all'?'selected':''}>All open positions</option>
           <option value="profitable" ${c.target==='profitable'?'selected':''}>Profitable positions only</option>
-          <option value="losers" ${c.target==='losers'?'selected':''}>Losing positions only</option>
-        </select></div>
-      <div class="sb-form-row"><div class="sb-form-label">Close Reason</div>
+          <option value="losers"    ${c.target==='losers'?'selected':''}>Losing positions only</option>
+        </select>
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Close Reason</div>
         <select id="sbcReason" class="sb-form-select">
-          <option value="manual" ${c.reason==='manual'?'selected':''}>Manual / Discretionary</option>
+          <option value="manual"      ${c.reason==='manual'?'selected':''}>Manual / Discretionary</option>
           <option value="take_profit" ${c.reason==='take_profit'?'selected':''}>Take Profit</option>
-          <option value="stop_loss" ${c.reason==='stop_loss'?'selected':''}>Stop Loss</option>
-          <option value="expiration" ${c.reason==='expiration'?'selected':''}>Near Expiration</option>
-        </select></div>`;
+          <option value="stop_loss"   ${c.reason==='stop_loss'?'selected':''}>Stop Loss</option>
+          <option value="expiration"  ${c.reason==='expiration'?'selected':''}>Near Expiration</option>
+        </select>
+      </div>`;
   }
+
+  // ── Notification ─────────────────────────────────────────────────
   if (step.type === 'notification') {
     return `
-      <div class="sb-form-row"><div class="sb-form-label">Message</div><input id="sbcMessage" class="sb-form-input" placeholder="Strategy triggered…" value="${c.message||''}"></div>
-      <div class="sb-form-row"><div class="sb-form-label">Channel</div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Message</div>
+        <input id="sbcMessage" class="sb-form-input" placeholder="Strategy triggered…" value="${_escHtml(c.message||'')}">
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Channel</div>
         <select id="sbcChannel" class="sb-form-select">
-          <option value="email" ${c.channel==='email'?'selected':''}>Email</option>
+          <option value="email"    ${c.channel==='email'?'selected':''}>Email</option>
           <option value="telegram" ${c.channel==='telegram'?'selected':''}>Telegram</option>
-        </select></div>`;
+        </select>
+      </div>`;
   }
-  if (step.type === 'decision' || step.type === 'conditional') {
-    const condOpts = sbConditionOptions()
-      .map(o => `<option value="${o.value}" ${c.condition===o.value?'selected':''}>${o.label}</option>`).join('');
-    return `
-      <div class="sb-form-row"><div class="sb-form-label">Condition</div><select id="sbcCondition" class="sb-form-select">${condOpts}</select></div>
-      <div class="sb-form-row"><div class="sb-form-label">Value / Threshold</div><input id="sbcCondValue" class="sb-form-input" placeholder="0.30" value="${c.value||''}"></div>`;
-  }
+
+  // ── Tags ─────────────────────────────────────────────────────────
   if (step.type === 'tags') {
-    return `<div class="sb-form-row"><div class="sb-form-label">Tag Name</div><input id="sbcTag" class="sb-form-input" placeholder="e.g. high-iv" value="${c.tag||''}"></div>`;
+    return `
+      <div class="sb-form-row">
+        <div class="sb-form-label">Tag Name</div>
+        <input id="sbcTag" class="sb-form-input" placeholder="e.g. high-iv" value="${_escHtml(c.tag||'')}">
+      </div>`;
   }
+
   return `<p style="color:#9098a9;font-size:13px;">No configuration needed for this step type.</p>`;
 }
 
