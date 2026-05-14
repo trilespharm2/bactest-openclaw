@@ -599,6 +599,9 @@ async function loadPageContent(pageName) {
                     fileName = 'strategy-guide';
                     scriptName = 'static/js/strategy-guide-script.js';
                 }
+                if (pageName === 'bot') {
+                    scriptName = 'static/js/bot-script.js';
+                }
                 if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
                     scriptName = 'backtest-result-detail-script.js';
                     if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
@@ -672,6 +675,9 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'strategyGuide') {
                     scriptName = 'static/js/strategy-guide-script.js';
+                }
+                if (pageName === 'bot') {
+                    scriptName = 'static/js/bot-script.js';
                 }
                 if (pageName === 'simResults' || pageName === 'simResultDetail') {
                     scriptName = 'simulated-results-script.js';
@@ -798,6 +804,8 @@ function initializePage(pageName) {
             initSimResultDetailPage();
         } else if (pageName === 'strategyGuide' && typeof initStrategyGuide === 'function') {
             initStrategyGuide();
+        } else if (pageName === 'bot' && typeof initBotPage === 'function') {
+            initBotPage();
         } else if (pageName === 'optionsResultDetail' && typeof initOptionsResultDetailPage === 'function') {
             initOptionsResultDetailPage();
         } else if (pageName === 'stockResultDetail' && typeof initStockResultDetailPage === 'function') {
