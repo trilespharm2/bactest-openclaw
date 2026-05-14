@@ -1116,7 +1116,10 @@ function sbDefaultConfig(type) {
     compareIndicator:'ema', compareDay:-1, compareInterval:'day', compareSeries:'close', comparePeriod:9,
     andEnabled:false, andMetric:'rsi', andPeriod:14, andOperator:'<', andValue:'',
     seqEnabled:false, seqBars:5, label:'' };
-  if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30, spreadWidth:5, takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit' };
+  if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30,
+    frontDte:7, backDte:30, strikeMethod:'atm', strikeValue:'',
+    spreadWidth:5, callWidth:5, putWidth:5,
+    takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit' };
   if (type === 'close_position') return { target:'all', reason:'manual' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
   if (type === 'tags')           return { tag:'' };
@@ -1132,7 +1135,13 @@ function sbConfigSummary(step) {
     return 'Set time…';
   }
   if (step.type === 'metric')        return c.label || 'Set metric condition…';
-  if (step.type === 'open_position') return `${c.symbol||'?'} · ${c.strategy||'?'} · ${c.dte||30} DTE`;
+  if (step.type === 'open_position') {
+    const _CAL  = ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal'];
+    const _IRON = ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor'];
+    const dteS  = _CAL.includes(c.strategy)  ? `${c.frontDte||7}/${c.backDte||30} DTE` : `${c.dte||30} DTE`;
+    const wingS = _IRON.includes(c.strategy) ? ` · P${c.putWidth||5}$/C${c.callWidth||5}$` : '';
+    return `${c.symbol||'?'} · ${c.strategy||'?'} · ${dteS}${wingS}`;
+  }
   if (step.type === 'close_position') return `Close ${c.target||'all'} positions`;
   if (step.type === 'notification')   return c.message || 'Send notification';
   if (step.type === 'tags')           return c.tag ? `Tag: ${c.tag}` : 'Set tag…';
@@ -1384,7 +1393,13 @@ function stratSaveStepConfig() {
     c.symbol        = (document.getElementById('sbcSymbol')?.value || '').toUpperCase().trim();
     c.strategy      = document.getElementById('sbcStrategy')?.value || c.strategy;
     c.dte           = parseInt(document.getElementById('sbcDte')?.value) || 30;
+    c.frontDte      = parseInt(document.getElementById('sbcFrontDte')?.value) || 7;
+    c.backDte       = parseInt(document.getElementById('sbcBackDte')?.value) || 30;
+    c.strikeMethod  = document.getElementById('sbcStrikeMethod')?.value || 'atm';
+    c.strikeValue   = document.getElementById('sbcStrikeValue')?.value || '';
     c.spreadWidth   = parseFloat(document.getElementById('sbcSpreadWidth')?.value) || 5;
+    c.callWidth     = parseFloat(document.getElementById('sbcCallWidth')?.value) || 5;
+    c.putWidth      = parseFloat(document.getElementById('sbcPutWidth')?.value) || 5;
     c.takeProfitPct = parseFloat(document.getElementById('sbcTakeProfitPct')?.value) || 50;
     c.stopLossPct   = parseFloat(document.getElementById('sbcStopLossPct')?.value) || 200;
     c.quantity      = parseInt(document.getElementById('sbcQty')?.value) || 1;
@@ -1449,6 +1464,48 @@ function sbRefDayChange()      { sbSyncMetricForm(); }
 function sbAndToggle()         { _show('sbcAndBlock', document.getElementById('sbcAndEnabled')?.checked); }
 function sbAndMetricChange()   { _show('sbcAndPeriodRow', ['sma','ema','rsi','roc'].includes(document.getElementById('sbcAndMetric')?.value)); }
 function sbSeqToggle()         { _show('sbcSeqBlock', document.getElementById('sbcSeqEnabled')?.checked); }
+
+// ── Open Position: strategy-driven field visibility ──────────────────
+const _OP_SINGLE   = ['Long Call','Long Put','Naked Short Call','Naked Short Put'];
+const _OP_VERTICAL = ['Short Put Spread','Short Call Spread','Long Call Spread','Long Put Spread'];
+const _OP_IRON     = ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor'];
+const _OP_STRADDLE = ['Long Straddle','Short Straddle'];
+const _OP_STRANGLE = ['Long Strangle','Short Strangle'];
+const _OP_CALENDAR = ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal'];
+
+function sbStrategyChange() {
+  const s  = document.getElementById('sbcStrategy')?.value || '';
+  const sm = document.getElementById('sbcStrikeMethod')?.value || 'atm';
+  const isIron     = _OP_IRON.includes(s);
+  const isCal      = _OP_CALENDAR.includes(s);
+  const isStraddle = _OP_STRADDLE.includes(s);
+  const isStrangle = _OP_STRANGLE.includes(s);
+  const isVertical = _OP_VERTICAL.includes(s);
+
+  _show('sbcIronDiagram',   isIron);
+  _show('sbcDteRow',        !isCal);
+  _show('sbcFrontDteRow',   isCal);
+  _show('sbcBackDteRow',    isCal);
+  _show('sbcStrikeRow',     !isStraddle);
+  _show('sbcStrikeValRow',  !isStraddle && sm !== 'atm');
+  _show('sbcSpreadWidthRow', isVertical || isStrangle);
+  _show('sbcCallWidthRow',  isIron);
+  _show('sbcPutWidthRow',   isIron);
+
+  // Update the "Strike Selection" label to mention short legs for iron
+  const sl = document.getElementById('sbcStrikeRowLabel');
+  if (sl) sl.textContent = 'Strike Selection' + (isIron ? ' — short legs' : '');
+}
+
+function sbStrikeMethodChange() {
+  const sm = document.getElementById('sbcStrikeMethod')?.value || 'atm';
+  const s  = document.getElementById('sbcStrategy')?.value || '';
+  _show('sbcStrikeValRow', !_OP_STRADDLE.includes(s) && sm !== 'atm');
+  const lbl = document.getElementById('sbcStrikeValLabel');
+  const inp = document.getElementById('sbcStrikeValue');
+  if (lbl) lbl.textContent = sm==='delta'?'Target Delta (short leg)':sm==='otm_pct'?'OTM % (short leg)':'OTM $ Amount (short leg)';
+  if (inp) inp.placeholder = sm==='delta'?'0.30':sm==='otm_pct'?'5':'50';
+}
 
 function sbStepConfigHTML(step) {
   const c = step.config || {};
@@ -1631,47 +1688,114 @@ function sbStepConfigHTML(step) {
 
   // ── Open Position ────────────────────────────────────────────────
   if (step.type === 'open_position') {
+    const s  = c.strategy || 'Short Put Spread';
+    const sm = c.strikeMethod || 'atm';
+    const isIron     = _OP_IRON.includes(s);
+    const isCal      = _OP_CALENDAR.includes(s);
+    const isStraddle = _OP_STRADDLE.includes(s);
+    const isStrangle = _OP_STRANGLE.includes(s);
+    const isVertical = _OP_VERTICAL.includes(s);
+
     const strats = [
-      ['Single Leg', ['Long Call','Long Put','Naked Short Call','Naked Short Put']],
-      ['Vertical Spreads', ['Short Put Spread','Short Call Spread','Long Call Spread','Long Put Spread']],
-      ['Iron Strategies', ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor']],
+      ['Single Leg',            ['Long Call','Long Put','Naked Short Call','Naked Short Put']],
+      ['Vertical Spreads',      ['Short Put Spread','Short Call Spread','Long Call Spread','Long Put Spread']],
+      ['Iron Strategies',       ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor']],
       ['Straddles & Strangles', ['Long Straddle','Long Strangle','Short Straddle','Short Strangle']],
-      ['Calendar & Diagonal', ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal']],
+      ['Calendar & Diagonal',   ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal']],
     ];
     const stratOpts = strats.map(([grp, items]) =>
-      `<optgroup label="${grp}">${items.map(s => `<option value="${s}" ${c.strategy===s?'selected':''}>${s}</option>`).join('')}</optgroup>`
+      `<optgroup label="${grp}">${items.map(i => `<option value="${i}" ${s===i?'selected':''}>${i}</option>`).join('')}</optgroup>`
     ).join('');
     const otOpts = ['credit','debit','market']
       .map(t => `<option value="${t}" ${c.orderType===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`)
       .join('');
+
+    const showStrikeVal  = !isStraddle && sm !== 'atm';
+    const strikeValLabel = sm==='delta' ? 'Target Delta (short leg)' : sm==='otm_pct' ? 'OTM % (short leg)' : 'OTM $ Amount (short leg)';
+    const strikeValPh    = sm==='delta' ? '0.30' : sm==='otm_pct' ? '5' : '50';
+
     return `
       <div class="sb-form-row">
         <div class="sb-form-label">Symbol</div>
         <input id="sbcSymbol" class="sb-form-input" placeholder="e.g. SPX" value="${c.symbol||''}">
       </div>
       <div class="sb-form-row">
-        <div class="sb-form-label">Strategy (Section 4)</div>
-        <select id="sbcStrategy" class="sb-form-select">${stratOpts}</select>
+        <div class="sb-form-label">Strategy</div>
+        <select id="sbcStrategy" class="sb-form-select" onchange="sbStrategyChange()">${stratOpts}</select>
       </div>
-      <div class="sb-form-row">
-        <div class="sb-form-label">DTE — Days to Expiration (Section 5)</div>
+
+      <!-- Iron 4-leg diagram -->
+      <div id="sbcIronDiagram" style="${isIron?'':'display:none'};padding:10px 12px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;margin:2px 0 4px;">
+        <div style="font-size:11px;color:#0369a1;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">4-Leg Structure</div>
+        <div style="font-size:11px;color:#334155;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <span style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:4px;font-weight:700;">Long Put</span>
+          <span style="color:#94a3b8;font-size:10px;">◀ put width ▶</span>
+          <span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:4px;font-weight:700;">Short Put</span>
+          <span style="color:#64748b;font-size:10px;font-weight:600;">ATM</span>
+          <span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:4px;font-weight:700;">Short Call</span>
+          <span style="color:#94a3b8;font-size:10px;">◀ call width ▶</span>
+          <span style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:4px;font-weight:700;">Long Call</span>
+        </div>
+      </div>
+
+      <!-- DTE: standard (hidden for calendar/diagonal) -->
+      <div class="sb-form-row" id="sbcDteRow" style="${isCal?'display:none':''}">
+        <div class="sb-form-label">DTE — Days to Expiration</div>
         <input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte||30}" placeholder="30">
       </div>
-      <div class="sb-form-row">
-        <div class="sb-form-label">Spread Width — $ per leg (Section 6)</div>
+      <!-- Front/Back DTE (calendar/diagonal only) -->
+      <div class="sb-form-row" id="sbcFrontDteRow" style="${isCal?'':'display:none'}">
+        <div class="sb-form-label">Front Leg DTE — near expiry</div>
+        <input id="sbcFrontDte" class="sb-form-input" type="number" min="0" max="365" value="${c.frontDte||7}" placeholder="7">
+      </div>
+      <div class="sb-form-row" id="sbcBackDteRow" style="${isCal?'':'display:none'}">
+        <div class="sb-form-label">Back Leg DTE — far expiry</div>
+        <input id="sbcBackDte" class="sb-form-input" type="number" min="0" max="365" value="${c.backDte||30}" placeholder="30">
+      </div>
+
+      <!-- Strike selection (hidden for straddle: always ATM) -->
+      <div class="sb-form-row" id="sbcStrikeRow" style="${isStraddle?'display:none':''}">
+        <div class="sb-form-label" id="sbcStrikeRowLabel">Strike Selection${isIron?' — short legs':''}</div>
+        <select id="sbcStrikeMethod" class="sb-form-select" onchange="sbStrikeMethodChange()">
+          <option value="atm"        ${sm==='atm'?'selected':''}>ATM — At the Money</option>
+          <option value="delta"      ${sm==='delta'?'selected':''}>By Delta (e.g. 0.30)</option>
+          <option value="otm_pct"    ${sm==='otm_pct'?'selected':''}>OTM by % (e.g. 5%)</option>
+          <option value="otm_dollar" ${sm==='otm_dollar'?'selected':''}>OTM by $ (e.g. $50)</option>
+        </select>
+      </div>
+      <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal?'':'display:none'}">
+        <div class="sb-form-label" id="sbcStrikeValLabel">${strikeValLabel}</div>
+        <input id="sbcStrikeValue" class="sb-form-input" type="number" step="0.01" value="${c.strikeValue||''}" placeholder="${strikeValPh}">
+      </div>
+
+      <!-- Spread Width (vertical spreads + strangles) -->
+      <div class="sb-form-row" id="sbcSpreadWidthRow" style="${isVertical||isStrangle?'':'display:none'}">
+        <div class="sb-form-label">Spread Width — $ per leg</div>
         <input id="sbcSpreadWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.spreadWidth||5}" placeholder="5">
       </div>
+
+      <!-- Call Wing + Put Wing (iron strategies only) -->
+      <div class="sb-form-row" id="sbcCallWidthRow" style="${isIron?'':'display:none'}">
+        <div class="sb-form-label">Call Wing Width — $ (short call → long call)</div>
+        <input id="sbcCallWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.callWidth||5}" placeholder="5">
+      </div>
+      <div class="sb-form-row" id="sbcPutWidthRow" style="${isIron?'':'display:none'}">
+        <div class="sb-form-label">Put Wing Width — $ (short put → long put)</div>
+        <input id="sbcPutWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.putWidth||5}" placeholder="5">
+      </div>
+
+      <!-- Always visible -->
       <div class="sb-form-row">
-        <div class="sb-form-label">Take Profit — % of max profit (Section 7)</div>
+        <div class="sb-form-label">Take Profit — % of max profit</div>
         <input id="sbcTakeProfitPct" class="sb-form-input" type="number" min="0" max="100" step="1" value="${c.takeProfitPct||50}" placeholder="50">
       </div>
       <div class="sb-form-row">
-        <div class="sb-form-label">Stop Loss — % of max loss (Section 7)</div>
+        <div class="sb-form-label">Stop Loss — % of max loss</div>
         <input id="sbcStopLossPct" class="sb-form-input" type="number" min="0" step="1" value="${c.stopLossPct||200}" placeholder="200">
       </div>
       <div class="sb-form-row">
-        <div class="sb-form-label">Quantity — contracts (Section 8)</div>
-        <input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}">
+        <div class="sb-form-label">Quantity — contracts</div>
+        <input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}" placeholder="1">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Order Type</div>
