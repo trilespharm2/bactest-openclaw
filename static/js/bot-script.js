@@ -1165,6 +1165,14 @@ let _sbSteps     = [];     // array of step objects
 let _sbInsertIdx = -1;     // where to insert the next step
 let _sbEditStepIdx = -1;   // step index being configured in modal
 
+// ── Utilities ──────────────────────────────────────────────────────
+function sbUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    try { return crypto.randomUUID(); } catch(e) {}
+  }
+  return 'sb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+}
+
 // ── Strategy API cache (replaces localStorage) ─────────────────────
 let _sbStratCache = [];   // populated by strategiesRender(); used by builder to find by id
 
