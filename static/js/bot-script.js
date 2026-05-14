@@ -1119,7 +1119,7 @@ function sbDefaultConfig(type) {
   if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30,
     frontDte:7, backDte:30, strikeMethod:'atm', strikeValue:'',
     spreadWidth:5, callWidth:5, putWidth:5,
-    takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit' };
+    takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit', tag:'' };
   if (type === 'close_position') return { target:'all', reason:'manual' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
   if (type === 'tags')           return { tag:'' };
@@ -1404,6 +1404,7 @@ function stratSaveStepConfig() {
     c.stopLossPct   = parseFloat(document.getElementById('sbcStopLossPct')?.value) || 200;
     c.quantity      = parseInt(document.getElementById('sbcQty')?.value) || 1;
     c.orderType     = document.getElementById('sbcOrderType')?.value || 'credit';
+    c.tag           = (document.getElementById('sbcTag')?.value || '').trim();
   } else if (step.type === 'close_position') {
     c.target = document.getElementById('sbcTarget')?.value || 'all';
     c.reason = document.getElementById('sbcReason')?.value || 'manual';
@@ -1503,8 +1504,16 @@ function sbStrikeMethodChange() {
   _show('sbcStrikeValRow', !_OP_STRADDLE.includes(s) && sm !== 'atm');
   const lbl = document.getElementById('sbcStrikeValLabel');
   const inp = document.getElementById('sbcStrikeValue');
-  if (lbl) lbl.textContent = sm==='delta'?'Target Delta (short leg)':sm==='otm_pct'?'OTM % (short leg)':'OTM $ Amount (short leg)';
-  if (inp) inp.placeholder = sm==='delta'?'0.30':sm==='otm_pct'?'5':'50';
+  const smLabelMap = {
+    pct_underlying:  '% Distance from Underlying',
+    dollar_underlying:'$ Distance from Underlying',
+    pct_leg:         '% Distance from Another Leg',
+    dollar_leg:      '$ Distance from Another Leg',
+    delta:           'Target Delta',
+  };
+  const smPhMap = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', delta:'0.30' };
+  if (lbl) lbl.textContent = smLabelMap[sm] || '% Distance from Underlying';
+  if (inp) inp.placeholder  = smPhMap[sm]  || '5';
 }
 
 function sbStepConfigHTML(step) {
@@ -1711,8 +1720,11 @@ function sbStepConfigHTML(step) {
       .join('');
 
     const showStrikeVal  = !isStraddle && sm !== 'atm';
-    const strikeValLabel = sm==='delta' ? 'Target Delta (short leg)' : sm==='otm_pct' ? 'OTM % (short leg)' : 'OTM $ Amount (short leg)';
-    const strikeValPh    = sm==='delta' ? '0.30' : sm==='otm_pct' ? '5' : '50';
+    const _smLbl = { pct_underlying:'% Distance from Underlying', dollar_underlying:'$ Distance from Underlying',
+                     pct_leg:'% Distance from Another Leg', dollar_leg:'$ Distance from Another Leg', delta:'Target Delta' };
+    const _smPh  = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', delta:'0.30' };
+    const strikeValLabel = _smLbl[sm] || '% Distance from Underlying';
+    const strikeValPh    = _smPh[sm]  || '5';
 
     return `
       <div class="sb-form-row">
@@ -1757,10 +1769,12 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row" id="sbcStrikeRow" style="${isStraddle?'display:none':''}">
         <div class="sb-form-label" id="sbcStrikeRowLabel">Strike Selection${isIron?' — short legs':''}</div>
         <select id="sbcStrikeMethod" class="sb-form-select" onchange="sbStrikeMethodChange()">
-          <option value="atm"        ${sm==='atm'?'selected':''}>ATM — At the Money</option>
-          <option value="delta"      ${sm==='delta'?'selected':''}>By Delta (e.g. 0.30)</option>
-          <option value="otm_pct"    ${sm==='otm_pct'?'selected':''}>OTM by % (e.g. 5%)</option>
-          <option value="otm_dollar" ${sm==='otm_dollar'?'selected':''}>OTM by $ (e.g. $50)</option>
+          <option value="atm"               ${sm==='atm'?'selected':''}>1. ATM — At the Money</option>
+          <option value="pct_underlying"    ${sm==='pct_underlying'?'selected':''}>2. % Distance from Underlying</option>
+          <option value="dollar_underlying" ${sm==='dollar_underlying'?'selected':''}>3. $ Distance from Underlying</option>
+          <option value="pct_leg"           ${sm==='pct_leg'?'selected':''}>4. % Distance from Another Leg</option>
+          <option value="dollar_leg"        ${sm==='dollar_leg'?'selected':''}>5. $ Distance from Another Leg</option>
+          <option value="delta"             ${sm==='delta'?'selected':''}>6. Delta-based Strike Selection</option>
         </select>
       </div>
       <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal?'':'display:none'}">
@@ -1800,6 +1814,10 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row">
         <div class="sb-form-label">Order Type</div>
         <select id="sbcOrderType" class="sb-form-select">${otOpts}</select>
+      </div>
+      <div class="sb-form-row">
+        <div class="sb-form-label">Tag — position label (optional)</div>
+        <input id="sbcTag" class="sb-form-input" placeholder="e.g. LC, IC-1, hedge" value="${_escHtml(c.tag||'')}">
       </div>`;
   }
 
