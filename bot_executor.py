@@ -364,9 +364,8 @@ def execute_strategy(cfg, strategy_dict, app):
 # ── Global scheduler entry point ────────────────────────────────────────────
 
 def execute_all_live_strategies(app):
-    """Called every 30 s by APScheduler. Skips outside market hours."""
-    if not _is_market_hours():
-        return
+    """Called every 30 s by APScheduler. Runs any time — strategy Time steps
+    control execution windows; no server-side market-hours gate."""
 
     now = datetime.utcnow()
     try:
