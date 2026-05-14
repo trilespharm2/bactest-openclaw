@@ -1164,6 +1164,7 @@ let _sbEditId    = null;   // strategy id being edited (null = new)
 let _sbSteps     = [];     // array of step objects
 let _sbInsertIdx = -1;     // where to insert the next step
 let _sbEditStepIdx = -1;   // step index being configured in modal
+let _sbIsNewStep = false;  // true when modal opened for a freshly-added step
 
 // ── Utilities ──────────────────────────────────────────────────────
 function sbUUID() {
@@ -1311,10 +1312,8 @@ function sbAddStep(type) {
   _sbSteps.splice(idx, 0, step);
   stratCloseDrawer();
   sbRenderFlow();
-  // Count opportunities/warnings
   sbUpdateCounts();
-  // Auto-open config modal for all step types
-  stratEditStep(idx);
+  stratEditStep(idx, true);
 }
 
 function sbRemoveStep(idx) {
@@ -1328,10 +1327,11 @@ function sbUpdateCounts() {
 }
 
 // ── Step config modal ──────────────────────────────────────────────
-function stratEditStep(idx) {
+function stratEditStep(idx, isNew) {
   const step = _sbSteps[idx];
   if (!step) return;
   _sbEditStepIdx = idx;
+  _sbIsNewStep = !!isNew;
   const meta = SB_ACTIONS.find(m => m.type === step.type) || {};
   document.getElementById('sbStepModalTitle').textContent = `Configure: ${meta.label || step.type}`;
   document.getElementById('sbStepModalBody').innerHTML = sbStepConfigHTML(step);
@@ -1339,8 +1339,14 @@ function stratEditStep(idx) {
 }
 
 function stratCloseStepModal() {
+  if (_sbIsNewStep && _sbEditStepIdx >= 0) {
+    _sbSteps.splice(_sbEditStepIdx, 1);
+    sbRenderFlow();
+    sbUpdateCounts();
+  }
   document.getElementById('sbStepModal').style.display = 'none';
   _sbEditStepIdx = -1;
+  _sbIsNewStep = false;
 }
 
 function stratSaveStepConfig() {
@@ -1438,6 +1444,7 @@ function stratSaveStepConfig() {
     c.value         = parseFloat(document.getElementById('sbcCondValue')?.value) || 1;
   }
 
+  _sbIsNewStep = false;
   stratCloseStepModal();
   sbRenderFlow();
 }
