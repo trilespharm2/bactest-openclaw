@@ -1102,6 +1102,7 @@ function _show(id, visible) {
 const SB_ACTIONS = [
   { type:'time',           icon:'fa-clock',        bg:'#f0fdf4', color:'#10b981', label:'Time',           desc:'Trigger based on time of day.' },
   { type:'metric',         icon:'fa-chart-line',   bg:'#fff8e7', color:'#f59e0b', label:'Metric',         desc:'Condition based on a market metric.' },
+  { type:'condition',      icon:'fa-code-branch',  bg:'#ecfeff', color:'#0891b2', label:'Condition',      desc:'Guard: only proceed if a position/P&L condition is met.' },
   { type:'open_position',  icon:'fa-plus-square',  bg:'#eff6ff', color:'#1b55e2', label:'Open Position',  desc:'Place a trade to open a new position.' },
   { type:'close_position', icon:'fa-minus-square', bg:'#fef2f2', color:'#ef4444', label:'Close Position', desc:'Place a trade to close a position.' },
   { type:'notification',   icon:'fa-bell',         bg:'#f5f3ff', color:'#6366f1', label:'Notification',   desc:'Send a notification to yourself.' },
@@ -1120,6 +1121,7 @@ function sbDefaultConfig(type) {
     frontDte:7, backDte:30, strikeMethod:'atm', strikeValue:'',
     spreadWidth:5, callWidth:5, putWidth:5,
     takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit', tag:'' };
+  if (type === 'condition')      return { conditionType:'position_count', tag:'', operator:'<', value:1 };
   if (type === 'close_position') return { target:'all', reason:'manual' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
   if (type === 'tags')           return { tag:'' };
@@ -1141,6 +1143,13 @@ function sbConfigSummary(step) {
     const dteS  = _CAL.includes(c.strategy)  ? `${c.frontDte||7}/${c.backDte||30} DTE` : `${c.dte||30} DTE`;
     const wingS = _IRON.includes(c.strategy) ? ` · P${c.putWidth||5}$/C${c.callWidth||5}$` : '';
     return `${c.symbol||'?'} · ${c.strategy||'?'} · ${dteS}${wingS}`;
+  }
+  if (step.type === 'condition') {
+    const _ctN = { position_count:'Open positions', daily_opens:'Positions today', unrealized_pnl:'Unrealized P&L' };
+    const tName = _ctN[c.conditionType] || 'Open positions';
+    const tagStr = c.tag ? ` (${c.tag})` : '';
+    const valStr = c.conditionType === 'unrealized_pnl' ? `$${c.value??0}` : (c.value??1);
+    return `${tName}${tagStr} ${c.operator||'<'} ${valStr} → proceed`;
   }
   if (step.type === 'close_position') return `Close ${c.target||'all'} positions`;
   if (step.type === 'notification')   return c.message || 'Send notification';
@@ -1413,6 +1422,11 @@ function stratSaveStepConfig() {
     c.channel = document.getElementById('sbcChannel')?.value || 'email';
   } else if (step.type === 'tags') {
     c.tag = (document.getElementById('sbcTag')?.value || '').trim();
+  } else if (step.type === 'condition') {
+    c.conditionType = document.getElementById('sbcCondType')?.value || 'position_count';
+    c.tag           = (document.getElementById('sbcCondTag')?.value || '').trim();
+    c.operator      = document.getElementById('sbcCondOp')?.value || '<';
+    c.value         = parseFloat(document.getElementById('sbcCondValue')?.value) || 1;
   }
 
   stratCloseStepModal();
@@ -1465,6 +1479,15 @@ function sbRefDayChange()      { sbSyncMetricForm(); }
 function sbAndToggle()         { _show('sbcAndBlock', document.getElementById('sbcAndEnabled')?.checked); }
 function sbAndMetricChange()   { _show('sbcAndPeriodRow', ['sma','ema','rsi','roc'].includes(document.getElementById('sbcAndMetric')?.value)); }
 function sbSeqToggle()         { _show('sbcSeqBlock', document.getElementById('sbcSeqEnabled')?.checked); }
+
+// ── Condition step: update value label when type changes ─────────────
+function sbConditionTypeChange() {
+  const t   = document.getElementById('sbcCondType')?.value || 'position_count';
+  const lbl = document.getElementById('sbcCondValLabel');
+  if (lbl) lbl.textContent = t === 'unrealized_pnl' ? 'P&L threshold ($)' : 'Count threshold';
+  const ph  = document.getElementById('sbcCondValue');
+  if (ph)  ph.placeholder  = t === 'unrealized_pnl' ? '-500' : '1';
+}
 
 // ── Open Position: strategy-driven field visibility ──────────────────
 const _OP_SINGLE   = ['Long Call','Long Put','Naked Short Call','Naked Short Put'];
@@ -1865,6 +1888,53 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row">
         <div class="sb-form-label">Tag Name</div>
         <input id="sbcTag" class="sb-form-input" placeholder="e.g. high-iv" value="${_escHtml(c.tag||'')}">
+      </div>`;
+  }
+
+  // ── Condition (guard gate) ────────────────────────────────────────
+  if (step.type === 'condition') {
+    const ct  = c.conditionType || 'position_count';
+    const op  = c.operator || '<';
+    const isPnl = ct === 'unrealized_pnl';
+    const valLbl = isPnl ? 'P&L threshold ($)' : 'Count threshold';
+    const valPh  = isPnl ? '-500' : '1';
+    return `
+      <!-- What to check -->
+      <div class="sb-form-row">
+        <div class="sb-form-label">Check</div>
+        <select id="sbcCondType" class="sb-form-select" onchange="sbConditionTypeChange()">
+          <option value="position_count" ${ct==='position_count'?'selected':''}>Open position count</option>
+          <option value="daily_opens"    ${ct==='daily_opens'?'selected':''}>Positions opened today</option>
+          <option value="unrealized_pnl" ${ct==='unrealized_pnl'?'selected':''}>Unrealized P&amp;L ($)</option>
+        </select>
+      </div>
+      <!-- Optional tag filter -->
+      <div class="sb-form-row">
+        <div class="sb-form-label">Tag filter — leave blank to check all positions</div>
+        <input id="sbcCondTag" class="sb-form-input" placeholder="e.g. LC, IC-1" value="${_escHtml(c.tag||'')}">
+      </div>
+      <!-- Operator -->
+      <div class="sb-form-row">
+        <div class="sb-form-label">Is</div>
+        <select id="sbcCondOp" class="sb-form-select">
+          <option value="<"  ${op==='<' ?'selected':''}>&#60; less than</option>
+          <option value="<=" ${op==='<='?'selected':''}>&#8804; less than or equal to</option>
+          <option value="="  ${op==='=' ?'selected':''}>= equal to</option>
+          <option value=">=" ${op==='>='?'selected':''}>&#8805; greater than or equal to</option>
+          <option value=">"  ${op==='>' ?'selected':''}>&#62; greater than</option>
+        </select>
+      </div>
+      <!-- Threshold value -->
+      <div class="sb-form-row">
+        <div class="sb-form-label" id="sbcCondValLabel">${valLbl}</div>
+        <input id="sbcCondValue" class="sb-form-input" type="number" step="any"
+               value="${c.value??1}" placeholder="${valPh}">
+      </div>
+      <!-- Info box -->
+      <div style="padding:10px 12px;background:#ecfeff;border-radius:8px;border:1px solid #a5f3fc;font-size:12px;color:#0e7490;margin:6px 0 2px;">
+        <i class="fas fa-code-branch" style="margin-right:6px;"></i>
+        If this condition is <strong>true</strong>, the automation continues to the next step.
+        If <strong>false</strong>, execution stops for this polling tick — no trade is placed.
       </div>`;
   }
 
