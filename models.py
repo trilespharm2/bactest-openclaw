@@ -200,6 +200,9 @@ class BotConfig(db.Model):
     live_account_id_enc = db.Column(db.Text, nullable=True)
     live_api_key_enc    = db.Column(db.Text, nullable=True)
 
+    # Execution settings
+    poll_interval_sec = db.Column(db.Integer, default=60)  # 30 / 60 / 120 / 300
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -223,6 +226,33 @@ class BotConfig(db.Model):
             'paper_live_api_key':    _mask(self.paper_live_api_key_enc),
             'live_account_id':       decrypt_value(self.live_account_id_enc) or '',
             'live_api_key':          _mask(self.live_api_key_enc),
+            'poll_interval_sec':     self.poll_interval_sec or 60,
+        }
+
+
+class BotStrategy(db.Model):
+    __tablename__ = 'bot_strategies'
+
+    id               = db.Column(db.Integer, primary_key=True)
+    user_id          = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name             = db.Column(db.String(200), default='Untitled Strategy')
+    steps            = db.Column(db.Text, default='[]')   # JSON
+    is_live          = db.Column(db.Boolean, default=False)
+    last_executed_at = db.Column(db.DateTime, nullable=True)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('bot_strategies', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id':               self.id,
+            'name':             self.name,
+            'steps':            json.loads(self.steps or '[]'),
+            'is_live':          self.is_live,
+            'last_executed_at': self.last_executed_at.isoformat() if self.last_executed_at else None,
+            'created_at':       self.created_at.isoformat()       if self.created_at       else None,
+            'updated_at':       self.updated_at.isoformat()       if self.updated_at       else None,
         }
 
 

@@ -62,6 +62,7 @@ function botPopulateForm(data) {
   _safeSet('botPaperLiveApiKey',    data.paper_live_api_key || '');
   _safeSet('botLiveAccountId',      data.live_account_id || '');
   _safeSet('botLiveApiKey',         data.live_api_key || '');
+  _safeSet('botPollInterval',       String(data.poll_interval_sec || 60));
   botSetMode(_botCurrentMode, false);
 }
 
@@ -85,6 +86,7 @@ async function botSaveConfig() {
     paper_live_api_key:    document.getElementById('botPaperLiveApiKey')?.value.trim() || '',
     live_account_id:       document.getElementById('botLiveAccountId')?.value.trim() || '',
     live_api_key:          document.getElementById('botLiveApiKey')?.value.trim() || '',
+    poll_interval_sec:     parseInt(document.getElementById('botPollInterval')?.value || '60'),
   };
   try {
     const resp = await fetch('/api/bot/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
@@ -1163,23 +1165,20 @@ let _sbSteps     = [];     // array of step objects
 let _sbInsertIdx = -1;     // where to insert the next step
 let _sbEditStepIdx = -1;   // step index being configured in modal
 
-// ── localStorage helpers ───────────────────────────────────────────
-function sbLoad() {
-  try { return JSON.parse(localStorage.getItem('botStrategies') || '[]'); } catch { return []; }
-}
-function sbSave(list) {
-  localStorage.setItem('botStrategies', JSON.stringify(list));
-}
-function sbUUID() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+// ── Strategy API cache (replaces localStorage) ─────────────────────
+let _sbStratCache = [];   // populated by strategiesRender(); used by builder to find by id
+
+async function _apiStrategies() {
+  const r = await fetch('/api/bot/strategies');
+  if (!r.ok) return [];
+  return await r.json();
 }
 
 // ── Open/Close builder ────────────────────────────────────────────
-function stratBuilderOpen(stratId) {
-  _sbEditId = stratId;
+async function stratBuilderOpen(stratId) {
+  _sbEditId = stratId || null;
   if (stratId) {
-    const list = sbLoad();
-    const s = list.find(x => x.id === stratId);
+    const s = _sbStratCache.find(x => x.id == stratId);
     if (!s) return;
     document.getElementById('sbStratName').value = s.name;
     _sbSteps = JSON.parse(JSON.stringify(s.steps || []));
@@ -1202,22 +1201,24 @@ function stratBuilderClose() {
 }
 
 // ── Save ──────────────────────────────────────────────────────────
-function stratBuilderSave() {
+async function stratBuilderSave() {
   const name = (document.getElementById('sbStratName').value || '').trim() || 'Untitled Strategy';
-  const list = sbLoad();
-  if (_sbEditId) {
-    const idx = list.findIndex(x => x.id === _sbEditId);
-    if (idx >= 0) {
-      list[idx].name  = name;
-      list[idx].steps = _sbSteps;
-      list[idx].updatedAt = new Date().toISOString();
-    }
-  } else {
-    list.push({ id: sbUUID(), name, status:'off', steps: _sbSteps, createdAt: new Date().toISOString() });
+  const saveBtn = document.querySelector('#stratBuilderOverlay .sb-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  try {
+    const payload = { name, steps: _sbSteps };
+    if (_sbEditId) payload.id = _sbEditId;
+    const r = await fetch('/api/bot/strategies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) { alert('Save failed'); return; }
+    stratBuilderClose();
+    await strategiesRender();
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Strategy'; }
   }
-  sbSave(list);
-  stratBuilderClose();
-  strategiesRender();
 }
 
 // ── Run Test (stub) ────────────────────────────────────────────────
@@ -1942,24 +1943,26 @@ function sbStepConfigHTML(step) {
 }
 
 // ── Strategies list (dashboard card) ──────────────────────────────
-function strategiesRender() {
+async function strategiesRender() {
   const body = document.getElementById('botStrategiesBody');
   if (!body) return;
-  const list = sbLoad();
-  if (!list.length) {
+  try {
+    _sbStratCache = await _apiStrategies();
+  } catch { _sbStratCache = []; }
+  if (!_sbStratCache.length) {
     body.innerHTML = `<div class="bot-empty" style="padding:28px 20px;">
       <i class="fas fa-robot" style="font-size:28px;margin-bottom:8px;display:block;color:#dee2e6;"></i>
       No strategies yet. Click <strong>+ New Strategy</strong> to create one.
     </div>`;
     return;
   }
-  body.innerHTML = `<div class="strat-list">${list.map(s => stratItemHTML(s)).join('')}</div>`;
+  body.innerHTML = `<div class="strat-list">${_sbStratCache.map(s => stratItemHTML(s)).join('')}</div>`;
 }
 
 function stratItemHTML(s) {
   const stepsLabel = s.steps?.length ? `${s.steps.length} step${s.steps.length!==1?'s':''}` : 'No steps';
-  const isLive = s.status === 'live';
-  const created = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '';
+  const isLive  = s.is_live;
+  const created = s.created_at ? new Date(s.created_at).toLocaleDateString() : '';
   return `<div class="strat-item">
     <div class="strat-item-left">
       <div class="strat-item-icon"><i class="fas fa-robot"></i></div>
@@ -1972,31 +1975,36 @@ function stratItemHTML(s) {
       <div class="strat-toggle-wrap">
         <span class="strat-toggle-label ${isLive?'live':'off'}" id="stratLabel_${s.id}">${isLive?'Live':'Off'}</span>
         <label class="strat-toggle">
-          <input type="checkbox" ${isLive?'checked':''} onchange="stratToggle('${s.id}',this.checked)">
+          <input type="checkbox" ${isLive?'checked':''} onchange="stratToggle(${s.id},this.checked)">
           <span class="strat-toggle-slider"></span>
         </label>
       </div>
-      <button class="strat-edit-btn" onclick="stratBuilderOpen('${s.id}')" title="Edit"><i class="fas fa-pen"></i></button>
-      <button class="strat-del-btn" onclick="stratDelete('${s.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+      <button class="strat-edit-btn" onclick="stratBuilderOpen(${s.id})" title="Edit"><i class="fas fa-pen"></i></button>
+      <button class="strat-del-btn" onclick="stratDelete(${s.id})" title="Delete"><i class="fas fa-trash"></i></button>
     </div>
   </div>`;
 }
 
-function stratToggle(id, isLive) {
-  const list = sbLoad();
-  const s = list.find(x => x.id === id);
-  if (!s) return;
-  s.status = isLive ? 'live' : 'off';
-  sbSave(list);
+async function stratToggle(id, isLive) {
   const lbl = document.getElementById('stratLabel_' + id);
   if (lbl) { lbl.textContent = isLive ? 'Live' : 'Off'; lbl.className = 'strat-toggle-label ' + (isLive ? 'live' : 'off'); }
+  const cached = _sbStratCache.find(x => x.id == id);
+  if (cached) cached.is_live = isLive;
+  try {
+    await fetch(`/api/bot/strategies/${id}/live`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_live: isLive }),
+    });
+  } catch (e) { console.error('stratToggle error', e); }
 }
 
-function stratDelete(id) {
+async function stratDelete(id) {
   if (!confirm('Delete this strategy?')) return;
-  const list = sbLoad().filter(x => x.id !== id);
-  sbSave(list);
-  strategiesRender();
+  try {
+    await fetch(`/api/bot/strategies/${id}`, { method: 'DELETE' });
+  } catch (e) { console.error('stratDelete error', e); }
+  await strategiesRender();
 }
 
 function _escHtml(s) {

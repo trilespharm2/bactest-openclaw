@@ -8162,6 +8162,7 @@ def bot_save_config():
     cfg.paper_live_api_key_enc    = _enc_if_real(data.get('paper_live_api_key', ''),    cfg.paper_live_api_key_enc)
     cfg.live_account_id_enc       = _enc_if_real(data.get('live_account_id', ''),       cfg.live_account_id_enc)
     cfg.live_api_key_enc          = _enc_if_real(data.get('live_api_key', ''),          cfg.live_api_key_enc)
+    cfg.poll_interval_sec         = int(data.get('poll_interval_sec', 60))
 
     try:
         db.session.commit()
@@ -8169,6 +8170,77 @@ def bot_save_config():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Bot Strategy CRUD ────────────────────────────────────────────────────────
+
+@app.route('/api/bot/strategies', methods=['GET'])
+@login_required
+def bot_list_strategies():
+    from models import BotStrategy
+    strategies = BotStrategy.query.filter_by(user_id=current_user.id)\
+                                  .order_by(BotStrategy.created_at.desc()).all()
+    return jsonify([s.to_dict() for s in strategies])
+
+
+@app.route('/api/bot/strategies', methods=['POST'])
+@login_required
+def bot_save_strategy():
+    from models import BotStrategy
+    import json as _json
+    data = request.get_json() or {}
+    sid  = data.get('id')
+
+    if sid:
+        strat = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
+        if not strat:
+            return jsonify({'error': 'Strategy not found'}), 404
+    else:
+        strat = BotStrategy(user_id=current_user.id)
+        db.session.add(strat)
+
+    strat.name  = (data.get('name') or 'Untitled Strategy').strip()
+    strat.steps = _json.dumps(data.get('steps', []))
+
+    try:
+        db.session.commit()
+        return jsonify(strat.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/strategies/<int:sid>', methods=['DELETE'])
+@login_required
+def bot_delete_strategy(sid):
+    from models import BotStrategy
+    strat = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
+    if not strat:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(strat)
+    try:
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/strategies/<int:sid>/live', methods=['PATCH'])
+@login_required
+def bot_toggle_strategy_live(sid):
+    from models import BotStrategy
+    strat = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
+    if not strat:
+        return jsonify({'error': 'Not found'}), 404
+    body = request.get_json(silent=True) or {}
+    strat.is_live = bool(body.get('is_live', False))
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'is_live': strat.is_live})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 def _tradier_proxy(path, method='GET', params=None, body=None):

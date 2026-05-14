@@ -316,6 +316,15 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Poll Interval — how often the bot checks conditions</label>
+                            <select class="form-select form-select-sm" id="botPollInterval" style="max-width:260px;">
+                                <option value="30">Every 30 seconds</option>
+                                <option value="60" selected>Every 60 seconds (default)</option>
+                                <option value="120">Every 2 minutes</option>
+                                <option value="300">Every 5 minutes</option>
+                            </select>
+                        </div>
                         <div class="d-flex gap-2 mt-4 flex-wrap">
                             <button class="btn btn-primary" id="botSaveBtn" onclick="botSaveConfig()" style="min-width:160px;">
                                 <i class="fas fa-save me-2"></i>Save &amp; Connect
