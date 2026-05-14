@@ -8446,35 +8446,39 @@ def bot_tradier_option_chains():
 @login_required
 def bot_tradier_indicators():
     """
-    Fetch recent 1-min bars from Tradier and compute indicator values for
-    the last 2 completed bars. Used by the strategy builder for signal evaluation.
+    Fetch market data from Tradier and compute indicator values for the last 2 bars.
+    Supports both intraday (timesales) and daily (history) data paths.
 
     Query params:
-      symbol            - ticker (e.g. SPY, SPX → mapped to $SPX.X automatically)
-      metric            - price | sma | ema | rsi | volume  (default: price)
-      period            - int, default 14
-      compare_type      - value | indicator  (default: value)
-      compare_indicator - sma | ema | rsi | price  (when compare_type=indicator)
-      compare_period    - int, default 9
-      interval          - 1min | 5min | 15min  (default: 1min)
-
-    Returns:
-      { symbol, metric, period, bars, current, previous,
-        compare_type, [compare_current, compare_previous,
-                       crosses_above, crosses_below] }
+      symbol             - ticker (SPY, SPX → $SPX.X, etc.)
+      metric             - price | sma | ema | rsi | roc | volume | gap_pct | change_pct
+      period             - lookback window for SMA/EMA/RSI/ROC (default 14)
+      day                - 0=today/intraday, -1=yesterday daily bar, … (default 0)
+      interval           - 1min | 5min | 15min | day  (default 1min; ignored when day<0)
+      series             - open | high | low | close | vwap  (default close)
+      compare_type       - value | indicator  (default value)
+      compare_indicator  - sma | ema | rsi | price | roc  (when compare_type=indicator)
+      compare_period     - int (default 9)
+      compare_day        - day offset for compare indicator (default -1)
+      compare_interval   - bar interval for compare indicator (default day)
+      compare_series     - series for compare indicator (default close)
     """
     from models import BotConfig, decrypt_value
     from datetime import datetime, timedelta
 
-    symbol           = request.args.get('symbol', 'SPY').upper().strip()
-    metric           = request.args.get('metric', 'price')
-    period           = max(1, int(request.args.get('period', 14)))
-    compare_type     = request.args.get('compare_type', 'value')
-    cmp_indicator    = request.args.get('compare_indicator', 'ema')
-    cmp_period       = max(1, int(request.args.get('compare_period', 9)))
-    interval         = request.args.get('interval', '1min')
+    symbol        = request.args.get('symbol', 'SPY').upper().strip()
+    metric        = request.args.get('metric', 'price')
+    period        = max(1, int(request.args.get('period', 14)))
+    day           = int(request.args.get('day', 0))
+    interval      = request.args.get('interval', '1min')   # 1min | 5min | 15min | day
+    series        = request.args.get('series', 'close')    # open | high | low | close | vwap
+    compare_type  = request.args.get('compare_type', 'value')
+    cmp_indicator = request.args.get('compare_indicator', 'ema')
+    cmp_period    = max(1, int(request.args.get('compare_period', 9)))
+    cmp_day       = int(request.args.get('compare_day', -1))
+    cmp_interval  = request.args.get('compare_interval', 'day')
+    cmp_series    = request.args.get('compare_series', 'close')
 
-    # Map common index symbols to Tradier format
     _INDEX_MAP = {
         'SPX': '$SPX.X', 'SPXW': '$SPXW.X',
         'RUT': '$RUT.X', 'NDX':  '$NDX.X',
@@ -8482,13 +8486,11 @@ def bot_tradier_indicators():
     }
     tradier_symbol = _INDEX_MAP.get(symbol, symbol)
 
-    # Resolve API key — always use live endpoint for market data
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if not cfg:
         return jsonify({'error': 'No bot configuration found'}), 400
 
     api_key = None
-    # Paper-mode users may have a separate live-quote key for market data
     if cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
         api_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip() or None
     if not api_key:
@@ -8499,111 +8501,233 @@ def bot_tradier_indicators():
 
     headers = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
 
-    # How many bars we need for warm-up (3× the longest period + buffer)
-    max_p      = max(period, cmp_period if compare_type == 'indicator' else 1)
-    bars_needed = max(max_p * 3 + 10, 80)
+    # ── Data fetchers ────────────────────────────────────────────────
+    def _fetch_daily(sym, days_back=30):
+        """Fetch daily OHLCV bars from Tradier /v1/markets/history."""
+        start = (datetime.utcnow() - timedelta(days=days_back + 5)).strftime('%Y-%m-%d')
+        end   = datetime.utcnow().strftime('%Y-%m-%d')
+        r = requests.get(
+            'https://api.tradier.com/v1/markets/history',
+            headers=headers,
+            params={'symbol': sym, 'interval': 'daily', 'start': start, 'end': end},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            app.logger.warning('[Indicators] daily history HTTP %d for %s', r.status_code, sym)
+            return []
+        raw   = r.json().get('history') or {}
+        items = raw.get('day', [])
+        if isinstance(items, dict):
+            items = [items]
+        return items or []
 
-    # Request bars from the last 5 calendar days → session_filter=open trims to market hours
-    now_utc   = datetime.utcnow()
-    start_dt  = now_utc - timedelta(days=5)
-    params = {
-        'symbol':         tradier_symbol,
-        'interval':       interval,
-        'start':          start_dt.strftime('%Y-%m-%d %H:%M'),
-        'end':            now_utc.strftime('%Y-%m-%d %H:%M'),
-        'session_filter': 'open',
-    }
-
-    try:
+    def _fetch_intraday(sym, intv, days_back=5):
+        """Fetch intraday bars via Tradier /v1/markets/timesales."""
+        # Tradier accepts: 1min, 5min, 15min
+        trad_intv = intv if intv in ('1min', '5min', '15min') else '1min'
+        now_utc  = datetime.utcnow()
+        start_dt = now_utc - timedelta(days=days_back)
         r = requests.get(
             'https://api.tradier.com/v1/markets/timesales',
-            headers=headers, params=params, timeout=15
+            headers=headers,
+            params={
+                'symbol':         sym,
+                'interval':       trad_intv,
+                'start':          start_dt.strftime('%Y-%m-%d %H:%M'),
+                'end':            now_utc.strftime('%Y-%m-%d %H:%M'),
+                'session_filter': 'open',
+            },
+            timeout=15,
         )
-        app.logger.info('[Indicators] %s HTTP %d  bars_needed=%d', tradier_symbol, r.status_code, bars_needed)
         if r.status_code != 200:
-            return jsonify({'error': f'Tradier timesales HTTP {r.status_code}', 'detail': r.text[:300]}), r.status_code
-
-        raw = r.json().get('series') or {}
+            app.logger.warning('[Indicators] timesales HTTP %d for %s', r.status_code, sym)
+            return []
+        raw   = r.json().get('series') or {}
         items = raw.get('data', [])
         if isinstance(items, dict):
             items = [items]
-        if not items:
-            return jsonify({'error': 'No timesales data returned', 'bars': 0}), 200
+        return items or []
 
-        closes  = [float(b['close'])  for b in items]
-        volumes = [float(b['volume']) for b in items]
+    # ── Series extraction ────────────────────────────────────────────
+    def _prices_from_daily(bars, ser):
+        f = {'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close'}.get(ser, 'close')
+        return [float(b[f]) for b in bars if f in b]
 
-        # ── Indicator calculation helpers ──────────────────────────
+    def _prices_from_intraday(bars, ser):
+        f = {'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'vwap': 'vwap'}.get(ser, 'close')
+        return [float(b[f]) for b in bars if f in b]
 
-        def _ema_series(prices, n):
-            if len(prices) < n:
-                return [None] * len(prices)
-            k = 2.0 / (n + 1)
-            out = [None] * (n - 1)
-            ema = sum(prices[:n]) / n
+    def _volumes_from(bars):
+        return [float(b.get('volume', 0)) for b in bars]
+
+    # ── Indicator helpers ────────────────────────────────────────────
+    def _ema_series(prices, n):
+        if len(prices) < n:
+            return [None] * len(prices)
+        k   = 2.0 / (n + 1)
+        out = [None] * (n - 1)
+        ema = sum(prices[:n]) / n
+        out.append(ema)
+        for p in prices[n:]:
+            ema = p * k + ema * (1 - k)
             out.append(ema)
-            for p in prices[n:]:
-                ema = p * k + ema * (1 - k)
-                out.append(ema)
+        return out
+
+    def _sma_series(prices, n):
+        out = [None] * (n - 1)
+        for i in range(n - 1, len(prices)):
+            out.append(sum(prices[i - n + 1:i + 1]) / n)
+        return out
+
+    def _rsi_series(prices, n):
+        out = [None] * len(prices)
+        if len(prices) < n + 1:
             return out
+        deltas = [prices[i + 1] - prices[i] for i in range(len(prices) - 1)]
+        gains  = [max(d, 0.0) for d in deltas]
+        losses = [abs(min(d, 0.0)) for d in deltas]
+        ag = sum(gains[:n])  / n
+        al = sum(losses[:n]) / n
+        out[n] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
+        for i in range(n, len(gains)):
+            ag = (ag * (n - 1) + gains[i])  / n
+            al = (al * (n - 1) + losses[i]) / n
+            out[i + 1] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
+        return out
 
-        def _sma_series(prices, n):
-            out = [None] * (n - 1)
-            for i in range(n - 1, len(prices)):
-                out.append(sum(prices[i - n + 1:i + 1]) / n)
-            return out
+    def _roc_series(prices, n):
+        """Rate of Change: (price / price[n bars ago] - 1) × 100."""
+        out = [None] * len(prices)
+        for i in range(n, len(prices)):
+            if prices[i - n] and prices[i - n] != 0:
+                out[i] = (prices[i] - prices[i - n]) / abs(prices[i - n]) * 100
+        return out
 
-        def _rsi_series(prices, n):
-            out = [None] * len(prices)
-            if len(prices) < n + 1:
-                return out
-            deltas = [prices[i + 1] - prices[i] for i in range(len(prices) - 1)]
-            gains  = [max(d, 0.0) for d in deltas]
-            losses = [abs(min(d, 0.0)) for d in deltas]
-            ag = sum(gains[:n])  / n
-            al = sum(losses[:n]) / n
-            out[n] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
-            for i in range(n, len(gains)):
-                ag = (ag * (n - 1) + gains[i])  / n
-                al = (al * (n - 1) + losses[i]) / n
-                out[i + 1] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
-            return out
+    def _compute(prices, vols, m, p):
+        if m == 'price':  return prices[:]
+        if m == 'volume': return vols[:]
+        if m == 'sma':    return _sma_series(prices, p)
+        if m == 'ema':    return _ema_series(prices, p)
+        if m == 'rsi':    return _rsi_series(prices, p)
+        if m == 'roc':    return _roc_series(prices, p)
+        return [None] * len(prices)
 
-        def _series(m, p):
-            if m == 'price':  return closes[:]
-            if m == 'volume': return volumes[:]
-            if m == 'sma':    return _sma_series(closes, p)
-            if m == 'ema':    return _ema_series(closes, p)
-            if m == 'rsi':    return _rsi_series(closes, p)
-            return [None] * len(closes)
+    def _last2(s):
+        valid = [v for v in s if v is not None]
+        if len(valid) < 2:
+            return None, None
+        return valid[-2], valid[-1]
 
-        def _last2(series):
-            valid = [v for v in series if v is not None]
-            if len(valid) < 2:
-                return None, None
-            return valid[-2], valid[-1]
+    def _get_data(m, d, intv, ser, p):
+        """Return (price_list, volume_list) for a given metric/day/interval/series config."""
+        use_daily = (d < 0) or (intv == 'day') or (m in ('gap_pct', 'change_pct'))
+        if use_daily:
+            days_back = max(abs(d) + p * 3 + 5, 30)
+            daily = _fetch_daily(tradier_symbol, days_back)
+            if not daily:
+                return [], []
+            # Slice historical offset: day=-1 → exclude last bar, day=-2 → last 2, etc.
+            if d < 0:
+                daily = daily[:d]  # d=-1 removes last element
+            prices = _prices_from_daily(daily, ser)
+            vols   = _volumes_from(daily)
+        else:
+            daily  = None
+            bars   = _fetch_intraday(tradier_symbol, intv)
+            if not bars:
+                return [], []
+            prices = _prices_from_intraday(bars, ser)
+            vols   = _volumes_from(bars)
+        return prices, vols
 
-        prev_main, curr_main = _last2(_series(metric, period))
+    try:
+        # ── Special: gap_pct ────────────────────────────────────────
+        # gap_pct[bar n] = (bar[n].open − bar[n-1].close) / |bar[n-1].close| × 100
+        # Computed entirely from daily history bars (open vs prev close).
+        if metric == 'gap_pct':
+            daily = _fetch_daily(tradier_symbol, 30)
+            if len(daily) < 3:
+                return jsonify({'error': 'Not enough daily history for gap_pct', 'bars': len(daily)}), 200
+            opens  = [float(b['open'])  for b in daily]
+            closes = [float(b['close']) for b in daily]
+            gaps   = [None] + [
+                (opens[i] - closes[i - 1]) / abs(closes[i - 1]) * 100
+                for i in range(1, len(daily))
+            ]
+            # If day offset requested, shift the window
+            if day < 0:
+                gaps = gaps[:day]
+            prev_g, curr_g = _last2(gaps)
+            if curr_g is None:
+                return jsonify({'error': 'Not enough history for gap_pct at requested day', 'bars': len(daily)}), 200
+            result = {
+                'symbol': symbol, 'metric': 'gap_pct',
+                'bars': len(daily),
+                'previous': round(prev_g, 4), 'current': round(curr_g, 4),
+                'compare_type': compare_type,
+            }
+            return jsonify(result), 200
+
+        # ── Special: change_pct ─────────────────────────────────────
+        # change_pct[bar n] = (close[n] − close[n-1]) / |close[n-1]| × 100
+        if metric == 'change_pct':
+            days_back = max(abs(day) + 10, 20)
+            daily = _fetch_daily(tradier_symbol, days_back)
+            if len(daily) < 2:
+                return jsonify({'error': 'Not enough daily history for change_pct', 'bars': len(daily)}), 200
+            closes  = [float(b['close']) for b in daily]
+            changes = [None] + [
+                (closes[i] - closes[i - 1]) / abs(closes[i - 1]) * 100
+                for i in range(1, len(closes))
+            ]
+            if day < 0:
+                changes = changes[:day]
+            prev_c, curr_c = _last2(changes)
+            if curr_c is None:
+                return jsonify({'error': 'Not enough history for change_pct at requested day', 'bars': len(daily)}), 200
+            result = {
+                'symbol': symbol, 'metric': 'change_pct',
+                'bars': len(daily),
+                'previous': round(prev_c, 4), 'current': round(curr_c, 4),
+                'compare_type': compare_type,
+            }
+            return jsonify(result), 200
+
+        # ── General path: price / sma / ema / rsi / roc / volume ────
+        prices, vols = _get_data(metric, day, interval, series, period)
+        if len(prices) < 2:
+            return jsonify({'error': 'Not enough data', 'bars': len(prices)}), 200
+
+        main_series = _compute(prices, vols, metric, period)
+        prev_main, curr_main = _last2(main_series)
         if curr_main is None:
-            return jsonify({'error': 'Not enough data to compute indicator', 'bars': len(closes)}), 200
+            return jsonify({'error': 'Not enough data to compute indicator', 'bars': len(prices)}), 200
 
         result = {
             'symbol':   symbol,
             'metric':   metric,
             'period':   period,
-            'bars':     len(closes),
+            'day':      day,
+            'interval': interval,
+            'series':   series,
+            'bars':     len(prices),
             'previous': round(prev_main, 4),
             'current':  round(curr_main, 4),
         }
 
         if compare_type == 'indicator':
-            prev_cmp, curr_cmp = _last2(_series(cmp_indicator, cmp_period))
+            cmp_prices, cmp_vols = _get_data(cmp_indicator, cmp_day, cmp_interval, cmp_series, cmp_period)
+            if len(cmp_prices) < 2:
+                return jsonify({'error': 'Not enough data for compare indicator', 'bars': len(cmp_prices)}), 200
+            cmp_series_data = _compute(cmp_prices, cmp_vols, cmp_indicator, cmp_period)
+            prev_cmp, curr_cmp = _last2(cmp_series_data)
             if curr_cmp is None:
-                return jsonify({'error': 'Not enough data to compute compare indicator', 'bars': len(closes)}), 200
+                return jsonify({'error': 'Not enough data to compute compare indicator'}), 200
             result.update({
                 'compare_type':      'indicator',
                 'compare_indicator': cmp_indicator,
                 'compare_period':    cmp_period,
+                'compare_day':       cmp_day,
                 'compare_previous':  round(prev_cmp, 4),
                 'compare_current':   round(curr_cmp, 4),
                 'crosses_above': bool(prev_main <= prev_cmp and curr_main > curr_cmp),
@@ -8612,6 +8736,8 @@ def bot_tradier_indicators():
         else:
             result['compare_type'] = 'value'
 
+        app.logger.info('[Indicators] %s metric=%s day=%d intv=%s bars=%d curr=%.4f',
+                        symbol, metric, day, interval, len(prices), curr_main)
         return jsonify(result), 200
 
     except Exception as e:
