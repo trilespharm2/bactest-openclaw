@@ -1038,7 +1038,8 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'credit' if is_credit else 'debit'
-            order['price'] = str(net)
+            limit_price = float(cfg.get('limitPrice', 0) or 0)
+            order['price'] = str(limit_price) if limit_price > 0 else str(net)
         return _place(order)
 
     if strategy == 'Short Put Spread':
@@ -1106,7 +1107,8 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'credit' if is_short else 'debit'
-            order['price'] = str(net)
+            limit_price = float(cfg.get('limitPrice', 0) or 0)
+            order['price'] = str(limit_price) if limit_price > 0 else str(net)
         return _place(order)
 
     # ── Straddle / Strangle ───────────────────────────────────────────
@@ -1128,7 +1130,8 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'credit' if strategy == 'Short Straddle' else 'debit'
-            order['price'] = str(net)
+            limit_price = float(cfg.get('limitPrice', 0) or 0)
+            order['price'] = str(limit_price) if limit_price > 0 else str(net)
         return _place(order)
 
     if strategy in ('Calendar Call Spread', 'Calendar Put Spread',

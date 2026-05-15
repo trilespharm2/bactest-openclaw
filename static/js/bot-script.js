@@ -1661,7 +1661,8 @@ function sbStrategyChange() {
     ).join('');
     if (isEquity && !['market','limit'].includes(otSel.value)) otSel.value = 'market';
   }
-  _show('sbcEquityLimitRow', isEquity && document.getElementById('sbcOrderType')?.value === 'limit');
+  const _curOt = document.getElementById('sbcOrderType')?.value || 'market';
+  _show('sbcLimitPriceRow', (isEquity && _curOt === 'limit') || (!isEquity && ['credit','debit'].includes(_curOt)));
 
   // Update the "Strike Selection" label to mention short legs for iron
   const sl = document.getElementById('sbcStrikeRowLabel');
@@ -1685,9 +1686,14 @@ function sbLeg2MethodChange() {
 }
 
 function sbOrderTypeChange() {
-  const s  = document.getElementById('sbcStrategy')?.value || '';
-  const ot = document.getElementById('sbcOrderType')?.value || 'market';
-  _show('sbcEquityLimitRow', _OP_EQUITY.includes(s) && ot === 'limit');
+  const s        = document.getElementById('sbcStrategy')?.value || '';
+  const ot       = document.getElementById('sbcOrderType')?.value || 'market';
+  const isEquity = _OP_EQUITY.includes(s);
+  const showLimit = (isEquity && ot === 'limit') || (!isEquity && ['credit','debit'].includes(ot));
+  _show('sbcLimitPriceRow', showLimit);
+  const lbl = document.getElementById('sbcLimitPriceLabel');
+  if (lbl) lbl.textContent = isEquity ? 'Limit Price'
+    : (ot === 'credit' ? 'Min Credit Received ($ — 0 = auto)' : 'Max Debit Paid ($ — 0 = auto)');
 }
 
 function sbStrikeMethodChange() {
@@ -2135,10 +2141,10 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-label">Order Type</div>
         <select id="sbcOrderType" class="sb-form-select" onchange="sbOrderTypeChange()">${otOpts}</select>
       </div>
-      <!-- Limit Price (equity + limit order only) -->
-      <div class="sb-form-row" id="sbcEquityLimitRow" style="${isEquity && c.orderType==='limit'?'':'display:none'}">
-        <div class="sb-form-label">Limit Price</div>
-        <input id="sbcLimitPrice" class="sb-form-input" type="number" step="0.01" min="0" value="${c.limitPrice||''}" placeholder="0.00">
+      <!-- Limit Price (equity+limit OR options+credit/debit) -->
+      <div class="sb-form-row" id="sbcLimitPriceRow" style="${(isEquity && c.orderType==='limit') || (!isEquity && ['credit','debit'].includes(c.orderType)) ? '' : 'display:none'}">
+        <div class="sb-form-label" id="sbcLimitPriceLabel">${isEquity ? 'Limit Price' : (c.orderType === 'credit' ? 'Min Credit Received ($ — 0 = auto)' : 'Max Debit Paid ($ — 0 = auto)')}</div>
+        <input id="sbcLimitPrice" class="sb-form-input" type="number" step="0.01" min="0" value="${c.limitPrice ?? ''}" placeholder="0.00 (auto mid-price)">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Tag — position label (optional)</div>
