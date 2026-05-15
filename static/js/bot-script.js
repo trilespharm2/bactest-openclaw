@@ -1126,6 +1126,7 @@ function sbDefaultConfig(type) {
   if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30,
     frontDte:7, backDte:30, strikeMethod:'atm', strikeValue:'',
     spreadWidth:5, callWidth:5, putWidth:5,
+    leg2StrikeMethod:'spread_width', leg2StrikeValue:'', leg2Direction:'below',
     takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit', limitPrice:0, tag:'' };
   if (type === 'condition')      return { conditionType:'position_count', tag:'', operator:'<', value:1 };
   if (type === 'close_position') return { target:'all', tag:'' };
@@ -1499,9 +1500,18 @@ function stratSaveStepConfig() {
     c.dte           = parseInt(document.getElementById('sbcDte')?.value) || 30;
     c.frontDte      = parseInt(document.getElementById('sbcFrontDte')?.value) || 7;
     c.backDte       = parseInt(document.getElementById('sbcBackDte')?.value) || 30;
-    c.strikeMethod  = document.getElementById('sbcStrikeMethod')?.value || 'atm';
-    c.strikeValue   = document.getElementById('sbcStrikeValue')?.value || '';
-    c.spreadWidth   = parseFloat(document.getElementById('sbcSpreadWidth')?.value) || 5;
+    c.strikeMethod      = document.getElementById('sbcStrikeMethod')?.value || 'atm';
+    c.strikeValue       = document.getElementById('sbcStrikeValue')?.value || '';
+    c.leg2StrikeMethod  = document.getElementById('sbcLeg2Method')?.value || 'spread_width';
+    c.leg2StrikeValue   = document.getElementById('sbcLeg2Value')?.value  || '';
+    c.leg2Direction     = document.getElementById('sbcLeg2Dir')?.value    || 'below';
+    // spreadWidth: from Leg 2 section for verticals, standalone row for strangles
+    const _stratVal = document.getElementById('sbcStrategy')?.value || '';
+    if (_OP_VERTICAL.includes(_stratVal)) {
+      c.spreadWidth = parseFloat(document.getElementById('sbcLeg2SpreadWidth')?.value) || 5;
+    } else {
+      c.spreadWidth = parseFloat(document.getElementById('sbcSpreadWidth')?.value) || 5;
+    }
     c.callWidth     = parseFloat(document.getElementById('sbcCallWidth')?.value) || 5;
     c.putWidth      = parseFloat(document.getElementById('sbcPutWidth')?.value) || 5;
     c.takeProfitPct = parseFloat(document.getElementById('sbcTakeProfitPct')?.value) || 50;
@@ -1629,7 +1639,9 @@ function sbStrategyChange() {
   _show('sbcBackDteRow',     isCal && !isEquity);
   _show('sbcStrikeRow',      !isStraddle && !isEquity);
   _show('sbcStrikeValRow',   !isStraddle && !isEquity && sm !== 'atm');
-  _show('sbcSpreadWidthRow', (isVertical || isStrangle) && !isEquity);
+  _show('sbcSpreadWidthRow', isStrangle && !isEquity);
+  _show('sbcLeg2Section',   isVertical && !isEquity);
+  if (isVertical) sbLeg2MethodChange();
   _show('sbcCallWidthRow',   isIron && !isEquity);
   _show('sbcPutWidthRow',    isIron && !isEquity);
   _show('sbcTpRow',          !isEquity);
@@ -1650,6 +1662,22 @@ function sbStrategyChange() {
   // Update the "Strike Selection" label to mention short legs for iron
   const sl = document.getElementById('sbcStrikeRowLabel');
   if (sl) sl.textContent = 'Strike Selection' + (isIron ? ' — short legs' : '');
+}
+
+function sbLeg2MethodChange() {
+  const m2 = document.getElementById('sbcLeg2Method')?.value || 'spread_width';
+  const distMethods = ['pct_underlying','dollar_underlying','pct_leg1','dollar_leg1'];
+  const needsVal    = !['spread_width','atm'].includes(m2);
+  _show('sbcLeg2SpreadRow', m2 === 'spread_width');
+  _show('sbcLeg2ValueRow',  needsVal);
+  _show('sbcLeg2DirRow',    distMethods.includes(m2));
+  const labels = {
+    pct_underlying:'% Distance from Underlying', dollar_underlying:'$ Distance from Underlying',
+    pct_leg1:'% Distance from Leg 1', dollar_leg1:'$ Distance from Leg 1',
+    delta:'Target Delta', fixed_strike:'Fixed Strike ($)',
+  };
+  const lbl = document.getElementById('sbcLeg2ValueLabel');
+  if (lbl) lbl.textContent = labels[m2] || 'Value';
 }
 
 function sbOrderTypeChange() {
@@ -2018,8 +2046,59 @@ function sbStepConfigHTML(step) {
         <input id="sbcStrikeValue" class="sb-form-input" type="number" step="0.01" value="${c.strikeValue||''}" placeholder="${strikeValPh}">
       </div>
 
-      <!-- Spread Width (vertical spreads + strangles) -->
-      <div class="sb-form-row" id="sbcSpreadWidthRow" style="${isVertical||isStrangle?'':'display:none'}">
+      <!-- Leg 2 strike config (vertical spreads only) -->
+      ${(()=>{
+        const l2m = c.leg2StrikeMethod || 'spread_width';
+        const l2v = c.leg2StrikeValue  || '';
+        const l2d = c.leg2Direction    || 'below';
+        const distMethods = ['pct_underlying','dollar_underlying','pct_leg1','dollar_leg1'];
+        const l2ShowSpread = l2m === 'spread_width';
+        const l2ShowVal    = !['spread_width','atm'].includes(l2m);
+        const l2ShowDir    = distMethods.includes(l2m);
+        const l2Labels = { pct_underlying:'% Distance from Underlying',
+          dollar_underlying:'$ Distance from Underlying',
+          pct_leg1:'% Distance from Leg 1', dollar_leg1:'$ Distance from Leg 1',
+          delta:'Target Delta', fixed_strike:'Fixed Strike ($)' };
+        const l2Ph = { pct_underlying:'5', dollar_underlying:'10',
+          pct_leg1:'5', dollar_leg1:'5', delta:'0.30', fixed_strike:'500' };
+        return `
+        <div id="sbcLeg2Section" style="${isVertical?'':'display:none'}">
+          <div style="font-size:10.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;padding:10px 0 4px;border-top:1px solid #f0f3f7;margin-top:6px;">
+            Leg 2 — Strike Configuration
+          </div>
+          <div class="sb-form-row">
+            <div class="sb-form-label">Leg 2 Method</div>
+            <select id="sbcLeg2Method" class="sb-form-select" onchange="sbLeg2MethodChange()">
+              <option value="spread_width"     ${l2m==='spread_width'?'selected':''}>1. Spread Width from Leg 1</option>
+              <option value="atm"              ${l2m==='atm'?'selected':''}>2. ATM</option>
+              <option value="delta"            ${l2m==='delta'?'selected':''}>3. Target Delta</option>
+              <option value="pct_underlying"   ${l2m==='pct_underlying'?'selected':''}>4. % Distance from Underlying</option>
+              <option value="dollar_underlying"${l2m==='dollar_underlying'?'selected':''}>5. $ Distance from Underlying</option>
+              <option value="pct_leg1"         ${l2m==='pct_leg1'?'selected':''}>6. % Distance from Leg 1</option>
+              <option value="dollar_leg1"      ${l2m==='dollar_leg1'?'selected':''}>7. $ Distance from Leg 1</option>
+              <option value="fixed_strike"     ${l2m==='fixed_strike'?'selected':''}>8. Fixed Strike</option>
+            </select>
+          </div>
+          <div class="sb-form-row" id="sbcLeg2SpreadRow" style="${l2ShowSpread?'':'display:none'}">
+            <div class="sb-form-label">Spread Width — $ per leg</div>
+            <input id="sbcLeg2SpreadWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.spreadWidth||5}" placeholder="5">
+          </div>
+          <div class="sb-form-row" id="sbcLeg2ValueRow" style="${l2ShowVal?'':'display:none'}">
+            <div class="sb-form-label" id="sbcLeg2ValueLabel">${l2Labels[l2m]||'Value'}</div>
+            <input id="sbcLeg2Value" class="sb-form-input" type="number" step="0.01" value="${l2v}" placeholder="${l2Ph[l2m]||'5'}">
+          </div>
+          <div class="sb-form-row" id="sbcLeg2DirRow" style="${l2ShowDir?'':'display:none'}">
+            <div class="sb-form-label">Direction</div>
+            <select id="sbcLeg2Dir" class="sb-form-select">
+              <option value="below" ${l2d==='below'?'selected':''}>Below Leg 1 / Below Underlying</option>
+              <option value="above" ${l2d==='above'?'selected':''}>Above Leg 1 / Above Underlying</option>
+            </select>
+          </div>
+        </div>`;
+      })()}
+
+      <!-- Spread Width (strangles only) -->
+      <div class="sb-form-row" id="sbcSpreadWidthRow" style="${isStrangle?'':'display:none'}">
         <div class="sb-form-label">Spread Width — $ per leg</div>
         <input id="sbcSpreadWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.spreadWidth||5}" placeholder="5">
       </div>

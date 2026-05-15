@@ -678,6 +678,9 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     strike_method = cfg.get('strikeMethod', 'atm')
     strike_value  = cfg.get('strikeValue', '')
     spread_width  = float(cfg.get('spreadWidth', 5))
+    l2_method     = cfg.get('leg2StrikeMethod', 'spread_width')
+    l2_value      = cfg.get('leg2StrikeValue',  '')
+    l2_dir        = cfg.get('leg2Direction',     'below')
     put_width     = float(cfg.get('putWidth', 5))
     call_width    = float(cfg.get('callWidth', 5))
 
@@ -760,17 +763,62 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return min(options, key=lambda o: abs(abs(float((o.get('greeks') or {}).get('delta', 0) or 0)) - target_abs)) if options else None
 
     def _pick(options):
-        if strike_method == 'delta' and strike_value:
-            try:
+        try:
+            if strike_method == 'delta' and strike_value:
                 return _by_delta(options, abs(float(strike_value)))
-            except Exception:
-                pass
-        if strike_method == 'strike' and strike_value:
-            try:
+            if strike_method in ('strike', 'fixed_strike') and strike_value:
                 return _by_strike(options, float(strike_value))
-            except Exception:
+            if strike_method == 'dollar_underlying' and strike_value:
+                dist = float(strike_value)
+                # For puts: OTM = below; for calls: OTM = above
+                # Use the option type of the first element to determine default direction
+                otype = (options[0].get('option_type', 'put') if options else 'put')
+                target = underlying - dist if otype == 'put' else underlying + dist
+                return _by_strike(options, target)
+            if strike_method == 'pct_underlying' and strike_value:
+                pct = float(strike_value) / 100
+                otype = (options[0].get('option_type', 'put') if options else 'put')
+                target = underlying * (1 - pct) if otype == 'put' else underlying * (1 + pct)
+                return _by_strike(options, target)
+            if strike_method in ('dollar_leg', 'pct_leg') and strike_value:
+                # Leg-relative not meaningful for Leg 1 — fall through to ATM
                 pass
+        except Exception as e:
+            logger.warning(f"_pick({strike_method}): {e}")
         return _atm(options)
+
+    def _pick_leg2(options, leg1_opt, default_below=True):
+        """Select Leg 2 strike using the configured l2_method/l2_value/l2_dir."""
+        l1s = float(leg1_opt.get('strike', 0)) if leg1_opt else 0
+        default_target = l1s - spread_width if default_below else l1s + spread_width
+        try:
+            if l2_method == 'atm':
+                return _atm(options)
+            elif l2_method == 'delta':
+                return _by_delta(options, abs(float(l2_value or 0.3)))
+            elif l2_method == 'dollar_underlying':
+                dist = float(l2_value or spread_width)
+                t = underlying - dist if l2_dir == 'below' else underlying + dist
+                return _by_strike(options, t)
+            elif l2_method == 'pct_underlying':
+                pct = float(l2_value or 5) / 100
+                t = underlying * (1 - pct) if l2_dir == 'below' else underlying * (1 + pct)
+                return _by_strike(options, t)
+            elif l2_method == 'dollar_leg1':
+                dist = float(l2_value or spread_width)
+                t = l1s - dist if l2_dir == 'below' else l1s + dist
+                return _by_strike(options, t)
+            elif l2_method == 'pct_leg1':
+                pct = float(l2_value or 5) / 100
+                t = l1s * (1 - pct) if l2_dir == 'below' else l1s * (1 + pct)
+                return _by_strike(options, t)
+            elif l2_method == 'fixed_strike':
+                return _by_strike(options, float(l2_value or 0))
+            else:  # spread_width (default)
+                return _by_strike(options, default_target)
+        except Exception as e:
+            logger.warning(f"_pick_leg2({l2_method}): {e}")
+            return _by_strike(options, default_target)
 
     def _mid(opt):
         return round((float(opt.get('bid', 0) or 0) + float(opt.get('ask', 0) or 0)) / 2, 2)
@@ -858,28 +906,28 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         sp = _pick(puts)
         if not sp:
             return False, "No put options found"
-        lp = _by_strike(puts, float(sp.get('strike', 0)) - spread_width)
+        lp = _pick_leg2(puts, sp, default_below=True)
         return _vertical(sp, lp, is_credit=True)
 
     if strategy == 'Short Call Spread':
         sc = _pick(calls)
         if not sc:
             return False, "No call options found"
-        lc = _by_strike(calls, float(sc.get('strike', 0)) + spread_width)
+        lc = _pick_leg2(calls, sc, default_below=False)
         return _vertical(sc, lc, is_credit=True)
 
     if strategy == 'Long Put Spread':
         lp = _pick(puts)
         if not lp:
             return False, "No put options found"
-        sp = _by_strike(puts, float(lp.get('strike', 0)) - spread_width)
+        sp = _pick_leg2(puts, lp, default_below=True)
         return _vertical(sp, lp, is_credit=False)
 
     if strategy == 'Long Call Spread':
         lc = _pick(calls)
         if not lc:
             return False, "No call options found"
-        sc = _by_strike(calls, float(lc.get('strike', 0)) + spread_width)
+        sc = _pick_leg2(calls, lc, default_below=False)
         return _vertical(sc, lc, is_credit=False)
 
     # ── IRON STRUCTURES ──────────────────────────────────────────────
