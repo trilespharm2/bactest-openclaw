@@ -1115,8 +1115,11 @@ const SB_ACTIONS = [
 function sbDefaultConfig(type) {
   if (type === 'time')           return { mode:'exactly', time1:'09:30', time2:'16:00' };
   if (type === 'metric')         return { metric:'price', day:0, interval:'1min', series:'close', period:14,
+    macdShort:12, macdLong:26, macdSignal:9, macdComponent:'histogram',
+    optType:'call', optDte:30,
     operator:'>', compareType:'value', value:'',
     compareIndicator:'ema', compareDay:-1, compareInterval:'day', compareSeries:'close', comparePeriod:9,
+    refMacdShort:12, refMacdLong:26, refMacdSignal:9, refMacdComponent:'histogram',
     andEnabled:false, andMetric:'rsi', andPeriod:14, andOperator:'<', andValue:'',
     seqEnabled:false, seqBars:5, label:'' };
   if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30,
@@ -1410,15 +1413,24 @@ function stratSaveStepConfig() {
     c.interval        = document.getElementById('sbcInterval')?.value || '1min';
     c.series          = document.getElementById('sbcSeries')?.value || 'close';
     c.period          = parseInt(document.getElementById('sbcPeriod')?.value) || 14;
+    c.macdShort       = parseInt(document.getElementById('sbcMacdShort')?.value) || 12;
+    c.macdLong        = parseInt(document.getElementById('sbcMacdLong')?.value)  || 26;
+    c.macdSignal      = parseInt(document.getElementById('sbcMacdSignal')?.value) || 9;
+    c.macdComponent   = document.getElementById('sbcMacdComp')?.value || 'histogram';
+    c.optType         = document.getElementById('sbcOptType')?.value || 'call';
+    c.optDte          = parseInt(document.getElementById('sbcOptDte')?.value) || 30;
     c.operator        = document.getElementById('sbcOperator')?.value || '>';
-    const isCross     = ['crosses_above','crosses_below'].includes(c.operator);
-    c.compareType      = isCross ? (document.getElementById('sbcCompareType')?.value || 'value') : 'value';
-    c.value            = (document.getElementById('sbcMetricValue')?.value || '').trim();
+    c.compareType     = document.getElementById('sbcCompareType')?.value || 'value';
+    c.value           = (document.getElementById('sbcMetricValue')?.value || '').trim();
     c.compareIndicator = document.getElementById('sbcRefMetric')?.value || 'ema';
     c.compareDay       = parseInt(document.getElementById('sbcRefDay')?.value ?? '-1');
     c.compareInterval  = document.getElementById('sbcRefInterval')?.value || 'day';
     c.compareSeries    = document.getElementById('sbcRefSeries')?.value || 'close';
     c.comparePeriod    = parseInt(document.getElementById('sbcRefPeriod')?.value) || 9;
+    c.refMacdShort    = parseInt(document.getElementById('sbcRefMacdShort')?.value) || 12;
+    c.refMacdLong     = parseInt(document.getElementById('sbcRefMacdLong')?.value)  || 26;
+    c.refMacdSignal   = parseInt(document.getElementById('sbcRefMacdSignal')?.value) || 9;
+    c.refMacdComponent = document.getElementById('sbcRefMacdComp')?.value || 'histogram';
     c.andEnabled  = document.getElementById('sbcAndEnabled')?.checked || false;
     c.andMetric   = document.getElementById('sbcAndMetric')?.value || 'rsi';
     c.andPeriod   = parseInt(document.getElementById('sbcAndPeriod')?.value) || 14;
@@ -1427,11 +1439,12 @@ function stratSaveStepConfig() {
     c.seqEnabled  = document.getElementById('sbcSeqEnabled')?.checked || false;
     c.seqBars     = parseInt(document.getElementById('sbcSeqBars')?.value) || 5;
 
-    const _MN = { price:'Price', sma:'SMA', ema:'EMA', rsi:'RSI', macd:'MACD',
-                  volume:'Volume', iv_rank:'IV Rank', delta:'Delta', theta:'Theta',
+    const _MN = { price:'Price', current_price:'Current Price', sma:'SMA', ema:'EMA', rsi:'RSI',
+                  macd:'MACD', volume:'Volume', iv_rank:'IV%', delta:'Delta', theta:'Theta',
                   gap_pct:'Gap%', change_pct:'Change%', roc:'ROC' };
+    const _MACD_COMP = { histogram:'Hist', signal_line:'Signal', macd_line:'Line' };
     const _ctx = (m, d, intv, ser) => {
-      if (['gap_pct','iv_rank','delta','theta'].includes(m)) return '';
+      if (['gap_pct','iv_rank','delta','theta','current_price'].includes(m)) return '';
       if (m === 'change_pct') return d !== 0 ? ` D(${d})` : '';
       const dStr = d !== 0 ? ` D(${d})` : '';
       const iStr = intv === 'day' ? 'Daily' : intv;
@@ -1439,13 +1452,23 @@ function stratSaveStepConfig() {
       return ` [${iStr}${dStr}${sStr}]`;
     };
     const mName = _MN[c.metric] || c.metric;
-    const pSfx  = ['sma','ema','rsi','roc'].includes(c.metric) ? `(${c.period})` : '';
+    const pSfx  = ['sma','ema','rsi','roc'].includes(c.metric)
+      ? `(${c.period})`
+      : c.metric === 'macd'
+        ? `(${c.macdShort},${c.macdLong})·${_MACD_COMP[c.macdComponent]||c.macdComponent}`
+        : ['iv_rank','delta','theta'].includes(c.metric)
+          ? ` [${c.optType}·DTE${c.optDte}]`
+          : '';
     const opLbl = {'>':'>','<':'<','>=':'≥','<=':'≤','=':'=',
                    'crosses_above':'crosses above ↑','crosses_below':'crosses below ↓'}[c.operator] || c.operator;
     let lbl = `${mName}${pSfx}${_ctx(c.metric,c.day,c.interval,c.series)} ${opLbl}`;
-    if (isCross && c.compareType === 'indicator') {
+    if (c.compareType === 'indicator') {
       const cName = _MN[c.compareIndicator] || c.compareIndicator;
-      const cpSfx = ['sma','ema','rsi','roc'].includes(c.compareIndicator) ? `(${c.comparePeriod})` : '';
+      const cpSfx = ['sma','ema','rsi','roc'].includes(c.compareIndicator)
+        ? `(${c.comparePeriod})`
+        : c.compareIndicator === 'macd'
+          ? `(${c.refMacdShort},${c.refMacdLong})·${_MACD_COMP[c.refMacdComponent]||c.refMacdComponent}`
+          : '';
       lbl += ` ${cName}${cpSfx}${_ctx(c.compareIndicator,c.compareDay,c.compareInterval,c.compareSeries)}`;
     } else {
       lbl += ` ${c.value}`;
@@ -1507,27 +1530,38 @@ function sbSyncMetricForm() {
   const m      = document.getElementById('sbcMetric')?.value || 'price';
   const day    = parseInt(document.getElementById('sbcDay')?.value ?? '0');
   const ct     = document.getElementById('sbcCompareType')?.value || 'value';
-  const showRef = ct === 'indicator';   // show ref fields whenever indicator mode is chosen
+  const showRef = ct === 'indicator';
   const refM   = document.getElementById('sbcRefMetric')?.value || 'ema';
   const refDay = parseInt(document.getElementById('sbcRefDay')?.value ?? '-1');
 
-  const noBarCtx = ['gap_pct','iv_rank','delta','theta'].includes(m);
+  const noBarCtx = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
   const noIntv   = ['change_pct'].includes(m);
   _show('sbcDayRow',         !noBarCtx);
   _show('sbcIntervalRow',    !noBarCtx && !noIntv && day === 0);
   _show('sbcSeriesRow',       m === 'price');
   _show('sbcPeriodRow',      ['sma','ema','rsi','roc'].includes(m));
+  _show('sbcMacdShortRow',   m === 'macd');
+  _show('sbcMacdLongRow',    m === 'macd');
+  _show('sbcMacdSignalRow',  m === 'macd');
+  _show('sbcMacdCompRow',    m === 'macd');
+  _show('sbcOptTypeRow',     ['iv_rank','delta','theta'].includes(m));
+  _show('sbcOptDteRow',      ['iv_rank','delta','theta'].includes(m));
 
   // Compare Against is always visible; show value OR indicator rows based on selection
   _show('sbcValueRow',       ct === 'value');
 
-  const refNoBCtx = ['iv_rank','delta','theta'].includes(refM);
+  const refNoBCtx = ['iv_rank','delta','theta','current_price'].includes(refM);
   const refNoIntv = ['change_pct'].includes(refM);
-  _show('sbcRefMetricRow',   showRef);
-  _show('sbcRefDayRow',      showRef && !refNoBCtx);
-  _show('sbcRefIntervalRow', showRef && !refNoBCtx && !refNoIntv && refDay === 0);
-  _show('sbcRefSeriesRow',   showRef && refM === 'price');
-  _show('sbcRefPeriodRow',   showRef && ['sma','ema','rsi','roc'].includes(refM));
+  const showRefMacd = showRef && refM === 'macd';
+  _show('sbcRefMetricRow',      showRef);
+  _show('sbcRefDayRow',         showRef && !refNoBCtx);
+  _show('sbcRefIntervalRow',    showRef && !refNoBCtx && !refNoIntv && refDay === 0);
+  _show('sbcRefSeriesRow',      showRef && refM === 'price');
+  _show('sbcRefPeriodRow',      showRef && ['sma','ema','rsi','roc'].includes(refM));
+  _show('sbcRefMacdShortRow',   showRefMacd);
+  _show('sbcRefMacdLongRow',    showRefMacd);
+  _show('sbcRefMacdSignalRow',  showRefMacd);
+  _show('sbcRefMacdCompRow',    showRefMacd);
 }
 function sbMetricChange()      { sbSyncMetricForm(); }
 function sbDayChange()         { sbSyncMetricForm(); }
@@ -1657,25 +1691,28 @@ function sbStepConfigHTML(step) {
     const ser    = c.series || 'close';
     const op     = c.operator || '>';
     const ct     = c.compareType || 'value';
-    const showRef = ct === 'indicator';   // visible whenever "Indicator" is selected
+    const showRef = ct === 'indicator';
     const refM   = c.compareIndicator || 'ema';
     const refDay = c.compareDay ?? -1;
     const refIntv = c.compareInterval || 'day';
     const refSer  = c.compareSeries || 'close';
 
-    const noBarCtx = ['gap_pct','iv_rank','delta','theta'].includes(m);
+    const noBarCtx = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
     const noIntv   = ['change_pct'].includes(m);
     const showDay  = !noBarCtx;
     const showIntv = !noBarCtx && !noIntv && day === 0;
     const showSer  = m === 'price';
     const showP    = ['sma','ema','rsi','roc'].includes(m);
+    const showMacd = m === 'macd';
+    const showOpts = ['iv_rank','delta','theta'].includes(m);
 
-    const refNoBCtx = ['iv_rank','delta','theta'].includes(refM);
-    const refNoIntv = ['change_pct'].includes(refM);
+    const refNoBCtx  = ['iv_rank','delta','theta','current_price'].includes(refM);
+    const refNoIntv  = ['change_pct'].includes(refM);
     const showRefDay  = showRef && !refNoBCtx;
     const showRefIntv = showRef && !refNoBCtx && !refNoIntv && refDay === 0;
     const showRefSer  = showRef && refM === 'price';
     const showRefP    = showRef && ['sma','ema','rsi','roc'].includes(refM);
+    const showRefMacd = showRef && refM === 'macd';
 
     const andM      = c.andMetric || 'rsi';
     const andEn     = c.andEnabled || false;
@@ -1690,7 +1727,7 @@ function sbStepConfigHTML(step) {
     const SER_OPTS  = [['open','Open'],['high','High'],['low','Low'],['close','Close'],['vwap','VWAP']];
     const OP_OPTS   = [['>','Greater than (>)'],['<','Less than (<)'],['>=','Greater or equal (>=)'],['<=','Less or equal (<=)'],['=','Equal (=)'],['crosses_above','Crosses Above ↑'],['crosses_below','Crosses Below ↓']];
     const AOPT_OPTS = [['>','> Greater than'],['<','< Less than'],['>=','>= Greater or equal'],['<=','<= Less or equal'],['=','= Equal']];
-    const REF_METRICS = [['sma','SMA'],['ema','EMA'],['rsi','RSI'],['macd','MACD'],['price','Price'],['roc','ROC']];
+    const REF_METRICS = [['current_price','Current Price'],['sma','SMA'],['ema','EMA'],['rsi','RSI'],['macd','MACD'],['price','Price (daily bar)'],['roc','ROC']];
     const AND_METRICS = [['rsi','RSI'],['sma','SMA'],['ema','EMA'],['macd','MACD'],['price','Price'],['volume','Volume'],['roc','ROC'],['gap_pct','Gap%'],['change_pct','Change%']];
 
     return `
@@ -1698,11 +1735,12 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-label">Metric</div>
         <select id="sbcMetric" class="sb-form-select" onchange="sbMetricChange()">
           <optgroup label="Price">
-            <option value="price"      ${m==='price'?'selected':''}>Price</option>
-            <option value="gap_pct"    ${m==='gap_pct'?'selected':''}>Gap % — today open vs prev close</option>
-            <option value="change_pct" ${m==='change_pct'?'selected':''}>Change % — day over day</option>
-            <option value="roc"        ${m==='roc'?'selected':''}>ROC — Rate of Change (velocity)</option>
-            <option value="volume"     ${m==='volume'?'selected':''}>Volume</option>
+            <option value="current_price" ${m==='current_price'?'selected':''}>Current Price (live quote)</option>
+            <option value="price"         ${m==='price'?'selected':''}>Price (daily bar series)</option>
+            <option value="gap_pct"       ${m==='gap_pct'?'selected':''}>Gap % — today open vs prev close</option>
+            <option value="change_pct"    ${m==='change_pct'?'selected':''}>Change % — day over day</option>
+            <option value="roc"           ${m==='roc'?'selected':''}>ROC — Rate of Change (velocity)</option>
+            <option value="volume"        ${m==='volume'?'selected':''}>Volume</option>
           </optgroup>
           <optgroup label="Indicators">
             <option value="sma"   ${m==='sma'?'selected':''}>SMA</option>
@@ -1710,10 +1748,10 @@ function sbStepConfigHTML(step) {
             <option value="rsi"   ${m==='rsi'?'selected':''}>RSI</option>
             <option value="macd"  ${m==='macd'?'selected':''}>MACD</option>
           </optgroup>
-          <optgroup label="Options">
-            <option value="iv_rank" ${m==='iv_rank'?'selected':''}>IV Rank</option>
-            <option value="delta"   ${m==='delta'?'selected':''}>Delta</option>
-            <option value="theta"   ${m==='theta'?'selected':''}>Theta</option>
+          <optgroup label="Options (ATM)">
+            <option value="iv_rank" ${m==='iv_rank'?'selected':''}>IV% — implied volatility of ATM option</option>
+            <option value="delta"   ${m==='delta'?'selected':''}>Delta — ATM option delta</option>
+            <option value="theta"   ${m==='theta'?'selected':''}>Theta — ATM option theta</option>
           </optgroup>
         </select>
       </div>
@@ -1732,6 +1770,30 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row" id="sbcPeriodRow" style="${showP?'':'display:none'}">
         <div class="sb-form-label">Period</div>
         <input id="sbcPeriod" class="sb-form-input" type="number" min="1" max="500" value="${c.period||14}">
+      </div>
+      <div class="sb-form-row" id="sbcMacdShortRow" style="${showMacd?'':'display:none'}">
+        <div class="sb-form-label">Fast Period</div>
+        <input id="sbcMacdShort" class="sb-form-input" type="number" min="1" max="200" value="${c.macdShort||12}" placeholder="12">
+      </div>
+      <div class="sb-form-row" id="sbcMacdLongRow" style="${showMacd?'':'display:none'}">
+        <div class="sb-form-label">Slow Period</div>
+        <input id="sbcMacdLong" class="sb-form-input" type="number" min="1" max="500" value="${c.macdLong||26}" placeholder="26">
+      </div>
+      <div class="sb-form-row" id="sbcMacdSignalRow" style="${showMacd?'':'display:none'}">
+        <div class="sb-form-label">Signal Period</div>
+        <input id="sbcMacdSignal" class="sb-form-input" type="number" min="1" max="200" value="${c.macdSignal||9}" placeholder="9">
+      </div>
+      <div class="sb-form-row" id="sbcMacdCompRow" style="${showMacd?'':'display:none'}">
+        <div class="sb-form-label">Component</div>
+        ${_sel('sbcMacdComp', c.macdComponent||'histogram', [['histogram','Histogram'],['macd_line','MACD Line'],['signal_line','Signal Line']])}
+      </div>
+      <div class="sb-form-row" id="sbcOptTypeRow" style="${showOpts?'':'display:none'}">
+        <div class="sb-form-label">Option Type</div>
+        ${_sel('sbcOptType', c.optType||'call', [['call','Call'],['put','Put']])}
+      </div>
+      <div class="sb-form-row" id="sbcOptDteRow" style="${showOpts?'':'display:none'}">
+        <div class="sb-form-label">Target DTE</div>
+        <input id="sbcOptDte" class="sb-form-input" type="number" min="1" max="365" value="${c.optDte||30}" placeholder="30">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Operator</div>
@@ -1764,6 +1826,22 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row" id="sbcRefPeriodRow" style="${showRefP?'':'display:none'}">
         <div class="sb-form-label">Indicator Period</div>
         <input id="sbcRefPeriod" class="sb-form-input" type="number" min="1" max="500" value="${c.comparePeriod||9}">
+      </div>
+      <div class="sb-form-row" id="sbcRefMacdShortRow" style="${showRefMacd?'':'display:none'}">
+        <div class="sb-form-label">Ind. Fast Period</div>
+        <input id="sbcRefMacdShort" class="sb-form-input" type="number" min="1" max="200" value="${c.refMacdShort||12}" placeholder="12">
+      </div>
+      <div class="sb-form-row" id="sbcRefMacdLongRow" style="${showRefMacd?'':'display:none'}">
+        <div class="sb-form-label">Ind. Slow Period</div>
+        <input id="sbcRefMacdLong" class="sb-form-input" type="number" min="1" max="500" value="${c.refMacdLong||26}" placeholder="26">
+      </div>
+      <div class="sb-form-row" id="sbcRefMacdSignalRow" style="${showRefMacd?'':'display:none'}">
+        <div class="sb-form-label">Ind. Signal Period</div>
+        <input id="sbcRefMacdSignal" class="sb-form-input" type="number" min="1" max="200" value="${c.refMacdSignal||9}" placeholder="9">
+      </div>
+      <div class="sb-form-row" id="sbcRefMacdCompRow" style="${showRefMacd?'':'display:none'}">
+        <div class="sb-form-label">Ind. Component</div>
+        ${_sel('sbcRefMacdComp', c.refMacdComponent||'histogram', [['histogram','Histogram'],['macd_line','MACD Line'],['signal_line','Signal Line']])}
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eef0f3;">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:#334155;">

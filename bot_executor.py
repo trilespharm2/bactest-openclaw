@@ -239,7 +239,41 @@ def _ind_roc(closes, period=10):
     return (closes[-1] - closes[-(period + 1)]) / closes[-(period + 1)] * 100
 
 
-def _compute_bar_metric(metric, period, bars, day=0, series='close'):
+def _ind_macd(closes, short=12, long_=26, signal=9, component='histogram'):
+    """Compute MACD value.  component: 'macd_line' | 'signal_line' | 'histogram'."""
+    if len(closes) < long_ + signal:
+        return None
+    k_s   = 2.0 / (short  + 1)
+    k_l   = 2.0 / (long_  + 1)
+    k_sig = 2.0 / (signal + 1)
+
+    es = sum(closes[:short]) / short
+    el = sum(closes[:long_]) / long_
+    for c in closes[short:long_]:
+        es = c * k_s + es * (1 - k_s)
+
+    macd_series = [es - el]
+    for c in closes[long_:]:
+        es = c * k_s + es * (1 - k_s)
+        el = c * k_l + el * (1 - k_l)
+        macd_series.append(es - el)
+
+    if len(macd_series) < signal:
+        return None
+    macd_val = macd_series[-1]
+    if component == 'macd_line':
+        return macd_val
+
+    sig_ema = sum(macd_series[:signal]) / signal
+    for v in macd_series[signal:]:
+        sig_ema = v * k_sig + sig_ema * (1 - k_sig)
+    if component == 'signal_line':
+        return sig_ema
+    return macd_val - sig_ema   # histogram
+
+
+def _compute_bar_metric(metric, period, bars, day=0, series='close',
+                        macd_short=12, macd_long=26, macd_signal=9, macd_comp='histogram'):
     """Compute a single numeric metric from daily bars list (newest last).
 
     day=0 = today, day=-1 = yesterday, etc.
@@ -287,37 +321,129 @@ def _compute_bar_metric(metric, period, bars, day=0, series='close'):
         return _ind_ema(closes, period)
     if metric == 'rsi':
         return _ind_rsi(closes, period)
+    if metric == 'macd':
+        return _ind_macd(closes, macd_short, macd_long, macd_signal, macd_comp)
     return None
 
 
-_UNSUPPORTED_METRICS = {'iv_rank', 'delta', 'theta', 'macd'}
+def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
+    """Return the ATM option dict (with greeks) for the nearest expiration to target_dte."""
+    import datetime
+    q = _tradier(api_key, base_url, '/markets/quotes',
+                 params={'symbols': symbol, 'greeks': 'false'})
+    if not q:
+        return None
+    current_price = float(
+        (q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+    if current_price <= 0:
+        return None
+
+    exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
+                        params={'symbol': symbol})
+    if not exp_data:
+        return None
+    exp_list = (exp_data.get('expirations') or {}).get('date', [])
+    if isinstance(exp_list, str):
+        exp_list = [exp_list]
+    if not exp_list:
+        return None
+
+    today = _now_et().date()
+    best_exp = min(
+        exp_list,
+        key=lambda e: abs((datetime.date.fromisoformat(e) - today).days - target_dte),
+        default=None,
+    )
+    if not best_exp:
+        return None
+
+    chain_data = _tradier(api_key, base_url, '/markets/options/chains',
+                          params={'symbol': symbol, 'expiration': best_exp,
+                                  'greeks': 'true'})
+    if not chain_data:
+        return None
+    raw = (chain_data.get('options') or {}).get('option', [])
+    if isinstance(raw, dict):
+        raw = [raw]
+    filtered = [o for o in (raw or [])
+                if str(o.get('option_type', '')).lower() == opt_type.lower()]
+    if not filtered:
+        return None
+    return min(filtered,
+               key=lambda o: abs(float(o.get('strike', 0) or 0) - current_price))
+
+
+def _compute_options_metric(metric, symbol, opt_type, target_dte, api_key, base_url):
+    """Return delta, theta, or current IV% for the ATM option."""
+    opt = _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url)
+    if not opt:
+        return None
+    greeks = opt.get('greeks') or {}
+    if metric == 'delta':
+        val = greeks.get('delta') if greeks else opt.get('delta')
+        return float(val) if val is not None else None
+    if metric == 'theta':
+        val = greeks.get('theta') if greeks else opt.get('theta')
+        return float(val) if val is not None else None
+    if metric == 'iv_rank':
+        # Tradier doesn't expose 52-week IV history; we return current mid-IV as a %
+        val = (greeks.get('mid_iv') or greeks.get('ask_iv')
+               or opt.get('implied_volatility'))
+        if val is None:
+            return None
+        iv = float(val)
+        return iv * 100 if iv <= 1.0 else iv   # normalize to 0-100 range
+    return None
 
 
 def eval_metric(cfg, api_key, base_url, symbol):
     """Returns True/False or None (skip step) if data/metric unavailable."""
-    metric   = cfg.get('metric', 'price')
-    operator = cfg.get('operator', '>')
-    ctype    = cfg.get('compareType', 'value')
-    cv       = cfg.get('value', '')
-    period   = int(cfg.get('period') or 14)
-    day      = int(cfg.get('day') or 0)
-    series   = cfg.get('series', 'close')
+    metric      = cfg.get('metric', 'price')
+    operator    = cfg.get('operator', '>')
+    ctype       = cfg.get('compareType', 'value')
+    cv          = cfg.get('value', '')
+    period      = int(cfg.get('period') or 14)
+    day         = int(cfg.get('day') or 0)
+    series      = cfg.get('series', 'close')
+    macd_short  = int(cfg.get('macdShort')  or 12)
+    macd_long   = int(cfg.get('macdLong')   or 26)
+    macd_signal = int(cfg.get('macdSignal') or 9)
+    macd_comp   = cfg.get('macdComponent', 'histogram')
+    opt_type    = cfg.get('optType', 'call')
+    opt_dte     = int(cfg.get('optDte') or 30)
 
-    if metric in _UNSUPPORTED_METRICS:
-        logger.info(f"Metric '{metric}' not yet supported in executor; step skipped")
-        return None
+    _OPT_METRICS = ('iv_rank', 'delta', 'theta')
 
-    bars = _fetch_daily_history(symbol, api_key, base_url,
-                                bars=max(period * 3, 100))
-    if not bars:
-        logger.warning(f"eval_metric: no daily history for {symbol}")
-        return None
+    # ── Compute LHS ──────────────────────────────────────────────────────────
+    bars = None   # may be reused for ref indicator
+    if metric == 'current_price':
+        q = _tradier(api_key, base_url, '/markets/quotes',
+                     params={'symbols': symbol, 'greeks': 'false'})
+        if not q:
+            return None
+        lhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+        if lhs <= 0:
+            return None
+    elif metric in _OPT_METRICS:
+        lhs = _compute_options_metric(metric, symbol, opt_type, opt_dte,
+                                      api_key, base_url)
+        if lhs is None:
+            logger.warning(f"eval_metric: no options data for {metric} on {symbol}")
+            return None
+    else:
+        need = max(period * 3, (macd_long + macd_signal) * 3, 100)
+        bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+        if not bars:
+            logger.warning(f"eval_metric: no daily history for {symbol}")
+            return None
+        lhs = _compute_bar_metric(metric, period, bars, day=day, series=series,
+                                  macd_short=macd_short, macd_long=macd_long,
+                                  macd_signal=macd_signal, macd_comp=macd_comp)
+        if lhs is None:
+            logger.warning(f"eval_metric: could not compute {metric} for {symbol}")
+            return None
 
-    lhs = _compute_bar_metric(metric, period, bars, day=day, series=series)
-    if lhs is None:
-        logger.warning(f"eval_metric: could not compute {metric}({period}) for {symbol}")
-        return None
-
+    # ── Compare ──────────────────────────────────────────────────────────────
     if ctype == 'value':
         try:
             rhs = float(cv)
@@ -326,22 +452,40 @@ def eval_metric(cfg, api_key, base_url, symbol):
             return None
         return _compare(lhs, operator, rhs)
 
-    elif ctype == 'indicator':
-        ref_metric = cfg.get('compareIndicator', 'ema')
-        ref_period = int(cfg.get('comparePeriod') or 9)
-        ref_day    = int(cfg.get('compareDay') or -1)
-        ref_series = cfg.get('compareSeries', 'close')
-        if ref_metric in _UNSUPPORTED_METRICS:
-            logger.info(f"Reference metric '{ref_metric}' not yet supported; step skipped")
-            return None
-        rhs = _compute_bar_metric(ref_metric, ref_period, bars,
-                                  day=ref_day, series=ref_series)
+    if ctype == 'indicator':
+        ref_metric      = cfg.get('compareIndicator', 'ema')
+        ref_period      = int(cfg.get('comparePeriod') or 9)
+        ref_day         = int(cfg.get('compareDay') or -1)
+        ref_series      = cfg.get('compareSeries', 'close')
+        ref_macd_short  = int(cfg.get('refMacdShort')  or 12)
+        ref_macd_long   = int(cfg.get('refMacdLong')   or 26)
+        ref_macd_signal = int(cfg.get('refMacdSignal') or 9)
+        ref_macd_comp   = cfg.get('refMacdComponent', 'histogram')
+
+        if ref_metric == 'current_price':
+            q = _tradier(api_key, base_url, '/markets/quotes',
+                         params={'symbols': symbol, 'greeks': 'false'})
+            rhs = float((q or {}).get('quotes', {}).get('quote', {}).get('last', 0) or 0) if q else None
+        elif ref_metric in _OPT_METRICS:
+            rhs = _compute_options_metric(ref_metric, symbol, opt_type, opt_dte,
+                                          api_key, base_url)
+        else:
+            if bars is None:
+                need = max(ref_period * 3, (ref_macd_long + ref_macd_signal) * 3, 100)
+                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+            if not bars:
+                return None
+            rhs = _compute_bar_metric(ref_metric, ref_period, bars,
+                                      day=ref_day, series=ref_series,
+                                      macd_short=ref_macd_short, macd_long=ref_macd_long,
+                                      macd_signal=ref_macd_signal, macd_comp=ref_macd_comp)
+
         if rhs is None:
-            logger.warning(f"eval_metric: could not compute ref {ref_metric}({ref_period})")
+            logger.warning(f"eval_metric: could not compute ref {ref_metric}")
             return None
         return _compare(lhs, operator, rhs)
 
-    logger.info(f"Metric compareType '{ctype}' not supported; step skipped")
+    logger.info(f"eval_metric: compareType '{ctype}' not recognised; step skipped")
     return None
 
 
