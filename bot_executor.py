@@ -1029,12 +1029,12 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         order = {
             'class': 'multileg', 'symbol': symbol, 'duration': 'day',
             'type': 'market',
-            'leg[0][option_symbol]': short_opt['symbol'],
-            'leg[0][side]': 'sell_to_open',
-            'leg[0][quantity]': str(qty),
-            'leg[1][option_symbol]': long_opt['symbol'],
-            'leg[1][side]': 'buy_to_open',
-            'leg[1][quantity]': str(qty),
+            'option_symbol[0]': short_opt['symbol'],
+            'side[0]': 'sell_to_open',
+            'quantity[0]': str(qty),
+            'option_symbol[1]': long_opt['symbol'],
+            'side[1]': 'buy_to_open',
+            'quantity[1]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'limit'
@@ -1099,10 +1099,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         order = {
             'class': 'multileg', 'symbol': symbol, 'duration': 'day',
             'type': 'market',
-            'leg[0][option_symbol]': sp['symbol'], 'leg[0][side]': 'sell_to_open', 'leg[0][quantity]': str(qty),
-            'leg[1][option_symbol]': lp['symbol'], 'leg[1][side]': 'buy_to_open',  'leg[1][quantity]': str(qty),
-            'leg[2][option_symbol]': sc['symbol'], 'leg[2][side]': 'sell_to_open', 'leg[2][quantity]': str(qty),
-            'leg[3][option_symbol]': lc['symbol'], 'leg[3][side]': 'buy_to_open',  'leg[3][quantity]': str(qty),
+            'option_symbol[0]': sp['symbol'], 'side[0]': 'sell_to_open', 'quantity[0]': str(qty),
+            'option_symbol[1]': lp['symbol'], 'side[1]': 'buy_to_open',  'quantity[1]': str(qty),
+            'option_symbol[2]': sc['symbol'], 'side[2]': 'sell_to_open', 'quantity[2]': str(qty),
+            'option_symbol[3]': lc['symbol'], 'side[3]': 'buy_to_open',  'quantity[3]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'limit'
@@ -1119,12 +1119,12 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         order = {
             'class': 'multileg', 'symbol': symbol, 'duration': 'day',
             'type': 'market',
-            'leg[0][option_symbol]': sp['symbol'],
-            'leg[0][side]': 'buy_to_open' if strategy == 'Long Straddle' else 'sell_to_open',
-            'leg[0][quantity]': str(qty),
-            'leg[1][option_symbol]': sc['symbol'],
-            'leg[1][side]': 'buy_to_open' if strategy == 'Long Straddle' else 'sell_to_open',
-            'leg[1][quantity]': str(qty),
+            'option_symbol[0]': sp['symbol'],
+            'side[0]': 'buy_to_open' if strategy == 'Long Straddle' else 'sell_to_open',
+            'quantity[0]': str(qty),
+            'option_symbol[1]': sc['symbol'],
+            'side[1]': 'buy_to_open' if strategy == 'Long Straddle' else 'sell_to_open',
+            'quantity[1]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'limit'
