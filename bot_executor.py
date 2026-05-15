@@ -204,6 +204,46 @@ def _fetch_daily_history(symbol, api_key, base_url, bars=200):
     return raw or []
 
 
+def _fetch_intraday_bars(symbol, interval, api_key, base_url,
+                         window_from='', window_to=''):
+    """Return today's intraday OHLCV bars (list, newest last), optionally
+    clipped to a HH:MM–HH:MM window."""
+    now_et = _now_et()
+    today  = str(now_et.date())
+    start  = f"{today} {window_from}" if window_from else f"{today} 09:30"
+    end    = f"{today} {window_to}"   if window_to   else now_et.strftime('%Y-%m-%d %H:%M')
+
+    intv_map = {'1min': '1min', '5min': '5min', '15min': '15min'}
+    tradier_intv = intv_map.get(interval, '1min')
+
+    data = _tradier(api_key, base_url, '/markets/timesales',
+                    params={'symbol': symbol, 'interval': tradier_intv,
+                            'start': start, 'end': end,
+                            'session_filter': 'open'})
+    if not data:
+        return []
+    series = data.get('series', {})
+    if not series or series == 'null':
+        return []
+    raw = series.get('data', [])
+    if isinstance(raw, dict):
+        raw = [raw]
+    bars = []
+    for item in (raw or []):
+        try:
+            bars.append({
+                'time':   item.get('time', ''),
+                'open':   float(item.get('open',   0) or 0),
+                'high':   float(item.get('high',   0) or 0),
+                'low':    float(item.get('low',    0) or 0),
+                'close':  float(item.get('close',  0) or 0),
+                'volume': float(item.get('volume', 0) or 0),
+            })
+        except Exception:
+            pass
+    return bars
+
+
 def _ind_sma(closes, period):
     if len(closes) < period:
         return None
@@ -462,6 +502,47 @@ def eval_metric(cfg, api_key, base_url, symbol):
         if rhs <= 0:
             return None
         return _compare(lhs, operator, rhs)
+
+    if ctype == 'bar_delta':
+        bar_offset      = max(int(cfg.get('barOffset') or 1), 1)
+        delta_type      = cfg.get('deltaType', 'pct')
+        delta_threshold = float(cfg.get('deltaThreshold') or 1)
+        window_from     = cfg.get('windowFrom', '')
+        window_to       = cfg.get('windowTo',   '')
+        intv            = cfg.get('interval', '1min')
+
+        if intv == 'day':
+            # Use daily bars for the delta comparison
+            need = max(bar_offset + period * 3, 100)
+            ibars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+        else:
+            ibars = _fetch_intraday_bars(symbol, intv, api_key, base_url,
+                                         window_from=window_from, window_to=window_to)
+
+        if len(ibars) < bar_offset + 1:
+            logger.warning(f"eval_metric bar_delta: not enough bars ({len(ibars)}) for offset {bar_offset}")
+            return None
+
+        current_val = _compute_bar_metric(metric, period, ibars, day=0, series=series,
+                                          macd_short=macd_short, macd_long=macd_long,
+                                          macd_signal=macd_signal, macd_comp=macd_comp)
+        prior_val   = _compute_bar_metric(metric, period, ibars[:-bar_offset], day=0,
+                                          series=series, macd_short=macd_short,
+                                          macd_long=macd_long, macd_signal=macd_signal,
+                                          macd_comp=macd_comp)
+
+        if current_val is None or prior_val is None:
+            logger.warning(f"eval_metric bar_delta: could not compute {metric} for delta")
+            return None
+
+        if delta_type == 'pct':
+            if prior_val == 0:
+                return None
+            change = (current_val - prior_val) / abs(prior_val) * 100
+        else:
+            change = current_val - prior_val
+
+        return _compare(change, operator, delta_threshold)
 
     if ctype == 'indicator':
         ref_metric      = cfg.get('compareIndicator', 'ema')

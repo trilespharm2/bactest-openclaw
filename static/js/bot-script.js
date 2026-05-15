@@ -1118,6 +1118,7 @@ function sbDefaultConfig(type) {
     macdShort:12, macdLong:26, macdSignal:9, macdComponent:'histogram',
     optType:'call', optDte:30,
     operator:'>', compareType:'value', value:'',
+    barOffset:1, deltaType:'pct', deltaThreshold:1, windowFrom:'', windowTo:'',
     compareIndicator:'ema', compareDay:-1, compareInterval:'day', compareSeries:'close', comparePeriod:9,
     refMacdShort:12, refMacdLong:26, refMacdSignal:9, refMacdComponent:'histogram',
     andEnabled:false, andMetric:'rsi', andPeriod:14, andOperator:'<', andValue:'',
@@ -1420,6 +1421,11 @@ function stratSaveStepConfig() {
     c.optType         = document.getElementById('sbcOptType')?.value || 'call';
     c.optDte          = parseInt(document.getElementById('sbcOptDte')?.value) || 30;
     c.operator        = document.getElementById('sbcOperator')?.value || '>';
+    c.barOffset       = parseInt(document.getElementById('sbcBarOffset')?.value) || 1;
+    c.deltaType       = document.getElementById('sbcDeltaType')?.value || 'pct';
+    c.deltaThreshold  = parseFloat(document.getElementById('sbcDeltaThreshold')?.value) || 1;
+    c.windowFrom      = document.getElementById('sbcWindowFrom')?.value || '';
+    c.windowTo        = document.getElementById('sbcWindowTo')?.value || '';
     c.compareType     = document.getElementById('sbcCompareType')?.value || 'value';
     c.value           = (document.getElementById('sbcMetricValue')?.value || '').trim();
     c.compareIndicator = document.getElementById('sbcRefMetric')?.value || 'ema';
@@ -1464,6 +1470,10 @@ function stratSaveStepConfig() {
     let lbl = `${mName}${pSfx}${_ctx(c.metric,c.day,c.interval,c.series)} ${opLbl}`;
     if (c.compareType === 'price') {
       lbl += ` Current Price`;
+    } else if (c.compareType === 'bar_delta') {
+      const dSign = c.deltaType === 'pct' ? '%' : 'abs';
+      const winStr = c.windowFrom && c.windowTo ? ` [${c.windowFrom}–${c.windowTo}]` : '';
+      lbl = `${mName}${pSfx}${_ctx(c.metric,c.day,c.interval,c.series)} Δ${dSign} ${opLbl} ${c.deltaThreshold} [-${c.barOffset} bars]${winStr}`;
     } else if (c.compareType === 'indicator') {
       const cName = _MN[c.compareIndicator] || c.compareIndicator;
       const cpSfx = ['sma','ema','rsi','roc'].includes(c.compareIndicator)
@@ -1549,8 +1559,13 @@ function sbSyncMetricForm() {
   _show('sbcOptTypeRow',     ['iv_rank','delta','theta'].includes(m));
   _show('sbcOptDteRow',      ['iv_rank','delta','theta'].includes(m));
 
-  // Compare Against always visible; value row shown only for Fixed Value; indicator rows only for Indicator
-  _show('sbcValueRow',       ct === 'value');
+  // Compare Against always visible; value/bar-delta/indicator rows toggle by selection
+  _show('sbcValueRow',        ct === 'value');
+  _show('sbcBarOffsetRow',    ct === 'bar_delta');
+  _show('sbcDeltaTypeRow',    ct === 'bar_delta');
+  _show('sbcDeltaThreshRow',  ct === 'bar_delta');
+  _show('sbcWindowFromRow',   ct === 'bar_delta');
+  _show('sbcWindowToRow',     ct === 'bar_delta');
 
   const refNoBCtx = ['iv_rank','delta','theta','current_price'].includes(refM);
   const refNoIntv = ['change_pct'].includes(refM);
@@ -1803,11 +1818,31 @@ function sbStepConfigHTML(step) {
       </div>
       <div class="sb-form-row" id="sbcCompareTypeRow">
         <div class="sb-form-label">Compare Against</div>
-        ${_sel('sbcCompareType', ct, [['value','Fixed Value'],['price','Current Price'],['indicator','Indicator']], 'onchange="sbCompareTypeChange()"')}
+        ${_sel('sbcCompareType', ct, [['value','Fixed Value'],['price','Current Price'],['bar_delta','Prior Bar (Δ)'],['indicator','Indicator']], 'onchange="sbCompareTypeChange()"')}
       </div>
       <div class="sb-form-row" id="sbcValueRow" style="${ct==='value'?'':'display:none'}">
         <div class="sb-form-label">Value</div>
         <input id="sbcMetricValue" class="sb-form-input" type="number" step="0.01" placeholder="e.g. 50" value="${c.value||''}">
+      </div>
+      <div class="sb-form-row" id="sbcBarOffsetRow" style="${ct==='bar_delta'?'':'display:none'}">
+        <div class="sb-form-label">Bar Offset (N)</div>
+        <input id="sbcBarOffset" class="sb-form-input" type="number" min="1" max="500" value="${c.barOffset||1}" placeholder="e.g. 15">
+      </div>
+      <div class="sb-form-row" id="sbcDeltaTypeRow" style="${ct==='bar_delta'?'':'display:none'}">
+        <div class="sb-form-label">Change Type</div>
+        ${_sel('sbcDeltaType', c.deltaType||'pct', [['pct','% Change'],['abs','Absolute Change']])}
+      </div>
+      <div class="sb-form-row" id="sbcDeltaThreshRow" style="${ct==='bar_delta'?'':'display:none'}">
+        <div class="sb-form-label">Threshold</div>
+        <input id="sbcDeltaThreshold" class="sb-form-input" type="number" step="0.01" placeholder="e.g. 1" value="${c.deltaThreshold!=null?c.deltaThreshold:1}">
+      </div>
+      <div class="sb-form-row" id="sbcWindowFromRow" style="${ct==='bar_delta'?'':'display:none'}">
+        <div class="sb-form-label">Window From</div>
+        <input id="sbcWindowFrom" class="sb-form-input" type="time" value="${c.windowFrom||''}" placeholder="12:00">
+      </div>
+      <div class="sb-form-row" id="sbcWindowToRow" style="${ct==='bar_delta'?'':'display:none'}">
+        <div class="sb-form-label">Window To</div>
+        <input id="sbcWindowTo" class="sb-form-input" type="time" value="${c.windowTo||''}" placeholder="15:00">
       </div>
       <div class="sb-form-row" id="sbcRefMetricRow" style="${showRef?'':'display:none'}">
         <div class="sb-form-label">Indicator</div>
