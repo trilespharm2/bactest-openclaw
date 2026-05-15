@@ -184,6 +184,78 @@ def eval_metric(cfg, api_key, base_url, symbol):
 
 # ── Action executors ─────────────────────────────────────────────────────────
 
+def _get_open_orders(api_key, base_url, account_id):
+    """Fetch pending/open option orders from Tradier."""
+    data = _tradier(api_key, base_url, f'/accounts/{account_id}/orders')
+    if not data:
+        return []
+    orders = data.get('orders', {})
+    if not orders or orders == 'null':
+        return []
+    raw = orders.get('order', [])
+    if isinstance(raw, dict):
+        raw = [raw]
+    return [o for o in (raw or [])
+            if o.get('status') in ('open', 'pending', 'partially_filled')]
+
+
+def _calc_used_allocation(positions):
+    """Estimate total capital at risk from open option positions.
+
+    For matched spread pairs (same root, expiry, type, opposite qty signs):
+        risk = |strike_diff| * 100 * spread_qty + net_cost_basis
+        (net_cost_basis is negative for credit spreads, which correctly reduces max loss)
+    For unmatched / naked legs:
+        risk = abs(cost_basis)
+    """
+    import re as _re
+    parsed = []
+    for pos in positions:
+        sym = pos.get('symbol', '')
+        m   = _re.match(r'^([A-Z]+)(\d{6})([CP])(\d{8})$', sym)
+        if not m:
+            continue
+        root, exp, pc, stk = m.groups()
+        parsed.append({
+            'root':       root,
+            'exp':        exp,
+            'pc':         pc,
+            'strike':     float(stk) / 1000.0,
+            'qty':        float(pos.get('quantity', 0)),
+            'cost_basis': float(pos.get('cost_basis', 0) or 0),
+        })
+
+    total_risk = 0.0
+    matched    = set()
+
+    for i, p in enumerate(parsed):
+        if i in matched:
+            continue
+        for j, q in enumerate(parsed):
+            if j <= i or j in matched:
+                continue
+            # Spread pair: same root/expiry/type, opposite qty signs
+            if (p['root'] == q['root'] and p['exp'] == q['exp'] and
+                    p['pc'] == q['pc'] and
+                    ((p['qty'] > 0 and q['qty'] < 0) or (p['qty'] < 0 and q['qty'] > 0))):
+                matched.add(i)
+                matched.add(j)
+                spread_qty  = min(abs(p['qty']), abs(q['qty']))
+                strike_diff = abs(p['strike'] - q['strike'])
+                net_cb      = p['cost_basis'] + q['cost_basis']
+                # credit spread: net_cb < 0; risk = width*100*qty - net_credit = width*100*qty + net_cb
+                risk = strike_diff * 100 * spread_qty + net_cb
+                total_risk += max(0.0, risk)
+                break
+
+    # Unmatched positions (single legs): use abs(cost_basis) as approximation
+    for i, p in enumerate(parsed):
+        if i not in matched:
+            total_risk += abs(p['cost_basis'])
+
+    return total_risk
+
+
 def exec_open_position(cfg, api_key, base_url, account_id):
     symbol        = (cfg.get('symbol') or 'SPY').upper()
     strategy      = cfg.get('strategy', 'Short Put Spread')
@@ -195,6 +267,24 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     spread_width  = float(cfg.get('spreadWidth', 5))
     put_width     = float(cfg.get('putWidth', 5))
     call_width    = float(cfg.get('callWidth', 5))
+
+    # ── Strategy-level limits ─────────────────────────────────────────
+    _alloc    = float(cfg.get('_allocation') or 0)
+    _max_pos  = int(cfg.get('_max_positions') or 0)
+
+    # Fetch positions (and orders for count check) once, reuse in closures
+    _cached_positions = None
+    if _max_pos > 0 or _alloc > 0:
+        _cached_positions = _get_positions(api_key, base_url, account_id)
+
+    if _max_pos > 0:
+        _cached_orders = _get_open_orders(api_key, base_url, account_id)
+        total_count    = len(_cached_positions) + len(_cached_orders)
+        if total_count >= _max_pos:
+            return False, (
+                f"Max position cap reached: {total_count}/{_max_pos}"
+                f" (open positions + orders)"
+            )
 
     # ── Fetch expiration ──────────────────────────────────────────────
     exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
@@ -322,6 +412,20 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         if not short_opt.get('symbol') or not long_opt.get('symbol'):
             return False, "Option symbols missing for spread legs"
         net = max(0.01, round(abs(_mid(short_opt) - _mid(long_opt)), 2))
+
+        # Allocation check: capital at risk = width*qty*100 - credit (for credit spreads)
+        #                                    = debit*qty*100            (for debit spreads)
+        if _alloc > 0 and _cached_positions is not None:
+            new_risk  = qty * 100 * (max(0.0, spread_width - net) if is_credit else net)
+            used      = _calc_used_allocation(_cached_positions)
+            remaining = _alloc - used
+            if new_risk > remaining:
+                return False, (
+                    f"Allocation limit: ${used:.0f} already committed, "
+                    f"${new_risk:.0f} new risk exceeds "
+                    f"${remaining:.0f} remaining of ${_alloc:.0f} budget"
+                )
+
         order = {
             'class': 'multileg', 'symbol': symbol, 'duration': 'day',
             'type': 'market',
@@ -335,21 +439,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'limit'
             order['price'] = str(net)
-        ok, msg = _place(order)
-        if ok:
-            return ok, msg
-        # Tradier sandbox does not parse bracket-notation multileg parameters.
-        # Fall back to two individual option legs so sandbox testing still works.
-        if 'number of legs' in (msg or '').lower() or 'multileg' in (msg or '').lower():
-            logger.warning("Multileg order rejected — falling back to individual legs")
-            ok1, m1 = _place_single(short_opt, 'sell_to_open')
-            if not ok1:
-                return False, f"Short leg failed: {m1}"
-            ok2, m2 = _place_single(long_opt, 'buy_to_open')
-            if not ok2:
-                return False, f"Long leg failed (short already placed): {m2}"
-            return True, f"Spread via 2 legs — {m1} | {m2}"
-        return False, msg
+        return _place(order)
 
     if strategy == 'Short Put Spread':
         sp = _pick(puts)
@@ -392,6 +482,20 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         if not all(o and o.get('symbol') for o in [sp, sc, lp, lc]):
             return False, "Could not resolve all four legs"
         net = max(0.01, round((_mid(sp) + _mid(sc)) - (_mid(lp) + _mid(lc)), 2))
+
+        # Allocation check: max loss = max(put_width, call_width)*qty*100 - credit
+        if _alloc > 0 and _cached_positions is not None:
+            max_wing  = max(put_width, call_width)
+            new_risk  = qty * 100 * (max(0.0, max_wing - net) if is_short else net)
+            used      = _calc_used_allocation(_cached_positions)
+            remaining = _alloc - used
+            if new_risk > remaining:
+                return False, (
+                    f"Allocation limit: ${used:.0f} already committed, "
+                    f"${new_risk:.0f} new risk exceeds "
+                    f"${remaining:.0f} remaining of ${_alloc:.0f} budget"
+                )
+
         order = {
             'class': 'multileg', 'symbol': symbol, 'duration': 'day',
             'type': 'market',
@@ -499,8 +603,11 @@ def execute_strategy(cfg, strategy_dict, app):
     if not api_key or not account_id:
         return False, ["Missing API credentials — check Bot Settings"]
 
-    steps = strategy_dict.get('steps', [])
-    log   = []
+    steps   = strategy_dict.get('steps', [])
+    log     = []
+    # Strategy-level limits forwarded into every open_position step
+    _alloc   = float(strategy_dict.get('allocation') or 0)
+    _max_pos = int(strategy_dict.get('max_positions') or 0)
 
     primary_symbol = next(
         (s.get('config', {}).get('symbol', 'SPY')
@@ -540,7 +647,10 @@ def execute_strategy(cfg, strategy_dict, app):
                     return False, log
 
         elif stype == 'open_position':
-            success, msg = exec_open_position(scfg, api_key, base_url, account_id)
+            scfg_limited = dict(scfg)
+            scfg_limited['_allocation']   = _alloc
+            scfg_limited['_max_positions'] = _max_pos
+            success, msg = exec_open_position(scfg_limited, api_key, base_url, account_id)
             log.append(f"[{n}] OPEN_POSITION: {'✓' if success else '✗'} {msg}")
             if not success:
                 return False, log

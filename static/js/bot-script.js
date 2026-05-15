@@ -1160,11 +1160,13 @@ function sbConfigSummary(step) {
 }
 
 // ── Builder state ──────────────────────────────────────────────────
-let _sbEditId    = null;   // strategy id being edited (null = new)
-let _sbSteps     = [];     // array of step objects
-let _sbInsertIdx = -1;     // where to insert the next step
-let _sbEditStepIdx = -1;   // step index being configured in modal
-let _sbIsNewStep = false;  // true when modal opened for a freshly-added step
+let _sbEditId      = null;  // strategy id being edited (null = new)
+let _sbSteps       = [];    // array of step objects
+let _sbInsertIdx   = -1;    // where to insert the next step
+let _sbEditStepIdx = -1;    // step index being configured in modal
+let _sbIsNewStep   = false; // true when modal opened for a freshly-added step
+let _sbAllocation    = null; // $ allocation limit (null = unlimited)
+let _sbMaxPositions  = null; // max open positions + orders (null = unlimited)
 
 // ── Utilities ──────────────────────────────────────────────────────
 function sbUUID() {
@@ -1190,11 +1192,17 @@ async function stratBuilderOpen(stratId) {
     const s = _sbStratCache.find(x => x.id == stratId);
     if (!s) return;
     document.getElementById('sbStratName').value = s.name;
-    _sbSteps = JSON.parse(JSON.stringify(s.steps || []));
+    _sbSteps       = JSON.parse(JSON.stringify(s.steps || []));
+    _sbAllocation   = s.allocation   || null;
+    _sbMaxPositions = s.max_positions || null;
   } else {
     document.getElementById('sbStratName').value = '';
-    _sbSteps = [];
+    _sbSteps        = [];
+    _sbAllocation   = null;
+    _sbMaxPositions = null;
   }
+  document.getElementById('sbAllocation').value   = _sbAllocation   ?? '';
+  document.getElementById('sbMaxPositions').value = _sbMaxPositions ?? '';
   sbRenderFlow();
   stratCloseDrawer();
   document.getElementById('sbStepModal').style.display = 'none';
@@ -1211,11 +1219,18 @@ function stratBuilderClose() {
 
 // ── Save ──────────────────────────────────────────────────────────
 async function stratBuilderSave() {
-  const name = (document.getElementById('sbStratName').value || '').trim() || 'Untitled Strategy';
+  const name    = (document.getElementById('sbStratName').value || '').trim() || 'Untitled Strategy';
+  const rawAlloc = parseFloat(document.getElementById('sbAllocation').value);
+  const rawMaxPos = parseInt(document.getElementById('sbMaxPositions').value, 10);
   const saveBtn = document.querySelector('#stratBuilderOverlay .sb-save-btn');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
   try {
-    const payload = { name, steps: _sbSteps };
+    const payload = {
+      name,
+      steps:         _sbSteps,
+      allocation:    isNaN(rawAlloc)  || rawAlloc  <= 0 ? null : rawAlloc,
+      max_positions: isNaN(rawMaxPos) || rawMaxPos <= 0 ? null : rawMaxPos,
+    };
     if (_sbEditId) payload.id = _sbEditId;
     const r = await fetch('/api/bot/strategies', {
       method: 'POST',

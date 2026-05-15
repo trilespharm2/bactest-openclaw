@@ -238,6 +238,8 @@ class BotStrategy(db.Model):
     name             = db.Column(db.String(200), default='Untitled Strategy')
     steps            = db.Column(db.Text, default='[]')   # JSON
     is_live          = db.Column(db.Boolean, default=False)
+    allocation       = db.Column(db.Float, nullable=True)   # max $ capital at risk
+    max_positions    = db.Column(db.Integer, nullable=True) # max open positions + orders
     last_executed_at = db.Column(db.DateTime, nullable=True)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -250,6 +252,8 @@ class BotStrategy(db.Model):
             'name':             self.name,
             'steps':            json.loads(self.steps or '[]'),
             'is_live':          self.is_live,
+            'allocation':       self.allocation,
+            'max_positions':    self.max_positions,
             'last_executed_at': self.last_executed_at.isoformat() if self.last_executed_at else None,
             'created_at':       self.created_at.isoformat()       if self.created_at       else None,
             'updated_at':       self.updated_at.isoformat()       if self.updated_at       else None,

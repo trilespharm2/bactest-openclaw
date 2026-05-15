@@ -8199,8 +8199,12 @@ def bot_save_strategy():
         strat = BotStrategy(user_id=current_user.id)
         db.session.add(strat)
 
-    strat.name  = (data.get('name') or 'Untitled Strategy').strip()
-    strat.steps = _json.dumps(data.get('steps', []))
+    strat.name          = (data.get('name') or 'Untitled Strategy').strip()
+    strat.steps         = _json.dumps(data.get('steps', []))
+    raw_alloc           = data.get('allocation')
+    strat.allocation    = float(raw_alloc) if raw_alloc not in (None, '', 0, '0') else None
+    raw_max             = data.get('max_positions')
+    strat.max_positions = int(raw_max) if raw_max not in (None, '', 0, '0') else None
 
     try:
         db.session.commit()
