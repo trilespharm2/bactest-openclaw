@@ -1122,9 +1122,9 @@ function sbDefaultConfig(type) {
   if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30,
     frontDte:7, backDte:30, strikeMethod:'atm', strikeValue:'',
     spreadWidth:5, callWidth:5, putWidth:5,
-    takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit', tag:'' };
+    takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit', limitPrice:0, tag:'' };
   if (type === 'condition')      return { conditionType:'position_count', tag:'', operator:'<', value:1 };
-  if (type === 'close_position') return { target:'all', reason:'manual' };
+  if (type === 'close_position') return { target:'all', tag:'' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
   if (type === 'tags')           return { tag:'' };
   return {};
@@ -1147,13 +1147,17 @@ function sbConfigSummary(step) {
     return `${c.symbol||'?'} · ${c.strategy||'?'} · ${dteS}${wingS}`;
   }
   if (step.type === 'condition') {
-    const _ctN = { position_count:'Open positions', daily_opens:'Positions today', unrealized_pnl:'Unrealized P&L' };
+    const _ctN = { position_count:'Open positions', daily_opens:'Positions today', unrealized_pnl:'Unrealized P&L',
+                   open_orders:'Open orders', canceled_orders:'Canceled orders today', closed_today:'Closed positions today' };
     const tName = _ctN[c.conditionType] || 'Open positions';
     const tagStr = c.tag ? ` (${c.tag})` : '';
     const valStr = c.conditionType === 'unrealized_pnl' ? `$${c.value??0}` : (c.value??1);
     return `${tName}${tagStr} ${c.operator||'<'} ${valStr} → proceed`;
   }
-  if (step.type === 'close_position') return `Close ${c.target||'all'} positions`;
+  if (step.type === 'close_position') {
+    const tagStr = c.tag ? ` [tag: ${c.tag}]` : '';
+    return `Close ${c.target||'all'} positions${tagStr}`;
+  }
   if (step.type === 'notification')   return c.message || 'Send notification';
   if (step.type === 'tags')           return c.tag ? `Tag: ${c.tag}` : 'Set tag…';
   return '';
@@ -1468,10 +1472,11 @@ function stratSaveStepConfig() {
     c.stopLossPct   = parseFloat(document.getElementById('sbcStopLossPct')?.value) || 200;
     c.quantity      = parseInt(document.getElementById('sbcQty')?.value) || 1;
     c.orderType     = document.getElementById('sbcOrderType')?.value || 'credit';
+    c.limitPrice    = parseFloat(document.getElementById('sbcLimitPrice')?.value) || 0;
     c.tag           = (document.getElementById('sbcTag')?.value || '').trim();
   } else if (step.type === 'close_position') {
     c.target = document.getElementById('sbcTarget')?.value || 'all';
-    c.reason = document.getElementById('sbcReason')?.value || 'manual';
+    c.tag    = (document.getElementById('sbcCloseTag')?.value || '').trim();
   } else if (step.type === 'notification') {
     c.message = (document.getElementById('sbcMessage')?.value || '').trim();
     c.channel = document.getElementById('sbcChannel')?.value || 'email';
@@ -1543,6 +1548,10 @@ function sbConditionTypeChange() {
   if (lbl) lbl.textContent = t === 'unrealized_pnl' ? 'P&L threshold ($)' : 'Count threshold';
   const ph  = document.getElementById('sbcCondValue');
   if (ph)  ph.placeholder  = t === 'unrealized_pnl' ? '-500' : '1';
+  // Tag filter is only relevant for position-based conditions
+  const tagRow = document.getElementById('sbcCondTagRow');
+  const posTypes = ['position_count','daily_opens','unrealized_pnl'];
+  if (tagRow) tagRow.style.display = posTypes.includes(t) ? '' : 'none';
 }
 
 // ── Open Position: strategy-driven field visibility ──────────────────
@@ -1552,6 +1561,7 @@ const _OP_IRON     = ['Short Iron Condor','Short Iron Butterfly','Long Iron Butt
 const _OP_STRADDLE = ['Long Straddle','Short Straddle'];
 const _OP_STRANGLE = ['Long Strangle','Short Strangle'];
 const _OP_CALENDAR = ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal'];
+const _OP_EQUITY   = ['Buy Equity','Sell Equity Short'];
 
 function sbStrategyChange() {
   const s  = document.getElementById('sbcStrategy')?.value || '';
@@ -1561,20 +1571,41 @@ function sbStrategyChange() {
   const isStraddle = _OP_STRADDLE.includes(s);
   const isStrangle = _OP_STRANGLE.includes(s);
   const isVertical = _OP_VERTICAL.includes(s);
+  const isEquity   = _OP_EQUITY.includes(s);
 
-  _show('sbcIronDiagram',   isIron);
-  _show('sbcDteRow',        !isCal);
-  _show('sbcFrontDteRow',   isCal);
-  _show('sbcBackDteRow',    isCal);
-  _show('sbcStrikeRow',     !isStraddle);
-  _show('sbcStrikeValRow',  !isStraddle && sm !== 'atm');
-  _show('sbcSpreadWidthRow', isVertical || isStrangle);
-  _show('sbcCallWidthRow',  isIron);
-  _show('sbcPutWidthRow',   isIron);
+  _show('sbcIronDiagram',    isIron && !isEquity);
+  _show('sbcDteRow',         !isCal && !isEquity);
+  _show('sbcFrontDteRow',    isCal && !isEquity);
+  _show('sbcBackDteRow',     isCal && !isEquity);
+  _show('sbcStrikeRow',      !isStraddle && !isEquity);
+  _show('sbcStrikeValRow',   !isStraddle && !isEquity && sm !== 'atm');
+  _show('sbcSpreadWidthRow', (isVertical || isStrangle) && !isEquity);
+  _show('sbcCallWidthRow',   isIron && !isEquity);
+  _show('sbcPutWidthRow',    isIron && !isEquity);
+  _show('sbcTpRow',          !isEquity);
+  _show('sbcSlRow',          !isEquity);
+
+  // Swap order-type options between options (credit/debit/market) and equity (market/limit)
+  const otSel = document.getElementById('sbcOrderType');
+  if (otSel) {
+    const cur  = otSel.value;
+    const opts = isEquity ? ['market','limit'] : ['credit','debit','market'];
+    otSel.innerHTML = opts.map(t =>
+      `<option value="${t}" ${t===cur?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`
+    ).join('');
+    if (isEquity && !['market','limit'].includes(otSel.value)) otSel.value = 'market';
+  }
+  _show('sbcEquityLimitRow', isEquity && document.getElementById('sbcOrderType')?.value === 'limit');
 
   // Update the "Strike Selection" label to mention short legs for iron
   const sl = document.getElementById('sbcStrikeRowLabel');
   if (sl) sl.textContent = 'Strike Selection' + (isIron ? ' — short legs' : '');
+}
+
+function sbOrderTypeChange() {
+  const s  = document.getElementById('sbcStrategy')?.value || '';
+  const ot = document.getElementById('sbcOrderType')?.value || 'market';
+  _show('sbcEquityLimitRow', _OP_EQUITY.includes(s) && ot === 'limit');
 }
 
 function sbStrikeMethodChange() {
@@ -1784,17 +1815,20 @@ function sbStepConfigHTML(step) {
     const isStrangle = _OP_STRANGLE.includes(s);
     const isVertical = _OP_VERTICAL.includes(s);
 
+    const isEquity   = _OP_EQUITY.includes(s);
     const strats = [
       ['Single Leg',            ['Long Call','Long Put','Naked Short Call','Naked Short Put']],
       ['Vertical Spreads',      ['Short Put Spread','Short Call Spread','Long Call Spread','Long Put Spread']],
       ['Iron Strategies',       ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor']],
       ['Straddles & Strangles', ['Long Straddle','Long Strangle','Short Straddle','Short Strangle']],
       ['Calendar & Diagonal',   ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal']],
+      ['Equity',                ['Buy Equity','Sell Equity Short']],
     ];
     const stratOpts = strats.map(([grp, items]) =>
       `<optgroup label="${grp}">${items.map(i => `<option value="${i}" ${s===i?'selected':''}>${i}</option>`).join('')}</optgroup>`
     ).join('');
-    const otOpts = ['credit','debit','market']
+    const otList = isEquity ? ['market','limit'] : ['credit','debit','market'];
+    const otOpts = otList
       .map(t => `<option value="${t}" ${c.orderType===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`)
       .join('');
 
@@ -1877,22 +1911,28 @@ function sbStepConfigHTML(step) {
         <input id="sbcPutWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.putWidth||5}" placeholder="5">
       </div>
 
-      <!-- Always visible -->
-      <div class="sb-form-row">
+      <!-- TP / SL (options only) -->
+      <div class="sb-form-row" id="sbcTpRow" style="${isEquity?'display:none':''}">
         <div class="sb-form-label">Take Profit — % of max profit</div>
         <input id="sbcTakeProfitPct" class="sb-form-input" type="number" min="0" max="100" step="1" value="${c.takeProfitPct||50}" placeholder="50">
       </div>
-      <div class="sb-form-row">
+      <div class="sb-form-row" id="sbcSlRow" style="${isEquity?'display:none':''}">
         <div class="sb-form-label">Stop Loss — % of max loss</div>
         <input id="sbcStopLossPct" class="sb-form-input" type="number" min="0" step="1" value="${c.stopLossPct||200}" placeholder="200">
       </div>
+      <!-- Quantity label adapts: "contracts" for options, "shares" for equity -->
       <div class="sb-form-row">
-        <div class="sb-form-label">Quantity — contracts</div>
-        <input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}" placeholder="1">
+        <div class="sb-form-label">Quantity — ${isEquity?'shares':'contracts'}</div>
+        <input id="sbcQty" class="sb-form-input" type="number" min="1" value="${c.quantity||1}" placeholder="${isEquity?'100':'1'}">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Order Type</div>
-        <select id="sbcOrderType" class="sb-form-select">${otOpts}</select>
+        <select id="sbcOrderType" class="sb-form-select" onchange="sbOrderTypeChange()">${otOpts}</select>
+      </div>
+      <!-- Limit Price (equity + limit order only) -->
+      <div class="sb-form-row" id="sbcEquityLimitRow" style="${isEquity && c.orderType==='limit'?'':'display:none'}">
+        <div class="sb-form-label">Limit Price</div>
+        <input id="sbcLimitPrice" class="sb-form-input" type="number" step="0.01" min="0" value="${c.limitPrice||''}" placeholder="0.00">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Tag — position label (optional)</div>
@@ -1906,19 +1946,14 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row">
         <div class="sb-form-label">Target Positions</div>
         <select id="sbcTarget" class="sb-form-select">
-          <option value="all"       ${c.target==='all'?'selected':''}>All open positions</option>
+          <option value="all"        ${c.target==='all'?'selected':''}>All open positions</option>
           <option value="profitable" ${c.target==='profitable'?'selected':''}>Profitable positions only</option>
-          <option value="losers"    ${c.target==='losers'?'selected':''}>Losing positions only</option>
+          <option value="losers"     ${c.target==='losers'?'selected':''}>Losing positions only</option>
         </select>
       </div>
       <div class="sb-form-row">
-        <div class="sb-form-label">Close Reason</div>
-        <select id="sbcReason" class="sb-form-select">
-          <option value="manual"      ${c.reason==='manual'?'selected':''}>Manual / Discretionary</option>
-          <option value="take_profit" ${c.reason==='take_profit'?'selected':''}>Take Profit</option>
-          <option value="stop_loss"   ${c.reason==='stop_loss'?'selected':''}>Stop Loss</option>
-          <option value="expiration"  ${c.reason==='expiration'?'selected':''}>Near Expiration</option>
-        </select>
+        <div class="sb-form-label">Position with Tag — leave blank to match all</div>
+        <input id="sbcCloseTag" class="sb-form-input" placeholder="e.g. IC-1, hedge" value="${_escHtml(c.tag||'')}">
       </div>`;
   }
 
@@ -1959,13 +1994,20 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row">
         <div class="sb-form-label">Check</div>
         <select id="sbcCondType" class="sb-form-select" onchange="sbConditionTypeChange()">
-          <option value="position_count" ${ct==='position_count'?'selected':''}>Open position count</option>
-          <option value="daily_opens"    ${ct==='daily_opens'?'selected':''}>Positions opened today</option>
-          <option value="unrealized_pnl" ${ct==='unrealized_pnl'?'selected':''}>Unrealized P&amp;L ($)</option>
+          <optgroup label="Positions">
+            <option value="position_count" ${ct==='position_count'?'selected':''}>Open position count</option>
+            <option value="daily_opens"    ${ct==='daily_opens'?'selected':''}>Positions opened today</option>
+            <option value="unrealized_pnl" ${ct==='unrealized_pnl'?'selected':''}>Unrealized P&amp;L ($)</option>
+            <option value="closed_today"   ${ct==='closed_today'?'selected':''}>Positions closed today</option>
+          </optgroup>
+          <optgroup label="Orders">
+            <option value="open_orders"     ${ct==='open_orders'?'selected':''}>Open order count</option>
+            <option value="canceled_orders" ${ct==='canceled_orders'?'selected':''}>Orders canceled today</option>
+          </optgroup>
         </select>
       </div>
-      <!-- Optional tag filter -->
-      <div class="sb-form-row">
+      <!-- Tag filter (positions only) -->
+      <div class="sb-form-row" id="sbcCondTagRow" style="${['open_orders','canceled_orders'].includes(ct)?'display:none':''}">
         <div class="sb-form-label">Tag filter — leave blank to check all positions</div>
         <input id="sbcCondTag" class="sb-form-input" placeholder="e.g. LC, IC-1" value="${_escHtml(c.tag||'')}">
       </div>

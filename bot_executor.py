@@ -157,6 +157,31 @@ def eval_condition(cfg, api_key, base_url, account_id):
                 total += (last * qty * 100) - cost
         return _compare(total, operator, value)
 
+    elif ctype == 'open_orders':
+        open_orders = _get_open_orders(api_key, base_url, account_id)
+        return _compare(float(len(open_orders)), operator, value)
+
+    elif ctype == 'canceled_orders':
+        today  = _now_et().date().isoformat()
+        orders = _get_all_orders(api_key, base_url, account_id)
+        count  = sum(
+            1 for o in orders
+            if o.get('status') == 'canceled'
+            and str(o.get('transaction_date', o.get('create_date', ''))).startswith(today)
+        )
+        return _compare(float(count), operator, value)
+
+    elif ctype == 'closed_today':
+        today  = _now_et().date().isoformat()
+        orders = _get_all_orders(api_key, base_url, account_id)
+        count  = sum(
+            1 for o in orders
+            if o.get('status') == 'filled'
+            and str(o.get('transaction_date', '')).startswith(today)
+            and o.get('side', '') in ('sell_to_close', 'buy_to_close', 'sell', 'buy_to_cover')
+        )
+        return _compare(float(count), operator, value)
+
     return True
 
 
@@ -197,6 +222,20 @@ def _get_open_orders(api_key, base_url, account_id):
         raw = [raw]
     return [o for o in (raw or [])
             if o.get('status') in ('open', 'pending', 'partially_filled')]
+
+
+def _get_all_orders(api_key, base_url, account_id):
+    """Fetch all orders (all statuses) from Tradier."""
+    data = _tradier(api_key, base_url, f'/accounts/{account_id}/orders')
+    if not data:
+        return []
+    orders = data.get('orders', {})
+    if not orders or orders == 'null':
+        return []
+    raw = orders.get('order', [])
+    if isinstance(raw, dict):
+        raw = [raw]
+    return raw or []
 
 
 def _calc_used_allocation(positions):
@@ -535,6 +574,32 @@ def exec_open_position(cfg, api_key, base_url, account_id):
                     'Diagonal Call Spread', 'Diagonal Put Spread',
                     'Double Calendar',      'Double Diagonal'):
         return False, "Calendar/diagonal spreads require per-leg DTE — not yet supported in bot executor"
+
+    # ── EQUITY ────────────────────────────────────────────────────────
+    if strategy in ('Buy Equity', 'Sell Equity Short'):
+        side  = 'buy' if strategy == 'Buy Equity' else 'sell_short'
+        etype = otype if otype in ('market', 'limit') else 'market'
+        order = {
+            'class':    'equity',
+            'symbol':   symbol,
+            'side':     side,
+            'quantity': str(qty),
+            'type':     etype,
+            'duration': 'day',
+        }
+        if etype == 'limit':
+            limit_price = float(cfg.get('limitPrice', 0) or 0)
+            if not limit_price:
+                q = _tradier(api_key, base_url, '/markets/quotes',
+                             params={'symbols': symbol, 'greeks': 'false'})
+                limit_price = float(
+                    ((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0
+                )
+            if limit_price:
+                order['price'] = str(round(limit_price, 2))
+            else:
+                return False, f"Could not determine limit price for {symbol}"
+        return _place(order)
 
     return False, f"Strategy '{strategy}' is not supported in the bot executor"
 
