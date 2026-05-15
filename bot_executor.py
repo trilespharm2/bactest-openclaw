@@ -39,8 +39,10 @@ def _tradier(api_key, base_url, path, method='GET', params=None, data=None,
         if method == 'GET':
             r = requests.get(url, headers=headers, params=params or {}, timeout=10)
         elif method == 'POST':
-            data_pairs = list(data.items()) if isinstance(data, dict) else []
-            r = requests.post(url, headers=headers, data=data_pairs, timeout=10)
+            body = _encode_form(data) if isinstance(data, dict) else ''
+            post_headers = dict(headers)
+            post_headers['Content-Type'] = 'application/x-www-form-urlencoded'
+            r = requests.post(url, headers=post_headers, data=body, timeout=10)
         elif method == 'DELETE':
             r = requests.delete(url, headers=headers, timeout=10)
         else:
