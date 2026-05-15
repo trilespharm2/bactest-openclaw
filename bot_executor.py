@@ -1037,7 +1037,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             'quantity[1]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
-            order['type'] = 'limit'
+            order['type'] = 'credit' if is_credit else 'debit'
             order['price'] = str(net)
         return _place(order)
 
@@ -1105,7 +1105,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             'option_symbol[3]': lc['symbol'], 'side[3]': 'buy_to_open',  'quantity[3]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
-            order['type'] = 'limit'
+            order['type'] = 'credit' if is_short else 'debit'
             order['price'] = str(net)
         return _place(order)
 
@@ -1127,7 +1127,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             'quantity[1]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
-            order['type'] = 'limit'
+            order['type'] = 'credit' if strategy == 'Short Straddle' else 'debit'
             order['price'] = str(net)
         return _place(order)
 
