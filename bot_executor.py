@@ -438,13 +438,31 @@ def _compute_options_metric(metric, symbol, opt_type, target_dte, api_key, base_
     return None
 
 
+def _apply_threshold(rhs, unit, value, operator):
+    """Offset RHS by threshold in the direction implied by the operator."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = 0.0
+    if v == 0:
+        return rhs
+    sign = 1 if operator in ('>', '>=', 'crosses_above') else -1
+    if unit == 'dollar':
+        return rhs + sign * v
+    # percent
+    return rhs * (1 + sign * v / 100)
+
+
 def eval_metric_verbose(cfg, api_key, base_url, symbol):
     """Full metric evaluator. Returns (ok, detail_message).
     ok=None means data unavailable (step should be skipped).
     Handles crosses_above/crosses_below and AND conditions."""
     metric      = cfg.get('metric', 'price')
     operator    = cfg.get('operator', '>')
-    ctype       = cfg.get('compareType', 'value')
+    # Support new 'comparator' field; fall back to legacy 'compareType'
+    _ct_map     = {'price': 'compare_price', 'indicator': 'compare_sma', 'bar_delta': 'bar_delta'}
+    _raw_ct     = cfg.get('compareType', 'value')
+    ctype       = cfg.get('comparator') or _ct_map.get(_raw_ct, _raw_ct) or 'value'
     cv          = cfg.get('value', '')
     period      = int(cfg.get('period') or 14)
     day         = int(cfg.get('day') or 0)
@@ -530,6 +548,9 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
             return _cbm(bars, d=day - 1), bars
 
     # ── Compute RHS & evaluate ────────────────────────────────────────────────
+    thresh_unit  = cfg.get('thresholdUnit', 'percent')
+    thresh_value = cfg.get('thresholdValue', '')
+
     ok = None
     detail = ''
     rhs_name = ''
@@ -562,19 +583,80 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                 sym = _op_sym(operator)
                 detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} {rhs_name}"
 
-        elif ctype == 'price':
-            q = _tradier(api_key, base_url, '/markets/quotes',
-                         params={'symbols': symbol, 'greeks': 'false'})
-            if not q:
-                return None, 'Could not fetch live price for comparison'
-            rhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
-            if rhs <= 0:
-                return None, 'Live price unavailable for comparison'
-            rhs_name = 'Price'
+        elif ctype == 'compare_price':
+            right_day  = int(cfg.get('rightDay', 0))
+            right_intv = cfg.get('rightInterval', '1min')
+            right_ser  = cfg.get('rightSeries', 'close')
+
+            if right_day == 0:
+                # Intraday bar
+                ibars = _fetch_intraday_bars(symbol, right_intv, api_key, base_url)
+                bar = ibars[-1] if ibars else None
+                rhs_ctx = f'{right_intv}·{right_ser}'
+            else:
+                # Daily bar at offset
+                if bars is None:
+                    bars = _fetch_daily_history(symbol, api_key, base_url, bars=50)
+                idx = abs(right_day)
+                bar = bars[-1 - idx] if bars and len(bars) > idx else None
+                rhs_ctx = f'daily·{right_ser} D({right_day})'
+
+            if bar is None:
+                return None, f'Could not fetch price bar for comparison (day={right_day})'
+            raw_rhs = float(bar.get(right_ser, 0) or 0)
+            if raw_rhs <= 0:
+                return None, f'Right-side price ({right_ser}) is 0'
+
+            rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
+            rhs_name = f'Price [{rhs_ctx}]'
             ok = _compare(lhs, operator, rhs)
             sym = _op_sym(operator)
-            detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} Price ({_fmt(rhs)})"
+            detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
+                      f"{rhs_name} = {_fmt(raw_rhs)}"
+                      + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
 
+        elif ctype == 'compare_vwap':
+            ibars = _fetch_intraday_bars(symbol, '1min', api_key, base_url)
+            if not ibars:
+                return None, 'Could not fetch intraday bars for VWAP'
+            total_vol = sum(float(b.get('volume', 0) or 0) for b in ibars)
+            if total_vol <= 0:
+                return None, 'Zero volume — cannot compute VWAP'
+            tpv = sum(
+                (float(b.get('high', 0)) + float(b.get('low', 0)) + float(b.get('close', 0))) / 3
+                * float(b.get('volume', 0) or 0)
+                for b in ibars
+            )
+            raw_rhs = tpv / total_vol
+            rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
+            rhs_name = 'VWAP'
+            ok = _compare(lhs, operator, rhs)
+            sym = _op_sym(operator)
+            detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
+                      f"VWAP = {_fmt(raw_rhs)}"
+                      + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
+
+        elif ctype in ('compare_sma', 'compare_ema', 'compare_rsi'):
+            right_metric = ctype.replace('compare_', '')   # 'sma', 'ema', or 'rsi'
+            right_period = int(cfg.get('rightPeriod', 20))
+            if bars is None:
+                need = max(right_period * 3, 100)
+                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+            if not bars:
+                return None, f'Could not fetch history for {right_metric.upper()} comparison'
+            raw_rhs = _compute_bar_metric(right_metric, right_period, bars,
+                                          day=0, series='close')
+            if raw_rhs is None:
+                return None, f'Could not compute {right_metric.upper()}({right_period})'
+            rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
+            rhs_name = f'{right_metric.upper()}({right_period})'
+            ok = _compare(lhs, operator, rhs)
+            sym = _op_sym(operator)
+            detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
+                      f"{rhs_name} = {_fmt(raw_rhs)}"
+                      + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
+
+        # ── Legacy comparator types (backward compat) ─────────────────────────
         elif ctype == 'indicator':
             ref_metric      = cfg.get('compareIndicator', 'ema')
             ref_period      = int(cfg.get('comparePeriod') or 9)
@@ -594,54 +676,17 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                                            macd_signal=ref_macd_signal,
                                            macd_comp=ref_macd_comp)
 
-            if ref_metric == 'current_price':
-                q = _tradier(api_key, base_url, '/markets/quotes',
-                             params={'symbols': symbol, 'greeks': 'false'})
-                rhs = float((q or {}).get('quotes', {}).get('quote', {}).get('last', 0) or 0) if q else None
-            elif ref_metric in _OPT_METRICS:
-                rhs = _compute_options_metric(ref_metric, symbol, opt_type, opt_dte,
-                                              api_key, base_url)
-            else:
-                if bars is None:
-                    need = max(ref_period * 3, (ref_macd_long + ref_macd_signal) * 3, 100)
-                    bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
-                if not bars:
-                    return None, 'Could not fetch daily history for comparison indicator'
-                rhs = _ref_cbm(bars, d=0)  # always compute ref at current bar for crossovers
-
+            if bars is None:
+                need = max(ref_period * 3, (ref_macd_long + ref_macd_signal) * 3, 100)
+                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+            if not bars:
+                return None, 'Could not fetch daily history for comparison indicator'
+            rhs = _ref_cbm(bars, d=ref_day if not is_cross else 0)
             if rhs is None:
                 return None, f'Could not compute reference {rhs_name}'
-
-            if is_cross:
-                prev_lhs_val, bars = _prev_lhs()
-                if prev_lhs_val is None:
-                    return None, f'Could not get previous bar {lhs_name}'
-                # Previous reference bar
-                if ref_metric == 'current_price' or ref_metric in _OPT_METRICS:
-                    prev_rhs = None  # can't get previous for live/options
-                else:
-                    prev_rhs = _ref_cbm(bars, d=-1)
-
-                if prev_rhs is None:
-                    return None, f'Could not get previous bar {rhs_name}'
-
-                if operator == 'crosses_above':
-                    ok = (prev_lhs_val <= prev_rhs) and (lhs > rhs)
-                else:
-                    ok = (prev_lhs_val >= prev_rhs) and (lhs < rhs)
-                word = 'occurred ✓' if ok else 'did not occur ✗'
-                dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
-                detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
-                          f"Bar 2 (prev): {lhs_name} = {_fmt(prev_lhs_val)}, "
-                          f"{rhs_name} = {_fmt(prev_rhs)}; "
-                          f"Bar 1 (curr): {lhs_name} = {_fmt(lhs)}, "
-                          f"{rhs_name} = {_fmt(rhs)}")
-            else:
-                # Non-cross: use configured ref_day for the rhs
-                rhs_final = _ref_cbm(bars, d=ref_day) if ref_metric not in _OPT_METRICS and ref_metric != 'current_price' else rhs
-                ok = _compare(lhs, operator, rhs_final if rhs_final is not None else rhs)
-                sym = _op_sym(operator)
-                detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} {rhs_name} ({_fmt(rhs_final if rhs_final is not None else rhs)})"
+            ok = _compare(lhs, operator, rhs)
+            sym = _op_sym(operator)
+            detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} {rhs_name} ({_fmt(rhs)})"
 
         elif ctype == 'bar_delta':
             bar_offset      = max(int(cfg.get('barOffset') or 1), 1)
@@ -682,7 +727,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                       f"{'✓' if ok else '✗'} {sym} {_fmt(delta_threshold)} | "
                       f"Current: {_fmt(current_val)}, Prior: {_fmt(prior_val)}")
         else:
-            return None, f"Unknown compareType '{ctype}'"
+            return None, f"Unknown comparator '{ctype}'"
 
     except Exception as e:
         logger.warning(f"eval_metric_verbose evaluate: {e}")
