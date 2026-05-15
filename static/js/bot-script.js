@@ -1203,6 +1203,7 @@ async function stratBuilderOpen(stratId) {
   }
   document.getElementById('sbAllocation').value   = _sbAllocation   ?? '';
   document.getElementById('sbMaxPositions').value = _sbMaxPositions ?? '';
+  sbInitLeftPanel();
   sbRenderFlow();
   stratCloseDrawer();
   document.getElementById('sbStepModal').style.display = 'none';
@@ -1215,6 +1216,30 @@ async function stratBuilderOpen(stratId) {
 function stratBuilderClose() {
   document.getElementById('stratBuilderOverlay').style.display = 'none';
   document.body.style.overflow = '';
+}
+
+function sbToggleLeftPanel() {
+  const panel = document.getElementById('sbLeftPanel');
+  if (!panel) return;
+  const isMobile = window.innerWidth <= 640;
+  if (isMobile) {
+    panel.classList.toggle('mobile-open');
+  } else {
+    panel.classList.toggle('collapsed');
+    try { localStorage.setItem('sbLeftPanelCollapsed', panel.classList.contains('collapsed') ? '1' : '0'); } catch(e) {}
+  }
+}
+
+function sbInitLeftPanel() {
+  const panel = document.getElementById('sbLeftPanel');
+  if (!panel) return;
+  if (window.innerWidth <= 640) {
+    panel.classList.remove('collapsed', 'mobile-open');
+  } else {
+    let saved = '0';
+    try { saved = localStorage.getItem('sbLeftPanelCollapsed') || '0'; } catch(e) {}
+    panel.classList.toggle('collapsed', saved === '1');
+  }
 }
 
 // ── Save ──────────────────────────────────────────────────────────
