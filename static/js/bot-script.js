@@ -1462,7 +1462,9 @@ function stratSaveStepConfig() {
     const opLbl = {'>':'>','<':'<','>=':'≥','<=':'≤','=':'=',
                    'crosses_above':'crosses above ↑','crosses_below':'crosses below ↓'}[c.operator] || c.operator;
     let lbl = `${mName}${pSfx}${_ctx(c.metric,c.day,c.interval,c.series)} ${opLbl}`;
-    if (c.compareType === 'indicator') {
+    if (c.compareType === 'price') {
+      lbl += ` Current Price`;
+    } else if (c.compareType === 'indicator') {
       const cName = _MN[c.compareIndicator] || c.compareIndicator;
       const cpSfx = ['sma','ema','rsi','roc'].includes(c.compareIndicator)
         ? `(${c.comparePeriod})`
@@ -1547,7 +1549,7 @@ function sbSyncMetricForm() {
   _show('sbcOptTypeRow',     ['iv_rank','delta','theta'].includes(m));
   _show('sbcOptDteRow',      ['iv_rank','delta','theta'].includes(m));
 
-  // Compare Against is always visible; show value OR indicator rows based on selection
+  // Compare Against always visible; value row shown only for Fixed Value; indicator rows only for Indicator
   _show('sbcValueRow',       ct === 'value');
 
   const refNoBCtx = ['iv_rank','delta','theta','current_price'].includes(refM);
@@ -1801,7 +1803,7 @@ function sbStepConfigHTML(step) {
       </div>
       <div class="sb-form-row" id="sbcCompareTypeRow">
         <div class="sb-form-label">Compare Against</div>
-        ${_sel('sbcCompareType', ct, [['value','Fixed Value'],['indicator','Indicator']], 'onchange="sbCompareTypeChange()"')}
+        ${_sel('sbcCompareType', ct, [['value','Fixed Value'],['price','Current Price'],['indicator','Indicator']], 'onchange="sbCompareTypeChange()"')}
       </div>
       <div class="sb-form-row" id="sbcValueRow" style="${ct==='value'?'':'display:none'}">
         <div class="sb-form-label">Value</div>

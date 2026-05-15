@@ -452,6 +452,17 @@ def eval_metric(cfg, api_key, base_url, symbol):
             return None
         return _compare(lhs, operator, rhs)
 
+    if ctype == 'price':
+        # Compare against live current price
+        q = _tradier(api_key, base_url, '/markets/quotes',
+                     params={'symbols': symbol, 'greeks': 'false'})
+        if not q:
+            return None
+        rhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+        if rhs <= 0:
+            return None
+        return _compare(lhs, operator, rhs)
+
     if ctype == 'indicator':
         ref_metric      = cfg.get('compareIndicator', 'ema')
         ref_period      = int(cfg.get('comparePeriod') or 9)
