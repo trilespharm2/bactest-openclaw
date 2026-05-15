@@ -2199,6 +2199,7 @@ function stratItemHTML(s) {
           <span class="strat-toggle-slider"></span>
         </label>
       </div>
+      <button class="strat-test-btn" onclick="openTestModal(${s.id})" title="Run Test"><i class="fas fa-play"></i></button>
       <button class="strat-edit-btn" onclick="stratBuilderOpen(${s.id})" title="Edit"><i class="fas fa-pen"></i></button>
       <button class="strat-del-btn" onclick="stratDelete(${s.id})" title="Delete"><i class="fas fa-trash"></i></button>
     </div>
@@ -2229,4 +2230,282 @@ async function stratDelete(id) {
 
 function _escHtml(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Test Automation Modal ─────────────────────────────────────────────────
+
+let _testStratId = null;
+
+function _ensureTestModal() {
+  if (document.getElementById('testAutomationOverlay')) return;
+  const css = `
+    #testAutomationOverlay {
+      position:fixed;inset:0;z-index:3000;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(15,23,42,0.55);
+    }
+    .test-modal-card {
+      background:#fff;border-radius:16px;width:520px;max-width:94vw;
+      max-height:88vh;overflow:hidden;display:flex;flex-direction:column;
+      box-shadow:0 20px 60px rgba(0,0,0,0.22);
+    }
+    .test-modal-header {
+      display:flex;align-items:center;justify-content:space-between;
+      padding:18px 22px 14px;border-bottom:1px solid #f0f3f7;
+    }
+    .test-modal-header h3 { margin:0;font-size:17px;font-weight:700;color:#1e293b; }
+    .test-modal-close {
+      background:none;border:1px solid #e2e8f0;border-radius:8px;
+      width:32px;height:32px;cursor:pointer;color:#64748b;font-size:14px;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .test-modal-close:hover { background:#f8fafc; }
+    .test-modal-body { padding:24px 22px;overflow-y:auto;flex:1; }
+    .test-field-label {
+      font-size:11.5px;font-weight:600;color:#64748b;letter-spacing:.06em;
+      text-transform:uppercase;margin-bottom:7px;
+    }
+    .test-bot-row {
+      display:flex;align-items:center;gap:8px;margin-bottom:20px;
+    }
+    .test-bot-select {
+      flex:1;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;
+      font-size:14px;color:#1e293b;background:#fff;outline:none;
+    }
+    .test-bot-select:focus { border-color:#3b82f6; }
+    .test-prevent-row {
+      display:flex;align-items:flex-start;gap:10px;padding:14px 16px;
+      background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;
+      margin-bottom:22px;
+    }
+    .test-prevent-check { margin-top:2px;accent-color:#16a34a;width:16px;height:16px;cursor:pointer;flex-shrink:0; }
+    .test-prevent-text strong { color:#15803d;font-size:14px; }
+    .test-prevent-text p { margin:4px 0 0;font-size:12.5px;color:#4b5563; }
+    .test-start-btn {
+      width:100%;padding:12px;background:#3b82f6;color:#fff;border:none;
+      border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:8px;
+    }
+    .test-start-btn:hover { background:#2563eb; }
+    .test-start-btn:disabled { background:#94a3b8;cursor:not-allowed; }
+    /* ── Automation Log view ── */
+    .test-log-header {
+      display:flex;align-items:center;gap:8px;
+      padding:16px 22px 13px;border-bottom:1px solid #f0f3f7;
+    }
+    .test-log-back {
+      background:none;border:none;cursor:pointer;color:#3b82f6;
+      font-size:18px;padding:2px 6px 2px 0;
+    }
+    .test-log-back:hover { color:#1d4ed8; }
+    .test-log-title { font-size:17px;font-weight:700;color:#1e293b;flex:1; }
+    .test-log-body { padding:20px 22px;overflow-y:auto;flex:1; }
+    .test-log-ts { text-align:center;color:#94a3b8;font-size:12.5px;margin-bottom:4px; }
+    .test-flow { display:flex;flex-direction:column;align-items:center; }
+    .test-flow-arrow {
+      color:#94a3b8;font-size:18px;line-height:1;margin:2px 0;
+    }
+    .test-flow-label {
+      font-size:11.5px;font-weight:600;color:#64748b;margin:2px 0 1px;
+    }
+    .test-flow-start, .test-flow-end {
+      font-size:13px;color:#64748b;font-weight:500;margin:4px 0;
+    }
+    .test-step-box {
+      width:100%;max-width:380px;border-radius:10px;padding:12px 14px;
+      border:1.5px solid #e2e8f0;background:#fff;position:relative;
+      box-shadow:0 1px 4px rgba(0,0,0,0.06);
+    }
+    .test-step-box.pass { border-color:#bbf7d0;background:#f0fdf4; }
+    .test-step-box.fail { border-color:#fecaca;background:#fef2f2; }
+    .test-step-box.skipped { border-color:#fed7aa;background:#fff7ed; }
+    .test-step-box.unreached { border-color:#e2e8f0;background:#f8fafc;opacity:.6; }
+    .test-step-label { font-size:13.5px;font-weight:500;color:#1e293b;line-height:1.4; }
+    .test-step-msg { font-size:12px;color:#64748b;margin-top:5px;line-height:1.4; }
+    .test-step-msg.skipped-msg { color:#ea580c;font-style:italic; }
+    .test-step-badge {
+      position:absolute;top:10px;right:12px;width:22px;height:22px;
+      border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:700;flex-shrink:0;
+    }
+    .test-step-badge.pass { background:#16a34a;color:#fff; }
+    .test-step-badge.fail { background:#dc2626;color:#fff; }
+    .test-step-badge.skipped { background:#ea580c;color:#fff; }
+    .test-step-badge.warn { background:#d97706;color:#fff; }
+    .test-step-badge.unreached { background:#94a3b8;color:#fff; }
+  `;
+  const styleEl = document.createElement('style');
+  styleEl.textContent = css;
+  document.head.appendChild(styleEl);
+
+  const el = document.createElement('div');
+  el.id = 'testAutomationOverlay';
+  el.style.display = 'none';
+  el.innerHTML = `
+    <div class="test-modal-card">
+      <!-- VIEW 1: Setup -->
+      <div id="testSetupView">
+        <div class="test-modal-header">
+          <h3>Test Automation</h3>
+          <button class="test-modal-close" onclick="closeTestModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="test-modal-body">
+          <div class="test-field-label">Bot to run test</div>
+          <div class="test-bot-row">
+            <select id="testBotSelect" class="test-bot-select"></select>
+          </div>
+          <div class="test-prevent-row">
+            <input type="checkbox" id="testPreventCheck" class="test-prevent-check" checked>
+            <div class="test-prevent-text">
+              <strong>Prevent automation from modifying bot</strong>
+              <p>Your bot (positions, tags, etc) will <strong>not</strong> be modified during this test.<br>
+              Uncheck to allow the automation full access to open/close positions, modify tags, set exit options, etc.</p>
+            </div>
+          </div>
+          <button class="test-start-btn" id="testStartBtn" onclick="startTest()">
+            <i class="fas fa-play"></i> Start Test
+          </button>
+        </div>
+      </div>
+      <!-- VIEW 2: Automation Log -->
+      <div id="testLogView" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="test-log-header">
+          <button class="test-log-back" onclick="testShowSetup()"><i class="fas fa-arrow-left"></i></button>
+          <span class="test-log-title">Automation Log</span>
+          <button class="test-modal-close" onclick="closeTestModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="test-log-body" id="testLogBody"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function openTestModal(sid) {
+  _ensureTestModal();
+  _testStratId = sid;
+  const sel = document.getElementById('testBotSelect');
+  sel.innerHTML = '';
+  const s = _sbStratCache.find(x => x.id == sid);
+  if (s) {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.name;
+    sel.appendChild(opt);
+  }
+  testShowSetup();
+  const overlay = document.getElementById('testAutomationOverlay');
+  overlay.style.display = 'flex';
+}
+
+function closeTestModal() {
+  const overlay = document.getElementById('testAutomationOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function testShowSetup() {
+  document.getElementById('testSetupView').style.display = '';
+  document.getElementById('testLogView').style.display = 'none';
+  const btn = document.getElementById('testStartBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-play"></i> Start Test';
+}
+
+async function startTest() {
+  if (!_testStratId) return;
+  const dry_run = document.getElementById('testPreventCheck').checked;
+  const btn = document.getElementById('testStartBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+  try {
+    const r = await fetch(`/api/bot/strategies/${_testStratId}/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dry_run }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      alert(data.error || 'Test failed');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-play"></i> Start Test';
+      return;
+    }
+    renderAutomationLog(data, dry_run);
+  } catch (e) {
+    alert('Network error running test');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play"></i> Start Test';
+  }
+}
+
+function renderAutomationLog(data, dry_run) {
+  document.getElementById('testSetupView').style.display = 'none';
+  const logView = document.getElementById('testLogView');
+  logView.style.display = 'flex';
+
+  const ICONS = {
+    time:           'fas fa-clock',
+    condition:      'fas fa-filter',
+    metric:         'fas fa-chart-line',
+    open_position:  'fas fa-folder-open',
+    close_position: 'fas fa-times-circle',
+    notification:   'fas fa-bell',
+    tags:           'fas fa-tag',
+    error:          'fas fa-exclamation-triangle',
+  };
+
+  function _stepBadge(result) {
+    if (result === true)       return '<span class="test-step-badge pass"><i class="fas fa-check"></i></span>';
+    if (result === false)      return '<span class="test-step-badge fail"><i class="fas fa-times"></i></span>';
+    if (result === 'skipped')  return '<span class="test-step-badge skipped"><i class="fas fa-forward"></i></span>';
+    return '<span class="test-step-badge unreached"><i class="fas fa-minus"></i></span>';
+  }
+
+  function _stepClass(result) {
+    if (result === true)      return 'pass';
+    if (result === false)     return 'fail';
+    if (result === 'skipped') return 'skipped';
+    return 'unreached';
+  }
+
+  function _branchLabel(result, nextStep) {
+    if (result === true)  return '<div class="test-flow-label">Yes</div>';
+    if (result === false) return '<div class="test-flow-label">No</div>';
+    return '';
+  }
+
+  const steps = data.steps || [];
+  let flowHtml = `
+    <div class="test-log-ts">${_escHtml(data.started_at || '')}</div>
+    <div class="test-flow">
+      <div class="test-flow-start">Start test</div>
+      <div class="test-flow-arrow">↓</div>`;
+
+  steps.forEach((step, i) => {
+    const cls  = _stepClass(step.result);
+    const icon = ICONS[step.type] || 'fas fa-cog';
+    const isAction = step.type === 'open_position' || step.type === 'close_position';
+    const msgCls   = step.result === 'skipped' ? 'skipped-msg' : '';
+    const msgIcon  = step.result === 'skipped' ? '<i class="fas fa-info-circle" style="color:#ea580c;"></i> ' : '';
+
+    flowHtml += `
+      <div class="test-step-box ${cls}" style="position:relative;padding-right:44px;">
+        ${_stepBadge(step.result)}
+        <div class="test-step-label"><i class="${icon}" style="margin-right:6px;opacity:.6;font-size:12px;"></i>${_escHtml(step.label || step.type)}</div>
+        ${step.message ? `<div class="test-step-msg ${msgCls}">${msgIcon}${_escHtml(step.message)}</div>` : ''}
+      </div>`;
+
+    if (i < steps.length - 1) {
+      flowHtml += `<div class="test-flow-arrow">↓</div>`;
+      if (step.result === true && !isAction) {
+        flowHtml += `<div class="test-flow-label">Yes</div><div class="test-flow-arrow">↓</div>`;
+      } else if (step.result === false) {
+        flowHtml += `<div class="test-flow-label">No</div><div class="test-flow-arrow">↓</div>`;
+      }
+    }
+  });
+
+  if (steps.length) flowHtml += `<div class="test-flow-arrow">↓</div>`;
+  flowHtml += `<div class="test-flow-end">End</div></div>`;
+
+  document.getElementById('testLogBody').innerHTML = flowHtml;
 }

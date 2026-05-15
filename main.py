@@ -8230,6 +8230,38 @@ def bot_delete_strategy(sid):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/bot/strategies/<int:sid>/test', methods=['POST'])
+@login_required
+def bot_test_strategy(sid):
+    from models import BotStrategy, BotConfig
+    import json as _json
+    strat = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
+    if not strat:
+        return jsonify({'error': 'Strategy not found'}), 404
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        return jsonify({'error': 'Bot not configured — add API credentials in Bot Settings'}), 400
+    data    = request.get_json(silent=True) or {}
+    dry_run = data.get('dry_run', True)
+    from bot_executor import execute_strategy_test
+    steps = _json.loads(strat.steps or '[]')
+    results = execute_strategy_test(
+        cfg,
+        {'steps': steps, 'allocation': strat.allocation, 'max_positions': strat.max_positions},
+        app,
+        dry_run=dry_run,
+    )
+    import pytz
+    from datetime import datetime as _dt
+    et     = pytz.timezone('America/New_York')
+    now_et = _dt.now(et)
+    return jsonify({
+        'strategy_name': strat.name,
+        'started_at':    now_et.strftime('%b %-d, %Y %-I:%M %p'),
+        'steps':         results,
+    })
+
+
 @app.route('/api/bot/strategies/<int:sid>/live', methods=['PATCH'])
 @login_required
 def bot_toggle_strategy_live(sid):
