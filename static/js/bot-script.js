@@ -1119,6 +1119,7 @@ function sbDefaultConfig(type) {
     optType:'call', optDte:30,
     operator:'>', comparator:'value', value:'',
     rightDay:0, rightInterval:'1min', rightSeries:'close', rightPeriod:20,
+    rightLookback:0,
     thresholdUnit:'percent', thresholdValue:'',
     andEnabled:false, andMetric:'rsi', andPeriod:14, andOperator:'<', andValue:'',
     label:'' };
@@ -1521,6 +1522,7 @@ function stratSaveStepConfig() {
     c.rightInterval = document.getElementById('sbcRightInterval')?.value || '1min';
     c.rightSeries   = document.getElementById('sbcRightSeries')?.value || 'close';
     c.rightPeriod   = parseInt(document.getElementById('sbcRightPeriod')?.value) || 20;
+    c.rightLookback = parseInt(document.getElementById('sbcRightLookback')?.value ?? '0') || 0;
     c.thresholdUnit  = document.getElementById('sbcThresholdUnit')?.value || 'percent';
     c.thresholdValue = (document.getElementById('sbcThresholdValue')?.value || '').trim();
     c.andEnabled  = document.getElementById('sbcAndEnabled')?.checked || false;
@@ -1559,15 +1561,17 @@ function stratSaveStepConfig() {
     } else if (c.comparator === 'compare_price') {
       const dStr = c.rightDay !== 0 ? ` D(${c.rightDay})` : '';
       const iStr = c.rightDay === 0 ? ` [${c.rightInterval}·${c.rightSeries}]` : ` [daily·${c.rightSeries}]`;
+      const lbStr = c.rightLookback > 0 ? ` [-${c.rightLookback}]` : '';
       const thStr = c.thresholdValue ? ` ±${c.thresholdValue}${c.thresholdUnit==='percent'?'%':'$'}` : '';
-      lbl += ` Price${dStr}${iStr}${thStr}`;
+      lbl += ` Price${dStr}${iStr}${lbStr}${thStr}`;
     } else if (c.comparator === 'compare_vwap') {
       const thStr = c.thresholdValue ? ` ±${c.thresholdValue}${c.thresholdUnit==='percent'?'%':'$'}` : '';
       lbl += ` VWAP${thStr}`;
     } else if (['compare_sma','compare_ema','compare_rsi'].includes(c.comparator)) {
       const rName = _RN[c.comparator];
+      const lbStr = c.rightLookback > 0 ? ` [-${c.rightLookback}]` : '';
       const thStr = c.thresholdValue ? ` ±${c.thresholdValue}${c.thresholdUnit==='percent'?'%':'$'}` : '';
-      lbl += ` ${rName}(${c.rightPeriod})${thStr}`;
+      lbl += ` ${rName}(${c.rightPeriod})${lbStr}${thStr}`;
     }
 
     if (c.andEnabled && c.andValue !== '') {
@@ -1654,24 +1658,13 @@ function sbSyncMetricForm() {
   const rightIsPrice   = ct === 'compare_price';
   const rightIsVwap    = ct === 'compare_vwap';
   const rightIsIndic   = ['compare_sma','compare_ema','compare_rsi'].includes(ct);
-  _show('sbcValueRow',         ct === 'value');
-  _show('sbcRightSide',        showRight);
-  _show('sbcRightDayRow',      showRight && rightIsPrice);
-  _show('sbcRightIntervalRow', showRight && rightIsPrice && rightDay === 0);
-  _show('sbcRightSeriesRow',   showRight && rightIsPrice);
-  _show('sbcRightPeriodRow',   showRight && rightIsIndic);
-
-  // If left metric is current_price, hide compare_price option and reset if selected
-  const compEl = document.getElementById('sbcComparator');
-  if (compEl) {
-    const priceOpt = compEl.querySelector('option[value="compare_price"]');
-    if (priceOpt) priceOpt.style.display = m === 'current_price' ? 'none' : '';
-    if (m === 'current_price' && compEl.value === 'compare_price') {
-      compEl.value = 'value';
-      _show('sbcRightSide', false);
-      _show('sbcValueRow',  true);
-    }
-  }
+  _show('sbcValueRow',           ct === 'value');
+  _show('sbcRightSide',          showRight);
+  _show('sbcRightDayRow',        showRight && rightIsPrice);
+  _show('sbcRightIntervalRow',   showRight && rightIsPrice && rightDay === 0);
+  _show('sbcRightSeriesRow',     showRight && rightIsPrice);
+  _show('sbcRightPeriodRow',     showRight && rightIsIndic);
+  _show('sbcRightLookbackRow',   showRight && !rightIsVwap);
 }
 function sbMetricChange()      { sbSyncMetricForm(); }
 function sbDayChange()         { sbSyncMetricForm(); }
@@ -1872,7 +1865,7 @@ function sbStepConfigHTML(step) {
       ['compare_sma',   'Compare SMA'],
       ['compare_ema',   'Compare EMA'],
       ['compare_rsi',   'Compare RSI'],
-    ].filter(([v]) => !(isLiveQuote && v === 'compare_price'));
+    ];
 
     return `
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:8px;">Left Side (Compare this)</div>
@@ -1975,6 +1968,10 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-row" id="sbcRightPeriodRow" style="${showRightPer?'':'display:none'}">
           <div class="sb-form-label">Period</div>
           <input id="sbcRightPeriod" class="sb-form-input" type="number" min="1" max="500" value="${c.rightPeriod||20}">
+        </div>
+        <div class="sb-form-row" id="sbcRightLookbackRow" style="${showRight && safeCt!=='compare_vwap'?'':'display:none'}">
+          <div class="sb-form-label">Restrict to N bars ago <span style="font-weight:400;color:#94a3b8;">(0 = current bar)</span></div>
+          <input id="sbcRightLookback" class="sb-form-input" type="number" min="0" max="500" value="${c.rightLookback||0}" placeholder="0">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
           <div>

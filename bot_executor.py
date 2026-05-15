@@ -584,25 +584,29 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                 detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} {rhs_name}"
 
         elif ctype == 'compare_price':
-            right_day  = int(cfg.get('rightDay', 0))
-            right_intv = cfg.get('rightInterval', '1min')
-            right_ser  = cfg.get('rightSeries', 'close')
+            right_day      = int(cfg.get('rightDay', 0))
+            right_intv     = cfg.get('rightInterval', '1min')
+            right_ser      = cfg.get('rightSeries', 'close')
+            right_lookback = max(int(cfg.get('rightLookback', 0) or 0), 0)
 
             if right_day == 0:
                 # Intraday bar
                 ibars = _fetch_intraday_bars(symbol, right_intv, api_key, base_url)
-                bar = ibars[-1] if ibars else None
-                rhs_ctx = f'{right_intv}·{right_ser}'
+                bar_idx = -(1 + right_lookback)
+                bar = ibars[bar_idx] if ibars and len(ibars) >= (1 + right_lookback) else None
+                lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
+                rhs_ctx = f'{right_intv}·{right_ser}{lb_sfx}'
             else:
                 # Daily bar at offset
                 if bars is None:
                     bars = _fetch_daily_history(symbol, api_key, base_url, bars=50)
-                idx = abs(right_day)
+                idx = abs(right_day) + right_lookback
                 bar = bars[-1 - idx] if bars and len(bars) > idx else None
-                rhs_ctx = f'daily·{right_ser} D({right_day})'
+                lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
+                rhs_ctx = f'daily·{right_ser} D({right_day}){lb_sfx}'
 
             if bar is None:
-                return None, f'Could not fetch price bar for comparison (day={right_day})'
+                return None, f'Could not fetch price bar for comparison (day={right_day}, lookback={right_lookback})'
             raw_rhs = float(bar.get(right_ser, 0) or 0)
             if raw_rhs <= 0:
                 return None, f'Right-side price ({right_ser}) is 0'
@@ -637,19 +641,25 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                       + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
 
         elif ctype in ('compare_sma', 'compare_ema', 'compare_rsi'):
-            right_metric = ctype.replace('compare_', '')   # 'sma', 'ema', or 'rsi'
-            right_period = int(cfg.get('rightPeriod', 20))
+            right_metric   = ctype.replace('compare_', '')   # 'sma', 'ema', or 'rsi'
+            right_period   = int(cfg.get('rightPeriod', 20))
+            right_lookback = max(int(cfg.get('rightLookback', 0) or 0), 0)
+            need = max(right_period * 3 + right_lookback, 100)
             if bars is None:
-                need = max(right_period * 3, 100)
                 bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
             if not bars:
                 return None, f'Could not fetch history for {right_metric.upper()} comparison'
-            raw_rhs = _compute_bar_metric(right_metric, right_period, bars,
+            # Slice bars so that "bar 0" is `right_lookback` bars ago
+            bar_slice = bars[:len(bars) - right_lookback] if right_lookback > 0 else bars
+            if not bar_slice:
+                return None, f'Not enough bars for {right_metric.upper()} lookback ({right_lookback})'
+            raw_rhs = _compute_bar_metric(right_metric, right_period, bar_slice,
                                           day=0, series='close')
             if raw_rhs is None:
                 return None, f'Could not compute {right_metric.upper()}({right_period})'
             rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
-            rhs_name = f'{right_metric.upper()}({right_period})'
+            lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
+            rhs_name = f'{right_metric.upper()}({right_period}){lb_sfx}'
             ok = _compare(lhs, operator, rhs)
             sym = _op_sym(operator)
             detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
