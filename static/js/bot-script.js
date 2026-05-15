@@ -1818,7 +1818,17 @@ function sbStepConfigHTML(step) {
       </div>
       <div class="sb-form-row" id="sbcCompareTypeRow">
         <div class="sb-form-label">Compare Against</div>
-        ${_sel('sbcCompareType', ct, [['value','Fixed Value'],['price','Current Price'],['bar_delta','Prior Bar (Δ)'],['indicator','Indicator']], 'onchange="sbCompareTypeChange()"')}
+        ${(()=>{
+          const isLiveQuote = m === 'current_price';
+          const ctOpts = [
+            ['value',     'Fixed Value'],
+            ...(!isLiveQuote ? [['price','Current Price']] : []),
+            ...(!isLiveQuote ? [['bar_delta','Prior Bar (Δ)']] : []),
+            ['indicator', 'Indicator'],
+          ];
+          const safeCt = ctOpts.some(o=>o[0]===ct) ? ct : 'value';
+          return _sel('sbcCompareType', safeCt, ctOpts, 'onchange="sbCompareTypeChange()"');
+        })()}
       </div>
       <div class="sb-form-row" id="sbcValueRow" style="${ct==='value'?'':'display:none'}">
         <div class="sb-form-label">Value</div>
