@@ -158,10 +158,10 @@
 
 .sb-canvas{flex:1;overflow:auto;padding:32px 0;display:flex;flex-direction:column;align-items:center;min-height:0}
 .sb-start-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9098a9;margin-bottom:8px}
-.sb-flow{display:flex;flex-direction:column;align-items:center;gap:0;min-width:360px;width:100%;max-width:600px;padding:0 20px}
+.sb-flow{display:flex;flex-direction:column;align-items:center;gap:0;min-width:360px;width:100%;max-width:none;padding:0 20px}
 .sb-connector{display:flex;flex-direction:column;align-items:center;gap:0;width:100%}
 .sb-connector-line{width:2px;height:20px;background:#dee2e6}
-.sb-add-btn{width:32px;height:32px;border:2px solid #dee2e6;border-radius:8px;background:#fff;color:#9098a9;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.sb-add-btn{width:32px;height:32px;border:2px solid #dee2e6;border-radius:8px;background:#fff;color:#9098a9;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06);flex-shrink:0}
 .sb-add-btn:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff;box-shadow:0 2px 8px rgba(27,85,226,.15)}
 .sb-step-card{width:100%;background:#fff;border:1.5px solid #e8ebf0;border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:border-color .2s;cursor:pointer;position:relative}
 .sb-step-card:hover{border-color:#1b55e2;box-shadow:0 2px 10px rgba(27,85,226,.1)}
@@ -174,11 +174,14 @@
 .sb-step-del:hover{background:#fef2f2;color:#ef4444}
 
 /* Branch step (Decision) */
-.sb-branch{width:100%;display:flex;gap:12px;align-items:flex-start}
-.sb-branch-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:0}
-.sb-branch-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 10px;border-radius:12px;margin-bottom:6px}
+.sb-branch{width:100%;display:flex;gap:0;align-items:flex-start;min-width:500px}
+.sb-branch-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:0;padding:0 12px;min-width:220px}
+.sb-branch-sep{width:1px;background:#e8ebf0;align-self:stretch;flex-shrink:0;margin:0}
+.sb-branch-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 12px;border-radius:12px;margin-bottom:2px}
 .sb-branch-yes{background:#d1fae5;color:#065f46}
 .sb-branch-no{background:#fee2e2;color:#991b1b}
+.sb-branch-col .sb-step-card{max-width:100%}
+.sb-canvas{overflow:auto}
 
 .sb-drawer{width:320px;min-width:280px;background:#fff;border-left:1px solid #eef0f3;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
 .sb-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eef0f3;flex-shrink:0}

@@ -1216,8 +1216,85 @@ def exec_notification(cfg, user_id, app):
 
 # ── Single strategy runner ───────────────────────────────────────────────────
 
+def _exec_steps_branch(steps, ctx):
+    """Recursively execute a list of steps.
+
+    ctx keys: api_key, base_url, account_id, log, n, alloc, max_pos,
+              primary_symbol, app, user_id
+    Returns (fired: bool, log: list[str]).
+    """
+    log = ctx['log']
+    for step in steps:
+        stype = step.get('type')
+        scfg  = step.get('config', {})
+        ctx['n'] += 1
+        n = ctx['n']
+
+        yes_steps  = step.get('yesSteps', [])
+        no_steps   = step.get('noSteps',  [])
+        has_branch = bool(yes_steps or no_steps)
+
+        if stype == 'time':
+            ok = eval_time(scfg)
+            log.append(f"[{n}] TIME ({scfg.get('mode')} {scfg.get('time1')}): "
+                       f"{'✓ YES' if ok else '✗ NO'}")
+            if has_branch:
+                return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+            if not ok:
+                return False, log
+
+        elif stype == 'condition':
+            ok = eval_condition(scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+            log.append(f"[{n}] CONDITION ({scfg.get('conditionType')} "
+                       f"{scfg.get('operator')} {scfg.get('value')}): "
+                       f"{'✓ YES' if ok else '✗ NO'}")
+            if has_branch:
+                return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+            if not ok:
+                return False, log
+
+        elif stype == 'metric':
+            ok = eval_metric(scfg, ctx['api_key'], ctx['base_url'], ctx['primary_symbol'])
+            if ok is None:
+                log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped")
+                if has_branch:
+                    return _exec_steps_branch(no_steps, ctx)
+                return False, log
+            log.append(f"[{n}] METRIC ({scfg.get('metric')} "
+                       f"{scfg.get('operator')} {scfg.get('value')}): "
+                       f"{'✓ YES' if ok else '✗ NO'}")
+            if has_branch:
+                return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+            if not ok:
+                return False, log
+
+        elif stype == 'open_position':
+            scfg_limited = dict(scfg)
+            scfg_limited['_allocation']    = ctx['alloc']
+            scfg_limited['_max_positions'] = ctx['max_pos']
+            success, msg = exec_open_position(
+                scfg_limited, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+            log.append(f"[{n}] OPEN_POSITION: {'✓' if success else '✗'} {msg}")
+            if not success:
+                return False, log
+
+        elif stype == 'close_position':
+            success, msg = exec_close_position(
+                scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+            log.append(f"[{n}] CLOSE_POSITION: {msg}")
+
+        elif stype == 'notification':
+            exec_notification(scfg, ctx['user_id'], ctx['app'])
+            log.append(f"[{n}] NOTIFICATION: sent")
+
+        elif stype == 'tags':
+            log.append(f"[{n}] TAGS: {scfg.get('tag', '')}")
+
+    return True, log
+
+
 def execute_strategy(cfg, strategy_dict, app):
-    """Walk all steps in order. Returns (fired: bool, log: list[str])."""
+    """Walk the step tree. Returns (fired: bool, log: list[str])."""
     from models import decrypt_value
 
     if cfg.mode == 'paper':
@@ -1232,77 +1309,236 @@ def execute_strategy(cfg, strategy_dict, app):
     if not api_key or not account_id:
         return False, ["Missing API credentials — check Bot Settings"]
 
-    steps   = strategy_dict.get('steps', [])
-    log     = []
-    # Strategy-level limits forwarded into every open_position step
+    steps    = strategy_dict.get('steps', [])
     _alloc   = float(strategy_dict.get('allocation') or 0)
     _max_pos = int(strategy_dict.get('max_positions') or 0)
 
+    def _all_steps(ss):
+        for s in ss:
+            yield s
+            yield from _all_steps(s.get('yesSteps', []))
+            yield from _all_steps(s.get('noSteps',  []))
+
     primary_symbol = next(
         (s.get('config', {}).get('symbol', 'SPY')
-         for s in steps if s.get('type') == 'open_position'),
+         for s in _all_steps(steps) if s.get('type') == 'open_position'),
         'SPY'
     )
 
-    for i, step in enumerate(steps):
-        stype = step.get('type')
-        scfg  = step.get('config', {})
-        n     = i + 1
-
-        if stype == 'time':
-            ok = eval_time(scfg)
-            log.append(f"[{n}] TIME ({scfg.get('mode')} {scfg.get('time1')}): "
-                       f"{'✓ pass' if ok else '✗ stop'}")
-            if not ok:
-                return False, log
-
-        elif stype == 'condition':
-            ok = eval_condition(scfg, api_key, base_url, account_id)
-            log.append(f"[{n}] CONDITION ({scfg.get('conditionType')} "
-                       f"{scfg.get('operator')} {scfg.get('value')}): "
-                       f"{'✓ pass' if ok else '✗ stop'}")
-            if not ok:
-                return False, log
-
-        elif stype == 'metric':
-            ok = eval_metric(scfg, api_key, base_url, primary_symbol)
-            if ok is None:
-                log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped")
-            else:
-                log.append(f"[{n}] METRIC ({scfg.get('metric')} "
-                           f"{scfg.get('operator')} {scfg.get('value')}): "
-                           f"{'✓ pass' if ok else '✗ stop'}")
-                if not ok:
-                    return False, log
-
-        elif stype == 'open_position':
-            scfg_limited = dict(scfg)
-            scfg_limited['_allocation']   = _alloc
-            scfg_limited['_max_positions'] = _max_pos
-            success, msg = exec_open_position(scfg_limited, api_key, base_url, account_id)
-            log.append(f"[{n}] OPEN_POSITION: {'✓' if success else '✗'} {msg}")
-            if not success:
-                return False, log
-
-        elif stype == 'close_position':
-            success, msg = exec_close_position(scfg, api_key, base_url, account_id)
-            log.append(f"[{n}] CLOSE_POSITION: {msg}")
-
-        elif stype == 'notification':
-            exec_notification(scfg, cfg.user_id, app)
-            log.append(f"[{n}] NOTIFICATION: sent")
-
-        elif stype == 'tags':
-            log.append(f"[{n}] TAGS: {scfg.get('tag', '')}")
-
-    return True, log
+    ctx = dict(api_key=api_key, base_url=base_url, account_id=account_id,
+               log=[], n=0, alloc=_alloc, max_pos=_max_pos,
+               primary_symbol=primary_symbol, app=app, user_id=cfg.user_id)
+    return _exec_steps_branch(steps, ctx)
 
 
 # ── Dry-run test runner ──────────────────────────────────────────────────────
 
+def _exec_steps_test(steps, tctx):
+    """Recursive test-mode step walker. tctx: api_key, base_url, account_id,
+    results, stopped, alloc, max_pos, primary_symbol, app, user_id, dry_run"""
+    for step in steps:
+        stype  = step.get('type')
+        scfg   = step.get('config', {})
+        slabel = step.get('label', '')
+        dry_run = tctx['dry_run']
+
+        yes_steps  = step.get('yesSteps', [])
+        no_steps   = step.get('noSteps',  [])
+        has_branch = bool(yes_steps or no_steps)
+
+        if tctx['stopped']:
+            tctx['results'].append({'type': stype, 'label': slabel or stype,
+                                    'result': None, 'message': 'Not reached'})
+            continue
+
+        if stype == 'time':
+            ok = eval_time(scfg)
+            tctx['results'].append({
+                'type': 'time',
+                'label': slabel or f"Time: {scfg.get('mode')} {scfg.get('time1')}",
+                'result': bool(ok),
+                'message': 'Within time window' if ok else 'Outside time window',
+                'branch': 'yes' if ok else 'no' if has_branch else None,
+            })
+            if has_branch:
+                _exec_steps_test(yes_steps if ok else no_steps, tctx)
+                return
+            if not ok:
+                tctx['stopped'] = True
+
+        elif stype == 'condition':
+            ok = eval_condition(scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+            tctx['results'].append({
+                'type': 'condition',
+                'label': slabel or f"Condition: {scfg.get('conditionType')}",
+                'result': bool(ok),
+                'message': 'Condition met' if ok else 'Condition not met',
+                'branch': 'yes' if ok else 'no' if has_branch else None,
+            })
+            if has_branch:
+                _exec_steps_test(yes_steps if ok else no_steps, tctx)
+                return
+            if not ok:
+                tctx['stopped'] = True
+
+        elif stype == 'metric':
+            ok, detail = eval_metric_verbose(scfg, tctx['api_key'], tctx['base_url'],
+                                             tctx['primary_symbol'])
+            if ok is None:
+                tctx['results'].append({
+                    'type': 'metric',
+                    'label': slabel or f"Metric: {scfg.get('metric')}",
+                    'result': None,
+                    'message': detail or 'Could not evaluate — data unavailable',
+                    'branch': 'no' if has_branch else None,
+                })
+                if has_branch:
+                    _exec_steps_test(no_steps, tctx)
+                    return
+                tctx['stopped'] = True
+            else:
+                tctx['results'].append({
+                    'type': 'metric',
+                    'label': slabel or f"Metric: {scfg.get('metric')}",
+                    'result': bool(ok),
+                    'message': detail or ('Condition met' if ok else 'Condition not met'),
+                    'branch': 'yes' if ok else 'no' if has_branch else None,
+                })
+                if has_branch:
+                    _exec_steps_test(yes_steps if ok else no_steps, tctx)
+                    return
+                if not ok:
+                    tctx['stopped'] = True
+
+        elif stype == 'open_position':
+            sym       = scfg.get('symbol', '')
+            strategy  = scfg.get('strategy', 'Position')
+            label_str = slabel or f"{strategy} {sym}".strip()
+            if dry_run:
+                preview_msg = 'Position skipped to prevent changes to bot.'
+                try:
+                    equity_strategies = ('Buy Equity', 'Sell Equity Short')
+                    if sym and strategy not in equity_strategies:
+                        dte           = int(scfg.get('dte') or 30)
+                        strike_method = scfg.get('strikeMethod', 'atm')
+                        strike_value  = scfg.get('strikeValue', '')
+                        opt_type      = scfg.get('optType', 'call').lower()
+                        exp_data = _tradier(tctx['api_key'], tctx['base_url'],
+                                            '/markets/options/expirations',
+                                            params={'symbol': sym, 'includeAllRoots': 'true',
+                                                    'strikes': 'false'})
+                        if exp_data:
+                            raw_exps = exp_data.get('expirations', {}).get('date', [])
+                            if isinstance(raw_exps, str):
+                                raw_exps = [raw_exps]
+                            exps = sorted(raw_exps or [])
+                            today = _now_et().date()
+                            target_exp = next(
+                                (e for e in exps
+                                 if (datetime.strptime(e, '%Y-%m-%d').date() - today).days >= dte),
+                                exps[-1] if exps else None
+                            )
+                            if target_exp:
+                                q = _tradier(tctx['api_key'], tctx['base_url'],
+                                             '/markets/quotes',
+                                             params={'symbols': sym, 'greeks': 'false'})
+                                underlying = float(
+                                    ((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+                                chain_data = _tradier(tctx['api_key'], tctx['base_url'],
+                                                      '/markets/options/chains',
+                                                      params={'symbol': sym,
+                                                              'expiration': target_exp,
+                                                              'greeks': 'true'})
+                                if chain_data and underlying:
+                                    all_opts = chain_data.get('options', {}).get('option', [])
+                                    if isinstance(all_opts, dict):
+                                        all_opts = [all_opts]
+                                    filtered = [o for o in (all_opts or [])
+                                                if o.get('option_type') == opt_type]
+                                    best = None
+                                    if strike_method == 'delta' and strike_value:
+                                        try:
+                                            td   = abs(float(strike_value))
+                                            best = min(filtered,
+                                                       key=lambda o: abs(abs(float((o.get('greeks') or {}).get('delta', 0) or 0)) - td)
+                                                       ) if filtered else None
+                                        except Exception:
+                                            pass
+                                    elif strike_method == 'strike' and strike_value:
+                                        try:
+                                            ts   = float(strike_value)
+                                            best = min(filtered,
+                                                       key=lambda o: abs(float(o.get('strike', 0)) - ts)
+                                                       ) if filtered else None
+                                        except Exception:
+                                            pass
+                                    if best is None:
+                                        best = min(filtered,
+                                                   key=lambda o: abs(float(o.get('strike', 0)) - underlying)
+                                                   ) if filtered else None
+                                    if best:
+                                        strike = float(best.get('strike', 0))
+                                        mid    = round((float(best.get('bid', 0) or 0) +
+                                                        float(best.get('ask', 0) or 0)) / 2, 2)
+                                        delta  = (best.get('greeks') or {}).get('delta', None)
+                                        d_str  = f" δ{float(delta):.2f}" if delta else ''
+                                        preview_msg = (
+                                            f"Example: {sym} {target_exp} ${strike:.0f} "
+                                            f"{opt_type.upper()}{d_str} @ ${mid:.2f} mid "
+                                            f"(underlying ${underlying:.2f}). "
+                                            f"Position skipped — test mode."
+                                        )
+                except Exception as e:
+                    logger.warning(f"execute_strategy_test open_position preview: {e}")
+                tctx['results'].append({
+                    'type': 'open_position', 'label': label_str,
+                    'result': 'skipped', 'message': preview_msg
+                })
+            else:
+                scfg_limited = dict(scfg)
+                scfg_limited['_allocation']    = tctx['alloc']
+                scfg_limited['_max_positions'] = tctx['max_pos']
+                success, msg = exec_open_position(
+                    scfg_limited, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+                tctx['results'].append({
+                    'type': 'open_position', 'label': label_str,
+                    'result': bool(success), 'message': msg
+                })
+                if not success:
+                    tctx['stopped'] = True
+
+        elif stype == 'close_position':
+            label_str = slabel or f"Close Position {scfg.get('tag', '')}".strip()
+            if dry_run:
+                tctx['results'].append({
+                    'type': 'close_position', 'label': label_str,
+                    'result': 'skipped', 'message': 'Position skipped — test mode.'
+                })
+            else:
+                success, msg = exec_close_position(
+                    scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+                tctx['results'].append({'type': 'close_position', 'label': label_str,
+                                        'result': bool(success), 'message': msg})
+
+        elif stype == 'notification':
+            label_str = slabel or f"Notify: {scfg.get('message', '')[:40]}"
+            if dry_run:
+                tctx['results'].append({'type': 'notification', 'label': label_str,
+                                        'result': 'skipped',
+                                        'message': 'Notification skipped — test mode.'})
+            else:
+                exec_notification(scfg, tctx['user_id'], tctx['app'])
+                tctx['results'].append({'type': 'notification', 'label': label_str,
+                                        'result': True, 'message': 'Sent'})
+
+        elif stype == 'tags':
+            tctx['results'].append({'type': 'tags',
+                                    'label': slabel or f"Tags: {scfg.get('tag', '')}",
+                                    'result': True, 'message': ''})
+
+
 def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
-    """Walk all steps for testing. Returns list of structured step results.
-    When dry_run=True, open/close/notification are skipped but previewed."""
+    """Walk step tree for testing. Returns list of structured step results."""
     from models import decrypt_value
 
     if cfg.mode == 'paper':
@@ -1318,182 +1554,28 @@ def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
         return [{'type': 'error', 'label': 'Missing API credentials',
                  'result': None, 'message': 'Check Bot Settings'}]
 
-    steps   = strategy_dict.get('steps', [])
-    results = []
+    steps    = strategy_dict.get('steps', [])
     _alloc   = float(strategy_dict.get('allocation') or 0)
     _max_pos = int(strategy_dict.get('max_positions') or 0)
 
+    def _all_steps(ss):
+        for s in ss:
+            yield s
+            yield from _all_steps(s.get('yesSteps', []))
+            yield from _all_steps(s.get('noSteps',  []))
+
     primary_symbol = next(
         (s.get('config', {}).get('symbol', 'SPY')
-         for s in steps if s.get('type') == 'open_position'),
+         for s in _all_steps(steps) if s.get('type') == 'open_position'),
         'SPY'
     )
 
-    stopped = False
-
-    for step in steps:
-        stype = step.get('type')
-        scfg  = step.get('config', {})
-        slabel = step.get('label', '')
-
-        if stopped:
-            results.append({'type': stype, 'label': slabel or stype,
-                            'result': None, 'message': 'Not reached'})
-            continue
-
-        if stype == 'time':
-            ok = eval_time(scfg)
-            results.append({
-                'type': 'time',
-                'label': slabel or f"Time: {scfg.get('mode')} {scfg.get('time1')}",
-                'result': bool(ok),
-                'message': 'Within time window' if ok else 'Outside time window'
-            })
-            if not ok:
-                stopped = True
-
-        elif stype == 'condition':
-            ok = eval_condition(scfg, api_key, base_url, account_id)
-            results.append({
-                'type': 'condition',
-                'label': slabel or f"Condition: {scfg.get('conditionType')}",
-                'result': bool(ok),
-                'message': 'Condition met' if ok else 'Condition not met'
-            })
-            if not ok:
-                stopped = True
-
-        elif stype == 'metric':
-            ok, detail = eval_metric_verbose(scfg, api_key, base_url, primary_symbol)
-            if ok is None:
-                results.append({
-                    'type': 'metric',
-                    'label': slabel or f"Metric: {scfg.get('metric')}",
-                    'result': None,
-                    'message': detail or 'Could not evaluate — data unavailable'
-                })
-                stopped = True
-            else:
-                results.append({
-                    'type': 'metric',
-                    'label': slabel or f"Metric: {scfg.get('metric')}",
-                    'result': bool(ok),
-                    'message': detail or ('Condition met' if ok else 'Condition not met')
-                })
-                if not ok:
-                    stopped = True
-
-        elif stype == 'open_position':
-            sym      = scfg.get('symbol', '')
-            strategy = scfg.get('strategy', 'Position')
-            label_str = slabel or f"{strategy} {sym}".strip()
-            if dry_run:
-                preview_msg = 'Position skipped to prevent changes to bot.'
-                try:
-                    equity_strategies = ('Buy Equity', 'Sell Equity Short')
-                    if sym and strategy not in equity_strategies:
-                        dte          = int(scfg.get('dte') or 30)
-                        strike_method = scfg.get('strikeMethod', 'atm')
-                        strike_value  = scfg.get('strikeValue', '')
-                        opt_type     = scfg.get('optType', 'call').lower()
-                        exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
-                                            params={'symbol': sym, 'includeAllRoots': 'true', 'strikes': 'false'})
-                        if exp_data:
-                            raw_exps = exp_data.get('expirations', {}).get('date', [])
-                            if isinstance(raw_exps, str):
-                                raw_exps = [raw_exps]
-                            exps = sorted(raw_exps or [])
-                            today = _now_et().date()
-                            target_exp = next(
-                                (e for e in exps
-                                 if (datetime.strptime(e, '%Y-%m-%d').date() - today).days >= dte),
-                                exps[-1] if exps else None
-                            )
-                            if target_exp:
-                                q = _tradier(api_key, base_url, '/markets/quotes',
-                                             params={'symbols': sym, 'greeks': 'false'})
-                                underlying = float(((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
-                                chain_data = _tradier(api_key, base_url, '/markets/options/chains',
-                                                      params={'symbol': sym, 'expiration': target_exp, 'greeks': 'true'})
-                                if chain_data and underlying:
-                                    all_opts = chain_data.get('options', {}).get('option', [])
-                                    if isinstance(all_opts, dict):
-                                        all_opts = [all_opts]
-                                    filtered = [o for o in (all_opts or []) if o.get('option_type') == opt_type]
-                                    best = None
-                                    if strike_method == 'delta' and strike_value:
-                                        try:
-                                            td = abs(float(strike_value))
-                                            best = min(filtered, key=lambda o: abs(abs(float((o.get('greeks') or {}).get('delta', 0) or 0)) - td)) if filtered else None
-                                        except Exception:
-                                            pass
-                                    elif strike_method == 'strike' and strike_value:
-                                        try:
-                                            ts = float(strike_value)
-                                            best = min(filtered, key=lambda o: abs(float(o.get('strike', 0)) - ts)) if filtered else None
-                                        except Exception:
-                                            pass
-                                    if best is None:
-                                        best = min(filtered, key=lambda o: abs(float(o.get('strike', 0)) - underlying)) if filtered else None
-                                    if best:
-                                        strike = float(best.get('strike', 0))
-                                        mid    = round((float(best.get('bid', 0) or 0) + float(best.get('ask', 0) or 0)) / 2, 2)
-                                        delta  = (best.get('greeks') or {}).get('delta', None)
-                                        d_str  = f" δ{float(delta):.2f}" if delta else ''
-                                        preview_msg = (
-                                            f"Example: {sym} {target_exp} ${strike:.0f} {opt_type.upper()}{d_str} "
-                                            f"@ ${mid:.2f} mid (underlying ${underlying:.2f}). "
-                                            f"Position skipped — test mode."
-                                        )
-                except Exception as e:
-                    logger.warning(f"execute_strategy_test open_position preview: {e}")
-                results.append({
-                    'type': 'open_position',
-                    'label': label_str,
-                    'result': 'skipped',
-                    'message': preview_msg
-                })
-            else:
-                scfg_limited = dict(scfg)
-                scfg_limited['_allocation']    = _alloc
-                scfg_limited['_max_positions'] = _max_pos
-                success, msg = exec_open_position(scfg_limited, api_key, base_url, account_id)
-                results.append({
-                    'type': 'open_position',
-                    'label': label_str,
-                    'result': bool(success),
-                    'message': msg
-                })
-                if not success:
-                    stopped = True
-
-        elif stype == 'close_position':
-            label_str = slabel or f"Close Position {scfg.get('tag', '')}".strip()
-            if dry_run:
-                results.append({
-                    'type': 'close_position', 'label': label_str,
-                    'result': 'skipped', 'message': 'Position skipped — test mode.'
-                })
-            else:
-                success, msg = exec_close_position(scfg, api_key, base_url, account_id)
-                results.append({'type': 'close_position', 'label': label_str,
-                                'result': bool(success), 'message': msg})
-
-        elif stype == 'notification':
-            label_str = slabel or f"Notify: {scfg.get('message','')[:40]}"
-            if dry_run:
-                results.append({'type': 'notification', 'label': label_str,
-                                'result': 'skipped', 'message': 'Notification skipped — test mode.'})
-            else:
-                exec_notification(scfg, cfg.user_id, app)
-                results.append({'type': 'notification', 'label': label_str,
-                                'result': True, 'message': 'Sent'})
-
-        elif stype == 'tags':
-            results.append({'type': 'tags', 'label': slabel or f"Tags: {scfg.get('tag','')}",
-                            'result': True, 'message': ''})
-
-    return results
+    tctx = dict(api_key=api_key, base_url=base_url, account_id=account_id,
+                results=[], stopped=False, alloc=_alloc, max_pos=_max_pos,
+                primary_symbol=primary_symbol, app=app, user_id=cfg.user_id,
+                dry_run=dry_run)
+    _exec_steps_test(steps, tctx)
+    return tctx['results']
 
 
 # ── Global scheduler entry point ────────────────────────────────────────────

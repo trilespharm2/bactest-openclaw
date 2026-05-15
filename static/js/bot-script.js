@@ -1170,10 +1170,12 @@ function sbConfigSummary(step) {
 
 // ── Builder state ──────────────────────────────────────────────────
 let _sbEditId      = null;  // strategy id being edited (null = new)
-let _sbSteps       = [];    // array of step objects
-let _sbInsertIdx   = -1;    // where to insert the next step
-let _sbEditStepIdx = -1;    // step index being configured in modal
-let _sbIsNewStep   = false; // true when modal opened for a freshly-added step
+let _sbSteps          = [];     // ROOT array of step objects (tree — each may have yesSteps/noSteps)
+let _sbInsertParentId = null;  // null = root level; else parent step ID
+let _sbInsertBranch   = 'root'; // 'yes' | 'no' | 'root'
+let _sbInsertPos      = -1;    // position in target array (-1 = append)
+let _sbEditStepId     = null;  // UUID of step being configured in modal
+let _sbIsNewStep      = false; // true when modal opened for a freshly-added step
 let _sbAllocation    = null; // $ allocation limit (null = unlimited)
 let _sbMaxPositions  = null; // max open positions + orders (null = unlimited)
 
@@ -1183,6 +1185,50 @@ function sbUUID() {
     try { return crypto.randomUUID(); } catch(e) {}
   }
   return 'sb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+}
+
+// ── Branching step types ───────────────────────────────────────────
+const SB_BRANCHING = ['time', 'condition', 'metric'];
+
+// ── Tree helpers ───────────────────────────────────────────────────
+function sbGetStep(id, steps) {
+  steps = steps || _sbSteps;
+  for (const s of steps) {
+    if (s.id === id) return s;
+    const inY = sbGetStep(id, s.yesSteps || []);
+    if (inY) return inY;
+    const inN = sbGetStep(id, s.noSteps  || []);
+    if (inN) return inN;
+  }
+  return null;
+}
+
+function sbFindStepCtx(id, steps, parent, branch) {
+  steps  = steps  || _sbSteps;
+  parent = parent || null;
+  branch = branch || 'root';
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].id === id) return { step: steps[i], arr: steps, idx: i, parent, branch };
+    const inY = sbFindStepCtx(id, steps[i].yesSteps || [], steps[i], 'yes');
+    if (inY) return inY;
+    const inN = sbFindStepCtx(id, steps[i].noSteps  || [], steps[i], 'no');
+    if (inN) return inN;
+  }
+  return null;
+}
+
+function sbRemoveStepById(id) {
+  const ctx = sbFindStepCtx(id);
+  if (ctx) ctx.arr.splice(ctx.idx, 1);
+}
+
+// Ensure every step in the tree has yesSteps/noSteps arrays (backward compat)
+function sbMigrateSteps(steps) {
+  return (steps || []).map(s => ({
+    ...s,
+    yesSteps: Array.isArray(s.yesSteps) ? sbMigrateSteps(s.yesSteps) : [],
+    noSteps:  Array.isArray(s.noSteps)  ? sbMigrateSteps(s.noSteps)  : [],
+  }));
 }
 
 // ── Strategy API cache (replaces localStorage) ─────────────────────
@@ -1201,7 +1247,7 @@ async function stratBuilderOpen(stratId) {
     const s = _sbStratCache.find(x => x.id == stratId);
     if (!s) return;
     document.getElementById('sbStratName').value = s.name;
-    _sbSteps       = JSON.parse(JSON.stringify(s.steps || []));
+    _sbSteps       = sbMigrateSteps(JSON.parse(JSON.stringify(s.steps || [])));
     _sbAllocation   = s.allocation   || null;
     _sbMaxPositions = s.max_positions || null;
   } else {
@@ -1293,39 +1339,63 @@ function stratRunTest() {
 function sbRenderFlow() {
   const flow = document.getElementById('sbFlow');
   if (!flow) return;
-  let html = '';
-
-  html += sbAddBtnHTML(0);
-
-  _sbSteps.forEach((step, idx) => {
-    const meta = SB_ACTIONS.find(m => m.type === step.type) || {};
-    const summary = sbConfigSummary(step);
-
-    html += `
-      <div class="sb-connector"><div class="sb-connector-line"></div></div>
-      <div class="sb-step-card" onclick="stratEditStep(${idx})">
-        <div class="sb-step-icon" style="background:${meta.bg||'#f1f3f7'};color:${meta.color||'#6c757d'}">
-          <i class="fas ${meta.icon||'fa-circle'}"></i>
-        </div>
-        <div class="sb-step-info">
-          <div class="sb-step-type">${meta.label||step.type}</div>
-          <div class="sb-step-desc">${summary}</div>
-        </div>
-        <button class="sb-step-del" onclick="event.stopPropagation();sbRemoveStep(${idx})" title="Remove step">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>`;
-
-    html += sbAddBtnHTML(idx + 1);
-  });
-
-  flow.innerHTML = html;
+  flow.innerHTML = _sbRenderList(_sbSteps, null, 'root');
 }
 
-function sbAddBtnHTML(insertIdx, branch) {
-  const extra = branch ? ` data-branch="${branch}"` : '';
+function _sbRenderList(steps, parentId, branch) {
+  const pid = parentId === null ? 'null' : `'${parentId}'`;
+  let html = `<button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',0)" title="Add step">+</button>`;
+  (steps || []).forEach((step, idx) => {
+    html += _sbRenderStep(step);
+    html += `<div class="sb-connector"><div class="sb-connector-line"></div></div>
+      <button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',${idx + 1})" title="Add step">+</button>`;
+  });
+  return html;
+}
+
+function _sbRenderStep(step) {
+  const meta      = SB_ACTIONS.find(m => m.type === step.type) || {};
+  const summary   = sbConfigSummary(step);
+  const isBranch  = SB_BRANCHING.includes(step.type);
+  const sid       = step.id;
+
+  let html = `
+    <div class="sb-connector"><div class="sb-connector-line"></div></div>
+    <div class="sb-step-card" onclick="stratEditStep('${sid}')">
+      <div class="sb-step-icon" style="background:${meta.bg||'#f1f3f7'};color:${meta.color||'#6c757d'}">
+        <i class="fas ${meta.icon||'fa-circle'}"></i>
+      </div>
+      <div class="sb-step-info">
+        <div class="sb-step-type">${meta.label||step.type}</div>
+        <div class="sb-step-desc">${summary}</div>
+      </div>
+      <button class="sb-step-del" onclick="event.stopPropagation();sbRemoveStep('${sid}')" title="Remove step">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>`;
+
+  if (isBranch) {
+    html += `
+    <div class="sb-connector"><div class="sb-connector-line"></div></div>
+    <div class="sb-branch">
+      <div class="sb-branch-col">
+        <div class="sb-branch-label sb-branch-yes">YES</div>
+        ${_sbRenderList(step.yesSteps || [], sid, 'yes')}
+      </div>
+      <div class="sb-branch-sep"></div>
+      <div class="sb-branch-col">
+        <div class="sb-branch-label sb-branch-no">NO</div>
+        ${_sbRenderList(step.noSteps || [], sid, 'no')}
+      </div>
+    </div>`;
+  }
+  return html;
+}
+
+// kept for any legacy callers
+function sbAddBtnHTML(insertIdx) {
   return `<div class="sb-connector"><div class="sb-connector-line"></div></div>
-    <button class="sb-add-btn" onclick="stratOpenDrawer(${insertIdx})"${extra} title="Add step">+</button>`;
+    <button class="sb-add-btn" onclick="stratOpenDrawer(null,'root',${insertIdx})" title="Add step">+</button>`;
 }
 
 // ── Drawer ─────────────────────────────────────────────────────────
@@ -1346,8 +1416,10 @@ function sbDrawerItemHTML(m) {
   </div>`;
 }
 
-function stratOpenDrawer(insertIdx) {
-  _sbInsertIdx = insertIdx;
+function stratOpenDrawer(parentId, branch, pos) {
+  _sbInsertParentId = (parentId === null || parentId === 'null') ? null : parentId;
+  _sbInsertBranch   = branch || 'root';
+  _sbInsertPos      = (pos !== undefined && pos >= 0) ? pos : -1;
   document.getElementById('sbDrawer').style.display = 'flex';
   document.getElementById('sbDrawer').style.flexDirection = 'column';
 }
@@ -1355,22 +1427,37 @@ function stratOpenDrawer(insertIdx) {
 function stratCloseDrawer() {
   const d = document.getElementById('sbDrawer');
   if (d) d.style.display = 'none';
-  _sbInsertIdx = -1;
+  _sbInsertParentId = null;
+  _sbInsertBranch   = 'root';
+  _sbInsertPos      = -1;
 }
 
 // ── Add step ───────────────────────────────────────────────────────
 function sbAddStep(type) {
-  const step = { id: sbUUID(), type, config: sbDefaultConfig(type) };
-  const idx  = _sbInsertIdx >= 0 ? _sbInsertIdx : _sbSteps.length;
-  _sbSteps.splice(idx, 0, step);
+  const step = { id: sbUUID(), type, config: sbDefaultConfig(type), yesSteps: [], noSteps: [] };
+
+  if (_sbInsertParentId === null) {
+    const pos = _sbInsertPos >= 0 ? _sbInsertPos : _sbSteps.length;
+    _sbSteps.splice(pos, 0, step);
+  } else {
+    const parent = sbGetStep(_sbInsertParentId);
+    if (parent) {
+      const arr = _sbInsertBranch === 'yes'
+        ? (parent.yesSteps = parent.yesSteps || [])
+        : (parent.noSteps  = parent.noSteps  || []);
+      const pos = _sbInsertPos >= 0 ? _sbInsertPos : arr.length;
+      arr.splice(pos, 0, step);
+    }
+  }
+
   stratCloseDrawer();
   sbRenderFlow();
   sbUpdateCounts();
-  stratEditStep(idx, true);
+  stratEditStep(step.id, true);
 }
 
-function sbRemoveStep(idx) {
-  _sbSteps.splice(idx, 1);
+function sbRemoveStep(id) {
+  sbRemoveStepById(id);
   sbRenderFlow();
   sbUpdateCounts();
 }
@@ -1380,11 +1467,11 @@ function sbUpdateCounts() {
 }
 
 // ── Step config modal ──────────────────────────────────────────────
-function stratEditStep(idx, isNew) {
-  const step = _sbSteps[idx];
+function stratEditStep(id, isNew) {
+  const step = sbGetStep(id);
   if (!step) return;
-  _sbEditStepIdx = idx;
-  _sbIsNewStep = !!isNew;
+  _sbEditStepId = id;
+  _sbIsNewStep  = !!isNew;
   const meta = SB_ACTIONS.find(m => m.type === step.type) || {};
   document.getElementById('sbStepModalTitle').textContent = `Configure: ${meta.label || step.type}`;
   document.getElementById('sbStepModalBody').innerHTML = sbStepConfigHTML(step);
@@ -1393,19 +1480,19 @@ function stratEditStep(idx, isNew) {
 }
 
 function stratCloseStepModal() {
-  if (_sbIsNewStep && _sbEditStepIdx >= 0) {
-    _sbSteps.splice(_sbEditStepIdx, 1);
+  if (_sbIsNewStep && _sbEditStepId) {
+    sbRemoveStepById(_sbEditStepId);
     sbRenderFlow();
     sbUpdateCounts();
   }
   document.getElementById('sbStepModal').style.display = 'none';
-  _sbEditStepIdx = -1;
-  _sbIsNewStep = false;
+  _sbEditStepId = null;
+  _sbIsNewStep  = false;
 }
 
 function stratSaveStepConfig() {
-  if (_sbEditStepIdx < 0) return;
-  const step = _sbSteps[_sbEditStepIdx];
+  if (!_sbEditStepId) return;
+  const step = sbGetStep(_sbEditStepId);
   if (!step) return;
   const c = step.config;
 
