@@ -1147,7 +1147,7 @@ function sbConfigSummary(step) {
   if (step.type === 'open_position') {
     const _CAL  = ['Calendar Call Spread','Calendar Put Spread','Diagonal Call Spread','Diagonal Put Spread','Double Calendar','Double Diagonal'];
     const _IRON = ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor'];
-    const dteS  = _CAL.includes(c.strategy)  ? `${c.frontDte||7}/${c.backDte||30} DTE` : `${c.dte||30} DTE`;
+    const dteS  = _CAL.includes(c.strategy)  ? `${c.frontDte??7}/${c.backDte??30} DTE` : `${c.dte??30} DTE`;
     const wingS = _IRON.includes(c.strategy) ? ` · P${c.putWidth||5}$/C${c.callWidth||5}$` : '';
     return `${c.symbol||'?'} · ${c.strategy||'?'} · ${dteS}${wingS}`;
   }
@@ -1424,7 +1424,7 @@ function stratSaveStepConfig() {
     c.macdSignal      = parseInt(document.getElementById('sbcMacdSignal')?.value) || 9;
     c.macdComponent   = document.getElementById('sbcMacdComp')?.value || 'histogram';
     c.optType         = document.getElementById('sbcOptType')?.value || 'call';
-    c.optDte          = parseInt(document.getElementById('sbcOptDte')?.value) || 30;
+    c.optDte          = (() => { const v = parseInt(document.getElementById('sbcOptDte')?.value); return isNaN(v) ? 30 : Math.max(1, v); })();
     c.operator        = document.getElementById('sbcOperator')?.value || '>';
     c.barOffset       = parseInt(document.getElementById('sbcBarOffset')?.value) || 1;
     c.deltaType       = document.getElementById('sbcDeltaType')?.value || 'pct';
@@ -1501,9 +1501,9 @@ function stratSaveStepConfig() {
   } else if (step.type === 'open_position') {
     c.symbol        = (document.getElementById('sbcSymbol')?.value || '').toUpperCase().trim();
     c.strategy      = document.getElementById('sbcStrategy')?.value || c.strategy;
-    c.dte           = parseInt(document.getElementById('sbcDte')?.value) || 30;
-    c.frontDte      = parseInt(document.getElementById('sbcFrontDte')?.value) || 7;
-    c.backDte       = parseInt(document.getElementById('sbcBackDte')?.value) || 30;
+    c.dte           = (() => { const v = parseInt(document.getElementById('sbcDte')?.value);     return isNaN(v) ? 30 : Math.max(0, v); })();
+    c.frontDte      = (() => { const v = parseInt(document.getElementById('sbcFrontDte')?.value); return isNaN(v) ? 7  : Math.max(0, v); })();
+    c.backDte       = (() => { const v = parseInt(document.getElementById('sbcBackDte')?.value);  return isNaN(v) ? 30 : Math.max(0, v); })();
     c.strikeMethod      = document.getElementById('sbcStrikeMethod')?.value || 'atm';
     c.strikeValue       = document.getElementById('sbcStrikeValue')?.value || '';
     c.leg2StrikeMethod  = document.getElementById('sbcLeg2Method')?.value || 'spread_width';
@@ -1842,7 +1842,7 @@ function sbStepConfigHTML(step) {
       </div>
       <div class="sb-form-row" id="sbcOptDteRow" style="${showOpts?'':'display:none'}">
         <div class="sb-form-label">Target DTE</div>
-        <input id="sbcOptDte" class="sb-form-input" type="number" min="1" max="365" value="${c.optDte||30}" placeholder="30">
+        <input id="sbcOptDte" class="sb-form-input" type="number" min="1" max="365" value="${c.optDte??30}" placeholder="30">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Operator</div>
@@ -2021,16 +2021,16 @@ function sbStepConfigHTML(step) {
       <!-- DTE: standard (hidden for calendar/diagonal) -->
       <div class="sb-form-row" id="sbcDteRow" style="${isCal?'display:none':''}">
         <div class="sb-form-label">DTE — Days to Expiration</div>
-        <input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte||30}" placeholder="30">
+        <input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte??30}" placeholder="30">
       </div>
       <!-- Front/Back DTE (calendar/diagonal only) -->
       <div class="sb-form-row" id="sbcFrontDteRow" style="${isCal?'':'display:none'}">
         <div class="sb-form-label">Front Leg DTE — near expiry</div>
-        <input id="sbcFrontDte" class="sb-form-input" type="number" min="0" max="365" value="${c.frontDte||7}" placeholder="7">
+        <input id="sbcFrontDte" class="sb-form-input" type="number" min="0" max="365" value="${c.frontDte??7}" placeholder="7">
       </div>
       <div class="sb-form-row" id="sbcBackDteRow" style="${isCal?'':'display:none'}">
         <div class="sb-form-label">Back Leg DTE — far expiry</div>
-        <input id="sbcBackDte" class="sb-form-input" type="number" min="0" max="365" value="${c.backDte||30}" placeholder="30">
+        <input id="sbcBackDte" class="sb-form-input" type="number" min="0" max="365" value="${c.backDte??30}" placeholder="30">
       </div>
 
       <!-- Strike selection (hidden for straddle: always ATM) -->
