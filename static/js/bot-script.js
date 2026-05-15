@@ -279,11 +279,60 @@ async function botLoadBalances() {
 }
 
 // ── Open Positions ─────────────────────────────────────────────────
+const OCC_RE = /^([A-Z0-9]{1,6})(\d{6})([CP])(\d{8})$/;
+function _parseOcc(sym) {
+  const m = sym.match(OCC_RE);
+  if (!m) return null;
+  const [, under, ymd, oType, strikePad] = m;
+  return {
+    under,
+    expiry : `20${ymd.slice(0,2)}-${ymd.slice(2,4)}-${ymd.slice(4,6)}`,
+    oType,
+    strike : parseFloat(strikePad) / 1000
+  };
+}
+function _inferSpreadName(legs) {
+  const types  = [...new Set(legs.map(l => l._opt.oType))];
+  const hasPut  = types.includes('P');
+  const hasCall = types.includes('C');
+  const shorts = legs.filter(l => parseFloat(l.quantity) < 0);
+  const longs  = legs.filter(l => parseFloat(l.quantity) > 0);
+  if (hasPut && hasCall) return legs.length >= 4 ? 'Iron Condor / Butterfly' : 'Strangle / Straddle';
+  if (legs.length === 1) {
+    const isShort = parseFloat(legs[0].quantity) < 0;
+    return (isShort ? 'Short ' : 'Long ') + (hasPut ? 'Put' : 'Call');
+  }
+  if (legs.length === 2 && shorts.length === 1 && longs.length === 1) {
+    const sStrike = shorts[0]._opt.strike, lStrike = longs[0]._opt.strike;
+    if (hasPut)  return sStrike > lStrike ? 'Short Put Spread'  : 'Long Put Spread';
+    if (hasCall) return sStrike < lStrike ? 'Short Call Spread' : 'Long Call Spread';
+  }
+  if (hasPut)  return shorts.length > longs.length ? 'Short Put Spread'  : 'Long Put Spread';
+  if (hasCall) return shorts.length > longs.length ? 'Short Call Spread' : 'Long Call Spread';
+  return 'Spread';
+}
+function _fmtStrike(s) { return s === Math.floor(s) ? s.toLocaleString() : s.toFixed(1); }
+function _fmtExpiry(d) {
+  const dt = new Date(d + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dte = Math.round((dt - today) / 86400000);
+  const dateStr = dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  return `${dateStr} <span style="color:#94a3b8;font-size:10px;">(${dte}d)</span>`;
+}
+function _posPnlHtml(pnl, costBasis) {
+  if (pnl === null) return '<span style="color:#94a3b8;">—</span>';
+  const sign = pnl >= 0 ? '+' : '';
+  const color = pnl > 0 ? '#22c55e' : pnl < 0 ? '#ef4444' : '#64748b';
+  const pct  = costBasis !== 0 ? ` (${sign}${(pnl / Math.abs(costBasis) * 100).toFixed(1)}%)` : '';
+  return `<span style="color:${color};font-weight:600;">${sign}${_fmt$(pnl)}</span><span style="color:${color};font-size:11px;">${pct}</span>`;
+}
+
 async function botLoadPositions() {
   const body = document.getElementById('botPositionsBody');
   if (!body) return;
   body.innerHTML = '<div class="bot-empty py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
   try {
+    // 1. Fetch positions
     const resp = await fetch('/api/bot/tradier/positions');
     const data = await resp.json();
     const raw  = data?.positions?.position;
@@ -297,8 +346,168 @@ async function botLoadPositions() {
       return;
     }
     const positions = Array.isArray(raw) ? raw : [raw];
-    body.innerHTML = `<div style="overflow-x:auto;"><table class="bot-table"><thead><tr><th>Symbol</th><th>Qty</th><th>Cost Basis</th><th>Date Acquired</th></tr></thead><tbody>${positions.map(p => `<tr><td><strong>${p.symbol}</strong></td><td>${p.quantity}</td><td>${_fmt$(p.cost_basis)}</td><td>${p.date_acquired ? p.date_acquired.split('T')[0] : '—'}</td></tr>`).join('')}</tbody></table></div>`;
-  } catch (e) { body.innerHTML = `<div class="bot-empty py-4"><i class="fas fa-times-circle" style="color:#ef4444;"></i><div class="mt-2">${e.message}</div></div>`; }
+
+    // 2. Batch-fetch quotes for all symbols
+    let quoteMap = {};
+    try {
+      const syms = positions.map(p => p.symbol).join(',');
+      const qr   = await fetch(`/api/bot/tradier/quote?symbol=${encodeURIComponent(syms)}`);
+      const qd   = await qr.json();
+      const qRaw = qd?.quotes?.quote;
+      const qArr = !qRaw ? [] : (Array.isArray(qRaw) ? qRaw : [qRaw]);
+      qArr.forEach(q => { quoteMap[q.symbol] = q; });
+    } catch (_) { /* quotes unavailable — P&L will show — */ }
+
+    // 3. Group: equity stays solo, options group by underlying+expiry
+    const groups = {};
+    const groupOrder = [];
+    positions.forEach(p => {
+      const opt = _parseOcc(p.symbol);
+      const key = opt ? `OPT:${opt.under}:${opt.expiry}` : `EQ:${p.symbol}`;
+      if (!groups[key]) {
+        groups[key] = opt
+          ? { kind:'option', under:opt.under, expiry:opt.expiry, legs:[] }
+          : { kind:'equity', symbol:p.symbol, legs:[] };
+        groupOrder.push(key);
+      }
+      groups[key].legs.push(opt ? { ...p, _opt: opt } : p);
+    });
+
+    // 4. Render
+    const _f  = v => parseFloat(v) || 0;
+    const _mk = q => q ? (_f(q.last) || _f(q.close) || _f(q.bid+q.ask)/2) : null;
+
+    let html = '<div style="display:flex;flex-direction:column;">';
+
+    groupOrder.forEach((key, gi) => {
+      const g     = groups[key];
+      const notLast = gi < groupOrder.length - 1;
+      const sep   = notLast ? 'border-bottom:1px solid #f1f5f9;' : '';
+
+      if (g.kind === 'equity') {
+        const p   = g.legs[0];
+        const q   = quoteMap[p.symbol];
+        const mk  = _mk(q);
+        const pnl = mk !== null ? mk * _f(p.quantity) - _f(p.cost_basis) : null;
+        html += `
+        <div style="display:grid;grid-template-columns:40px 1fr auto auto auto auto;align-items:center;gap:16px;padding:14px 16px;${sep}">
+          <div style="width:36px;height:36px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fas fa-chart-bar" style="color:#3b82f6;font-size:13px;"></i>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:14px;color:#0f172a;">${p.symbol}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:1px;">Equity · ${p.quantity} share${Math.abs(_f(p.quantity))!==1?'s':''} · ${p.date_acquired?p.date_acquired.split('T')[0]:'—'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Cost</div>
+            <div style="font-weight:600;font-size:13px;color:#334155;">${_fmt$(p.cost_basis)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Mark</div>
+            <div style="font-weight:600;font-size:13px;color:#334155;">${mk !== null ? _fmt$(mk) : '—'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Unrlzd P&L</div>
+            <div>${_posPnlHtml(pnl, _f(p.cost_basis))}</div>
+          </div>
+          <div style="width:24px;"></div>
+        </div>`;
+      } else {
+        // Options group
+        const legs      = g.legs.slice().sort((a,b) => a._opt.strike - b._opt.strike);
+        const spreadName = _inferSpreadName(legs);
+        const strikes   = legs.map(l => `${_fmtStrike(l._opt.strike)}${l._opt.oType}`).join(' / ');
+        const gid       = `posGrp_${gi}`;
+
+        let totalCost = 0, totalMktVal = 0, hasQ = false;
+        legs.forEach(l => {
+          const q  = quoteMap[l.symbol];
+          const mk = _mk(q);
+          totalCost += _f(l.cost_basis);
+          if (mk !== null) { hasQ = true; totalMktVal += mk * _f(l.quantity) * 100; }
+        });
+        const spreadPnl = hasQ ? totalMktVal - totalCost : null;
+
+        // Spread color band
+        const isShortSpread = spreadName.startsWith('Short');
+        const iconBg  = isShortSpread ? '#fef2f2' : '#f0fdf4';
+        const iconClr = isShortSpread ? '#ef4444'  : '#22c55e';
+
+        html += `
+        <div style="${sep}">
+          <div style="display:grid;grid-template-columns:40px 1fr auto auto auto auto;align-items:center;gap:16px;padding:14px 16px;cursor:pointer;transition:background .15s;" onclick="botTogglePosGroup('${gid}')"
+               onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
+            <div style="width:36px;height:36px;border-radius:8px;background:${iconBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas fa-layer-group" style="color:${iconClr};font-size:13px;"></i>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:14px;color:#0f172a;">${g.under} — ${spreadName}</div>
+              <div style="font-size:11px;color:#64748b;margin-top:1px;">${strikes} · Exp ${_fmtExpiry(g.expiry)} · ${legs.length} leg${legs.length>1?'s':''}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Net Cost</div>
+              <div style="font-weight:600;font-size:13px;color:#334155;">${_fmt$(totalCost)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Net Mkt Val</div>
+              <div style="font-weight:600;font-size:13px;color:#334155;">${hasQ ? _fmt$(totalMktVal) : '—'}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">Unrlzd P&L</div>
+              <div>${_posPnlHtml(spreadPnl, totalCost)}</div>
+            </div>
+            <div style="text-align:center;width:24px;">
+              <i id="${gid}_icon" class="fas fa-chevron-down" style="color:#94a3b8;font-size:11px;transition:transform .2s;"></i>
+            </div>
+          </div>
+          <div id="${gid}" style="display:none;background:#f8fafc;border-top:1px solid #f1f5f9;">
+            <div style="overflow-x:auto;">
+              <table class="bot-table" style="margin:0;">
+                <thead><tr><th>Symbol</th><th>Side</th><th>Strike</th><th>Qty</th><th>Cost Basis</th><th>Mark</th><th>Mkt Val</th><th>Leg P&L</th><th>Acq</th></tr></thead>
+                <tbody>
+                  ${legs.map(l => {
+                    const q   = quoteMap[l.symbol];
+                    const mk  = _mk(q);
+                    const qty = _f(l.quantity);
+                    const mktVal = mk !== null ? mk * qty * 100 : null;
+                    const legPnl = mktVal !== null ? mktVal - _f(l.cost_basis) : null;
+                    const sideHtml = qty >= 0
+                      ? '<span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;">LONG</span>'
+                      : '<span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;">SHORT</span>';
+                    return `<tr>
+                      <td style="font-family:monospace;font-size:11px;color:#64748b;">${l.symbol}</td>
+                      <td>${sideHtml}</td>
+                      <td style="font-weight:600;">${_fmtStrike(l._opt.strike)} ${l._opt.oType === 'P' ? 'Put' : 'Call'}</td>
+                      <td>${l.quantity}</td>
+                      <td>${_fmt$(l.cost_basis)}</td>
+                      <td>${mk !== null ? _fmt$(mk) : '—'}</td>
+                      <td>${mktVal !== null ? _fmt$(mktVal) : '—'}</td>
+                      <td>${_posPnlHtml(legPnl, _f(l.cost_basis))}</td>
+                      <td style="font-size:11px;white-space:nowrap;">${l.date_acquired ? l.date_acquired.split('T')[0] : '—'}</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+      }
+    });
+
+    html += '</div>';
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = `<div class="bot-empty py-4"><i class="fas fa-times-circle" style="color:#ef4444;"></i><div class="mt-2">${e.message}</div></div>`;
+  }
+}
+
+function botTogglePosGroup(id) {
+  const el   = document.getElementById(id);
+  const icon = document.getElementById(id + '_icon');
+  if (!el) return;
+  const opening = el.style.display === 'none';
+  el.style.display      = opening ? 'block' : 'none';
+  if (icon) icon.style.transform = opening ? 'rotate(180deg)' : '';
 }
 
 // ── Open Orders ────────────────────────────────────────────────────
