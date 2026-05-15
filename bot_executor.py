@@ -185,25 +185,163 @@ def eval_condition(cfg, api_key, base_url, account_id):
     return True
 
 
+def _fetch_daily_history(symbol, api_key, base_url, bars=200):
+    """Return up to `bars` daily OHLCV dicts for *symbol*, newest last."""
+    import datetime
+    end   = _now_et().date()
+    start = end - datetime.timedelta(days=max(bars * 2, 365))
+    data  = _tradier(api_key, base_url, '/markets/history',
+                     params={'symbol': symbol, 'interval': 'daily',
+                             'start': str(start), 'end': str(end)})
+    if not data:
+        return []
+    hist = data.get('history', {})
+    if not hist or hist == 'null':
+        return []
+    raw = hist.get('day', [])
+    if isinstance(raw, dict):
+        raw = [raw]
+    return raw or []
+
+
+def _ind_sma(closes, period):
+    if len(closes) < period:
+        return None
+    return sum(closes[-period:]) / period
+
+
+def _ind_ema(closes, period):
+    if len(closes) < period:
+        return None
+    k = 2.0 / (period + 1)
+    ema = sum(closes[:period]) / period
+    for p in closes[period:]:
+        ema = p * k + ema * (1 - k)
+    return ema
+
+
+def _ind_rsi(closes, period=14):
+    if len(closes) < period + 1:
+        return None
+    diffs = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains  = [max(d, 0) for d in diffs[-period:]]
+    losses = [max(-d, 0) for d in diffs[-period:]]
+    avg_g  = sum(gains)  / period
+    avg_l  = sum(losses) / period
+    if avg_l == 0:
+        return 100.0
+    return 100 - 100 / (1 + avg_g / avg_l)
+
+
+def _ind_roc(closes, period=10):
+    if len(closes) < period + 1:
+        return None
+    return (closes[-1] - closes[-(period + 1)]) / closes[-(period + 1)] * 100
+
+
+def _compute_bar_metric(metric, period, bars, day=0, series='close'):
+    """Compute a single numeric metric from daily bars list (newest last).
+
+    day=0 = today, day=-1 = yesterday, etc.
+    Returns float or None if data is insufficient.
+    """
+    day = int(day)
+    if day < 0:
+        bars = bars[:day]   # trim most-recent |day| bars
+    if not bars:
+        return None
+
+    def _col(key):
+        vals = []
+        for b in bars:
+            try:
+                vals.append(float(b[key]))
+            except (KeyError, TypeError, ValueError):
+                pass
+        return vals
+
+    closes = _col('close')
+    if not closes:
+        return None
+
+    if metric == 'price':
+        ser_map = {'open': _col('open'), 'high': _col('high'),
+                   'low': _col('low'),   'close': closes}
+        col = ser_map.get(series, closes)
+        return col[-1] if col else None
+    if metric == 'volume':
+        vols = _col('volume')
+        return vols[-1] if vols else None
+    if metric == 'gap_pct':
+        opens = _col('open')
+        if len(closes) < 2 or not opens:
+            return None
+        return (opens[-1] - closes[-2]) / closes[-2] * 100
+    if metric == 'change_pct':
+        return (closes[-1] - closes[-2]) / closes[-2] * 100 if len(closes) >= 2 else None
+    if metric == 'roc':
+        return _ind_roc(closes, period)
+    if metric == 'sma':
+        return _ind_sma(closes, period)
+    if metric == 'ema':
+        return _ind_ema(closes, period)
+    if metric == 'rsi':
+        return _ind_rsi(closes, period)
+    return None
+
+
+_UNSUPPORTED_METRICS = {'iv_rank', 'delta', 'theta', 'macd'}
+
+
 def eval_metric(cfg, api_key, base_url, symbol):
     """Returns True/False or None (skip step) if data/metric unavailable."""
     metric   = cfg.get('metric', 'price')
     operator = cfg.get('operator', '>')
     ctype    = cfg.get('compareType', 'value')
     cv       = cfg.get('value', '')
+    period   = int(cfg.get('period') or 14)
+    day      = int(cfg.get('day') or 0)
+    series   = cfg.get('series', 'close')
 
-    if metric == 'price' and ctype == 'value':
-        q = _tradier(api_key, base_url, '/markets/quotes',
-                     params={'symbols': symbol, 'greeks': 'false'})
-        if not q:
-            return None
-        last = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+    if metric in _UNSUPPORTED_METRICS:
+        logger.info(f"Metric '{metric}' not yet supported in executor; step skipped")
+        return None
+
+    bars = _fetch_daily_history(symbol, api_key, base_url,
+                                bars=max(period * 3, 100))
+    if not bars:
+        logger.warning(f"eval_metric: no daily history for {symbol}")
+        return None
+
+    lhs = _compute_bar_metric(metric, period, bars, day=day, series=series)
+    if lhs is None:
+        logger.warning(f"eval_metric: could not compute {metric}({period}) for {symbol}")
+        return None
+
+    if ctype == 'value':
         try:
-            return _compare(last, operator, float(cv))
-        except Exception:
+            rhs = float(cv)
+        except (ValueError, TypeError):
+            logger.warning(f"eval_metric: invalid fixed value '{cv}'")
             return None
+        return _compare(lhs, operator, rhs)
 
-    logger.info(f"Metric '{metric}' not yet supported in executor; step skipped")
+    elif ctype == 'indicator':
+        ref_metric = cfg.get('compareIndicator', 'ema')
+        ref_period = int(cfg.get('comparePeriod') or 9)
+        ref_day    = int(cfg.get('compareDay') or -1)
+        ref_series = cfg.get('compareSeries', 'close')
+        if ref_metric in _UNSUPPORTED_METRICS:
+            logger.info(f"Reference metric '{ref_metric}' not yet supported; step skipped")
+            return None
+        rhs = _compute_bar_metric(ref_metric, ref_period, bars,
+                                  day=ref_day, series=ref_series)
+        if rhs is None:
+            logger.warning(f"eval_metric: could not compute ref {ref_metric}({ref_period})")
+            return None
+        return _compare(lhs, operator, rhs)
+
+    logger.info(f"Metric compareType '{ctype}' not supported; step skipped")
     return None
 
 

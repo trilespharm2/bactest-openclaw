@@ -1379,6 +1379,7 @@ function stratEditStep(idx, isNew) {
   const meta = SB_ACTIONS.find(m => m.type === step.type) || {};
   document.getElementById('sbStepModalTitle').textContent = `Configure: ${meta.label || step.type}`;
   document.getElementById('sbStepModalBody').innerHTML = sbStepConfigHTML(step);
+  if (step.type === 'metric') sbSyncMetricForm();
   document.getElementById('sbStepModal').style.display = 'flex';
 }
 
@@ -1505,22 +1506,20 @@ function sbTimeModeChange() {
 function sbSyncMetricForm() {
   const m      = document.getElementById('sbcMetric')?.value || 'price';
   const day    = parseInt(document.getElementById('sbcDay')?.value ?? '0');
-  const op     = document.getElementById('sbcOperator')?.value || '>';
-  const isCross = ['crosses_above','crosses_below'].includes(op);
   const ct     = document.getElementById('sbcCompareType')?.value || 'value';
-  const showRef = isCross && ct === 'indicator';
+  const showRef = ct === 'indicator';   // show ref fields whenever indicator mode is chosen
   const refM   = document.getElementById('sbcRefMetric')?.value || 'ema';
   const refDay = parseInt(document.getElementById('sbcRefDay')?.value ?? '-1');
 
   const noBarCtx = ['gap_pct','iv_rank','delta','theta'].includes(m);
   const noIntv   = ['change_pct'].includes(m);
-  _show('sbcDayRow',      !noBarCtx);
-  _show('sbcIntervalRow', !noBarCtx && !noIntv && day === 0);
-  _show('sbcSeriesRow',    m === 'price');
-  _show('sbcPeriodRow',   ['sma','ema','rsi','roc'].includes(m));
+  _show('sbcDayRow',         !noBarCtx);
+  _show('sbcIntervalRow',    !noBarCtx && !noIntv && day === 0);
+  _show('sbcSeriesRow',       m === 'price');
+  _show('sbcPeriodRow',      ['sma','ema','rsi','roc'].includes(m));
 
-  _show('sbcCompareTypeRow', isCross);
-  _show('sbcValueRow',   !isCross || ct === 'value');
+  // Compare Against is always visible; show value OR indicator rows based on selection
+  _show('sbcValueRow',       ct === 'value');
 
   const refNoBCtx = ['iv_rank','delta','theta'].includes(refM);
   const refNoIntv = ['change_pct'].includes(refM);
@@ -1657,9 +1656,8 @@ function sbStepConfigHTML(step) {
     const intv   = c.interval || '1min';
     const ser    = c.series || 'close';
     const op     = c.operator || '>';
-    const isCross = ['crosses_above','crosses_below'].includes(op);
     const ct     = c.compareType || 'value';
-    const showRef = isCross && ct === 'indicator';
+    const showRef = ct === 'indicator';   // visible whenever "Indicator" is selected
     const refM   = c.compareIndicator || 'ema';
     const refDay = c.compareDay ?? -1;
     const refIntv = c.compareInterval || 'day';
@@ -1739,11 +1737,11 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-label">Operator</div>
         ${_sel('sbcOperator', op, OP_OPTS, 'onchange="sbOperatorChange()"')}
       </div>
-      <div class="sb-form-row" id="sbcCompareTypeRow" style="${isCross?'':'display:none'}">
+      <div class="sb-form-row" id="sbcCompareTypeRow">
         <div class="sb-form-label">Compare Against</div>
         ${_sel('sbcCompareType', ct, [['value','Fixed Value'],['indicator','Indicator']], 'onchange="sbCompareTypeChange()"')}
       </div>
-      <div class="sb-form-row" id="sbcValueRow" style="${(!isCross||ct==='value')?'':'display:none'}">
+      <div class="sb-form-row" id="sbcValueRow" style="${ct==='value'?'':'display:none'}">
         <div class="sb-form-label">Value</div>
         <input id="sbcMetricValue" class="sb-form-input" type="number" step="0.01" placeholder="e.g. 50" value="${c.value||''}">
       </div>
