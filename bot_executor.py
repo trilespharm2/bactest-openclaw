@@ -436,8 +436,10 @@ def _compute_options_metric(metric, symbol, opt_type, target_dte, api_key, base_
     return None
 
 
-def eval_metric(cfg, api_key, base_url, symbol):
-    """Returns True/False or None (skip step) if data/metric unavailable."""
+def eval_metric_verbose(cfg, api_key, base_url, symbol):
+    """Full metric evaluator. Returns (ok, detail_message).
+    ok=None means data unavailable (step should be skipped).
+    Handles crosses_above/crosses_below and AND conditions."""
     metric      = cfg.get('metric', 'price')
     operator    = cfg.get('operator', '>')
     ctype       = cfg.get('compareType', 'value')
@@ -451,134 +453,269 @@ def eval_metric(cfg, api_key, base_url, symbol):
     macd_comp   = cfg.get('macdComponent', 'histogram')
     opt_type    = cfg.get('optType', 'call')
     opt_dte     = int(cfg.get('optDte') or 30)
+    and_enabled = bool(cfg.get('andEnabled', False))
+    and_metric  = cfg.get('andMetric', 'rsi')
+    and_period  = int(cfg.get('andPeriod') or 14)
+    and_op      = cfg.get('andOperator', '<')
+    and_value   = cfg.get('andValue', '')
 
     _OPT_METRICS = ('iv_rank', 'delta', 'theta')
+    is_cross = operator in ('crosses_above', 'crosses_below')
 
-    # ── Compute LHS ──────────────────────────────────────────────────────────
-    bars = None   # may be reused for ref indicator
-    if metric == 'current_price':
-        q = _tradier(api_key, base_url, '/markets/quotes',
-                     params={'symbols': symbol, 'greeks': 'false'})
-        if not q:
-            return None
-        lhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
-        if lhs <= 0:
-            return None
-    elif metric in _OPT_METRICS:
-        lhs = _compute_options_metric(metric, symbol, opt_type, opt_dte,
-                                      api_key, base_url)
-        if lhs is None:
-            logger.warning(f"eval_metric: no options data for {metric} on {symbol}")
-            return None
-    else:
-        need = max(period * 3, (macd_long + macd_signal) * 3, 100)
-        bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
-        if not bars:
-            logger.warning(f"eval_metric: no daily history for {symbol}")
-            return None
-        lhs = _compute_bar_metric(metric, period, bars, day=day, series=series,
-                                  macd_short=macd_short, macd_long=macd_long,
-                                  macd_signal=macd_signal, macd_comp=macd_comp)
-        if lhs is None:
-            logger.warning(f"eval_metric: could not compute {metric} for {symbol}")
-            return None
-
-    # ── Compare ──────────────────────────────────────────────────────────────
-    if ctype == 'value':
+    def _fmt(v):
+        if v is None: return 'N/A'
         try:
-            rhs = float(cv)
-        except (ValueError, TypeError):
-            logger.warning(f"eval_metric: invalid fixed value '{cv}'")
-            return None
-        return _compare(lhs, operator, rhs)
+            f = float(v)
+            return f'{f:.4g}' if abs(f) < 10000 else f'{f:.0f}'
+        except Exception:
+            return str(v)
 
-    if ctype == 'price':
-        # Compare against live current price
-        q = _tradier(api_key, base_url, '/markets/quotes',
-                     params={'symbols': symbol, 'greeks': 'false'})
-        if not q:
-            return None
-        rhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
-        if rhs <= 0:
-            return None
-        return _compare(lhs, operator, rhs)
+    def _mn(m, p=None):
+        _p = p or period
+        return {'current_price': 'Price', 'price': 'Price', 'volume': 'Volume',
+                'sma': f'SMA({_p})', 'ema': f'EMA({_p})', 'rsi': f'RSI({_p})',
+                'macd': 'MACD', 'roc': f'ROC({_p})', 'iv_rank': 'IV%',
+                'delta': 'Delta', 'theta': 'Theta',
+                'gap_pct': 'Gap%', 'change_pct': 'Change%'}.get(m, m)
 
-    if ctype == 'bar_delta':
-        bar_offset      = max(int(cfg.get('barOffset') or 1), 1)
-        delta_type      = cfg.get('deltaType', 'pct')
-        delta_threshold = float(cfg.get('deltaThreshold') or 1)
-        window_from     = cfg.get('windowFrom', '')
-        window_to       = cfg.get('windowTo',   '')
-        intv            = cfg.get('interval', '1min')
+    def _op_sym(op):
+        return {'crosses_above': '↑ cross above', 'crosses_below': '↓ cross below',
+                '>': '>', '<': '<', '>=': '≥', '<=': '≤', '=': '='}.get(op, op)
 
-        if intv == 'day':
-            # Use daily bars for the delta comparison
-            need = max(bar_offset + period * 3, 100)
-            ibars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
-        else:
-            ibars = _fetch_intraday_bars(symbol, intv, api_key, base_url,
-                                         window_from=window_from, window_to=window_to)
+    def _cbm(brs, d=0):
+        return _compute_bar_metric(metric, period, brs, day=d, series=series,
+                                   macd_short=macd_short, macd_long=macd_long,
+                                   macd_signal=macd_signal, macd_comp=macd_comp)
 
-        if len(ibars) < bar_offset + 1:
-            logger.warning(f"eval_metric bar_delta: not enough bars ({len(ibars)}) for offset {bar_offset}")
-            return None
-
-        current_val = _compute_bar_metric(metric, period, ibars, day=0, series=series,
-                                          macd_short=macd_short, macd_long=macd_long,
-                                          macd_signal=macd_signal, macd_comp=macd_comp)
-        prior_val   = _compute_bar_metric(metric, period, ibars[:-bar_offset], day=0,
-                                          series=series, macd_short=macd_short,
-                                          macd_long=macd_long, macd_signal=macd_signal,
-                                          macd_comp=macd_comp)
-
-        if current_val is None or prior_val is None:
-            logger.warning(f"eval_metric bar_delta: could not compute {metric} for delta")
-            return None
-
-        if delta_type == 'pct':
-            if prior_val == 0:
-                return None
-            change = (current_val - prior_val) / abs(prior_val) * 100
-        else:
-            change = current_val - prior_val
-
-        return _compare(change, operator, delta_threshold)
-
-    if ctype == 'indicator':
-        ref_metric      = cfg.get('compareIndicator', 'ema')
-        ref_period      = int(cfg.get('comparePeriod') or 9)
-        ref_day         = int(cfg.get('compareDay') or -1)
-        ref_series      = cfg.get('compareSeries', 'close')
-        ref_macd_short  = int(cfg.get('refMacdShort')  or 12)
-        ref_macd_long   = int(cfg.get('refMacdLong')   or 26)
-        ref_macd_signal = int(cfg.get('refMacdSignal') or 9)
-        ref_macd_comp   = cfg.get('refMacdComponent', 'histogram')
-
-        if ref_metric == 'current_price':
+    # ── Fetch LHS ─────────────────────────────────────────────────────────────
+    bars = None
+    lhs = None
+    lhs_name = _mn(metric)
+    try:
+        if metric == 'current_price':
             q = _tradier(api_key, base_url, '/markets/quotes',
                          params={'symbols': symbol, 'greeks': 'false'})
-            rhs = float((q or {}).get('quotes', {}).get('quote', {}).get('last', 0) or 0) if q else None
-        elif ref_metric in _OPT_METRICS:
-            rhs = _compute_options_metric(ref_metric, symbol, opt_type, opt_dte,
+            if not q:
+                return None, 'Could not fetch live price'
+            lhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+            if lhs <= 0:
+                return None, 'Live price unavailable'
+        elif metric in _OPT_METRICS:
+            lhs = _compute_options_metric(metric, symbol, opt_type, opt_dte,
                                           api_key, base_url)
+            if lhs is None:
+                return None, f'Could not fetch {lhs_name} data'
         else:
-            if bars is None:
-                need = max(ref_period * 3, (ref_macd_long + ref_macd_signal) * 3, 100)
-                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+            need = max(period * 3, (macd_long + macd_signal) * 3, 100)
+            bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
             if not bars:
-                return None
-            rhs = _compute_bar_metric(ref_metric, ref_period, bars,
-                                      day=ref_day, series=ref_series,
-                                      macd_short=ref_macd_short, macd_long=ref_macd_long,
-                                      macd_signal=ref_macd_signal, macd_comp=ref_macd_comp)
+                return None, 'Could not fetch daily price history'
+            lhs = _cbm(bars, d=day)
+            if lhs is None:
+                return None, f'Could not compute {lhs_name}'
+    except Exception as e:
+        return None, f'Error computing {lhs_name}: {e}'
 
-        if rhs is None:
-            logger.warning(f"eval_metric: could not compute ref {ref_metric}")
-            return None
-        return _compare(lhs, operator, rhs)
+    # Helper: get previous-bar lhs
+    def _prev_lhs():
+        if metric == 'current_price':
+            # Use yesterday's close from daily history
+            _b = bars or _fetch_daily_history(symbol, api_key, base_url, bars=10)
+            return (_compute_bar_metric('price', 1, _b, day=-1) if _b else None), _b
+        elif metric in _OPT_METRICS:
+            return None, bars   # can't get previous options metric
+        else:
+            return _cbm(bars, d=day - 1), bars
 
-    logger.info(f"eval_metric: compareType '{ctype}' not recognised; step skipped")
-    return None
+    # ── Compute RHS & evaluate ────────────────────────────────────────────────
+    ok = None
+    detail = ''
+    rhs_name = ''
+    rhs = None
+    try:
+        if ctype == 'value':
+            try:
+                rhs = float(cv)
+                rhs_name = _fmt(rhs)
+            except (ValueError, TypeError):
+                return None, f"Invalid threshold value '{cv}'"
+
+            if is_cross:
+                prev_lhs_val, bars = _prev_lhs()
+                if prev_lhs_val is None:
+                    return None, f'Could not get previous bar {lhs_name}'
+                prev_rhs = rhs
+                if operator == 'crosses_above':
+                    ok = (prev_lhs_val <= prev_rhs) and (lhs > rhs)
+                else:
+                    ok = (prev_lhs_val >= prev_rhs) and (lhs < rhs)
+                word = 'occurred ✓' if ok else 'did not occur ✗'
+                dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
+                detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
+                          f"Bar 2 (prev): {lhs_name} = {_fmt(prev_lhs_val)}, "
+                          f"threshold = {rhs_name}; "
+                          f"Bar 1 (curr): {lhs_name} = {_fmt(lhs)}")
+            else:
+                ok = _compare(lhs, operator, rhs)
+                sym = _op_sym(operator)
+                detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} {rhs_name}"
+
+        elif ctype == 'price':
+            q = _tradier(api_key, base_url, '/markets/quotes',
+                         params={'symbols': symbol, 'greeks': 'false'})
+            if not q:
+                return None, 'Could not fetch live price for comparison'
+            rhs = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+            if rhs <= 0:
+                return None, 'Live price unavailable for comparison'
+            rhs_name = 'Price'
+            ok = _compare(lhs, operator, rhs)
+            sym = _op_sym(operator)
+            detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} Price ({_fmt(rhs)})"
+
+        elif ctype == 'indicator':
+            ref_metric      = cfg.get('compareIndicator', 'ema')
+            ref_period      = int(cfg.get('comparePeriod') or 9)
+            ref_day         = int(cfg.get('compareDay') or -1)
+            ref_series      = cfg.get('compareSeries', 'close')
+            ref_macd_short  = int(cfg.get('refMacdShort')  or 12)
+            ref_macd_long   = int(cfg.get('refMacdLong')   or 26)
+            ref_macd_signal = int(cfg.get('refMacdSignal') or 9)
+            ref_macd_comp   = cfg.get('refMacdComponent', 'histogram')
+            rhs_name = _mn(ref_metric, ref_period)
+
+            def _ref_cbm(brs, d):
+                return _compute_bar_metric(ref_metric, ref_period, brs, day=d,
+                                           series=ref_series,
+                                           macd_short=ref_macd_short,
+                                           macd_long=ref_macd_long,
+                                           macd_signal=ref_macd_signal,
+                                           macd_comp=ref_macd_comp)
+
+            if ref_metric == 'current_price':
+                q = _tradier(api_key, base_url, '/markets/quotes',
+                             params={'symbols': symbol, 'greeks': 'false'})
+                rhs = float((q or {}).get('quotes', {}).get('quote', {}).get('last', 0) or 0) if q else None
+            elif ref_metric in _OPT_METRICS:
+                rhs = _compute_options_metric(ref_metric, symbol, opt_type, opt_dte,
+                                              api_key, base_url)
+            else:
+                if bars is None:
+                    need = max(ref_period * 3, (ref_macd_long + ref_macd_signal) * 3, 100)
+                    bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                if not bars:
+                    return None, 'Could not fetch daily history for comparison indicator'
+                rhs = _ref_cbm(bars, d=0)  # always compute ref at current bar for crossovers
+
+            if rhs is None:
+                return None, f'Could not compute reference {rhs_name}'
+
+            if is_cross:
+                prev_lhs_val, bars = _prev_lhs()
+                if prev_lhs_val is None:
+                    return None, f'Could not get previous bar {lhs_name}'
+                # Previous reference bar
+                if ref_metric == 'current_price' or ref_metric in _OPT_METRICS:
+                    prev_rhs = None  # can't get previous for live/options
+                else:
+                    prev_rhs = _ref_cbm(bars, d=-1)
+
+                if prev_rhs is None:
+                    return None, f'Could not get previous bar {rhs_name}'
+
+                if operator == 'crosses_above':
+                    ok = (prev_lhs_val <= prev_rhs) and (lhs > rhs)
+                else:
+                    ok = (prev_lhs_val >= prev_rhs) and (lhs < rhs)
+                word = 'occurred ✓' if ok else 'did not occur ✗'
+                dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
+                detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
+                          f"Bar 2 (prev): {lhs_name} = {_fmt(prev_lhs_val)}, "
+                          f"{rhs_name} = {_fmt(prev_rhs)}; "
+                          f"Bar 1 (curr): {lhs_name} = {_fmt(lhs)}, "
+                          f"{rhs_name} = {_fmt(rhs)}")
+            else:
+                # Non-cross: use configured ref_day for the rhs
+                rhs_final = _ref_cbm(bars, d=ref_day) if ref_metric not in _OPT_METRICS and ref_metric != 'current_price' else rhs
+                ok = _compare(lhs, operator, rhs_final if rhs_final is not None else rhs)
+                sym = _op_sym(operator)
+                detail = f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} {rhs_name} ({_fmt(rhs_final if rhs_final is not None else rhs)})"
+
+        elif ctype == 'bar_delta':
+            bar_offset      = max(int(cfg.get('barOffset') or 1), 1)
+            delta_type      = cfg.get('deltaType', 'pct')
+            delta_threshold = float(cfg.get('deltaThreshold') or 1)
+            window_from     = cfg.get('windowFrom', '')
+            window_to       = cfg.get('windowTo',   '')
+            intv            = cfg.get('interval', '1min')
+
+            if intv == 'day':
+                need = max(bar_offset + period * 3, 100)
+                ibars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+            else:
+                ibars = _fetch_intraday_bars(symbol, intv, api_key, base_url,
+                                             window_from=window_from, window_to=window_to)
+
+            if len(ibars) < bar_offset + 1:
+                return None, f'Not enough bars ({len(ibars)}) for delta (need {bar_offset + 1})'
+
+            current_val = _cbm(ibars, d=0)
+            prior_val   = _cbm(ibars[:-bar_offset], d=0)
+
+            if current_val is None or prior_val is None:
+                return None, f'Could not compute {lhs_name} delta values'
+
+            if delta_type == 'pct':
+                if prior_val == 0:
+                    return None, f'Cannot compute % delta: prior {lhs_name} = 0'
+                change = (current_val - prior_val) / abs(prior_val) * 100
+                change_str = f'{change:+.2f}%'
+            else:
+                change = current_val - prior_val
+                change_str = f'{change:+.4g}'
+
+            ok = _compare(change, operator, delta_threshold)
+            sym = _op_sym(operator)
+            detail = (f"{lhs_name} Δ = {change_str} ({bar_offset} bars), "
+                      f"{'✓' if ok else '✗'} {sym} {_fmt(delta_threshold)} | "
+                      f"Current: {_fmt(current_val)}, Prior: {_fmt(prior_val)}")
+        else:
+            return None, f"Unknown compareType '{ctype}'"
+
+    except Exception as e:
+        logger.warning(f"eval_metric_verbose evaluate: {e}")
+        return None, f'Error evaluating metric: {e}'
+
+    # ── AND condition ─────────────────────────────────────────────────────────
+    if ok and and_enabled and and_value != '':
+        try:
+            and_v = float(and_value)
+            if bars is None:
+                need2 = max(and_period * 3, 100)
+                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need2)
+            and_lhs = (_compute_bar_metric(and_metric, and_period, bars, day=0)
+                       if bars else None)
+            and_name = _mn(and_metric, and_period)
+            if and_lhs is None:
+                detail += f' | AND {and_name}: could not compute'
+                ok = None
+            else:
+                and_ok = _compare(and_lhs, and_op, and_v)
+                sym2 = _op_sym(and_op)
+                detail += (f" | AND {and_name} = {_fmt(and_lhs)}, "
+                           f"{'✓' if and_ok else '✗'} {sym2} {_fmt(and_v)}")
+                if not and_ok:
+                    ok = False
+        except Exception as e:
+            detail += f' | AND condition error: {e}'
+
+    return ok, detail
+
+
+def eval_metric(cfg, api_key, base_url, symbol):
+    """Returns True/False or None (skip step) if data/metric unavailable."""
+    ok, _ = eval_metric_verbose(cfg, api_key, base_url, symbol)
+    return ok
 
 
 # ── Action executors ─────────────────────────────────────────────────────────
@@ -1222,13 +1359,13 @@ def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
                 stopped = True
 
         elif stype == 'metric':
-            ok = eval_metric(scfg, api_key, base_url, primary_symbol)
+            ok, detail = eval_metric_verbose(scfg, api_key, base_url, primary_symbol)
             if ok is None:
                 results.append({
                     'type': 'metric',
                     'label': slabel or f"Metric: {scfg.get('metric')}",
                     'result': None,
-                    'message': 'Could not evaluate — data unavailable'
+                    'message': detail or 'Could not evaluate — data unavailable'
                 })
                 stopped = True
             else:
@@ -1236,7 +1373,7 @@ def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
                     'type': 'metric',
                     'label': slabel or f"Metric: {scfg.get('metric')}",
                     'result': bool(ok),
-                    'message': 'Condition met' if ok else 'Condition not met'
+                    'message': detail or ('Condition met' if ok else 'Condition not met')
                 })
                 if not ok:
                     stopped = True

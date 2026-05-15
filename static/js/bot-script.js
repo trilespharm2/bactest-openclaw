@@ -1279,9 +1279,13 @@ async function stratBuilderSave() {
   }
 }
 
-// ── Run Test (stub) ────────────────────────────────────────────────
+// ── Run Test ────────────────────────────────────────────────────────
 function stratRunTest() {
-  alert('Run Test: simulates the strategy against recent market data. (Coming soon)');
+  if (!_sbEditId) {
+    alert('Save the strategy first before running a test.');
+    return;
+  }
+  openTestModal(_sbEditId);
 }
 
 
