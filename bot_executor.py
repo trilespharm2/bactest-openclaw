@@ -1615,7 +1615,11 @@ def execute_all_live_strategies(app):
                     try:
                         steps = json.loads(strat.steps or '[]')
                         fired, log_lines = execute_strategy(
-                            cfg, {'steps': steps}, app)
+                            cfg, {
+                                'steps':         steps,
+                                'allocation':    strat.allocation,
+                                'max_positions': strat.max_positions,
+                            }, app)
                         logger.info(f"  fired={fired} | {' | '.join(log_lines)}")
                     except Exception as e:
                         logger.error(f"Strategy '{strat.name}' execution error: {e}")
