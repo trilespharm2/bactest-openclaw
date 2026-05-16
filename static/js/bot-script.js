@@ -1337,7 +1337,7 @@ function sbDefaultConfig(type) {
     strikeDirection:'auto', strikeFallback:'closest',
     spreadWidth:5, callWidth:5, putWidth:5,
     leg2StrikeMethod:'spread_width', leg2StrikeValue:'', leg2Direction:'below',
-    takeProfitPct:null, stopLossPct:null, quantity:1, orderType:'credit', limitPrice:0, tag:'' };
+    takeProfitPct:null, stopLossPct:null, quantity:1, orderType:'credit', limitPriceMin:0, limitPriceMax:0, tag:'' };
   if (type === 'condition')      return { conditionType:'position_count', tag:'', operator:'<', value:1 };
   if (type === 'close_position') return { target:'all', tag:'' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
@@ -1821,7 +1821,8 @@ function stratSaveStepConfig() {
     c.stopLossPct   = isNaN(_slRaw) ? null : _slRaw;
     c.quantity      = parseInt(document.getElementById('sbcQty')?.value) || 1;
     c.orderType     = document.getElementById('sbcOrderType')?.value || 'credit';
-    c.limitPrice    = parseFloat(document.getElementById('sbcLimitPrice')?.value) || 0;
+    c.limitPriceMin = parseFloat(document.getElementById('sbcLimitMin')?.value) || 0;
+    c.limitPriceMax = parseFloat(document.getElementById('sbcLimitMax')?.value) || 0;
     c.tag           = (document.getElementById('sbcTag')?.value || '').trim();
   } else if (step.type === 'close_position') {
     c.target = document.getElementById('sbcTarget')?.value || 'all';
@@ -2003,7 +2004,10 @@ function sbStrategyChange() {
     if (!opts.includes(otSel.value)) otSel.value = opts[0];
   }
   const _curOt = document.getElementById('sbcOrderType')?.value || 'market';
-  _show('sbcLimitPriceRow', (isEquity && _curOt === 'limit') || (!isEquity && ['credit','debit'].includes(_curOt)));
+  const _showPf = (isEquity && _curOt === 'limit') || (!isEquity && ['credit','debit'].includes(_curOt));
+  _show('sbcLimitMinRow', _showPf);
+  _show('sbcLimitMaxRow', _showPf && !isEquity);
+  _sbUpdatePriceLabels(_curOt, isEquity);
 
   // Update the "Strike Selection" label to mention short legs for iron
   const sl = document.getElementById('sbcStrikeRowLabel');
@@ -2026,15 +2030,28 @@ function sbLeg2MethodChange() {
   if (lbl) lbl.textContent = labels[m2] || 'Value';
 }
 
+function _sbUpdatePriceLabels(ot, isEquity) {
+  const minLbl = document.getElementById('sbcLimitMinLabel');
+  const maxLbl = document.getElementById('sbcLimitMaxLabel');
+  const isCredit = ot === 'credit';
+  if (minLbl) {
+    const base = isEquity ? 'Limit Price ($)' : (isCredit ? 'Min Credit Received ($)' : 'Min Debit Paid ($)');
+    minLbl.innerHTML = base + ' <span style="color:#94a3b8;font-weight:400;">(optional — 0 = auto mid)</span>';
+  }
+  if (maxLbl) {
+    const base = isCredit ? 'Max Credit Received ($)' : 'Max Debit Paid ($)';
+    maxLbl.innerHTML = base + ' <span style="color:#94a3b8;font-weight:400;">(optional — 0 = no limit)</span>';
+  }
+}
+
 function sbOrderTypeChange() {
   const s        = document.getElementById('sbcStrategy')?.value || '';
   const ot       = document.getElementById('sbcOrderType')?.value || 'market';
   const isEquity = _OP_EQUITY.includes(s);
-  const showLimit = (isEquity && ot === 'limit') || (!isEquity && ['credit','debit'].includes(ot));
-  _show('sbcLimitPriceRow', showLimit);
-  const lbl = document.getElementById('sbcLimitPriceLabel');
-  if (lbl) lbl.textContent = isEquity ? 'Limit Price'
-    : (ot === 'credit' ? 'Min Credit Received ($ — 0 = auto)' : 'Max Debit Paid ($ — 0 = auto)');
+  const showPf   = (isEquity && ot === 'limit') || (!isEquity && ['credit','debit'].includes(ot));
+  _show('sbcLimitMinRow', showPf);
+  _show('sbcLimitMaxRow', showPf && !isEquity);
+  _sbUpdatePriceLabels(ot, isEquity);
 }
 
 function sbStrikeMethodChange() {
@@ -2320,6 +2337,10 @@ function sbStepConfigHTML(step) {
     const otOpts = otList
       .map(t => `<option value="${t}" ${c.orderType===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`)
       .join('');
+    const isCredit      = c.orderType === 'credit';
+    const showPriceFilter = (isEquity && c.orderType === 'limit') || (!isEquity && ['credit','debit'].includes(c.orderType));
+    const _minLbl = isEquity ? 'Limit Price ($)' : (isCredit ? 'Min Credit Received ($)' : 'Min Debit Paid ($)');
+    const _maxLbl = isCredit ? 'Max Credit Received ($)' : 'Max Debit Paid ($)';
 
     const showStrikeVal  = !isStraddle && sm !== 'atm';
     const _smLbl = { pct_underlying:'% Distance from Underlying', dollar_underlying:'$ Distance from Underlying',
@@ -2489,10 +2510,14 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-label">Order Type</div>
         <select id="sbcOrderType" class="sb-form-select" onchange="sbOrderTypeChange()">${otOpts}</select>
       </div>
-      <!-- Limit Price (equity+limit OR options+credit/debit) -->
-      <div class="sb-form-row" id="sbcLimitPriceRow" style="${(isEquity && c.orderType==='limit') || (!isEquity && ['credit','debit'].includes(c.orderType)) ? '' : 'display:none'}">
-        <div class="sb-form-label" id="sbcLimitPriceLabel">${isEquity ? 'Limit Price' : (c.orderType === 'credit' ? 'Min Credit Received ($ — 0 = auto)' : 'Max Debit Paid ($ — 0 = auto)')}</div>
-        <input id="sbcLimitPrice" class="sb-form-input" type="number" step="0.01" min="0" value="${c.limitPrice ?? ''}" placeholder="0.00 (auto mid-price)">
+      <!-- Price range filter: Min + Max -->
+      <div class="sb-form-row" id="sbcLimitMinRow" style="${showPriceFilter ? '' : 'display:none'}">
+        <div class="sb-form-label" id="sbcLimitMinLabel">${_minLbl} <span style="color:#94a3b8;font-weight:400;">(optional — 0 = auto mid)</span></div>
+        <input id="sbcLimitMin" class="sb-form-input" type="number" step="0.01" min="0" value="${c.limitPriceMin || ''}" placeholder="0.00">
+      </div>
+      <div class="sb-form-row" id="sbcLimitMaxRow" style="${showPriceFilter && !isEquity ? '' : 'display:none'}">
+        <div class="sb-form-label" id="sbcLimitMaxLabel">${_maxLbl} <span style="color:#94a3b8;font-weight:400;">(optional — 0 = no limit)</span></div>
+        <input id="sbcLimitMax" class="sb-form-input" type="number" step="0.01" min="0" value="${c.limitPriceMax || ''}" placeholder="0.00">
       </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Tag — position label (optional)</div>

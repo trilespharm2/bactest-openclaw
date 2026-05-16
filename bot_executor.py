@@ -987,6 +987,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     strike_value     = cfg.get('strikeValue', '')
     strike_direction = cfg.get('strikeDirection', 'auto')  # 'auto'|'above'|'below'
     strike_fallback  = cfg.get('strikeFallback', 'closest')  # 'closest'|'skip'
+    # Price range filter (backward-compat: old limitPrice maps to min for credit, max for debit)
+    _old_lp          = float(cfg.get('limitPrice') or 0)
+    limit_price_min  = float(cfg.get('limitPriceMin') or (_old_lp if _old_lp else 0))
+    limit_price_max  = float(cfg.get('limitPriceMax') or 0)
     spread_width  = float(cfg.get('spreadWidth', 5))
     l2_method     = cfg.get('leg2StrikeMethod', 'spread_width')
     l2_value      = cfg.get('leg2StrikeValue',  '')
@@ -1153,6 +1157,24 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     def _mid(opt):
         return round((float(opt.get('bid', 0) or 0) + float(opt.get('ask', 0) or 0)) / 2, 2)
 
+    def _check_price_range(net, is_credit_trade):
+        """Return (ok, msg). Checks net price against configured min/max range."""
+        if is_credit_trade:
+            if limit_price_min > 0 and net < limit_price_min:
+                return False, f"Net credit ${net:.2f} below minimum ${limit_price_min:.2f} — skipping"
+            if limit_price_max > 0 and net > limit_price_max:
+                return False, f"Net credit ${net:.2f} above maximum ${limit_price_max:.2f} — skipping"
+        else:
+            if limit_price_max > 0 and net > limit_price_max:
+                return False, f"Net debit ${net:.2f} exceeds maximum ${limit_price_max:.2f} — skipping"
+            if limit_price_min > 0 and net < limit_price_min:
+                return False, f"Net debit ${net:.2f} below minimum ${limit_price_min:.2f} — skipping"
+        return True, ''
+
+    def _limit_order_price(is_credit_trade):
+        """Return the limit price to submit, or 0 to use mid."""
+        return limit_price_min if is_credit_trade else limit_price_max
+
     def _place(order_data):
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
@@ -1175,16 +1197,21 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 
     # ── SINGLE-LEG ───────────────────────────────────────────────────
     single_map = {
-        'Long Call':        (calls, 'buy_to_open'),
-        'Long Put':         (puts,  'buy_to_open'),
-        'Naked Short Call': (calls, 'sell_to_open'),
-        'Short Put':        (puts,  'sell_to_open'),
+        'Long Call':        (calls, 'buy_to_open',  False),
+        'Long Put':         (puts,  'buy_to_open',  False),
+        'Naked Short Call': (calls, 'sell_to_open', True),
+        'Short Put':        (puts,  'sell_to_open', True),
     }
     if strategy in single_map:
-        pool, side = single_map[strategy]
+        pool, side, is_credit_sl = single_map[strategy]
         opt = _pick(pool)
         if not opt or not opt.get('symbol'):
             return False, f"No options found for {strategy}"
+        net_sl = _mid(opt)
+        ok, msg = _check_price_range(net_sl, is_credit_sl)
+        if not ok:
+            return False, msg
+        lp_sl = _limit_order_price(is_credit_sl)
         order = {
             'class': 'option', 'symbol': symbol,
             'option_symbol': opt['symbol'], 'side': side,
@@ -1193,7 +1220,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             'duration': 'day',
         }
         if otype == 'limit':
-            order['price'] = str(_mid(opt))
+            order['price'] = str(lp_sl) if lp_sl > 0 else str(net_sl)
         return _place(order)
 
     # ── VERTICAL SPREADS ─────────────────────────────────────────────
@@ -1204,17 +1231,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             return False, "Option symbols missing for spread legs"
         net = max(0.01, round(abs(_mid(short_opt) - _mid(long_opt)), 2))
 
-        # Min credit / max debit filter: reject trade before placing if the
-        # natural mid price doesn't meet the configured minimum.
-        limit_price = float(cfg.get('limitPrice', 0) or 0)
-        if limit_price > 0 and otype == 'credit' and is_credit and net < limit_price:
-            return False, (
-                f"Net credit ${net:.2f} is below minimum ${limit_price:.2f} — skipping"
-            )
-        if limit_price > 0 and otype == 'debit' and not is_credit and net > limit_price:
-            return False, (
-                f"Net debit ${net:.2f} exceeds maximum ${limit_price:.2f} — skipping"
-            )
+        # Price range filter
+        ok, msg = _check_price_range(net, is_credit)
+        if not ok:
+            return False, msg
 
         # Allocation check: capital at risk = width*qty*100 - credit (for credit spreads)
         #                                    = debit*qty*100            (for debit spreads)
@@ -1241,8 +1261,8 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'credit' if is_credit else 'debit'
-            limit_price = float(cfg.get('limitPrice', 0) or 0)
-            order['price'] = str(limit_price) if limit_price > 0 else str(net)
+            lp = _limit_order_price(is_credit)
+            order['price'] = str(lp) if lp > 0 else str(net)
         return _place(order)
 
     if strategy == 'Short Put Spread':
@@ -1287,16 +1307,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             return False, "Could not resolve all four legs"
         net = max(0.01, round((_mid(sp) + _mid(sc)) - (_mid(lp) + _mid(lc)), 2))
 
-        # Min credit / max debit filter for iron structures
-        _iron_limit = float(cfg.get('limitPrice', 0) or 0)
-        if _iron_limit > 0 and otype == 'credit' and is_short and net < _iron_limit:
-            return False, (
-                f"Net credit ${net:.2f} is below minimum ${_iron_limit:.2f} — skipping"
-            )
-        if _iron_limit > 0 and otype == 'debit' and not is_short and net > _iron_limit:
-            return False, (
-                f"Net debit ${net:.2f} exceeds maximum ${_iron_limit:.2f} — skipping"
-            )
+        # Price range filter for iron structures
+        ok, msg = _check_price_range(net, is_short)
+        if not ok:
+            return False, msg
 
         # Allocation check: max loss = max(put_width, call_width)*qty*100 - credit
         if _alloc > 0 and _cached_positions is not None:
@@ -1321,8 +1335,8 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         }
         if otype in ('limit', 'credit', 'debit'):
             order['type'] = 'credit' if is_short else 'debit'
-            limit_price = float(cfg.get('limitPrice', 0) or 0)
-            order['price'] = str(limit_price) if limit_price > 0 else str(net)
+            lp = _limit_order_price(is_short)
+            order['price'] = str(lp) if lp > 0 else str(net)
         return _place(order)
 
     # ── Straddle / Strangle ───────────────────────────────────────────
@@ -1331,21 +1345,51 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         sc = _atm(calls)
         if not sp or not sc or not sp.get('symbol') or not sc.get('symbol'):
             return False, "Could not find ATM options for straddle"
+        is_credit_st = (strategy == 'Short Straddle')
         net = max(0.01, round(_mid(sp) + _mid(sc), 2))
+        ok, msg = _check_price_range(net, is_credit_st)
+        if not ok:
+            return False, msg
         order = {
             'class': 'multileg', 'symbol': symbol, 'duration': 'day',
             'type': 'market',
             'option_symbol[0]': sp['symbol'],
-            'side[0]': 'buy_to_open' if strategy == 'Long Straddle' else 'sell_to_open',
+            'side[0]': 'sell_to_open' if is_credit_st else 'buy_to_open',
             'quantity[0]': str(qty),
             'option_symbol[1]': sc['symbol'],
-            'side[1]': 'buy_to_open' if strategy == 'Long Straddle' else 'sell_to_open',
+            'side[1]': 'sell_to_open' if is_credit_st else 'buy_to_open',
             'quantity[1]': str(qty),
         }
         if otype in ('limit', 'credit', 'debit'):
-            order['type'] = 'credit' if strategy == 'Short Straddle' else 'debit'
-            limit_price = float(cfg.get('limitPrice', 0) or 0)
-            order['price'] = str(limit_price) if limit_price > 0 else str(net)
+            order['type'] = 'credit' if is_credit_st else 'debit'
+            lp = _limit_order_price(is_credit_st)
+            order['price'] = str(lp) if lp > 0 else str(net)
+        return _place(order)
+
+    # ── Strangle ─────────────────────────────────────────────────────
+    if strategy in ('Long Strangle', 'Short Strangle'):
+        is_credit_sg = (strategy == 'Short Strangle')
+        put_side  = 'sell_to_open' if is_credit_sg else 'buy_to_open'
+        call_side = 'sell_to_open' if is_credit_sg else 'buy_to_open'
+        # Short put + short call (or long put + long call) both OTM by spread_width
+        sg_put  = _by_strike(puts,  underlying - spread_width)
+        sg_call = _by_strike(calls, underlying + spread_width)
+        if not sg_put or not sg_call or not sg_put.get('symbol') or not sg_call.get('symbol'):
+            return False, "Could not find OTM options for strangle"
+        net_sg = max(0.01, round(_mid(sg_put) + _mid(sg_call), 2))
+        ok, msg = _check_price_range(net_sg, is_credit_sg)
+        if not ok:
+            return False, msg
+        order = {
+            'class': 'multileg', 'symbol': symbol, 'duration': 'day',
+            'type': 'market',
+            'option_symbol[0]': sg_put['symbol'],  'side[0]': put_side,  'quantity[0]': str(qty),
+            'option_symbol[1]': sg_call['symbol'], 'side[1]': call_side, 'quantity[1]': str(qty),
+        }
+        if otype in ('limit', 'credit', 'debit'):
+            order['type'] = 'credit' if is_credit_sg else 'debit'
+            lp = _limit_order_price(is_credit_sg)
+            order['price'] = str(lp) if lp > 0 else str(net_sg)
         return _place(order)
 
     if strategy in ('Calendar Call Spread', 'Calendar Put Spread',
@@ -1366,7 +1410,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             'duration': 'day',
         }
         if etype == 'limit':
-            limit_price = float(cfg.get('limitPrice', 0) or 0)
+            limit_price = limit_price_min or 0
             if not limit_price:
                 q = _tradier(api_key, base_url, '/markets/quotes',
                              params={'symbols': symbol, 'greeks': 'false'})
