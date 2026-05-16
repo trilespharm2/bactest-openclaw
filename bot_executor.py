@@ -1693,6 +1693,24 @@ def _exec_steps_test(steps, tctx):
                         strike_method = scfg.get('strikeMethod', 'atm')
                         strike_value  = scfg.get('strikeValue', '')
                         opt_type      = scfg.get('optType', 'call').lower()
+                        sw            = float(scfg.get('spreadWidth') or 5)
+                        otype_cfg     = scfg.get('orderType', 'market')
+                        lp_min        = float(scfg.get('limitPriceMin') or scfg.get('limitPrice') or 0)
+                        lp_max        = float(scfg.get('limitPriceMax') or 0)
+
+                        # Strategy classification
+                        strat_low = strategy.lower()
+                        _CREDIT_STRATS = ('short call spread', 'short put spread',
+                                          'short iron condor', 'short iron butterfly',
+                                          'short straddle', 'short strangle',
+                                          'naked short call', 'naked short put')
+                        is_credit_strat = any(s in strat_low for s in _CREDIT_STRATS)
+                        is_vertical     = 'spread' in strat_low and 'iron' not in strat_low
+
+                        def _opt_mid(o):
+                            return round((float(o.get('bid', 0) or 0) +
+                                          float(o.get('ask', 0) or 0)) / 2, 2)
+
                         exp_data = _tradier(tctx['api_key'], tctx['base_url'],
                                             '/markets/options/expirations',
                                             params={'symbol': sym, 'includeAllRoots': 'true',
@@ -1725,6 +1743,8 @@ def _exec_steps_test(steps, tctx):
                                         all_opts = [all_opts]
                                     filtered = [o for o in (all_opts or [])
                                                 if o.get('option_type') == opt_type]
+
+                                    # Find leg 1 (primary / short leg for credit strategies)
                                     best = None
                                     if strike_method == 'delta' and strike_value:
                                         try:
@@ -1746,16 +1766,56 @@ def _exec_steps_test(steps, tctx):
                                         best = min(filtered,
                                                    key=lambda o: abs(float(o.get('strike', 0)) - underlying)
                                                    ) if filtered else None
+
                                     if best:
-                                        strike = float(best.get('strike', 0))
-                                        mid    = round((float(best.get('bid', 0) or 0) +
-                                                        float(best.get('ask', 0) or 0)) / 2, 2)
-                                        delta  = (best.get('greeks') or {}).get('delta', None)
-                                        d_str  = f" δ{float(delta):.2f}" if delta else ''
+                                        strike  = float(best.get('strike', 0))
+                                        mid     = _opt_mid(best)
+                                        delta   = (best.get('greeks') or {}).get('delta', None)
+                                        d_str   = f" δ{float(delta):.2f}" if delta else ''
+
+                                        # Compute net credit/debit for spreads
+                                        net_price = mid
+                                        net_label = 'mid'
+                                        if is_vertical:
+                                            # Long leg is spread_width away from short leg
+                                            if 'call' in opt_type:
+                                                long_strike_t = strike + sw
+                                            else:
+                                                long_strike_t = strike - sw
+                                            all_same_type = [o for o in (all_opts or [])
+                                                             if o.get('option_type') == opt_type]
+                                            long_leg = min(all_same_type,
+                                                           key=lambda o: abs(float(o.get('strike', 0)) - long_strike_t)
+                                                           ) if all_same_type else None
+                                            if long_leg:
+                                                long_mid  = _opt_mid(long_leg)
+                                                net_price = round(abs(mid - long_mid), 2)
+                                                net_label = 'net credit' if is_credit_strat else 'net debit'
+
+                                        # Price range check (market orders only)
+                                        price_filter_note = ''
+                                        if otype_cfg == 'market':
+                                            if lp_min > 0 and net_price < lp_min:
+                                                price_filter_note = (
+                                                    f" | ⚠ Price filter: {net_label} ${net_price:.2f} "
+                                                    f"< min ${lp_min:.2f} — would skip."
+                                                )
+                                            elif lp_max > 0 and net_price > lp_max:
+                                                price_filter_note = (
+                                                    f" | ⚠ Price filter: {net_label} ${net_price:.2f} "
+                                                    f"> max ${lp_max:.2f} — would skip."
+                                                )
+                                            elif lp_min > 0 or lp_max > 0:
+                                                price_filter_note = (
+                                                    f" | ✓ Price filter: {net_label} ${net_price:.2f} passes."
+                                                )
+
                                         preview_msg = (
                                             f"Example: {sym} {target_exp} ${strike:.0f} "
-                                            f"{opt_type.upper()}{d_str} @ ${mid:.2f} mid "
-                                            f"(underlying ${underlying:.2f}). "
+                                            f"{opt_type.upper()}{d_str} @ ${mid:.2f} mid"
+                                            f"{(' — ' + net_label + ' $' + f'{net_price:.2f}') if is_vertical else ''} "
+                                            f"(underlying ${underlying:.2f})."
+                                            f"{price_filter_note} "
                                             f"Position skipped — test mode."
                                         )
                 except Exception as e:
