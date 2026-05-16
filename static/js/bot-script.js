@@ -1731,7 +1731,8 @@ function stratSaveStepConfig() {
     c.rightInterval = document.getElementById('sbcRightInterval')?.value || '1min';
     c.rightSeries   = document.getElementById('sbcRightSeries')?.value || 'close';
     c.rightPeriod   = parseInt(document.getElementById('sbcRightPeriod')?.value) || 20;
-    c.rightLookback = parseInt(document.getElementById('sbcRightLookback')?.value ?? '0') || 0;
+    const _rlbRaw = document.getElementById('sbcRightLookback')?.value;
+    c.rightLookback = (_rlbRaw === '' || _rlbRaw == null) ? null : (parseInt(_rlbRaw) || 0);
     c.thresholdUnit  = document.getElementById('sbcThresholdUnit')?.value || 'percent';
     c.thresholdValue = (document.getElementById('sbcThresholdValue')?.value || '').trim();
     c.andEnabled  = document.getElementById('sbcAndEnabled')?.checked || false;
@@ -1870,7 +1871,7 @@ function sbSyncMetricForm() {
   _show('sbcValueRow',           ct === 'value');
   _show('sbcRightSide',          showRight);
   _show('sbcRightDayRow',        showRight && rightIsPrice);
-  _show('sbcRightIntervalRow',   showRight && rightIsPrice && rightDay === 0);
+  _show('sbcRightIntervalRow',   showRight && rightIsPrice);
   _show('sbcRightSeriesRow',     showRight && rightIsPrice);
   _show('sbcRightPeriodRow',     showRight && rightIsIndic);
   _show('sbcRightLookbackRow',   showRight && !rightIsVwap);
@@ -2056,7 +2057,7 @@ function sbStepConfigHTML(step) {
     const rightIsPrice  = safeCt === 'compare_price';
     const rightIsIndic  = ['compare_sma','compare_ema','compare_rsi'].includes(safeCt);
     const showRightDay  = showRight && rightIsPrice;
-    const showRightIntv = showRight && rightIsPrice && rightDay === 0;
+    const showRightIntv = showRight && rightIsPrice;
     const showRightSer  = showRight && rightIsPrice;
     const showRightPer  = showRight && rightIsIndic;
 
@@ -2185,10 +2186,6 @@ function sbStepConfigHTML(step) {
           <div class="sb-form-label">Period</div>
           <input id="sbcRightPeriod" class="sb-form-input" type="number" min="1" max="500" value="${c.rightPeriod||20}">
         </div>
-        <div class="sb-form-row" id="sbcRightLookbackRow" style="${showRight && safeCt!=='compare_vwap'?'':'display:none'}">
-          <div class="sb-form-label">Restrict to N bars ago <span style="font-weight:400;color:#94a3b8;">(0 = current bar)</span></div>
-          <input id="sbcRightLookback" class="sb-form-input" type="number" min="0" max="500" value="${c.rightLookback||0}" placeholder="0">
-        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
           <div>
             <div class="sb-form-label">Threshold Unit</div>
@@ -2198,6 +2195,10 @@ function sbStepConfigHTML(step) {
             <div class="sb-form-label">Threshold Value</div>
             <input id="sbcThresholdValue" class="sb-form-input" type="number" step="0.01" placeholder="e.g. 2.5 (0 = exact)" value="${c.thresholdValue||''}">
           </div>
+        </div>
+        <div class="sb-form-row" id="sbcRightLookbackRow" style="${showRight && safeCt!=='compare_vwap'?'':'display:none'}">
+          <div class="sb-form-label">Restrict to N bars ago <span style="font-weight:400;color:#94a3b8;">(optional)</span></div>
+          <input id="sbcRightLookback" class="sb-form-input" type="number" min="0" max="500" value="${c.rightLookback != null && c.rightLookback !== 0 ? c.rightLookback : ''}" placeholder="e.g. 3">
         </div>
       </div>
 
