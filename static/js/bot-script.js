@@ -1898,6 +1898,13 @@ function sbConditionTypeChange() {
 }
 
 // ── Open Position: strategy-driven field visibility ──────────────────
+function _otListForStrategy(s) {
+  if (_OP_EQUITY.includes(s)) return ['market', 'limit'];
+  if (s.startsWith('Long'))   return ['debit', 'market'];
+  if (s.startsWith('Short') || s.startsWith('Naked Short')) return ['credit', 'market'];
+  return ['credit', 'debit', 'market']; // calendar/diagonal/double
+}
+
 const _OP_SINGLE   = ['Long Call','Long Put','Naked Short Call','Naked Short Put'];
 const _OP_VERTICAL = ['Short Put Spread','Short Call Spread','Long Call Spread','Long Put Spread'];
 const _OP_IRON     = ['Short Iron Condor','Short Iron Butterfly','Long Iron Butterfly','Long Iron Condor'];
@@ -1930,15 +1937,15 @@ function sbStrategyChange() {
   _show('sbcTpRow',          !isEquity);
   _show('sbcSlRow',          !isEquity);
 
-  // Swap order-type options between options (credit/debit/market) and equity (market/limit)
+  // Swap order-type options based on strategy direction (Long=debit, Short=credit, equity=market/limit)
   const otSel = document.getElementById('sbcOrderType');
   if (otSel) {
     const cur  = otSel.value;
-    const opts = isEquity ? ['market','limit'] : ['credit','debit','market'];
+    const opts = _otListForStrategy(s);
     otSel.innerHTML = opts.map(t =>
       `<option value="${t}" ${t===cur?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`
     ).join('');
-    if (isEquity && !['market','limit'].includes(otSel.value)) otSel.value = 'market';
+    if (!opts.includes(otSel.value)) otSel.value = opts[0];
   }
   const _curOt = document.getElementById('sbcOrderType')?.value || 'market';
   _show('sbcLimitPriceRow', (isEquity && _curOt === 'limit') || (!isEquity && ['credit','debit'].includes(_curOt)));
@@ -2242,7 +2249,7 @@ function sbStepConfigHTML(step) {
     const stratOpts = strats.map(([grp, items]) =>
       `<optgroup label="${grp}">${items.map(i => `<option value="${i}" ${s===i?'selected':''}>${i}</option>`).join('')}</optgroup>`
     ).join('');
-    const otList = isEquity ? ['market','limit'] : ['credit','debit','market'];
+    const otList = _otListForStrategy(s);
     const otOpts = otList
       .map(t => `<option value="${t}" ${c.orderType===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`)
       .join('');
@@ -2278,23 +2285,23 @@ function sbStepConfigHTML(step) {
         </div>
       </div>
 
-      <!-- DTE: standard (hidden for calendar/diagonal) -->
-      <div class="sb-form-row" id="sbcDteRow" style="${isCal?'display:none':''}">
+      <!-- DTE: standard (hidden for calendar/diagonal and equity) -->
+      <div class="sb-form-row" id="sbcDteRow" style="${isCal||isEquity?'display:none':''}">
         <div class="sb-form-label">DTE — Days to Expiration</div>
         <input id="sbcDte" class="sb-form-input" type="number" min="0" max="365" value="${c.dte??30}" placeholder="30">
       </div>
       <!-- Front/Back DTE (calendar/diagonal only) -->
-      <div class="sb-form-row" id="sbcFrontDteRow" style="${isCal?'':'display:none'}">
+      <div class="sb-form-row" id="sbcFrontDteRow" style="${isCal&&!isEquity?'':'display:none'}">
         <div class="sb-form-label">Front Leg DTE — near expiry</div>
         <input id="sbcFrontDte" class="sb-form-input" type="number" min="0" max="365" value="${c.frontDte??7}" placeholder="7">
       </div>
-      <div class="sb-form-row" id="sbcBackDteRow" style="${isCal?'':'display:none'}">
+      <div class="sb-form-row" id="sbcBackDteRow" style="${isCal&&!isEquity?'':'display:none'}">
         <div class="sb-form-label">Back Leg DTE — far expiry</div>
         <input id="sbcBackDte" class="sb-form-input" type="number" min="0" max="365" value="${c.backDte??30}" placeholder="30">
       </div>
 
-      <!-- Strike selection (hidden for straddle: always ATM) -->
-      <div class="sb-form-row" id="sbcStrikeRow" style="${isStraddle?'display:none':''}">
+      <!-- Strike selection (hidden for straddle/equity: always ATM or N/A) -->
+      <div class="sb-form-row" id="sbcStrikeRow" style="${isStraddle||isEquity?'display:none':''}">
         <div class="sb-form-label" id="sbcStrikeRowLabel">Strike Selection${isIron?' — short legs':''}</div>
         <select id="sbcStrikeMethod" class="sb-form-select" onchange="sbStrikeMethodChange()">
           <option value="atm"               ${sm==='atm'?'selected':''}>1. ATM — At the Money</option>
@@ -2305,7 +2312,7 @@ function sbStepConfigHTML(step) {
           <option value="delta"             ${sm==='delta'?'selected':''}>6. Delta-based Strike Selection</option>
         </select>
       </div>
-      <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal?'':'display:none'}">
+      <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal&&!isEquity?'':'display:none'}">
         <div class="sb-form-label" id="sbcStrikeValLabel">${strikeValLabel}</div>
         <input id="sbcStrikeValue" class="sb-form-input" type="number" step="0.01" value="${c.strikeValue||''}" placeholder="${strikeValPh}">
       </div>
