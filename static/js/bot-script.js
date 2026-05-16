@@ -1593,12 +1593,11 @@ function _sbRenderStep(step) {
     <div class="sb-branch">
       <div class="sb-branch-col">
         <div class="sb-branch-label sb-branch-yes">YES</div>
-        ${_sbRenderList(step.yesSteps || [], sid, 'yes')}
+        <div class="sb-branch-content">${_sbRenderList(step.yesSteps || [], sid, 'yes')}</div>
       </div>
-      <div class="sb-branch-sep"></div>
       <div class="sb-branch-col">
         <div class="sb-branch-label sb-branch-no">NO</div>
-        ${_sbRenderList(step.noSteps || [], sid, 'no')}
+        <div class="sb-branch-content">${_sbRenderList(step.noSteps || [], sid, 'no')}</div>
       </div>
     </div>`;
   }
