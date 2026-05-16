@@ -686,13 +686,19 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
             right_metric   = ctype.replace('compare_', '')   # 'sma', 'ema', or 'rsi'
             right_period   = int(cfg.get('rightPeriod', 20))
             right_lookback = max(int(cfg.get('rightLookback', 0) or 0), 0)
-            need = max(right_period * 3 + right_lookback, 100)
-            if bars is None:
-                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
-            if not bars:
-                return None, f'Could not fetch history for {right_metric.upper()} comparison'
+            # Use intraday bars when interval is not 'day' so EMA/SMA/RSI are
+            # computed on the same timeframe the user sees on the chart.
+            if intv != 'day':
+                rhs_bars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                if not rhs_bars:
+                    return None, f'Could not fetch intraday bars ({intv}) for {right_metric.upper()} comparison'
+            else:
+                need = max(right_period * 3 + right_lookback, 100)
+                rhs_bars = bars if bars is not None else _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                if not rhs_bars:
+                    return None, f'Could not fetch history for {right_metric.upper()} comparison'
             # Slice bars so that "bar 0" is `right_lookback` bars ago
-            bar_slice = bars[:len(bars) - right_lookback] if right_lookback > 0 else bars
+            bar_slice = rhs_bars[:len(rhs_bars) - right_lookback] if right_lookback > 0 else rhs_bars
             if not bar_slice:
                 return None, f'Not enough bars for {right_metric.upper()} lookback ({right_lookback})'
             raw_rhs = _compute_bar_metric(right_metric, right_period, bar_slice,
