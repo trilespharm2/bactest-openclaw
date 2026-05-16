@@ -714,6 +714,41 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                       f"{rhs_name} = {_fmt(raw_rhs)}"
                       + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
 
+        elif ctype in ('compare_histogram', 'compare_macd_line', 'compare_signal_line'):
+            # RHS = same MACD component computed on the same bars but shifted
+            # right_lookback bars into the past.  The UI only exposes a lookback
+            # field for these comparators (no separate period / interval).
+            right_lookback = max(int(cfg.get('rightLookback', 0) or 0), 0)
+            comp_map = {
+                'compare_histogram':  'histogram',
+                'compare_macd_line':  'macd_line',
+                'compare_signal_line': 'signal_line',
+            }
+            rhs_comp = comp_map[ctype]
+            # Reuse bars already fetched for LHS; fetch if not yet available
+            if bars is None:
+                if intv != 'day':
+                    bars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                else:
+                    need = max((macd_long + macd_signal) * 3 + right_lookback, 100)
+                    bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+            if not bars:
+                return None, 'Could not fetch bars for MACD comparison'
+            rhs_day = -right_lookback if right_lookback > 0 else 0
+            raw_rhs = _compute_bar_metric('macd', period, bars, day=rhs_day,
+                                          macd_short=macd_short, macd_long=macd_long,
+                                          macd_signal=macd_signal, macd_comp=rhs_comp)
+            if raw_rhs is None:
+                return None, f'Could not compute {rhs_comp} for MACD comparison'
+            rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
+            lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
+            rhs_name = f'MACD {rhs_comp.replace("_", " ")}{lb_sfx}'
+            ok = _compare(lhs, operator, rhs)
+            sym = _op_sym(operator)
+            detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
+                      f"{rhs_name} = {_fmt(raw_rhs)}"
+                      + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
+
         # ── Legacy comparator types (backward compat) ─────────────────────────
         elif ctype == 'indicator':
             ref_metric      = cfg.get('compareIndicator', 'ema')
