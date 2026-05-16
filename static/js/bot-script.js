@@ -1855,18 +1855,35 @@ const _SB_METRIC_COMPS = {
 const _SB_ALL_COMP_LABELS = {
   value:'Fixed Value', compare_price:'Compare Price', compare_vwap:'Compare VWAP',
   compare_sma:'Compare SMA', compare_ema:'Compare EMA', compare_rsi:'Compare RSI',
+  compare_histogram:'Compare Histogram', compare_macd_line:'Compare MACD Line',
+  compare_signal_line:'Compare Signal Line',
 };
+
+// Compute allowed comparator list for a metric. For MACD, the list depends on
+// the currently selected component (histogram / macd_line / signal_line) —
+// mirrors the options custom builder's updateMacdComparatorOptions().
+function _sbAllowedComps(metric, macdComp) {
+  if (metric === 'macd') {
+    const comp = macdComp || 'histogram';
+    const key = comp === 'macd_line'   ? 'compare_macd_line'
+              : comp === 'signal_line' ? 'compare_signal_line'
+              :                          'compare_histogram';
+    return ['value', key];
+  }
+  return _SB_METRIC_COMPS[metric] || ['value'];
+}
 
 // ── Metric step: master sync (called by all onchange handlers) ──────
 function sbSyncMetricForm() {
   const m        = document.getElementById('sbcMetric')?.value || 'price';
   const day      = parseInt(document.getElementById('sbcDay')?.value ?? '0');
   const rightDay = parseInt(document.getElementById('sbcRightDay')?.value ?? '0');
+  const macdComp = document.getElementById('sbcMacdComp')?.value || 'histogram';
 
-  // Update comparator options to match the selected metric
+  // Update comparator options to match the selected metric (and MACD component)
   const compSel = document.getElementById('sbcComparator');
   if (compSel) {
-    const allowed = _SB_METRIC_COMPS[m] || ['value'];
+    const allowed = _sbAllowedComps(m, macdComp);
     const curVal  = compSel.value;
     compSel.innerHTML = allowed.map(k =>
       `<option value="${k}" ${k===curVal?'selected':''}>${_SB_ALL_COMP_LABELS[k]||k}</option>`
@@ -2062,14 +2079,7 @@ function sbStepConfigHTML(step) {
     const _ctMig = { price:'compare_price', indicator:'compare_sma', bar_delta:'value' };
     const ct = c.comparator || _ctMig[c.compareType] || c.compareType || 'value';
     const isLiveQuote = m === 'current_price';
-    const _METRIC_COMPS = {
-      current_price: ['value','compare_price','compare_vwap','compare_sma','compare_ema'],
-      price:         ['value','compare_price','compare_vwap','compare_sma','compare_ema'],
-      sma:           ['value','compare_price','compare_sma','compare_ema'],
-      ema:           ['value','compare_price','compare_sma','compare_ema'],
-      rsi:           ['value','compare_rsi'],
-    };
-    const allowedCts = _METRIC_COMPS[m] || ['value'];
+    const allowedCts = _sbAllowedComps(m, c.macdComponent || 'histogram');
     const safeCt = allowedCts.includes(ct) ? ct : 'value';
 
     const rightDay  = c.rightDay ?? 0;
@@ -2174,7 +2184,7 @@ function sbStepConfigHTML(step) {
       </div>
       <div class="sb-form-row" id="sbcMacdCompRow" style="${showMacd?'':'display:none'}">
         <div class="sb-form-label">Component</div>
-        ${_sel('sbcMacdComp', c.macdComponent||'histogram', [['histogram','Histogram'],['macd_line','MACD Line'],['signal_line','Signal Line']])}
+        ${_sel('sbcMacdComp', c.macdComponent||'histogram', [['histogram','Histogram'],['macd_line','MACD Line'],['signal_line','Signal Line']], 'onchange="sbSyncMetricForm()"')}
       </div>
       <div class="sb-form-row" id="sbcOptTypeRow" style="${showOpts?'':'display:none'}">
         <div class="sb-form-label">Option Type</div>
