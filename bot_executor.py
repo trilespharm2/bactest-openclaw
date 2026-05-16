@@ -263,13 +263,25 @@ def _ind_ema(closes, period):
 
 
 def _ind_rsi(closes, period=14):
+    """Wilder's smoothed RSI — matches the options backtester and TradingView.
+
+    Uses an SMA seed of the first `period` gains/losses, then applies Wilder's
+    recursive smoothing across the entire remaining series. Computing RSI from
+    only the last `period` diffs (simple average) is incorrect and produces
+    values that diverge significantly from TradingView's RSI(14).
+    """
     if len(closes) < period + 1:
         return None
-    diffs = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-    gains  = [max(d, 0) for d in diffs[-period:]]
-    losses = [max(-d, 0) for d in diffs[-period:]]
-    avg_g  = sum(gains)  / period
-    avg_l  = sum(losses) / period
+    diffs  = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains  = [max(d, 0.0)  for d in diffs]
+    losses = [max(-d, 0.0) for d in diffs]
+    # Seed with simple average of first `period` values
+    avg_g = sum(gains[:period])  / period
+    avg_l = sum(losses[:period]) / period
+    # Wilder's smoothing across the rest of the series
+    for i in range(period, len(gains)):
+        avg_g = (avg_g * (period - 1) + gains[i])  / period
+        avg_l = (avg_l * (period - 1) + losses[i]) / period
     if avg_l == 0:
         return 100.0
     return 100 - 100 / (1 + avg_g / avg_l)
