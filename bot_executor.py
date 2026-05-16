@@ -207,16 +207,31 @@ def _fetch_daily_history(symbol, api_key, base_url, bars=200):
 
 
 def _fetch_intraday_bars(symbol, interval, api_key, base_url,
-                         window_from='', window_to=''):
-    """Return today's intraday OHLCV bars (list, newest last), optionally
-    clipped to a HH:MM–HH:MM window."""
+                         window_from='', window_to='', days_back=0):
+    """Return intraday OHLCV bars (list, oldest first), optionally
+    clipped to a HH:MM–HH:MM window.
+
+    days_back=0 → today only (original behaviour).
+    days_back=N → start N calendar days ago for warmup (used by RSI/SMA/EMA
+                  so Wilder's smoothing has enough history to converge).
+    """
+    import datetime
     now_et = _now_et()
-    today  = str(now_et.date())
-    start  = f"{today} {window_from}" if window_from else f"{today} 09:30"
-    end    = f"{today} {window_to}"   if window_to   else now_et.strftime('%Y-%m-%d %H:%M')
+    today  = now_et.date()
 
     intv_map = {'1min': '1min', '5min': '5min', '15min': '15min'}
     tradier_intv = intv_map.get(interval, '1min')
+
+    if days_back > 0:
+        start_date = today - datetime.timedelta(days=days_back)
+        start = f"{start_date} 09:30"
+    else:
+        start = f"{today} {window_from}" if window_from else f"{today} 09:30"
+
+    if days_back > 0:
+        end = now_et.strftime('%Y-%m-%d %H:%M')
+    else:
+        end = f"{today} {window_to}" if window_to else now_et.strftime('%Y-%m-%d %H:%M')
 
     data = _tradier(api_key, base_url, '/markets/timesales',
                     params={'symbol': symbol, 'interval': tradier_intv,
@@ -480,6 +495,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
     cv          = cfg.get('value', '')
     period      = int(cfg.get('period') or 14)
     day         = int(cfg.get('day') or 0)
+    intv        = cfg.get('interval', '1min')
     series      = cfg.get('series', 'close')
     macd_short  = int(cfg.get('macdShort')  or 12)
     macd_long   = int(cfg.get('macdLong')   or 26)
@@ -540,11 +556,23 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
             if lhs is None:
                 return None, f'Could not fetch {lhs_name} data'
         else:
-            need = max(period * 3, (macd_long + macd_signal) * 3, 100)
-            bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
-            if not bars:
-                return None, 'Could not fetch daily price history'
-            lhs = _cbm(bars, d=day)
+            # Metrics that only make sense on daily bars regardless of interval
+            _DAILY_ONLY = ('gap_pct', 'change_pct')
+            use_intraday = (intv != 'day') and (metric not in _DAILY_ONLY)
+
+            if use_intraday:
+                # Fetch several days of intraday history so Wilder's smoothing
+                # has enough warm-up bars to converge (matches TradingView behaviour).
+                bars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                if not bars:
+                    return None, f'Could not fetch intraday bars ({intv}) for {lhs_name}'
+                lhs = _cbm(bars, d=0)   # day offset doesn't apply to intraday
+            else:
+                need = max(period * 3, (macd_long + macd_signal) * 3, 100)
+                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                if not bars:
+                    return None, 'Could not fetch daily price history'
+                lhs = _cbm(bars, d=day)
             if lhs is None:
                 return None, f'Could not compute {lhs_name}'
     except Exception as e:
