@@ -1556,8 +1556,12 @@ function _sbRenderList(steps, parentId, branch) {
   let html = `<button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',0)" title="Add step">+</button>`;
   (steps || []).forEach((step, idx) => {
     html += _sbRenderStep(step);
-    html += `<div class="sb-connector"><div class="sb-connector-line"></div></div>
-      <button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',${idx + 1})" title="Add step">+</button>`;
+    // After a branching step (condition/time/metric) the ONLY continuation
+    // is the YES or NO sub-path — no sibling steps can follow at this level.
+    if (!SB_BRANCHING.includes(step.type)) {
+      html += `<div class="sb-connector"><div class="sb-connector-line"></div></div>
+        <button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',${idx + 1})" title="Add step">+</button>`;
+    }
   });
   return html;
 }
