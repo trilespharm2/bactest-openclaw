@@ -1158,7 +1158,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return round((float(opt.get('bid', 0) or 0) + float(opt.get('ask', 0) or 0)) / 2, 2)
 
     def _check_price_range(net, is_credit_trade):
-        """Return (ok, msg). Checks net price against configured min/max range."""
+        """Return (ok, msg). Range filter is only active for market orders;
+        credit/debit order types are already limit orders — no pre-filter needed."""
+        if otype != 'market':
+            return True, ''
         if is_credit_trade:
             if limit_price_min > 0 and net < limit_price_min:
                 return False, f"Net credit ${net:.2f} below minimum ${limit_price_min:.2f} — skipping"
