@@ -983,8 +983,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     dte           = int(cfg.get('dte', 30))
     qty           = int(cfg.get('quantity', 1))
     otype         = cfg.get('orderType', 'market')
-    strike_method = cfg.get('strikeMethod', 'atm')
-    strike_value  = cfg.get('strikeValue', '')
+    strike_method    = cfg.get('strikeMethod', 'atm')
+    strike_value     = cfg.get('strikeValue', '')
+    strike_direction = cfg.get('strikeDirection', 'auto')  # 'auto'|'above'|'below'
+    strike_fallback  = cfg.get('strikeFallback', 'closest')  # 'closest'|'skip'
     spread_width  = float(cfg.get('spreadWidth', 5))
     l2_method     = cfg.get('leg2StrikeMethod', 'spread_width')
     l2_value      = cfg.get('leg2StrikeValue',  '')
@@ -1070,29 +1072,49 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     def _by_delta(options, target_abs):
         return min(options, key=lambda o: abs(abs(float((o.get('greeks') or {}).get('delta', 0) or 0)) - target_abs)) if options else None
 
+    def _resolve_dir(options, explicit_dir):
+        """Return True if target should be above underlying, False if below.
+        'auto' derives direction from option type (puts→below, calls→above)."""
+        if explicit_dir == 'above':
+            return True
+        if explicit_dir == 'below':
+            return False
+        # auto: derive from the option type of the first option in the pool
+        return (options[0].get('option_type', 'put') if options else 'put') == 'call'
+
+    def _pick_with_fallback(options, target):
+        opt = _by_strike(options, target)
+        if strike_fallback == 'skip' and opt:
+            found = float(opt.get('strike', 0))
+            # Skip if closest strike is more than $2 or 0.5% away from target
+            tolerance = max(2.0, abs(target) * 0.005)
+            if abs(found - target) > tolerance:
+                return None
+        return opt
+
     def _pick(options):
         try:
             if strike_method == 'delta' and strike_value:
                 return _by_delta(options, abs(float(strike_value)))
             if strike_method in ('strike', 'fixed_strike') and strike_value:
-                return _by_strike(options, float(strike_value))
+                return _pick_with_fallback(options, float(strike_value))
             if strike_method == 'dollar_underlying' and strike_value:
-                dist = float(strike_value)
-                # For puts: OTM = below; for calls: OTM = above
-                # Use the option type of the first element to determine default direction
-                otype = (options[0].get('option_type', 'put') if options else 'put')
-                target = underlying - dist if otype == 'put' else underlying + dist
-                return _by_strike(options, target)
+                dist  = float(strike_value)
+                above = _resolve_dir(options, strike_direction)
+                target = underlying + dist if above else underlying - dist
+                return _pick_with_fallback(options, target)
             if strike_method == 'pct_underlying' and strike_value:
-                pct = float(strike_value) / 100
-                otype = (options[0].get('option_type', 'put') if options else 'put')
-                target = underlying * (1 - pct) if otype == 'put' else underlying * (1 + pct)
-                return _by_strike(options, target)
+                pct   = float(strike_value) / 100
+                above = _resolve_dir(options, strike_direction)
+                target = underlying * (1 + pct) if above else underlying * (1 - pct)
+                return _pick_with_fallback(options, target)
             if strike_method in ('dollar_leg', 'pct_leg') and strike_value:
                 # Leg-relative not meaningful for Leg 1 — fall through to ATM
                 pass
         except Exception as e:
             logger.warning(f"_pick({strike_method}): {e}")
+        if strike_fallback == 'skip':
+            return None
         return _atm(options)
 
     def _pick_leg2(options, leg1_opt, default_below=True):
@@ -1182,6 +1204,18 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             return False, "Option symbols missing for spread legs"
         net = max(0.01, round(abs(_mid(short_opt) - _mid(long_opt)), 2))
 
+        # Min credit / max debit filter: reject trade before placing if the
+        # natural mid price doesn't meet the configured minimum.
+        limit_price = float(cfg.get('limitPrice', 0) or 0)
+        if limit_price > 0 and otype == 'credit' and is_credit and net < limit_price:
+            return False, (
+                f"Net credit ${net:.2f} is below minimum ${limit_price:.2f} — skipping"
+            )
+        if limit_price > 0 and otype == 'debit' and not is_credit and net > limit_price:
+            return False, (
+                f"Net debit ${net:.2f} exceeds maximum ${limit_price:.2f} — skipping"
+            )
+
         # Allocation check: capital at risk = width*qty*100 - credit (for credit spreads)
         #                                    = debit*qty*100            (for debit spreads)
         if _alloc > 0 and _cached_positions is not None:
@@ -1252,6 +1286,17 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         if not all(o and o.get('symbol') for o in [sp, sc, lp, lc]):
             return False, "Could not resolve all four legs"
         net = max(0.01, round((_mid(sp) + _mid(sc)) - (_mid(lp) + _mid(lc)), 2))
+
+        # Min credit / max debit filter for iron structures
+        _iron_limit = float(cfg.get('limitPrice', 0) or 0)
+        if _iron_limit > 0 and otype == 'credit' and is_short and net < _iron_limit:
+            return False, (
+                f"Net credit ${net:.2f} is below minimum ${_iron_limit:.2f} — skipping"
+            )
+        if _iron_limit > 0 and otype == 'debit' and not is_short and net > _iron_limit:
+            return False, (
+                f"Net debit ${net:.2f} exceeds maximum ${_iron_limit:.2f} — skipping"
+            )
 
         # Allocation check: max loss = max(put_width, call_width)*qty*100 - credit
         if _alloc > 0 and _cached_positions is not None:

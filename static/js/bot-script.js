@@ -1334,9 +1334,10 @@ function sbDefaultConfig(type) {
     label:'' };
   if (type === 'open_position')  return { symbol:'', strategy:'Short Put Spread', dte:30,
     frontDte:7, backDte:30, strikeMethod:'atm', strikeValue:'',
+    strikeDirection:'auto', strikeFallback:'closest',
     spreadWidth:5, callWidth:5, putWidth:5,
     leg2StrikeMethod:'spread_width', leg2StrikeValue:'', leg2Direction:'below',
-    takeProfitPct:50, stopLossPct:200, quantity:1, orderType:'credit', limitPrice:0, tag:'' };
+    takeProfitPct:null, stopLossPct:null, quantity:1, orderType:'credit', limitPrice:0, tag:'' };
   if (type === 'condition')      return { conditionType:'position_count', tag:'', operator:'<', value:1 };
   if (type === 'close_position') return { target:'all', tag:'' };
   if (type === 'notification')   return { message:'Strategy triggered', channel:'email' };
@@ -1812,8 +1813,12 @@ function stratSaveStepConfig() {
     }
     c.callWidth     = parseFloat(document.getElementById('sbcCallWidth')?.value) || 5;
     c.putWidth      = parseFloat(document.getElementById('sbcPutWidth')?.value) || 5;
-    c.takeProfitPct = parseFloat(document.getElementById('sbcTakeProfitPct')?.value) || 50;
-    c.stopLossPct   = parseFloat(document.getElementById('sbcStopLossPct')?.value) || 200;
+    c.strikeDirection = document.getElementById('sbcStrikeDirection')?.value || 'auto';
+    c.strikeFallback  = document.getElementById('sbcStrikeFallback')?.value  || 'closest';
+    const _tpRaw = parseFloat(document.getElementById('sbcTakeProfitPct')?.value);
+    c.takeProfitPct = isNaN(_tpRaw) ? null : _tpRaw;
+    const _slRaw = parseFloat(document.getElementById('sbcStopLossPct')?.value);
+    c.stopLossPct   = isNaN(_slRaw) ? null : _slRaw;
     c.quantity      = parseInt(document.getElementById('sbcQty')?.value) || 1;
     c.orderType     = document.getElementById('sbcOrderType')?.value || 'credit';
     c.limitPrice    = parseFloat(document.getElementById('sbcLimitPrice')?.value) || 0;
@@ -1976,6 +1981,9 @@ function sbStrategyChange() {
   _show('sbcBackDteRow',     isCal && !isEquity);
   _show('sbcStrikeRow',      !isStraddle && !isEquity);
   _show('sbcStrikeValRow',   !isStraddle && !isEquity && sm !== 'atm');
+  const _sdirM = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg'];
+  _show('sbcStrikeDirRow',   !isStraddle && !isEquity && sm !== 'atm' && _sdirM.includes(sm));
+  _show('sbcStrikeFbRow',    !isStraddle && !isEquity && sm !== 'atm');
   _show('sbcSpreadWidthRow', isStrangle && !isEquity);
   _show('sbcLeg2Section',   isVertical && !isEquity);
   if (isVertical) sbLeg2MethodChange();
@@ -2032,7 +2040,13 @@ function sbOrderTypeChange() {
 function sbStrikeMethodChange() {
   const sm = document.getElementById('sbcStrikeMethod')?.value || 'atm';
   const s  = document.getElementById('sbcStrategy')?.value || '';
-  _show('sbcStrikeValRow', !_OP_STRADDLE.includes(s) && sm !== 'atm');
+  const isStraddle = _OP_STRADDLE.includes(s);
+  const isEquity   = _OP_EQUITY.includes(s);
+  const showVal    = !isStraddle && !isEquity && sm !== 'atm';
+  _show('sbcStrikeValRow', showVal);
+  const _sdirM = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg'];
+  _show('sbcStrikeDirRow', showVal && _sdirM.includes(sm));
+  _show('sbcStrikeFbRow',  showVal);
   const lbl = document.getElementById('sbcStrikeValLabel');
   const inp = document.getElementById('sbcStrikeValue');
   const smLabelMap = {
@@ -2313,6 +2327,11 @@ function sbStepConfigHTML(step) {
     const _smPh  = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', delta:'0.30' };
     const strikeValLabel = _smLbl[sm] || '% Distance from Underlying';
     const strikeValPh    = _smPh[sm]  || '5';
+    const _dirMethods = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg'];
+    const showStrikeDir  = showStrikeVal && _dirMethods.includes(sm) && !isEquity;
+    const showStrikeFb   = showStrikeVal && !isEquity;
+    const sd = c.strikeDirection || 'auto';
+    const sf = c.strikeFallback  || 'closest';
 
     return `
       <div class="sb-form-row">
@@ -2368,6 +2387,21 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal&&!isEquity?'':'display:none'}">
         <div class="sb-form-label" id="sbcStrikeValLabel">${strikeValLabel}</div>
         <input id="sbcStrikeValue" class="sb-form-input" type="number" step="0.01" value="${c.strikeValue||''}" placeholder="${strikeValPh}">
+      </div>
+      <div class="sb-form-row" id="sbcStrikeDirRow" style="${showStrikeDir?'':'display:none'}">
+        <div class="sb-form-label">Direction — Leg 1 strike placement</div>
+        <select id="sbcStrikeDirection" class="sb-form-select">
+          <option value="auto"  ${sd==='auto' ?'selected':''}>Auto (derived from option type)</option>
+          <option value="below" ${sd==='below'?'selected':''}>Below underlying</option>
+          <option value="above" ${sd==='above'?'selected':''}>Above underlying</option>
+        </select>
+      </div>
+      <div class="sb-form-row" id="sbcStrikeFbRow" style="${showStrikeFb?'':'display:none'}">
+        <div class="sb-form-label">Strike Selection Fallback</div>
+        <select id="sbcStrikeFallback" class="sb-form-select">
+          <option value="closest" ${sf==='closest'?'selected':''}>Closest available strike (default)</option>
+          <option value="skip"    ${sf==='skip'   ?'selected':''}>Skip trade if exact strike unavailable</option>
+        </select>
       </div>
 
       <!-- Leg 2 strike config (vertical spreads only) -->
@@ -2437,14 +2471,14 @@ function sbStepConfigHTML(step) {
         <input id="sbcPutWidth" class="sb-form-input" type="number" min="0.5" step="0.5" value="${c.putWidth||5}" placeholder="5">
       </div>
 
-      <!-- TP / SL (options only) -->
+      <!-- TP / SL (options only, both optional) -->
       <div class="sb-form-row" id="sbcTpRow" style="${isEquity?'display:none':''}">
-        <div class="sb-form-label">Take Profit — % of max profit</div>
-        <input id="sbcTakeProfitPct" class="sb-form-input" type="number" min="0" max="100" step="1" value="${c.takeProfitPct||50}" placeholder="50">
+        <div class="sb-form-label">Take Profit — % of max profit <span style="color:#94a3b8;font-weight:400;">(optional)</span></div>
+        <input id="sbcTakeProfitPct" class="sb-form-input" type="number" min="0" max="100" step="1" value="${c.takeProfitPct ?? ''}" placeholder="e.g. 50 (leave blank to disable)">
       </div>
       <div class="sb-form-row" id="sbcSlRow" style="${isEquity?'display:none':''}">
-        <div class="sb-form-label">Stop Loss — % of max loss</div>
-        <input id="sbcStopLossPct" class="sb-form-input" type="number" min="0" step="1" value="${c.stopLossPct||200}" placeholder="200">
+        <div class="sb-form-label">Stop Loss — % of max loss <span style="color:#94a3b8;font-weight:400;">(optional)</span></div>
+        <input id="sbcStopLossPct" class="sb-form-input" type="number" min="0" step="1" value="${c.stopLossPct ?? ''}" placeholder="e.g. 200 (leave blank to disable)">
       </div>
       <!-- Quantity label adapts: "contracts" for options, "shares" for equity -->
       <div class="sb-form-row">
