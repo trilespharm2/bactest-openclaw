@@ -1556,11 +1556,8 @@ function _sbRenderList(steps, parentId, branch) {
   let html = `<button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',0)" title="Add step">+</button>`;
   (steps || []).forEach((step, idx) => {
     html += _sbRenderStep(step);
-    // Don't add a + after a branching step — YES/NO branches are the only continuation
-    if (!SB_BRANCHING.includes(step.type)) {
-      html += `<div class="sb-connector"><div class="sb-connector-line"></div></div>
-        <button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',${idx + 1})" title="Add step">+</button>`;
-    }
+    html += `<div class="sb-connector"><div class="sb-connector-line"></div></div>
+      <button class="sb-add-btn" onclick="stratOpenDrawer(${pid},'${branch}',${idx + 1})" title="Add step">+</button>`;
   });
   return html;
 }

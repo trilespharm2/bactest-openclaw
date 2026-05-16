@@ -1294,7 +1294,10 @@ def _exec_steps_branch(steps, ctx):
             log.append(f"[{n}] TIME ({scfg.get('mode')} {scfg.get('time1')}): "
                        f"{'✓ YES' if ok else '✗ NO'}")
             if has_branch:
-                return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+                branch_ok, _ = _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+                if not branch_ok:
+                    return False, log
+                continue
             if not ok:
                 return False, log
 
@@ -1304,7 +1307,10 @@ def _exec_steps_branch(steps, ctx):
                        f"{scfg.get('operator')} {scfg.get('value')}): "
                        f"{'✓ YES' if ok else '✗ NO'}")
             if has_branch:
-                return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+                branch_ok, _ = _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+                if not branch_ok:
+                    return False, log
+                continue
             if not ok:
                 return False, log
 
@@ -1313,13 +1319,19 @@ def _exec_steps_branch(steps, ctx):
             if ok is None:
                 log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped")
                 if has_branch:
-                    return _exec_steps_branch(no_steps, ctx)
+                    branch_ok, _ = _exec_steps_branch(no_steps, ctx)
+                    if not branch_ok:
+                        return False, log
+                    continue
                 return False, log
             log.append(f"[{n}] METRIC ({scfg.get('metric')} "
                        f"{scfg.get('operator')} {scfg.get('value')}): "
                        f"{'✓ YES' if ok else '✗ NO'}")
             if has_branch:
-                return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+                branch_ok, _ = _exec_steps_branch(yes_steps if ok else no_steps, ctx)
+                if not branch_ok:
+                    return False, log
+                continue
             if not ok:
                 return False, log
 
@@ -1417,7 +1429,7 @@ def _exec_steps_test(steps, tctx):
             })
             if has_branch:
                 _exec_steps_test(yes_steps if ok else no_steps, tctx)
-                return
+                continue
             if not ok:
                 tctx['stopped'] = True
 
@@ -1432,7 +1444,7 @@ def _exec_steps_test(steps, tctx):
             })
             if has_branch:
                 _exec_steps_test(yes_steps if ok else no_steps, tctx)
-                return
+                continue
             if not ok:
                 tctx['stopped'] = True
 
@@ -1449,7 +1461,7 @@ def _exec_steps_test(steps, tctx):
                 })
                 if has_branch:
                     _exec_steps_test(no_steps, tctx)
-                    return
+                    continue
                 tctx['stopped'] = True
             else:
                 tctx['results'].append({
@@ -1461,7 +1473,7 @@ def _exec_steps_test(steps, tctx):
                 })
                 if has_branch:
                     _exec_steps_test(yes_steps if ok else no_steps, tctx)
-                    return
+                    continue
                 if not ok:
                     tctx['stopped'] = True
 
