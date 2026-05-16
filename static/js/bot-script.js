@@ -1844,12 +1844,37 @@ function sbTimeModeChange() {
   if (row2) row2.style.display = mode === 'between' ? '' : 'none';
 }
 
+// ── Per-metric allowed comparators (mirrors sbMetricFormHtml) ────────
+const _SB_METRIC_COMPS = {
+  current_price: ['value','compare_price','compare_vwap','compare_sma','compare_ema'],
+  price:         ['value','compare_price','compare_vwap','compare_sma','compare_ema'],
+  sma:           ['value','compare_price','compare_sma','compare_ema'],
+  ema:           ['value','compare_price','compare_sma','compare_ema'],
+  rsi:           ['value','compare_rsi'],
+};
+const _SB_ALL_COMP_LABELS = {
+  value:'Fixed Value', compare_price:'Compare Price', compare_vwap:'Compare VWAP',
+  compare_sma:'Compare SMA', compare_ema:'Compare EMA', compare_rsi:'Compare RSI',
+};
+
 // ── Metric step: master sync (called by all onchange handlers) ──────
 function sbSyncMetricForm() {
   const m        = document.getElementById('sbcMetric')?.value || 'price';
   const day      = parseInt(document.getElementById('sbcDay')?.value ?? '0');
-  const ct       = document.getElementById('sbcComparator')?.value || 'value';
   const rightDay = parseInt(document.getElementById('sbcRightDay')?.value ?? '0');
+
+  // Update comparator options to match the selected metric
+  const compSel = document.getElementById('sbcComparator');
+  if (compSel) {
+    const allowed = _SB_METRIC_COMPS[m] || ['value'];
+    const curVal  = compSel.value;
+    compSel.innerHTML = allowed.map(k =>
+      `<option value="${k}" ${k===curVal?'selected':''}>${_SB_ALL_COMP_LABELS[k]||k}</option>`
+    ).join('');
+    if (!allowed.includes(compSel.value)) compSel.value = 'value';
+  }
+
+  const ct       = compSel?.value || 'value';
 
   const noBarCtx = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
   const noIntv   = ['change_pct'].includes(m);
@@ -2037,8 +2062,15 @@ function sbStepConfigHTML(step) {
     const _ctMig = { price:'compare_price', indicator:'compare_sma', bar_delta:'value' };
     const ct = c.comparator || _ctMig[c.compareType] || c.compareType || 'value';
     const isLiveQuote = m === 'current_price';
-    const validCts = ['value','compare_price','compare_vwap','compare_sma','compare_ema','compare_rsi'];
-    const safeCt = validCts.includes(ct) ? ct : 'value';
+    const _METRIC_COMPS = {
+      current_price: ['value','compare_price','compare_vwap','compare_sma','compare_ema'],
+      price:         ['value','compare_price','compare_vwap','compare_sma','compare_ema'],
+      sma:           ['value','compare_price','compare_sma','compare_ema'],
+      ema:           ['value','compare_price','compare_sma','compare_ema'],
+      rsi:           ['value','compare_rsi'],
+    };
+    const allowedCts = _METRIC_COMPS[m] || ['value'];
+    const safeCt = allowedCts.includes(ct) ? ct : 'value';
 
     const rightDay  = c.rightDay ?? 0;
     const rightIntv = c.rightInterval || '1min';
@@ -2075,7 +2107,7 @@ function sbStepConfigHTML(step) {
     const AOPT_OPTS = [['>','> Greater than'],['<','< Less than'],['>=','>= Greater or equal'],['<=','<= Less or equal'],['=','= Equal']];
     const AND_METRICS = [['rsi','RSI'],['sma','SMA'],['ema','EMA'],['macd','MACD'],['price','Price'],['volume','Volume'],['roc','ROC'],['gap_pct','Gap%'],['change_pct','Change%']];
 
-    const COMP_OPTS = [
+    const _ALL_COMP_OPTS = [
       ['value',         'Fixed Value'],
       ['compare_price', 'Compare Price'],
       ['compare_vwap',  'Compare VWAP'],
@@ -2083,6 +2115,7 @@ function sbStepConfigHTML(step) {
       ['compare_ema',   'Compare EMA'],
       ['compare_rsi',   'Compare RSI'],
     ];
+    const COMP_OPTS = _ALL_COMP_OPTS.filter(([k]) => allowedCts.includes(k));
 
     return `
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:8px;">Left Side (Compare this)</div>
