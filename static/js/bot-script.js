@@ -1907,6 +1907,8 @@ function sbSyncMetricForm() {
   _show('sbcOptTypeRow',   ['iv_rank','delta','theta'].includes(m));
   _show('sbcOptDteRow',    ['iv_rank','delta','theta'].includes(m));
 
+  const op             = document.getElementById('sbcOperator')?.value || '>';
+  const isCross        = op === 'crosses_above' || op === 'crosses_below';
   const showRight      = ct !== 'value';
   const rightIsPrice   = ct === 'compare_price';
   const rightIsVwap    = ct === 'compare_vwap';
@@ -1917,6 +1919,7 @@ function sbSyncMetricForm() {
   _show('sbcRightIntervalRow',   showRight && rightIsPrice);
   _show('sbcRightSeriesRow',     showRight && rightIsPrice);
   _show('sbcRightPeriodRow',     showRight && rightIsIndic);
+  _show('sbcThresholdRow',       showRight && !isCross);
   _show('sbcRightLookbackRow',   showRight && !rightIsVwap);
 }
 function sbMetricChange()      { sbSyncMetricForm(); }
@@ -2235,7 +2238,7 @@ function sbStepConfigHTML(step) {
           <div class="sb-form-label">Period</div>
           <input id="sbcRightPeriod" class="sb-form-input" type="number" min="1" max="500" value="${c.rightPeriod||20}">
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
+        <div id="sbcThresholdRow" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
           <div>
             <div class="sb-form-label">Threshold Unit</div>
             ${_sel('sbcThresholdUnit', c.thresholdUnit||'percent', [['percent','Percent (%)'],['dollar','Dollar ($)']])}

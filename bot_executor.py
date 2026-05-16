@@ -705,14 +705,45 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                                           day=0, series='close')
             if raw_rhs is None:
                 return None, f'Could not compute {right_metric.upper()}({right_period})'
-            rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
             lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
             rhs_name = f'{right_metric.upper()}({right_period}){lb_sfx}'
-            ok = _compare(lhs, operator, rhs)
-            sym = _op_sym(operator)
-            detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
-                      f"{rhs_name} = {_fmt(raw_rhs)}"
-                      + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
+
+            if is_cross:
+                # Cross detection needs both the current bar and the one before it.
+                # Previous RHS = same indicator on rhs_bars minus the final bar.
+                prev_rhs_slice = (rhs_bars[:len(rhs_bars) - 1 - right_lookback]
+                                  if right_lookback > 0 else rhs_bars[:-1])
+                if not prev_rhs_slice:
+                    return None, f'Not enough bars for {right_metric.upper()} cross detection'
+                prev_rhs_raw = _compute_bar_metric(right_metric, right_period, prev_rhs_slice,
+                                                   day=0, series='close')
+                if prev_rhs_raw is None:
+                    return None, f'Could not compute previous {right_metric.upper()}({right_period})'
+                # Previous LHS value
+                if metric == 'current_price':
+                    # Last completed intraday bar's close (rhs_bars already holds
+                    # intraday history when intv != 'day')
+                    prev_lhs_val = float(rhs_bars[-1].get('close', 0) or 0) if rhs_bars else None
+                else:
+                    prev_lhs_val = _cbm(bars[:-1], d=0) if bars and len(bars) > 1 else None
+                if prev_lhs_val is None:
+                    return None, f'Could not get previous {lhs_name} for cross detection'
+                if operator == 'crosses_above':
+                    ok = (prev_lhs_val <= prev_rhs_raw) and (lhs > raw_rhs)
+                else:
+                    ok = (prev_lhs_val >= prev_rhs_raw) and (lhs < raw_rhs)
+                word = 'occurred ✓' if ok else 'did not occur ✗'
+                dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
+                detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
+                          f"Prev: {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
+                          f"Curr: {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)}")
+            else:
+                rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
+                ok = _compare(lhs, operator, rhs)
+                sym = _op_sym(operator)
+                detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
+                          f"{rhs_name} = {_fmt(raw_rhs)}"
+                          + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
 
         elif ctype in ('compare_histogram', 'compare_macd_line', 'compare_signal_line'):
             # RHS = same MACD component computed on the same bars but shifted
