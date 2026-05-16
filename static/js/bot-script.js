@@ -1526,7 +1526,7 @@ async function stratBuilderSave() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!r.ok) { alert('Save failed'); return; }
+    if (!r.ok) { const errData = await r.json().catch(() => ({})); alert('Save failed: ' + (errData.error || r.status)); return; }
     stratBuilderClose();
     await strategiesRender();
   } finally {

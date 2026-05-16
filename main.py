@@ -8186,31 +8186,32 @@ def bot_list_strategies():
 @app.route('/api/bot/strategies', methods=['POST'])
 @login_required
 def bot_save_strategy():
-    from models import BotStrategy
-    import json as _json
-    data = request.get_json() or {}
-    sid  = data.get('id')
-
-    if sid:
-        strat = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
-        if not strat:
-            return jsonify({'error': 'Strategy not found'}), 404
-    else:
-        strat = BotStrategy(user_id=current_user.id)
-        db.session.add(strat)
-
-    strat.name          = (data.get('name') or 'Untitled Strategy').strip()
-    strat.steps         = _json.dumps(data.get('steps', []))
-    raw_alloc           = data.get('allocation')
-    strat.allocation    = float(raw_alloc) if raw_alloc not in (None, '', 0, '0') else None
-    raw_max             = data.get('max_positions')
-    strat.max_positions = int(raw_max) if raw_max not in (None, '', 0, '0') else None
-
     try:
+        from models import BotStrategy
+        import json as _json
+        data = request.get_json() or {}
+        sid  = data.get('id')
+
+        if sid:
+            strat = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
+            if not strat:
+                return jsonify({'error': 'Strategy not found'}), 404
+        else:
+            strat = BotStrategy(user_id=current_user.id)
+            db.session.add(strat)
+
+        strat.name          = (data.get('name') or 'Untitled Strategy').strip()
+        strat.steps         = _json.dumps(data.get('steps', []))
+        raw_alloc           = data.get('allocation')
+        strat.allocation    = float(raw_alloc) if raw_alloc not in (None, '', 0, '0') else None
+        raw_max             = data.get('max_positions')
+        strat.max_positions = int(raw_max) if raw_max not in (None, '', 0, '0') else None
+
         db.session.commit()
         return jsonify(strat.to_dict())
     except Exception as e:
         db.session.rollback()
+        app.logger.exception('[bot_save_strategy] failed: %s', e)
         return jsonify({'error': str(e)}), 500
 
 
