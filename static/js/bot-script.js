@@ -1532,7 +1532,7 @@ const SB_ACTIONS = [
 
 // Default config per step type
 function sbDefaultConfig(type) {
-  if (type === 'time')           return { mode:'exactly', time1:'09:30', time2:'16:00' };
+  if (type === 'time')           return { mode:'exactly', time1:'09:30', time2:'16:00', daysOfWeek:['any'] };
   if (type === 'metric')         return { metric:'price', day:0, interval:'1min', series:'close', period:14,
     macdShort:12, macdLong:26, macdSignal:9, macdComponent:'histogram',
     optType:'call', optDte:30,
@@ -1923,6 +1923,8 @@ function stratSaveStepConfig() {
     c.mode  = document.getElementById('sbcTimeMode')?.value || 'exactly';
     c.time1 = document.getElementById('sbcTime1')?.value || '09:30';
     c.time2 = document.getElementById('sbcTime2')?.value || '16:00';
+    const activeDays = [...document.querySelectorAll('.sb-day-btn.active')].map(b => b.dataset.day);
+    c.daysOfWeek = activeDays.length ? activeDays : ['any'];
   } else if (step.type === 'metric') {
     c.metricSymbol  = (document.getElementById('sbcMetricSymbol')?.value || '').toUpperCase().trim();
     c.metric        = document.getElementById('sbcMetric')?.value || 'price';
@@ -2059,6 +2061,23 @@ function sbTimeModeChange() {
   const mode = document.getElementById('sbcTimeMode')?.value;
   const row2 = document.getElementById('sbcTime2Row');
   if (row2) row2.style.display = mode === 'between' ? '' : 'none';
+}
+
+// ── Days of week toggle ────────────────────────────────────────────
+function sbDayToggle(day) {
+  const btns = [...document.querySelectorAll('.sb-day-btn')];
+  const anyBtn = btns.find(b => b.dataset.day === 'any');
+  if (day === 'any') {
+    btns.forEach(b => b.classList.toggle('active', b.dataset.day === 'any'));
+  } else {
+    if (anyBtn) anyBtn.classList.remove('active');
+    const clicked = btns.find(b => b.dataset.day === day);
+    if (clicked) clicked.classList.toggle('active');
+    // If nothing active, revert to Any
+    if (!btns.some(b => b.classList.contains('active')) && anyBtn) {
+      anyBtn.classList.add('active');
+    }
+  }
 }
 
 // ── Per-metric allowed comparators (mirrors sbMetricFormHtml) ────────
@@ -2309,7 +2328,20 @@ function sbStepConfigHTML(step) {
 
   // ── Time ────────────────────────────────────────────────────────
   if (step.type === 'time') {
+    const _days = (c.daysOfWeek && c.daysOfWeek.length) ? c.daysOfWeek : ['any'];
+    const _da   = d => _days.includes(d) ? 'active' : '';
     return `
+      <div class="sb-form-row">
+        <div class="sb-form-label">Days of Week</div>
+        <div class="sb-day-toggle">
+          <button type="button" class="sb-day-btn ${_da('any')}" data-day="any" onclick="sbDayToggle('any')">Any</button>
+          <button type="button" class="sb-day-btn ${_da('mon')}" data-day="mon" onclick="sbDayToggle('mon')">Mon</button>
+          <button type="button" class="sb-day-btn ${_da('tue')}" data-day="tue" onclick="sbDayToggle('tue')">Tue</button>
+          <button type="button" class="sb-day-btn ${_da('wed')}" data-day="wed" onclick="sbDayToggle('wed')">Wed</button>
+          <button type="button" class="sb-day-btn ${_da('thu')}" data-day="thu" onclick="sbDayToggle('thu')">Thu</button>
+          <button type="button" class="sb-day-btn ${_da('fri')}" data-day="fri" onclick="sbDayToggle('fri')">Fri</button>
+        </div>
+      </div>
       <div class="sb-form-row">
         <div class="sb-form-label">Time is</div>
         <select id="sbcTimeMode" class="sb-form-select" onchange="sbTimeModeChange()">
@@ -2319,7 +2351,7 @@ function sbStepConfigHTML(step) {
         </select>
       </div>
       <div class="sb-form-row">
-        <div class="sb-form-label">Entry</div>
+        <div class="sb-form-label">Entry Time</div>
         <input id="sbcTime1" class="sb-form-input" type="time" value="${c.time1||'09:30'}">
       </div>
       <div class="sb-form-row" id="sbcTime2Row" style="${c.mode==='between'?'':'display:none'}">

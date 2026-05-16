@@ -91,12 +91,21 @@ def _is_market_hours():
 # ── Step evaluators ──────────────────────────────────────────────────────────
 
 def eval_time(cfg):
-    now  = _now_et().time().replace(second=0, microsecond=0)
-    mode = cfg.get('mode', 'after')
-    t1   = _parse_hhmm(cfg.get('time1', '09:30'))
-    t2   = _parse_hhmm(cfg.get('time2', '16:00'))
+    now_dt = _now_et()
+    now    = now_dt.time().replace(second=0, microsecond=0)
+    mode   = cfg.get('mode', 'after')
+    t1     = _parse_hhmm(cfg.get('time1', '09:30'))
+    t2     = _parse_hhmm(cfg.get('time2', '16:00'))
     if not t1:
         return False
+    # Days-of-week check (Mon=0 … Fri=4)
+    _DOW_MAP = {'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4}
+    days = cfg.get('daysOfWeek') or ['any']
+    if 'any' not in days:
+        today = now_dt.weekday()  # 0=Mon … 6=Sun
+        allowed = {_DOW_MAP[d] for d in days if d in _DOW_MAP}
+        if today not in allowed:
+            return False
     if mode == 'exactly': return now == t1
     if mode == 'after':   return now >= t1
     if mode == 'before':  return now <= t1
