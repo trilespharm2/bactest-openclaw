@@ -112,6 +112,32 @@
 .np-place-btn:disabled{background:#93aee0;cursor:not-allowed}
 .np-place-row{padding-top:20px}
 
+/* ── Open Orders card redesign ───────────────────────────────────── */
+.oo-orders-list{padding:0}
+.oo-card{border-bottom:1px solid #f0f1f3;background:#fff;transition:background .15s}
+.oo-card:last-child{border-bottom:none}
+.oo-card-header{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;cursor:pointer;user-select:none}
+.oo-card-header:hover{background:#fafbfc}
+.oo-card-title{font-size:13px;font-weight:700;color:#1a1a2e;line-height:1.4}
+.oo-card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:#374151;margin-top:4px}
+.oo-meta-sep{color:#d1d5db;font-size:10px}
+.oo-card-right{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto}
+.oo-chevron{color:#b0b7c3;font-size:11px;transition:transform .2s}
+.oo-cancel-btn{padding:3px 10px;background:#fee2e2;color:#991b1b;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:background .2s;white-space:nowrap}
+.oo-cancel-btn:hover{background:#fecaca}
+.oo-legs{background:#f8f9fc;border-top:1px solid #eef0f3;padding:10px 20px 14px}
+.oo-leg-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid #f0f1f3}
+.oo-leg-row:last-child{border-bottom:none}
+.oo-leg-detail{flex:1;color:#374151;font-weight:500}
+.oo-leg-price{color:#9098a9;font-size:11px}
+.oo-order-id{font-size:10px;color:#b0b7c3;font-family:monospace;letter-spacing:.3px}
+
+/* ── New Position refresh button ────────────────────────────────── */
+.np-refresh-btn{background:none;border:none;color:#9098a9;cursor:pointer;padding:5px 7px;border-radius:6px;font-size:13px;transition:all .2s}
+.np-refresh-btn:hover{background:#eef0f3;color:#1b55e2}
+.np-refresh-btn:disabled{opacity:.5;cursor:not-allowed}
+.np-refresh-btn.spinning i,.bot-refresh-btn.spinning i{animation:fa-spin .7s linear infinite}
+
 /* ── Strategy Section ──────────────────────────────────────────────── */
 .strat-new-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;background:#1b55e2;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s}
 .strat-new-btn:hover{background:#1545c4}
@@ -431,7 +457,10 @@
         <div class="bot-card">
             <div class="bot-card-header">
                 <h5><i class="fas fa-plus-circle" style="color:#1b55e2;"></i>New Position</h5>
-                <span id="npLivePriceBadge" style="display:none;" class="np-price-badge"></span>
+                <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+                    <span id="npLivePriceBadge" style="display:none;" class="np-price-badge"></span>
+                    <button id="npRefreshBtn" class="np-refresh-btn" style="display:none;" title="Refresh prices" onclick="npManualRefresh()"><i class="fas fa-sync-alt"></i></button>
+                </div>
             </div>
             <div class="bot-card-body">
 

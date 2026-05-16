@@ -13,6 +13,7 @@ let _npChain        = [];     // full option chain for current expiration
 let _npActiveLegIdx = -1;     // which leg is currently being selected
 let _npLegStrikes   = {};     // { legIdx: { strike, optType, bid, ask, delta, theta, symbol } }
 let _npSymTimer     = null;
+let _npRefreshTimer = null;   // auto-refresh timer when payoff is visible
 
 // Strategy definitions: legs ordered as they appear in the UI
 // creditType: 'credit' = spread receives premium, 'debit' = spread pays premium, null = single-leg (limit/market)
@@ -511,6 +512,150 @@ function botTogglePosGroup(id) {
 }
 
 // ── Open Orders ────────────────────────────────────────────────────
+
+/** Parse an OCC option symbol → { ticker, type, strike, dte } or null */
+function _parseOccSymbol(sym) {
+  if (!sym) return null;
+  const m = sym.replace(/\s/g, '').match(/^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/);
+  if (!m) return null;
+  const [, ticker, yy, mm, dd, optType, strikeStr] = m;
+  const expDate = new Date(2000 + parseInt(yy), parseInt(mm) - 1, parseInt(dd));
+  const strike  = parseInt(strikeStr) / 1000;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const dte = Math.max(0, Math.round((expDate - now) / 86400000));
+  return { ticker, expDate, type: optType === 'C' ? 'call' : 'put', strike, dte };
+}
+
+/** Infer a human-readable strategy name from an array of parsed legs */
+function _inferStrategyName(legs) {
+  if (!legs || !legs.length) return 'Option';
+  const sideOf  = l => (l.side || '').includes('buy') ? 'buy' : 'sell';
+  const otypeOf = l => (l.type || l.option_type || '').toLowerCase();
+  const n = legs.length;
+  if (n === 1) {
+    const l = legs[0];
+    return `${sideOf(l) === 'buy' ? 'Long' : 'Short'} ${otypeOf(l) === 'call' ? 'Call' : 'Put'}`;
+  }
+  const hasCalls = legs.some(l => otypeOf(l) === 'call');
+  const hasPuts  = legs.some(l => otypeOf(l) === 'put');
+  if (n === 2) {
+    if (hasCalls && hasPuts) {
+      const sellCount  = legs.filter(l => sideOf(l) === 'sell').length;
+      const sameStrike = legs[0].strike === legs[1].strike;
+      return sameStrike
+        ? (sellCount === 2 ? 'Short Straddle' : 'Long Straddle')
+        : (sellCount === 2 ? 'Short Strangle' : 'Long Strangle');
+    }
+    const type    = hasCalls ? 'Call' : 'Put';
+    const sellLeg = legs.find(l => sideOf(l) === 'sell');
+    const buyLeg  = legs.find(l => sideOf(l) === 'buy');
+    if (!sellLeg || !buyLeg) return `${type} Spread`;
+    const ss = sellLeg.strike || 0, bs = buyLeg.strike || 0;
+    return type === 'call'
+      ? (ss < bs ? 'Short Call Spread' : 'Long Call Spread')
+      : (ss > bs ? 'Short Put Spread'  : 'Long Put Spread');
+  }
+  if (n === 4 && hasCalls && hasPuts) {
+    const cK = legs.filter(l => otypeOf(l) === 'call').map(l => l.strike || 0).sort((a,b) => a-b);
+    const pK = legs.filter(l => otypeOf(l) === 'put').map(l => l.strike || 0).sort((a,b) => a-b);
+    return cK[0] === pK[1] ? 'Iron Butterfly' : 'Iron Condor';
+  }
+  return `${n}-Leg`;
+}
+
+/** Build a strikes string like "7155/7160" or "7150P/7160C" */
+function _strikeSummary(parsedLegs) {
+  if (!parsedLegs || !parsedLegs.length) return '';
+  const mixed = parsedLegs.some(l => l.type === 'call') && parsedLegs.some(l => l.type === 'put');
+  return [...parsedLegs]
+    .sort((a, b) => (a.strike || 0) - (b.strike || 0))
+    .map(l => l.strike != null ? l.strike + (mixed ? (l.type === 'call' ? 'C' : 'P') : '') : '?')
+    .join('/');
+}
+
+/** Render a single order as a collapsible card */
+function _renderOrderCard(o) {
+  const rawLegs = o.leg ? (Array.isArray(o.leg) ? o.leg : [o.leg]) : null;
+  const isMulti  = o.class === 'multileg' && rawLegs?.length > 0;
+  const isOption = o.class === 'option';
+
+  let parsedLegs = [];
+  if (isMulti) {
+    parsedLegs = rawLegs.map(l => {
+      const p = _parseOccSymbol(l.option_symbol || l.symbol || '');
+      return { ...l, ...(p || {}), side: l.side || '', type: p?.type || (l.option_type || '') };
+    });
+  } else if (isOption) {
+    const p = _parseOccSymbol(o.symbol || '');
+    if (p) parsedLegs = [{ ...o, ...p }];
+  }
+
+  const stratName = parsedLegs.length
+    ? _inferStrategyName(parsedLegs)
+    : (o.class === 'equity' ? ((o.side||'').includes('buy') ? 'Buy Equity' : 'Sell Equity') : 'Order');
+  const strikes   = _strikeSummary(parsedLegs);
+  const dte       = parsedLegs[0]?.dte != null ? `${parsedLegs[0].dte} DTE` : '';
+
+  const statusColor = { open:'#10b981', pending:'#f59e0b', filled:'#6366f1', canceled:'#9098a9', partially_filled:'#f59e0b' }[o.status] || '#9098a9';
+  const priceStr    = o.price ? _fmt$(parseFloat(o.price)) : (o.stop_price ? 'Stop '+_fmt$(parseFloat(o.stop_price)) : 'Mkt');
+  const typeStr     = (o.type||'').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+  const canCancel   = ['open','pending','partially_filled'].includes(o.status);
+  const dateStr     = o.create_date ? o.create_date.split('T')[0] : '';
+  const hasLegs     = parsedLegs.length > 0;
+
+  const titleHtml = `${stratName} <span style="color:#6366f1;">${o.symbol}</span>`
+    + (strikes ? ` <span style="color:#374151;">· ${strikes}</span>` : '')
+    + (dte     ? ` <span style="color:#9098a9;font-size:11px;font-weight:400;"> · ${dte}</span>` : '');
+
+  let legsHtml = '';
+  if (hasLegs) {
+    legsHtml = `<div class="oo-legs" id="oo-legs-${o.id}" style="display:none;">` +
+      parsedLegs.map(l => {
+        const isBuy  = (l.side||'').includes('buy');
+        const detail = l.strike != null
+          ? `${l.strike} ${(l.type||'').toUpperCase()} · ${(l.side||'').replace(/_/g,' ')}`
+          : (l.option_symbol || l.symbol || '');
+        const legPx  = l.price != null && parseFloat(l.price) > 0 ? `<span class="oo-leg-price">@ ${_fmt$(parseFloat(l.price))}</span>` : '';
+        return `<div class="oo-leg-row">
+          <span class="badge-side ${isBuy ? 'badge-buy' : 'badge-sell'}" style="font-size:10px;">${isBuy ? 'buy' : 'sell'}</span>
+          <span class="oo-leg-detail">${detail}</span>
+          <span class="oo-leg-price">${o.quantity}x</span>
+          ${legPx}
+        </div>`;
+      }).join('') + '</div>';
+  }
+
+  return `<div class="oo-card">
+    <div class="oo-card-header" ${hasLegs ? `onclick="_ooToggleLegs('${o.id}', this)"` : ''}>
+      <div style="flex:1;min-width:0;">
+        <div class="oo-card-title">${titleHtml}</div>
+        <div class="oo-card-meta">
+          <span style="color:${statusColor};font-weight:600;">${o.status}</span>
+          <span class="oo-meta-sep">·</span><span>${o.quantity}x</span>
+          <span class="oo-meta-sep">·</span><span>${typeStr}</span>
+          <span class="oo-meta-sep">·</span><strong>${priceStr}</strong>
+          ${dateStr ? `<span class="oo-meta-sep">·</span><span style="color:#9098a9;">${dateStr}</span>` : ''}
+          <span class="oo-meta-sep">·</span><span class="oo-order-id">#${o.id}</span>
+        </div>
+      </div>
+      <div class="oo-card-right">
+        ${canCancel ? `<button class="oo-cancel-btn" onclick="event.stopPropagation();botCancelOrder(${o.id},this)"><i class="fas fa-times"></i> Cancel</button>` : ''}
+        ${hasLegs   ? `<i class="fas fa-chevron-down oo-chevron" id="oo-chev-${o.id}"></i>` : ''}
+      </div>
+    </div>
+    ${legsHtml}
+  </div>`;
+}
+
+function _ooToggleLegs(id) {
+  const legsEl = document.getElementById(`oo-legs-${id}`);
+  const chevEl = document.getElementById(`oo-chev-${id}`);
+  if (!legsEl) return;
+  const isOpen = legsEl.style.display !== 'none';
+  legsEl.style.display = isOpen ? 'none' : 'block';
+  if (chevEl) chevEl.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
 async function botLoadOrders() {
   const body = document.getElementById('botOrdersBody');
   if (!body) return;
@@ -529,10 +674,7 @@ async function botLoadOrders() {
       return;
     }
     const orders = Array.isArray(raw) ? raw : [raw];
-    const sBadge  = s => { const m={open:'badge-open',filled:'badge-filled',canceled:'badge-canceled',pending:'badge-pending'}; return `<span class="badge-side ${m[s]||'badge-pending'}">${s}</span>`; };
-    const sdBadge = s => { const buy=['buy','buy_to_open','buy_to_close'].includes(s); return `<span class="badge-side ${buy?'badge-buy':'badge-sell'}">${s.replace(/_/g,' ')}</span>`; };
-    const canCancel = s => ['open','pending','partially_filled'].includes(s);
-    body.innerHTML = `<div style="overflow-x:auto;"><table class="bot-table"><thead><tr><th>ID</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Price</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>${orders.map(o => `<tr><td style="color:#9098a9;font-size:11px;">${o.id}</td><td><strong>${o.symbol}</strong></td><td>${sdBadge(o.side)}</td><td>${o.quantity}</td><td style="text-transform:capitalize;">${(o.type||'').replace(/_/g,' ')}</td><td>${o.price ? _fmt$(o.price) : (o.stop_price ? 'Stop '+_fmt$(o.stop_price) : 'Mkt')}</td><td>${sBadge(o.status)}</td><td style="font-size:11px;">${o.create_date ? o.create_date.split('T')[0] : '—'}</td><td>${canCancel(o.status) ? `<button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:11px;" onclick="botCancelOrder(${o.id},this)"><i class="fas fa-times me-1"></i>Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+    body.innerHTML = '<div class="oo-orders-list">' + orders.map(o => _renderOrderCard(o)).join('') + '</div>';
   } catch (e) { body.innerHTML = `<div class="bot-empty py-4"><i class="fas fa-times-circle" style="color:#ef4444;"></i><div class="mt-2">${e.message}</div></div>`; }
 }
 
@@ -954,9 +1096,77 @@ function npShowSummary(stratKey) {
 
   npDrawPayoff(stratKey, { xL, xR, strikes, breakevens, maxPnl, minPnl });
   _show('npTradeSummary', true);
+  // Show refresh button and start auto-refresh
+  const rfBtn = document.getElementById('npRefreshBtn');
+  if (rfBtn) rfBtn.style.display = '';
+  npStartAutoRefresh();
 }
 
-function npHideSummary() { _show('npTradeSummary', false); }
+function npHideSummary() {
+  _show('npTradeSummary', false);
+  npStopAutoRefresh();
+  const btn = document.getElementById('npRefreshBtn');
+  if (btn) btn.style.display = 'none';
+}
+
+// ── New Position price auto-refresh ───────────────────────────────
+function npStartAutoRefresh() {
+  npStopAutoRefresh();
+  _npRefreshTimer = setInterval(npSilentRefreshPrices, 5000);
+}
+
+function npStopAutoRefresh() {
+  if (_npRefreshTimer) { clearInterval(_npRefreshTimer); _npRefreshTimer = null; }
+}
+
+async function npSilentRefreshPrices() {
+  const sym   = document.getElementById('npSym')?.value.trim().toUpperCase();
+  const exp   = document.getElementById('npExp')?.value;
+  const key   = document.getElementById('npStrat')?.value;
+  const strat = NP_STRATEGIES[key];
+  if (!sym || !exp || !strat || !Object.keys(_npLegStrikes).length) return;
+  // Refresh underlying price badge
+  try {
+    const qr = await fetch(`/api/bot/tradier/quote?symbol=${encodeURIComponent(sym)}`);
+    const qd = await qr.json();
+    const qp = qd?.quotes?.quote;
+    if (qp?.last) {
+      _npLastPrice = parseFloat(qp.last);
+      const badge = document.getElementById('npLivePriceBadge');
+      if (badge) badge.textContent = `${sym} $${_npLastPrice.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    }
+  } catch (_) {}
+  // Refresh option chain and update bid/ask for each selected strike
+  try {
+    const cr = await fetch(`/api/bot/tradier/options/chains?symbol=${encodeURIComponent(sym)}&expiration=${encodeURIComponent(exp)}`);
+    const cd = await cr.json();
+    const opts = cd?.options?.option || [];
+    _npChain = Array.isArray(opts) ? opts : (opts ? [opts] : []);
+    let updated = false;
+    for (const [idxStr, ls] of Object.entries(_npLegStrikes)) {
+      const match = _npChain.find(o => parseFloat(o.strike) === ls.strike && o.option_type === ls.opType);
+      if (match) {
+        _npLegStrikes[parseInt(idxStr)] = {
+          ...ls,
+          bid:   parseFloat(match.bid || 0),
+          ask:   parseFloat(match.ask || 0),
+          delta: match.greeks?.delta,
+          theta: match.greeks?.theta,
+        };
+        updated = true;
+      }
+    }
+    if (updated) { npShowSummary(key); npCalcPrice(); }
+  } catch (_) {}
+}
+
+async function npManualRefresh() {
+  const btn = document.getElementById('npRefreshBtn');
+  if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
+  try { await npSilentRefreshPrices(); } finally {
+    if (btn) { btn.classList.remove('spinning'); btn.disabled = false; }
+  }
+}
 
 // ── Interactive Canvas Payoff Diagram ─────────────────────────────
 function npDrawPayoff(stratKey, info) {

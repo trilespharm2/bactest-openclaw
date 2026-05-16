@@ -596,7 +596,7 @@ async function loadPageContent(pageName) {
                     scriptName = '/static/js/notifications-script.js';
                 }
                 if (pageName === 'bot') {
-                    scriptName = '/static/js/bot-script.js?v=25';
+                    scriptName = '/static/js/bot-script.js?v=26';
                 }
                 if (pageName === 'strategyGuide') {
                     fileName = 'strategy-guide';
@@ -674,7 +674,7 @@ async function loadPageContent(pageName) {
                     scriptName = '/static/js/notifications-script.js';
                 }
                 if (pageName === 'bot') {
-                    scriptName = '/static/js/bot-script.js?v=25';
+                    scriptName = '/static/js/bot-script.js?v=26';
                 }
                 if (pageName === 'strategyGuide') {
                     scriptName = '/static/js/strategy-guide-script.js';
