@@ -1713,6 +1713,7 @@ function stratSaveStepConfig() {
     c.time1 = document.getElementById('sbcTime1')?.value || '09:30';
     c.time2 = document.getElementById('sbcTime2')?.value || '16:00';
   } else if (step.type === 'metric') {
+    c.metricSymbol  = (document.getElementById('sbcMetricSymbol')?.value || '').toUpperCase().trim();
     c.metric        = document.getElementById('sbcMetric')?.value || 'price';
     c.day           = parseInt(document.getElementById('sbcDay')?.value ?? '0');
     c.interval      = document.getElementById('sbcInterval')?.value || '1min';
@@ -2129,6 +2130,11 @@ function sbStepConfigHTML(step) {
 
     return `
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:8px;">Left Side (Compare this)</div>
+
+      <div class="sb-form-row">
+        <div class="sb-form-label">Symbol</div>
+        <input id="sbcMetricSymbol" class="sb-form-input" placeholder="Default: bot symbol" value="${c.metricSymbol||''}" style="text-transform:uppercase;">
+      </div>
 
       <div class="sb-form-row">
         <div class="sb-form-label">Metric</div>

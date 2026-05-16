@@ -469,6 +469,8 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
     """Full metric evaluator. Returns (ok, detail_message).
     ok=None means data unavailable (step should be skipped).
     Handles crosses_above/crosses_below and AND conditions."""
+    # Allow the step to override the bot's primary symbol
+    symbol      = (cfg.get('metricSymbol') or '').strip().upper() or symbol
     metric      = cfg.get('metric', 'price')
     operator    = cfg.get('operator', '>')
     # Support new 'comparator' field; fall back to legacy 'compareType'
