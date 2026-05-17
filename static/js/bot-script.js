@@ -641,7 +641,7 @@ function _renderOrderCard(o) {
       <div style="flex:1;min-width:0;">
         <div class="oo-card-title">${titleHtml}</div>
         <div class="oo-card-meta">
-          <span style="color:${statusColor};font-weight:600;">${o.status}</span>
+          <span class="oo-status-badge" style="color:${statusColor};font-weight:600;">${o.status}</span>
           <span class="oo-meta-sep">·</span><span>${o.quantity}x</span>
           <span class="oo-meta-sep">·</span><span>${typeStr}</span>
           <span class="oo-meta-sep">·</span><strong>${priceStr}</strong>
@@ -1505,19 +1505,26 @@ async function botCancelOrder(orderId, btn) {
     const resp = await fetch(`/api/bot/tradier/orders/${orderId}`, { method: 'DELETE' });
     const data = await resp.json();
     if (data.order?.status === 'ok' || resp.ok) {
-      btn.closest('tr').querySelectorAll('td')[6].innerHTML =
-        '<span class="badge-side badge-canceled">canceled</span>';
-      btn.remove();
+      // Update the card status badge and remove the cancel button
+      const card = btn.closest('.oo-card');
+      if (card) {
+        const badge = card.querySelector('.oo-status-badge');
+        if (badge) { badge.textContent = 'canceled'; badge.style.color = '#9098a9'; }
+        btn.remove();
+      } else {
+        // fallback: reload the orders list
+        botLoadOrders();
+      }
     } else {
       const err = data?.errors?.error || data.error || 'Cancel failed';
       alert(Array.isArray(err) ? err.join(', ') : err);
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel';
+      btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
     }
   } catch (e) {
     alert('Network error: ' + e.message);
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel';
+    btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
   }
 }
 
