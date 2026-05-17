@@ -1768,56 +1768,53 @@ def _exec_steps_test(steps, tctx):
                                                    ) if filtered else None
 
                                     if best:
-                                        strike  = float(best.get('strike', 0))
-                                        mid     = _opt_mid(best)
-                                        delta   = (best.get('greeks') or {}).get('delta', None)
-                                        d_str   = f" δ{float(delta):.2f}" if delta else ''
+                                        strike = float(best.get('strike', 0))
+                                        mid    = _opt_mid(best)
+                                        dte_actual = (
+                                            datetime.strptime(target_exp, '%Y-%m-%d').date() - today
+                                        ).days
 
-                                        # Compute net credit/debit for spreads
-                                        net_price = mid
-                                        net_label = 'mid'
+                                        # Find long leg for spreads and compute net
+                                        long_strike_val = None
+                                        net_price       = mid
                                         if is_vertical:
-                                            # Long leg is spread_width away from short leg
-                                            if 'call' in opt_type:
-                                                long_strike_t = strike + sw
-                                            else:
-                                                long_strike_t = strike - sw
-                                            all_same_type = [o for o in (all_opts or [])
-                                                             if o.get('option_type') == opt_type]
-                                            long_leg = min(all_same_type,
+                                            long_strike_t = (strike + sw) if 'call' in opt_type else (strike - sw)
+                                            all_same = [o for o in (all_opts or [])
+                                                        if o.get('option_type') == opt_type]
+                                            long_leg = min(all_same,
                                                            key=lambda o: abs(float(o.get('strike', 0)) - long_strike_t)
-                                                           ) if all_same_type else None
+                                                           ) if all_same else None
                                             if long_leg:
-                                                long_mid  = _opt_mid(long_leg)
-                                                net_price = round(abs(mid - long_mid), 2)
-                                                net_label = 'net credit' if is_credit_strat else 'net debit'
+                                                long_strike_val = float(long_leg.get('strike', 0))
+                                                net_price = round(abs(mid - _opt_mid(long_leg)), 2)
 
-                                        # Price range check (market orders only)
-                                        price_filter_note = ''
-                                        if otype_cfg == 'market':
+                                        # Strike label: "7410/7415" for spreads, "7410" for singles
+                                        if long_strike_val is not None:
+                                            strike_lbl = f"{strike:.0f}/{long_strike_val:.0f}"
+                                        else:
+                                            strike_lbl = f"{strike:.0f}"
+
+                                        cr_db = 'Credit' if is_credit_strat else 'Debit'
+
+                                        # Price filter note (market orders only)
+                                        filter_note = ''
+                                        if otype_cfg == 'market' and is_vertical:
                                             if lp_min > 0 and net_price < lp_min:
-                                                price_filter_note = (
-                                                    f" | ⚠ Price filter: {net_label} ${net_price:.2f} "
-                                                    f"< min ${lp_min:.2f} — would skip."
-                                                )
+                                                filter_note = f" < min ${lp_min:.2f} — skipped by filter"
                                             elif lp_max > 0 and net_price > lp_max:
-                                                price_filter_note = (
-                                                    f" | ⚠ Price filter: {net_label} ${net_price:.2f} "
-                                                    f"> max ${lp_max:.2f} — would skip."
-                                                )
-                                            elif lp_min > 0 or lp_max > 0:
-                                                price_filter_note = (
-                                                    f" | ✓ Price filter: {net_label} ${net_price:.2f} passes."
-                                                )
+                                                filter_note = f" > max ${lp_max:.2f} — skipped by filter"
 
-                                        preview_msg = (
-                                            f"Example: {sym} {target_exp} ${strike:.0f} "
-                                            f"{opt_type.upper()}{d_str} @ ${mid:.2f} mid"
-                                            f"{(' — ' + net_label + ' $' + f'{net_price:.2f}') if is_vertical else ''} "
-                                            f"(underlying ${underlying:.2f})."
-                                            f"{price_filter_note} "
-                                            f"Position skipped — test mode."
-                                        )
+                                        if is_vertical:
+                                            preview_msg = (
+                                                f"{sym} {strategy} {strike_lbl} · {dte_actual}DTE — "
+                                                f"{cr_db} ${net_price:.2f}{filter_note}. "
+                                                f"Test mode — not executed."
+                                            )
+                                        else:
+                                            preview_msg = (
+                                                f"{sym} {strategy} {strike_lbl} · {dte_actual}DTE "
+                                                f"@ ${mid:.2f}. Test mode — not executed."
+                                            )
                 except Exception as e:
                     logger.warning(f"execute_strategy_test open_position preview: {e}")
                 tctx['results'].append({
