@@ -1504,7 +1504,9 @@ async function botCancelOrder(orderId, btn) {
   try {
     const resp = await fetch(`/api/bot/tradier/orders/${orderId}`, { method: 'DELETE' });
     const data = await resp.json();
-    if (data.order?.status === 'ok' || resp.ok) {
+    const errMsg = data?.errors?.error || data?.error || '';
+    const alreadyDone = typeof errMsg === 'string' && /finalized|canceled|cancelled/i.test(errMsg);
+    if (data.order?.status === 'ok' || resp.ok || alreadyDone) {
       // Update the card status badge and remove the cancel button
       const card = btn.closest('.oo-card');
       if (card) {
@@ -1512,12 +1514,10 @@ async function botCancelOrder(orderId, btn) {
         if (badge) { badge.textContent = 'canceled'; badge.style.color = '#9098a9'; }
         btn.remove();
       } else {
-        // fallback: reload the orders list
         botLoadOrders();
       }
     } else {
-      const err = data?.errors?.error || data.error || 'Cancel failed';
-      alert(Array.isArray(err) ? err.join(', ') : err);
+      alert(Array.isArray(errMsg) ? errMsg.join(', ') : (errMsg || 'Cancel failed'));
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
     }
