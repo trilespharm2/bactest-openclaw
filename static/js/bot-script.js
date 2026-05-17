@@ -993,9 +993,44 @@ function npAdjStrike(legIdx, dir) {
   if (inner) {
     inner.querySelector('.np-leg-adj-strike').textContent = _npLegStrikes[legIdx].strike;
   }
-  // Refresh summary
+  // Auto-detect strategy direction then refresh summary
   const allSelected = strat.legs.every((_, i) => _npLegStrikes[i] != null);
-  if (allSelected) { npShowSummary(key); npCalcPrice(); }
+  if (allSelected) {
+    const detectedKey = npDetectSpreadDirection(key);
+    npShowSummary(detectedKey);
+    npCalcPrice();
+  }
+}
+
+// Infer Long vs Short spread from actual strike relationship.
+// For call spreads: if sell strike < buy strike → Short Call Spread (credit / bear call)
+//                   if sell strike > buy strike → Long Call Spread  (debit  / bull call)
+// For put spreads:  if sell strike > buy strike → Short Put Spread  (credit / bull put)
+//                   if sell strike < buy strike → Long Put Spread   (debit  / bear put)
+function npDetectSpreadDirection(currentKey) {
+  const CALL_SPREADS = ['short_call_spread', 'long_call_spread'];
+  const PUT_SPREADS  = ['short_put_spread',  'long_put_spread'];
+  const isCall = CALL_SPREADS.includes(currentKey);
+  const isPut  = PUT_SPREADS.includes(currentKey);
+  if (!isCall && !isPut) return currentKey;
+  const strat   = NP_STRATEGIES[currentKey];
+  const buyIdx  = strat.legs.findIndex(l => l.side === 'buy');
+  const sellIdx = strat.legs.findIndex(l => l.side === 'sell');
+  const buyK    = _npLegStrikes[buyIdx]?.strike;
+  const sellK   = _npLegStrikes[sellIdx]?.strike;
+  if (buyK == null || sellK == null) return currentKey;
+  let inferred;
+  if (isCall) {
+    inferred = sellK < buyK ? 'short_call_spread' : 'long_call_spread';
+  } else {
+    inferred = sellK > buyK ? 'short_put_spread' : 'long_put_spread';
+  }
+  if (inferred !== currentKey) {
+    const sel = document.getElementById('npStrat');
+    if (sel) sel.value = inferred;
+    npUpdateOrderTypeOpts(inferred);
+  }
+  return inferred;
 }
 
 function npShowChainLoading() {
