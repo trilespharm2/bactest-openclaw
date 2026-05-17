@@ -1693,7 +1693,8 @@ def _exec_steps_test(steps, tctx):
                 try:
                     equity_strategies = ('Buy Equity', 'Sell Equity Short')
                     if sym and strategy not in equity_strategies:
-                        dte           = int(scfg.get('dte') or 30)
+                        _raw_dte      = scfg.get('dte')
+                        dte           = int(_raw_dte) if _raw_dte is not None and _raw_dte != '' else 30
                         strike_method = scfg.get('strikeMethod', 'atm')
                         strike_value  = scfg.get('strikeValue', '')
                         opt_type      = scfg.get('optType', 'call').lower()
