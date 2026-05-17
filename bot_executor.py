@@ -1189,7 +1189,9 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 
     def _place(order_data):
         # Embed strategy name as Tradier tag for UI labelling
-        order_data.setdefault('tag', f"{strategy}|{symbol}")
+        # Tradier tag: alphanumeric + hyphens only; store strategy name only
+        safe_tag = strategy.strip().replace(' ', '-').replace('_', '-')
+        order_data.setdefault('tag', safe_tag[:256])
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
         if result and (result.get('order') or {}).get('id'):

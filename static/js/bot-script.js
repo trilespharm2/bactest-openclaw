@@ -599,8 +599,8 @@ function _renderOrderCard(o) {
     if (p) parsedLegs = [{ ...o, ...p }];
   }
 
-  // If the bot tagged this order with "Strategy|SYMBOL", prefer that over inference
-  const _tagStrat = o.tag ? o.tag.split('|')[0].trim() : null;
+  // If the bot tagged this order with "Short-Call-Spread" style, decode it
+  const _tagStrat = o.tag ? o.tag.replace(/-/g, ' ').trim() : null;
   const stratName = _tagStrat || (parsedLegs.length
     ? _inferStrategyName(parsedLegs)
     : (o.class === 'equity' ? ((o.side||'').includes('buy') ? 'Buy Equity' : 'Sell Equity') : 'Order'));
