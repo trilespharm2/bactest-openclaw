@@ -534,10 +534,13 @@ function _inferStrategyName(legs) {
   const n = legs.length;
   if (n === 1) {
     const l = legs[0];
-    return `${sideOf(l) === 'buy' ? 'Long' : 'Short'} ${otypeOf(l) === 'call' ? 'Call' : 'Put'}`;
+    const ot = otypeOf(l);
+    if (!ot) return sideOf(l) === 'buy' ? 'Long Option' : 'Short Option';
+    return `${sideOf(l) === 'buy' ? 'Long' : 'Short'} ${ot === 'call' ? 'Call' : 'Put'}`;
   }
   const hasCalls = legs.some(l => otypeOf(l) === 'call');
   const hasPuts  = legs.some(l => otypeOf(l) === 'put');
+  const typeKnown = hasCalls || hasPuts;
   if (n === 2) {
     if (hasCalls && hasPuts) {
       const sellCount  = legs.filter(l => sideOf(l) === 'sell').length;
@@ -545,6 +548,11 @@ function _inferStrategyName(legs) {
       return sameStrike
         ? (sellCount === 2 ? 'Short Straddle' : 'Long Straddle')
         : (sellCount === 2 ? 'Short Strangle' : 'Long Strangle');
+    }
+    if (!typeKnown) {
+      // OCC parse failed — fall back to side-count only
+      const sells = legs.filter(l => sideOf(l) === 'sell').length;
+      return sells === 2 ? 'Short Spread' : sells === 0 ? 'Long Spread' : 'Spread';
     }
     const type    = hasCalls ? 'Call' : 'Put';
     const sellLeg = legs.find(l => sideOf(l) === 'sell');
@@ -583,6 +591,7 @@ function _renderOrderCard(o) {
   if (isMulti) {
     parsedLegs = rawLegs.map(l => {
       const p = _parseOccSymbol(l.option_symbol || l.symbol || '');
+      if (!p) console.log('[OO debug] OCC parse failed for:', l.option_symbol || l.symbol, 'full leg:', JSON.stringify(l));
       return { ...l, ...(p || {}), side: l.side || '', type: p?.type || (l.option_type || '') };
     });
   } else if (isOption) {
@@ -590,9 +599,11 @@ function _renderOrderCard(o) {
     if (p) parsedLegs = [{ ...o, ...p }];
   }
 
-  const stratName = parsedLegs.length
+  // If the bot tagged this order with "Strategy|SYMBOL", prefer that over inference
+  const _tagStrat = o.tag ? o.tag.split('|')[0].trim() : null;
+  const stratName = _tagStrat || (parsedLegs.length
     ? _inferStrategyName(parsedLegs)
-    : (o.class === 'equity' ? ((o.side||'').includes('buy') ? 'Buy Equity' : 'Sell Equity') : 'Order');
+    : (o.class === 'equity' ? ((o.side||'').includes('buy') ? 'Buy Equity' : 'Sell Equity') : 'Order'));
   const strikes   = _strikeSummary(parsedLegs);
   const dte       = parsedLegs[0]?.dte != null ? `${parsedLegs[0].dte} DTE` : '';
 

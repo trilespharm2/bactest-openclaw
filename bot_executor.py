@@ -1188,6 +1188,8 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return limit_price_min if is_credit_trade else limit_price_max
 
     def _place(order_data):
+        # Embed strategy name as Tradier tag for UI labelling
+        order_data.setdefault('tag', f"{strategy}|{symbol}")
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
         if result and (result.get('order') or {}).get('id'):
@@ -1778,14 +1780,18 @@ def _exec_steps_test(steps, tctx):
                                         long_strike_val = None
                                         net_price       = mid
                                         if is_vertical:
+                                            # Compute the configured long-leg strike from spread width
                                             long_strike_t = (strike + sw) if 'call' in opt_type else (strike - sw)
+                                            # Always display configured strikes (not chain-resolved)
+                                            long_strike_val = long_strike_t
+                                            # Find long leg in chain (exclude same strike to avoid same-option match)
                                             all_same = [o for o in (all_opts or [])
-                                                        if o.get('option_type') == opt_type]
+                                                        if o.get('option_type') == opt_type
+                                                        and abs(float(o.get('strike', 0)) - strike) > 0.01]
                                             long_leg = min(all_same,
                                                            key=lambda o: abs(float(o.get('strike', 0)) - long_strike_t)
                                                            ) if all_same else None
                                             if long_leg:
-                                                long_strike_val = float(long_leg.get('strike', 0))
                                                 net_price = round(abs(mid - _opt_mid(long_leg)), 2)
 
                                         # Strike label: "7410/7415" for spreads, "7410" for singles
