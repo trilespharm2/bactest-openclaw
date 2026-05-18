@@ -10,6 +10,7 @@ New Features:
 """
 
 import os
+import logging
 from datetime import datetime, timedelta
 from polygon.rest import RESTClient
 import pandas as pd
@@ -1453,7 +1454,7 @@ class BacktesterEngine:
             return True
 
         except Exception as e:
-            self.logger.debug(f"[CandlePattern] Error: {e}")
+            logging.getLogger(__name__).debug(f"[CandlePattern] Error: {e}")
             return False
 
     def check_preset_condition_intraday(self, symbol: str, current_candle: pd.Series, 
