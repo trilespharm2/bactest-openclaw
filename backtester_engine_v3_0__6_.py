@@ -1348,6 +1348,7 @@ class BacktesterEngine:
                 return False
 
             mins_per_bucket = cp_multiplier * (60 if cp_candle == 'hr' else 1)
+            mins_per_bucket = min(mins_per_bucket, 240)
             if mins_per_bucket < 1:
                 mins_per_bucket = 1
 
@@ -1387,6 +1388,29 @@ class BacktesterEngine:
 
             if len(buckets) < cp_num_candles:
                 return False
+
+            avg_buckets = buckets
+            if len(buckets) < 5:
+                for _pi in range(target_idx - 1, max(target_idx - 10, -1), -1):
+                    _pdate = dates[_pi]
+                    _pdata = grouped_data.get(_pdate)
+                    if _pdata is None or len(_pdata) == 0:
+                        continue
+                    _pdf = _pdata.copy()
+                    _pdf['_min'] = _pdf['timestamp'].apply(_to_mins)
+                    _pdf['_offset'] = _pdf['_min'] - MARKET_OPEN_MIN
+                    _pdf = _pdf[_pdf['_offset'] >= 0]
+                    _pdf['_bucket_id'] = (_pdf['_offset'] // mins_per_bucket).astype(int)
+                    if _pdf.empty:
+                        continue
+                    _pb = (_pdf.groupby('_bucket_id')
+                           .agg(open=('open', 'first'), high=('high', 'max'),
+                                low=('low', 'min'), close=('close', 'last'),
+                                volume=('volume', 'sum'))
+                           .reset_index().sort_values('_bucket_id'))
+                    if len(_pb) >= 5:
+                        avg_buckets = _pb
+                        break
 
             seq = buckets.tail(cp_num_candles).reset_index(drop=True)
 
@@ -1429,7 +1453,7 @@ class BacktesterEngine:
                         rhs = (range_value / 100.0) * close_p if close_p != 0 else 0
                     elif comparator_t in ('pct_avg_range', 'dollar_avg_range'):
                         crt  = spec.get('comp_range_type') or range_type
-                        avgr = _calc_cp_avg_range_py(buckets, crt)
+                        avgr = _calc_cp_avg_range_py(avg_buckets, crt)
                         if avgr is None or avgr == 0:
                             return False
                         rhs = (range_value / 100.0) * avgr if comparator_t == 'pct_avg_range' else range_value * avgr

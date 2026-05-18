@@ -297,13 +297,14 @@ function _buildCandlePatternPanel(pfx, n) {
         </div>
         <div class="col-md-3 col-sm-6">
           <label class="form-label small">Candle Type</label>
-          <select class="form-select form-select-sm" id="${pfx}cp-candle-${n}">
+          <select class="form-select form-select-sm" id="${pfx}cp-candle-${n}"
+            onchange="_cpUpdateMultMax('${pfx}',${n})">
             <option value="min">Minute</option><option value="hr">Hour</option>
           </select>
         </div>
         <div class="col-md-2 col-sm-6">
-          <label class="form-label small">Multiplier</label>
-          <input type="number" class="form-control form-control-sm" id="${pfx}cp-mult-${n}" min="1" max="120" value="1">
+          <label class="form-label small">Multiplier <small class="text-muted">(max 4h)</small></label>
+          <input type="number" class="form-control form-control-sm" id="${pfx}cp-mult-${n}" min="1" max="240" value="1">
         </div>
         <div class="col-md-3 col-sm-6">
           <label class="form-label small"># Candles in Sequence</label>
@@ -439,6 +440,16 @@ function _cpSetDir(pfx, n, k, dir) {
     var bear = document.getElementById(pfx + 'cp-dir-bear-' + k + '-' + n);
     if (bull) { bull.className = dir === 'bullish' ? 'btn btn-sm btn-success' : 'btn btn-sm btn-outline-success'; bull.style.minWidth = '90px'; }
     if (bear) { bear.className = dir === 'bearish' ? 'btn btn-sm btn-danger' : 'btn btn-sm btn-outline-danger'; bear.style.minWidth = '90px'; }
+}
+
+function _cpUpdateMultMax(pfx, n) {
+    var candleSel = document.getElementById(pfx + 'cp-candle-' + n);
+    var multInp   = document.getElementById(pfx + 'cp-mult-' + n);
+    if (!candleSel || !multInp) return;
+    var maxV = candleSel.value === 'hr' ? 4 : 240;
+    multInp.max = maxV;
+    var cur = parseInt(multInp.value) || 1;
+    if (cur > maxV) multInp.value = maxV;
 }
 
 function _cpToggleOpenRel(pfx, n, k) {

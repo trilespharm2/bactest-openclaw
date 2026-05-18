@@ -420,6 +420,7 @@ def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: st
     day_df            = day_df[day_df['_offset'] >= 0]
 
     mins_per_bucket = cp_multiplier * (60 if cp_candle == 'hr' else 1)
+    mins_per_bucket = min(mins_per_bucket, 240)
     if mins_per_bucket < 1:
         mins_per_bucket = 1
     day_df['_bucket_id'] = (day_df['_offset'] // mins_per_bucket).astype(int)
@@ -441,6 +442,51 @@ def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: st
 
     if len(buckets) < cp_num_candles:
         return False
+
+    avg_buckets = buckets
+    if len(buckets) < 5:
+        from datetime import timedelta as _td
+        for _days_back in range(1, 8):
+            _prior_dt  = target_date - _td(days=_days_back)
+            _prior_str = _prior_dt.strftime('%Y-%m-%d')
+            try:
+                _prior_raw = list(client.get_aggs(
+                    ticker=symbol, multiplier=1, timespan='minute',
+                    from_=_prior_str, to=_prior_str, limit=50000, adjusted=True
+                ))
+            except Exception:
+                continue
+            if not _prior_raw:
+                continue
+            _pr = []
+            for _bar in _prior_raw:
+                _ts_ms = getattr(_bar, 't', None) or getattr(_bar, 'timestamp', None)
+                if _ts_ms is None:
+                    continue
+                _ts = datetime.fromtimestamp(_ts_ms / 1000).replace(tzinfo=None) if isinstance(_ts_ms, int) else _ts_ms
+                _pr.append({'timestamp': _ts,
+                            'open':  float(getattr(_bar, 'o', 0) or 0),
+                            'high':  float(getattr(_bar, 'h', 0) or 0),
+                            'low':   float(getattr(_bar, 'l', 0) or 0),
+                            'close': float(getattr(_bar, 'c', 0) or 0),
+                            'volume':float(getattr(_bar, 'v', 0) or 0)})
+            if not _pr:
+                continue
+            _pdf = pd.DataFrame(_pr)
+            _pdf['_min']       = _pdf['timestamp'].apply(lambda ts: ts.hour * 60 + ts.minute)
+            _pdf['_offset']    = _pdf['_min'] - MARKET_OPEN_MIN
+            _pdf               = _pdf[_pdf['_offset'] >= 0]
+            _pdf['_bucket_id'] = (_pdf['_offset'] // mins_per_bucket).astype(int)
+            if _pdf.empty:
+                continue
+            _pb = (_pdf.groupby('_bucket_id')
+                   .agg(open=('open', 'first'), high=('high', 'max'),
+                        low=('low', 'min'), close=('close', 'last'),
+                        volume=('volume', 'sum'))
+                   .reset_index().sort_values('_bucket_id'))
+            if len(_pb) >= 5:
+                avg_buckets = _pb
+                break
 
     seq = buckets.tail(cp_num_candles).reset_index(drop=True)
 
@@ -484,7 +530,7 @@ def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: st
                 rhs = (range_value / 100.0) * close_p if close_p != 0 else 0
             elif comparator_t in ('pct_avg_range', 'dollar_avg_range'):
                 crt  = spec.get('comp_range_type') or range_type
-                avgr = _calc_cp_avg_range_py(buckets, crt)
+                avgr = _calc_cp_avg_range_py(avg_buckets, crt)
                 if avgr is None or avgr == 0:
                     return False
                 rhs = (range_value / 100.0) * avgr if comparator_t == 'pct_avg_range' else range_value * avgr
