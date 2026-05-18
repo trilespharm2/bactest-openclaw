@@ -199,6 +199,8 @@ def eval_condition(cfg, api_key, base_url, account_id):
 def _fetch_daily_history(symbol, api_key, base_url, bars=200):
     """Return up to `bars` daily OHLCV dicts for *symbol*, newest last."""
     import datetime
+    # Market data always uses the live endpoint — sandbox returns delayed/simulated data
+    base_url = TRADIER_LIVE_BASE
     end   = _now_et().date()
     start = end - datetime.timedelta(days=max(bars * 2, 365))
     data  = _tradier(api_key, base_url, '/markets/history',
@@ -219,6 +221,9 @@ def _fetch_intraday_bars(symbol, interval, api_key, base_url,
                          window_from='', window_to='', days_back=0):
     """Return intraday OHLCV bars (list, oldest first), optionally
     clipped to a HH:MM–HH:MM window.
+
+    NOTE: always uses TRADIER_LIVE_BASE — the sandbox returns delayed/simulated
+    market data which causes indicators (RSI, SMA, etc.) to diverge from reality.
 
     days_back=0 → today only (original behaviour).
     days_back=N → start N calendar days ago for warmup (used by RSI/SMA/EMA
@@ -242,7 +247,8 @@ def _fetch_intraday_bars(symbol, interval, api_key, base_url,
     else:
         end = f"{today} {window_to}" if window_to else now_et.strftime('%Y-%m-%d %H:%M')
 
-    data = _tradier(api_key, base_url, '/markets/timesales',
+    # Always use live endpoint — sandbox returns delayed/simulated market data
+    data = _tradier(api_key, TRADIER_LIVE_BASE, '/markets/timesales',
                     params={'symbol': symbol, 'interval': tradier_intv,
                             'start': start, 'end': end,
                             'session_filter': 'open'})
@@ -407,7 +413,9 @@ def _compute_bar_metric(metric, period, bars, day=0, series='close',
 def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
     """Return the ATM option dict (with greeks) for the nearest expiration to target_dte."""
     import datetime
-    q = _tradier(api_key, base_url, '/markets/quotes',
+    # Market data always uses the live endpoint — sandbox returns delayed/simulated data
+    mkt = TRADIER_LIVE_BASE
+    q = _tradier(api_key, mkt, '/markets/quotes',
                  params={'symbols': symbol, 'greeks': 'false'})
     if not q:
         return None
@@ -416,7 +424,7 @@ def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
     if current_price <= 0:
         return None
 
-    exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
+    exp_data = _tradier(api_key, mkt, '/markets/options/expirations',
                         params={'symbol': symbol})
     if not exp_data:
         return None
@@ -435,7 +443,7 @@ def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
     if not best_exp:
         return None
 
-    chain_data = _tradier(api_key, base_url, '/markets/options/chains',
+    chain_data = _tradier(api_key, mkt, '/markets/options/chains',
                           params={'symbol': symbol, 'expiration': best_exp,
                                   'greeks': 'true'})
     if not chain_data:
@@ -552,7 +560,8 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
     lhs_name = _mn(metric)
     try:
         if metric == 'current_price':
-            q = _tradier(api_key, base_url, '/markets/quotes',
+            # Market data always via live endpoint — sandbox returns stale data
+            q = _tradier(api_key, TRADIER_LIVE_BASE, '/markets/quotes',
                          params={'symbols': symbol, 'greeks': 'false'})
             if not q:
                 return None, 'Could not fetch live price'
@@ -561,7 +570,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                 return None, 'Live price unavailable'
         elif metric in _OPT_METRICS:
             lhs = _compute_options_metric(metric, symbol, opt_type, opt_dte,
-                                          api_key, base_url)
+                                          api_key, TRADIER_LIVE_BASE)
             if lhs is None:
                 return None, f'Could not fetch {lhs_name} data'
         else:
