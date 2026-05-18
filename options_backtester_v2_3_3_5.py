@@ -365,9 +365,9 @@ def evaluate_preset_condition(config: Dict, bars_today: List[Dict], bar: Dict,
         return False, f"Preset condition error: {str(e)}"
 
 
-def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: str,
+def _eval_candle_pattern_options(condition: Dict, bars_by_date: Dict,
                                   trade_date: datetime, entry_timestamp: int) -> bool:
-    """Evaluate a candle-pattern condition for the options backtester using Polygon minute bars."""
+    """Evaluate a candle-pattern condition using pre-loaded minute bars (zero extra API calls)."""
     import pandas as pd
     cp_day         = int(condition.get('cp_day', 0))
     cp_candle      = condition.get('cp_candle', 'min')
@@ -377,43 +377,41 @@ def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: st
     if not cp_candles:
         return True
 
-    target_date = trade_date + __import__('datetime').timedelta(days=cp_day)
+    from datetime import timedelta as _td
+    target_date = trade_date + _td(days=cp_day)
     date_str    = target_date.strftime('%Y-%m-%d')
 
-    try:
-        raw_bars = list(client.get_aggs(
-            ticker=symbol, multiplier=1, timespan='minute',
-            from_=date_str, to=date_str, limit=50000, adjusted=True
-        ))
-    except Exception as e:
-        print(f"  [CandlePattern opt] API error for {symbol}: {e}")
+    available_dates = sorted(bars_by_date.keys())
+
+    def _bars_to_df(bars):
+        records = []
+        for b in bars:
+            dt = b.get('datetime')
+            if dt is None:
+                ts_ms = b.get('timestamp')
+                if ts_ms is None:
+                    continue
+                dt = datetime.fromtimestamp(ts_ms / 1000).replace(tzinfo=None)
+            elif hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+                dt = dt.replace(tzinfo=None)
+            records.append({
+                'timestamp': dt,
+                'open':   float(b.get('open', 0) or 0),
+                'high':   float(b.get('high', 0) or 0),
+                'low':    float(b.get('low', 0) or 0),
+                'close':  float(b.get('close', 0) or 0),
+                'volume': float(b.get('volume', 0) or 0),
+            })
+        return pd.DataFrame(records) if records else None
+
+    day_bars = bars_by_date.get(date_str, [])
+    if not day_bars:
         return False
 
-    if not raw_bars:
+    day_df = _bars_to_df(day_bars)
+    if day_df is None or day_df.empty:
         return False
 
-    records = []
-    for bar in raw_bars:
-        ts_ms = getattr(bar, 't', None) or getattr(bar, 'timestamp', None)
-        if ts_ms is None:
-            continue
-        if isinstance(ts_ms, int):
-            ts = datetime.fromtimestamp(ts_ms / 1000).replace(tzinfo=None)
-        else:
-            ts = ts_ms
-        records.append({
-            'timestamp': ts,
-            'open':   float(getattr(bar, 'o', 0) or 0),
-            'high':   float(getattr(bar, 'h', 0) or 0),
-            'low':    float(getattr(bar, 'l', 0) or 0),
-            'close':  float(getattr(bar, 'c', 0) or 0),
-            'volume': float(getattr(bar, 'v', 0) or 0)
-        })
-
-    if not records:
-        return False
-
-    day_df = pd.DataFrame(records)
     MARKET_OPEN_MIN = 4 * 60
     day_df['_min']    = day_df['timestamp'].apply(lambda ts: ts.hour * 60 + ts.minute)
     day_df['_offset'] = day_df['_min'] - MARKET_OPEN_MIN
@@ -434,58 +432,38 @@ def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: st
     if day_df.empty:
         return False
 
-    buckets = (day_df.groupby('_bucket_id')
-               .agg(open=('open', 'first'), high=('high', 'max'),
-                    low=('low', 'min'), close=('close', 'last'),
-                    volume=('volume', 'sum'))
-               .reset_index().sort_values('_bucket_id'))
+    def _to_buckets(df):
+        return (df.groupby('_bucket_id')
+                .agg(open=('open', 'first'), high=('high', 'max'),
+                     low=('low', 'min'), close=('close', 'last'),
+                     volume=('volume', 'sum'))
+                .reset_index().sort_values('_bucket_id'))
+
+    buckets = _to_buckets(day_df)
 
     if len(buckets) < cp_num_candles:
         return False
 
     avg_buckets = buckets
     if len(buckets) < 5:
-        from datetime import timedelta as _td
-        for _days_back in range(1, 8):
-            _prior_dt  = target_date - _td(days=_days_back)
-            _prior_str = _prior_dt.strftime('%Y-%m-%d')
-            try:
-                _prior_raw = list(client.get_aggs(
-                    ticker=symbol, multiplier=1, timespan='minute',
-                    from_=_prior_str, to=_prior_str, limit=50000, adjusted=True
-                ))
-            except Exception:
+        for prior_date_str in reversed(available_dates):
+            if prior_date_str >= date_str:
                 continue
-            if not _prior_raw:
+            prior_bars = bars_by_date.get(prior_date_str, [])
+            if not prior_bars:
                 continue
-            _pr = []
-            for _bar in _prior_raw:
-                _ts_ms = getattr(_bar, 't', None) or getattr(_bar, 'timestamp', None)
-                if _ts_ms is None:
-                    continue
-                _ts = datetime.fromtimestamp(_ts_ms / 1000).replace(tzinfo=None) if isinstance(_ts_ms, int) else _ts_ms
-                _pr.append({'timestamp': _ts,
-                            'open':  float(getattr(_bar, 'o', 0) or 0),
-                            'high':  float(getattr(_bar, 'h', 0) or 0),
-                            'low':   float(getattr(_bar, 'l', 0) or 0),
-                            'close': float(getattr(_bar, 'c', 0) or 0),
-                            'volume':float(getattr(_bar, 'v', 0) or 0)})
-            if not _pr:
+            prior_df = _bars_to_df(prior_bars)
+            if prior_df is None or prior_df.empty:
                 continue
-            _pdf = pd.DataFrame(_pr)
-            _pdf['_min']       = _pdf['timestamp'].apply(lambda ts: ts.hour * 60 + ts.minute)
-            _pdf['_offset']    = _pdf['_min'] - MARKET_OPEN_MIN
-            _pdf               = _pdf[_pdf['_offset'] >= 0]
-            _pdf['_bucket_id'] = (_pdf['_offset'] // mins_per_bucket).astype(int)
-            if _pdf.empty:
+            prior_df['_min']       = prior_df['timestamp'].apply(lambda ts: ts.hour * 60 + ts.minute)
+            prior_df['_offset']    = prior_df['_min'] - MARKET_OPEN_MIN
+            prior_df               = prior_df[prior_df['_offset'] >= 0]
+            prior_df['_bucket_id'] = (prior_df['_offset'] // mins_per_bucket).astype(int)
+            if prior_df.empty:
                 continue
-            _pb = (_pdf.groupby('_bucket_id')
-                   .agg(open=('open', 'first'), high=('high', 'max'),
-                        low=('low', 'min'), close=('close', 'last'),
-                        volume=('volume', 'sum'))
-                   .reset_index().sort_values('_bucket_id'))
-            if len(_pb) >= 5:
-                avg_buckets = _pb
+            pb = _to_buckets(prior_df)
+            if len(pb) >= 5:
+                avg_buckets = pb
                 break
 
     seq = buckets.tail(cp_num_candles).reset_index(drop=True)
@@ -1387,6 +1365,23 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 if tw_start and tw_end and bar_time_hhmm:
                     if not (tw_start <= bar_time_hhmm <= tw_end):
                         return False, f"Condition {idx+1}: bar time {bar_time_hhmm} outside required window {tw_start}–{tw_end}", _cond_details
+
+            # ── Candle Pattern ───────────────────────────────────────────────
+            if condition.get('left_type') == 'candle_pattern' or condition.get('metric') == 'candle_pattern':
+                try:
+                    bar_ts = bar.get('timestamp')
+                    cp_met = _eval_candle_pattern_options(condition, bars_by_date or {}, trade_date, bar_ts)
+                    _cond_details.append({'metric': 'candle_pattern', 'met': cp_met,
+                                          'left_label': 'Candle Pattern', 'left_value': 0,
+                                          'operator': '==', 'right_label': 'match', 'right_value': 1,
+                                          'effective_right': 1, 'threshold': 1,
+                                          'threshold_unit': 'bool', 'series_type': 'candle_pattern'})
+                    if not cp_met:
+                        return False, f"Candle pattern condition {idx+1} not met", _cond_details
+                    continue
+                except Exception as _cpe:
+                    print(f"  [CandlePattern opt] Error: {_cpe}")
+                    return False, f"Candle pattern error: {str(_cpe)}", _cond_details
 
             metric = condition.get('metric', 'price')
             operator = condition.get('operator', '>')
