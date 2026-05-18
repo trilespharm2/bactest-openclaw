@@ -488,14 +488,15 @@ def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: st
                 if avgr is None or avgr == 0:
                     return False
                 rhs = (range_value / 100.0) * avgr if comparator_t == 'pct_avg_range' else range_value * avgr
-            elif comparator_t in ('range_same', 'range_prev'):
+            elif comparator_t == 'range_same' or (isinstance(comparator_t, str) and comparator_t.startswith('range_') and comparator_t[6:].isdigit()):
                 crt = spec.get('comp_range_type') or 'high_low'
                 if comparator_t == 'range_same':
                     rhs_r = _calc_cp_range_py(candle, crt)
                 else:
-                    if k == 0:
+                    ref_idx = int(comparator_t.split('_')[1]) - 1
+                    if ref_idx < 0 or ref_idx >= len(seq):
                         return False
-                    rhs_r = _calc_cp_range_py(seq.iloc[k - 1], crt)
+                    rhs_r = _calc_cp_range_py(seq.iloc[ref_idx], crt)
                 if rhs_r is None or rhs_r == 0:
                     return False
                 rhs = (range_value / 100.0) * rhs_r

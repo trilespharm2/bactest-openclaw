@@ -149,15 +149,16 @@ function _buildCpCandleSection(pfx, n, k) {
             Open relative to prior candle <span class="text-muted">(optional)</span>
           </label>
         </div>
-        <div id="${pfx}cp-openrel-fields-${k}-${n}" style="display:none;" class="d-flex align-items-center gap-2 mt-1 ms-1 flex-wrap">
+        <div id="${pfx}cp-openrel-fields-${k}-${n}" style="opacity:0.4;pointer-events:none;" class="d-flex align-items-center gap-2 mt-1 ms-1 flex-wrap">
           <span class="small text-muted">Opens</span>
-          <select class="form-select form-select-sm" id="${pfx}cp-openrel-dir-${k}-${n}" style="width:auto;">
+          <select class="form-select form-select-sm" id="${pfx}cp-openrel-dir-${k}-${n}" style="width:auto;" disabled>
             <option value="above">above</option><option value="below">below</option>
           </select>
           <span class="small text-muted">${prevLabel}</span>
         </div>
       </div>` : '';
-    var prevRangeOpt = k > 1 ? `<option value="range_prev">Range (Prior Candle)</option>` : '';
+    var prevRangeOpts = '';
+    for (var _j = 1; _j < k; _j++) { prevRangeOpts += `<option value="range_${_j}">Range of Candle ${_j}</option>`; }
     return `<div class="card p-2 mb-2" id="${pfx}cp-c-${k}-${n}" style="background:#fefce8;border:1px solid #fde047;">
       <div class="fw-semibold small mb-2" style="color:#92400e;">Candle ${k}</div>
       <div class="mb-2">
@@ -211,9 +212,9 @@ function _buildCpCandleSection(pfx, n, k) {
               <option value="value_dollar">$ Value</option>
               <option value="value_pct">% of Close</option>
               <option value="pct_avg_range">% Avg Range</option>
-              <option value="dollar_avg_range">× Avg Range</option>
-              <option value="range_same">Range (Same Candle)</option>
-              ${prevRangeOpt}
+              <option value="dollar_avg_range">$ Avg Range</option>
+              <option value="range_same">Range of Same Candle</option>
+              ${prevRangeOpts}
             </select>
           </div>
           <div class="col-md-3 col-sm-6" id="${pfx}cp-comp-range-grp-${k}-${n}" style="display:none;">
@@ -262,9 +263,12 @@ function _cpSetDir(pfx, n, k, dir) {
 }
 
 function _cpToggleOpenRel(pfx, n, k) {
-    var cb = document.getElementById(pfx + 'cp-openrel-cb-' + k + '-' + n);
-    var f  = document.getElementById(pfx + 'cp-openrel-fields-' + k + '-' + n);
-    if (f) f.style.display = (cb && cb.checked) ? 'flex' : 'none';
+    var cb  = document.getElementById(pfx + 'cp-openrel-cb-' + k + '-' + n);
+    var f   = document.getElementById(pfx + 'cp-openrel-fields-' + k + '-' + n);
+    var sel = document.getElementById(pfx + 'cp-openrel-dir-' + k + '-' + n);
+    var active = !!(cb && cb.checked);
+    if (f) { f.style.opacity = active ? '1' : '0.4'; f.style.pointerEvents = active ? '' : 'none'; }
+    if (sel) sel.disabled = !active;
 }
 
 function _cpToggleRange(pfx, n, k) {
@@ -277,18 +281,22 @@ function _cpToggleRange(pfx, n, k) {
 function _cpUpdateComparatorFields(pfx, n, k) {
     var comp = (document.getElementById(pfx + 'cp-comp-' + k + '-' + n) || {}).value || 'value_dollar';
     var grp  = document.getElementById(pfx + 'cp-comp-range-grp-' + k + '-' + n);
-    if (grp) grp.style.display = (comp === 'range_same' || comp === 'range_prev') ? '' : 'none';
+    var isRangeRef = comp === 'range_same' || /^range_\d+$/.test(comp);
+    if (grp) grp.style.display = isRangeRef ? '' : 'none';
     var hint = document.getElementById(pfx + 'cp-hint-' + k + '-' + n);
     if (hint) {
         var _hints = {
             value_dollar: 'Compare range in $ (e.g. body > $0.50)',
             value_pct: 'Compare range as % of close price (e.g. 0.5 = 0.5% of close)',
             pct_avg_range: 'Compare range as % of average range (e.g. 150 = 1.5× avg range)',
-            dollar_avg_range: 'Compare range as multiple of average range (e.g. 1.5 = 1.5× avg)',
-            range_same: 'Compare this range against another range of the same candle (% ratio)',
-            range_prev: 'Compare this range against the same/different range of the prior candle (% ratio)'
+            dollar_avg_range: 'Compare range as $ multiple of average range (e.g. 1.5 = 1.5× avg)',
+            range_same: 'Compare this range against another range of the same candle (% ratio)'
         };
-        hint.textContent = _hints[comp] || '';
+        var hintText = _hints[comp];
+        if (!hintText && /^range_\d+$/.test(comp)) {
+            hintText = 'Compare this range against a range of Candle ' + comp.split('_')[1] + ' (% ratio)';
+        }
+        hint.textContent = hintText || '';
     }
 }
 
@@ -310,7 +318,7 @@ function _serializeCpCandles(pfx, n, id) {
             spec.operator    = (document.getElementById(pfx + 'cp-op-' + k + '-' + id) || {}).value || '>';
             spec.comparator  = (document.getElementById(pfx + 'cp-comp-' + k + '-' + id) || {}).value || 'value_dollar';
             spec.range_value = parseFloat((document.getElementById(pfx + 'cp-val-' + k + '-' + id) || {}).value) || 0;
-            if (spec.comparator === 'range_same' || spec.comparator === 'range_prev') {
+            if (spec.comparator === 'range_same' || /^range_\d+$/.test(spec.comparator)) {
                 spec.comp_range_type = (document.getElementById(pfx + 'cp-comp-range-type-' + k + '-' + id) || {}).value || 'open_close';
             }
         }
@@ -1526,6 +1534,7 @@ function updateConditionFields(conditionId) {
         }
     }
 
+    if (metric === 'candle_pattern') return;
     updateRightSideVisibility(conditionId);
 }
 
