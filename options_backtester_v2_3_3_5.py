@@ -365,6 +365,149 @@ def evaluate_preset_condition(config: Dict, bars_today: List[Dict], bar: Dict,
         return False, f"Preset condition error: {str(e)}"
 
 
+def _eval_candle_pattern_options(condition: Dict, client: RESTClient, symbol: str,
+                                  trade_date: datetime, entry_timestamp: int) -> bool:
+    """Evaluate a candle-pattern condition for the options backtester using Polygon minute bars."""
+    import pandas as pd
+    cp_day         = int(condition.get('cp_day', 0))
+    cp_candle      = condition.get('cp_candle', 'min')
+    cp_multiplier  = int(condition.get('cp_multiplier', 1))
+    cp_num_candles = int(condition.get('cp_num_candles', 1))
+    cp_candles     = condition.get('cp_candles', [])
+    if not cp_candles:
+        return True
+
+    target_date = trade_date + __import__('datetime').timedelta(days=cp_day)
+    date_str    = target_date.strftime('%Y-%m-%d')
+
+    try:
+        raw_bars = list(client.get_aggs(
+            ticker=symbol, multiplier=1, timespan='minute',
+            from_=date_str, to=date_str, limit=50000, adjusted=True
+        ))
+    except Exception as e:
+        print(f"  [CandlePattern opt] API error for {symbol}: {e}")
+        return False
+
+    if not raw_bars:
+        return False
+
+    records = []
+    for bar in raw_bars:
+        ts_ms = getattr(bar, 't', None) or getattr(bar, 'timestamp', None)
+        if ts_ms is None:
+            continue
+        if isinstance(ts_ms, int):
+            ts = datetime.fromtimestamp(ts_ms / 1000).replace(tzinfo=None)
+        else:
+            ts = ts_ms
+        records.append({
+            'timestamp': ts,
+            'open':   float(getattr(bar, 'o', 0) or 0),
+            'high':   float(getattr(bar, 'h', 0) or 0),
+            'low':    float(getattr(bar, 'l', 0) or 0),
+            'close':  float(getattr(bar, 'c', 0) or 0),
+            'volume': float(getattr(bar, 'v', 0) or 0)
+        })
+
+    if not records:
+        return False
+
+    day_df = pd.DataFrame(records)
+    MARKET_OPEN_MIN = 4 * 60
+    day_df['_min']    = day_df['timestamp'].apply(lambda ts: ts.hour * 60 + ts.minute)
+    day_df['_offset'] = day_df['_min'] - MARKET_OPEN_MIN
+    day_df            = day_df[day_df['_offset'] >= 0]
+
+    mins_per_bucket = cp_multiplier * (60 if cp_candle == 'hr' else 1)
+    if mins_per_bucket < 1:
+        mins_per_bucket = 1
+    day_df['_bucket_id'] = (day_df['_offset'] // mins_per_bucket).astype(int)
+
+    if cp_day == 0 and entry_timestamp:
+        entry_dt     = datetime.fromtimestamp(entry_timestamp / 1000)
+        entry_offset = (entry_dt.hour * 60 + entry_dt.minute) - MARKET_OPEN_MIN
+        entry_bid    = int(entry_offset // mins_per_bucket)
+        day_df       = day_df[day_df['_bucket_id'] < entry_bid]
+
+    if day_df.empty:
+        return False
+
+    buckets = (day_df.groupby('_bucket_id')
+               .agg(open=('open', 'first'), high=('high', 'max'),
+                    low=('low', 'min'), close=('close', 'last'),
+                    volume=('volume', 'sum'))
+               .reset_index().sort_values('_bucket_id'))
+
+    if len(buckets) < cp_num_candles:
+        return False
+
+    seq = buckets.tail(cp_num_candles).reset_index(drop=True)
+
+    from backtester_engine_v3_0__6_ import _calc_cp_range_py, _calc_cp_avg_range_py, _cp_compare_py
+
+    for k, spec in enumerate(cp_candles[:cp_num_candles]):
+        if k >= len(seq):
+            return False
+        candle     = seq.iloc[k]
+        direction  = spec.get('direction', 'bullish')
+        is_bullish = float(candle['close']) >= float(candle['open'])
+        if direction == 'bullish' and not is_bullish:
+            return False
+        if direction == 'bearish' and is_bullish:
+            return False
+
+        open_rel = spec.get('open_rel')
+        if open_rel and k > 0:
+            prev_c   = seq.iloc[k - 1]
+            cur_open = float(candle['open'])
+            prv_open = float(prev_c['open'])
+            if open_rel == 'above' and cur_open <= prv_open:
+                return False
+            if open_rel == 'below' and cur_open >= prv_open:
+                return False
+
+        if spec.get('range_enabled'):
+            range_type   = spec.get('range_type', 'open_close')
+            operator     = spec.get('operator', '>')
+            comparator_t = spec.get('comparator', 'value_dollar')
+            range_value  = float(spec.get('range_value', 0) or 0)
+
+            lhs = _calc_cp_range_py(candle, range_type)
+            if lhs is None:
+                return False
+
+            if comparator_t == 'value_dollar':
+                rhs = range_value
+            elif comparator_t == 'value_pct':
+                close_p = float(candle['close'])
+                rhs = (range_value / 100.0) * close_p if close_p != 0 else 0
+            elif comparator_t in ('pct_avg_range', 'dollar_avg_range'):
+                crt  = spec.get('comp_range_type') or range_type
+                avgr = _calc_cp_avg_range_py(buckets, crt)
+                if avgr is None or avgr == 0:
+                    return False
+                rhs = (range_value / 100.0) * avgr if comparator_t == 'pct_avg_range' else range_value * avgr
+            elif comparator_t in ('range_same', 'range_prev'):
+                crt = spec.get('comp_range_type') or 'high_low'
+                if comparator_t == 'range_same':
+                    rhs_r = _calc_cp_range_py(candle, crt)
+                else:
+                    if k == 0:
+                        return False
+                    rhs_r = _calc_cp_range_py(seq.iloc[k - 1], crt)
+                if rhs_r is None or rhs_r == 0:
+                    return False
+                rhs = (range_value / 100.0) * rhs_r
+            else:
+                rhs = range_value
+
+            if not _cp_compare_py(lhs, operator, rhs):
+                return False
+
+    return True
+
+
 def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: datetime, entry_timestamp: int) -> Tuple[bool, str]:
     """
     Evaluate underlying price conditions for trade entry.
@@ -376,8 +519,22 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
     
     symbol = config['symbol']
     underlying_sym = get_underlying_ticker(symbol)
-    
+
+    # Handle candle_pattern conditions inline (no Polygon indicator API needed)
+    filtered_conditions = []
     for idx, condition in enumerate(price_conditions):
+        if condition.get('metric') == 'candle_pattern' or condition.get('left_type') == 'candle_pattern':
+            try:
+                met = _eval_candle_pattern_options(condition, client, underlying_sym, trade_date, entry_timestamp)
+                if not met:
+                    return False, f"Candle pattern condition {idx+1} not met"
+            except Exception as _cpe:
+                print(f"  [CandlePattern opt] Error: {_cpe}")
+                return False, f"Candle pattern error: {str(_cpe)}"
+        else:
+            filtered_conditions.append((idx, condition))
+
+    for idx, condition in filtered_conditions:
         try:
             metric = condition.get('metric', 'price')
             operator = condition.get('operator', '>')

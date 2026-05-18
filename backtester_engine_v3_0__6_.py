@@ -18,6 +18,62 @@ import csv
 from typing import List, Dict, Optional, Tuple, Any
 from scipy.stats import linregress as _linregress
 
+
+def _calc_cp_range_py(candle, range_type: str):
+    _pts = {
+        'open_close': ('open', 'close'),
+        'high_low':   ('high', 'low'),
+        'close_high': ('close', 'high'),
+        'close_low':  ('close', 'low'),
+        'open_low':   ('open', 'low'),
+        'open_high':  ('open', 'high'),
+    }
+    pts = _pts.get(range_type)
+    if pts is None:
+        return None
+    try:
+        a, b = float(candle[pts[0]]), float(candle[pts[1]])
+        return abs(a - b)
+    except Exception:
+        return None
+
+
+def _calc_cp_avg_range_py(buckets_df, range_type: str, n: int = 14):
+    _pts = {
+        'open_close': ('open', 'close'),
+        'high_low':   ('high', 'low'),
+        'close_high': ('close', 'high'),
+        'close_low':  ('close', 'low'),
+        'open_low':   ('open', 'low'),
+        'open_high':  ('open', 'high'),
+    }
+    pts = _pts.get(range_type)
+    if pts is None or buckets_df is None or len(buckets_df) == 0:
+        return None
+    try:
+        df = buckets_df.tail(n)
+        ranges = (df[pts[0]] - df[pts[1]]).abs()
+        valid = ranges.dropna()
+        return float(valid.mean()) if not valid.empty else None
+    except Exception:
+        return None
+
+
+def _cp_compare_py(lhs: float, op: str, rhs: float) -> bool:
+    try:
+        if op == '>':   return lhs > rhs
+        if op == '<':   return lhs < rhs
+        if op == '>=':  return lhs >= rhs
+        if op == '<=':  return lhs <= rhs
+        if op == '=':   return abs(lhs - rhs) < max(1e-9, abs(rhs) * 0.001)
+        if op == '!=':  return abs(lhs - rhs) >= max(1e-9, abs(rhs) * 0.001)
+        if op == '><':  return lhs <= rhs
+        if op == '<>':  return lhs > rhs
+    except Exception:
+        pass
+    return False
+
+
 class BacktesterEngine:
     def __init__(self, api_key: str):
         """Initialize the backtester with Polygon.io API key"""
@@ -1067,6 +1123,9 @@ class BacktesterEngine:
         if condition.get('left_type') == 'trend_capture':
             return self._check_trend_capture_condition(condition, grouped_data, dates, current_date_index, current_candle)
 
+        if condition.get('left_type') == 'candle_pattern':
+            return self._check_candle_pattern_condition(condition, grouped_data, dates, current_date_index, current_candle)
+
         # Apply optional time window filter
         if condition.get('time_window_enabled') and current_candle is not None:
             ts = current_candle.get('timestamp')
@@ -1265,6 +1324,137 @@ class BacktesterEngine:
         except Exception as e:
             return False
     
+    def _check_candle_pattern_condition(self, condition: Dict, grouped_data: Dict,
+                                        dates: List, current_date_index: int,
+                                        current_candle=None) -> bool:
+        """Evaluate a candle-pattern sequence condition against intraday bucket data."""
+        try:
+            cp_day        = int(condition.get('cp_day', 0))
+            cp_candle     = condition.get('cp_candle', 'min')
+            cp_multiplier = int(condition.get('cp_multiplier', 1))
+            cp_num_candles = int(condition.get('cp_num_candles', 1))
+            cp_candles    = condition.get('cp_candles', [])
+            if not cp_candles:
+                return True
+
+            target_idx = current_date_index + cp_day
+            if target_idx < 0 or target_idx >= len(dates):
+                return False
+            target_date = dates[target_idx]
+
+            day_data = grouped_data.get(target_date)
+            if day_data is None or len(day_data) == 0:
+                return False
+
+            mins_per_bucket = cp_multiplier * (60 if cp_candle == 'hr' else 1)
+            if mins_per_bucket < 1:
+                mins_per_bucket = 1
+
+            MARKET_OPEN_MIN = 4 * 60
+
+            day_df = day_data.copy()
+
+            def _to_mins(ts):
+                if hasattr(ts, 'hour'):
+                    return ts.hour * 60 + ts.minute
+                return 0
+
+            if 'timestamp' not in day_df.columns:
+                return False
+
+            day_df['_min']       = day_df['timestamp'].apply(_to_mins)
+            day_df['_offset']    = day_df['_min'] - MARKET_OPEN_MIN
+            day_df               = day_df[day_df['_offset'] >= 0]
+            day_df['_bucket_id'] = (day_df['_offset'] // mins_per_bucket).astype(int)
+
+            if cp_day == 0 and current_candle is not None:
+                cur_ts = current_candle.get('timestamp')
+                if cur_ts is not None:
+                    cur_min    = cur_ts.hour * 60 + cur_ts.minute if hasattr(cur_ts, 'hour') else 0
+                    cur_offset = cur_min - MARKET_OPEN_MIN
+                    cur_bid    = int(cur_offset // mins_per_bucket)
+                    day_df     = day_df[day_df['_bucket_id'] < cur_bid]
+
+            if day_df.empty:
+                return False
+
+            buckets = (day_df.groupby('_bucket_id')
+                       .agg(open=('open', 'first'), high=('high', 'max'),
+                            low=('low', 'min'), close=('close', 'last'),
+                            volume=('volume', 'sum'))
+                       .reset_index().sort_values('_bucket_id'))
+
+            if len(buckets) < cp_num_candles:
+                return False
+
+            seq = buckets.tail(cp_num_candles).reset_index(drop=True)
+
+            for k, spec in enumerate(cp_candles[:cp_num_candles]):
+                if k >= len(seq):
+                    return False
+                candle = seq.iloc[k]
+
+                direction  = spec.get('direction', 'bullish')
+                is_bullish = float(candle['close']) >= float(candle['open'])
+                if direction == 'bullish' and not is_bullish:
+                    return False
+                if direction == 'bearish' and is_bullish:
+                    return False
+
+                open_rel = spec.get('open_rel')
+                if open_rel and k > 0:
+                    prev_c   = seq.iloc[k - 1]
+                    cur_open = float(candle['open'])
+                    prv_open = float(prev_c['open'])
+                    if open_rel == 'above' and cur_open <= prv_open:
+                        return False
+                    if open_rel == 'below' and cur_open >= prv_open:
+                        return False
+
+                if spec.get('range_enabled'):
+                    range_type     = spec.get('range_type', 'open_close')
+                    operator       = spec.get('operator', '>')
+                    comparator_t   = spec.get('comparator', 'value_dollar')
+                    range_value    = float(spec.get('range_value', 0) or 0)
+
+                    lhs = _calc_cp_range_py(candle, range_type)
+                    if lhs is None:
+                        return False
+
+                    if comparator_t == 'value_dollar':
+                        rhs = range_value
+                    elif comparator_t == 'value_pct':
+                        close_p = float(candle['close'])
+                        rhs = (range_value / 100.0) * close_p if close_p != 0 else 0
+                    elif comparator_t in ('pct_avg_range', 'dollar_avg_range'):
+                        crt  = spec.get('comp_range_type') or range_type
+                        avgr = _calc_cp_avg_range_py(buckets, crt)
+                        if avgr is None or avgr == 0:
+                            return False
+                        rhs = (range_value / 100.0) * avgr if comparator_t == 'pct_avg_range' else range_value * avgr
+                    elif comparator_t in ('range_same', 'range_prev'):
+                        crt = spec.get('comp_range_type') or 'high_low'
+                        if comparator_t == 'range_same':
+                            rhs_r = _calc_cp_range_py(candle, crt)
+                        else:
+                            if k == 0:
+                                return False
+                            rhs_r = _calc_cp_range_py(seq.iloc[k - 1], crt)
+                        if rhs_r is None or rhs_r == 0:
+                            return False
+                        rhs = (range_value / 100.0) * rhs_r
+                    else:
+                        rhs = range_value
+
+                    if not _cp_compare_py(lhs, operator, rhs):
+                        return False
+
+            return True
+
+        except Exception as e:
+            self.logger.debug(f"[CandlePattern] Error: {e}")
+            return False
+
     def check_preset_condition_intraday(self, symbol: str, current_candle: pd.Series, 
                                        prev_close: float, open_930_price: Optional[float] = None) -> Tuple[bool, str, float]:
         """Check preset conditions (Premarket/Change/Gap/Change-Open %)"""

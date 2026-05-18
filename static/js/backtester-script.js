@@ -99,8 +99,225 @@ const METRICS = [
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
     { value: 'macd', label: 'MACD' },
-    { value: 'trend_capture', label: 'Trend Capture' }
+    { value: 'trend_capture', label: 'Trend Capture' },
+    { value: 'candle_pattern', label: 'Candle Pattern' }
 ];
+
+function _buildCandlePatternPanel(pfx, n) {
+    return `<div id="${pfx}cp-panel-${n}" class="mt-2 p-3 rounded" style="display:none;background:#fdf4ff;border:1px solid #d8b4fe;">
+      <div class="fw-semibold mb-2" style="font-size:11px;color:#7e22ce;text-transform:uppercase;letter-spacing:0.6px;">
+        <i class="fas fa-chart-bar me-1"></i>Candle Pattern Config
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-md-3 col-sm-6">
+          <label class="form-label small">Day</label>
+          <select class="form-select form-select-sm" id="${pfx}cp-day-${n}">
+            <option value="0">Today (0)</option><option value="-1">Yesterday (-1)</option>
+            <option value="-2">2 Days Ago (-2)</option><option value="-3">3 Days Ago (-3)</option>
+          </select>
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <label class="form-label small">Candle Type</label>
+          <select class="form-select form-select-sm" id="${pfx}cp-candle-${n}">
+            <option value="min">Minute</option><option value="hr">Hour</option>
+          </select>
+        </div>
+        <div class="col-md-2 col-sm-6">
+          <label class="form-label small">Multiplier</label>
+          <input type="number" class="form-control form-control-sm" id="${pfx}cp-mult-${n}" min="1" max="120" value="1">
+        </div>
+        <div class="col-md-3 col-sm-6">
+          <label class="form-label small"># Candles in Sequence</label>
+          <select class="form-select form-select-sm" id="${pfx}cp-count-${n}" onchange="_updateCpCandleCount('${pfx}',${n},parseInt(this.value))">
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            <option value="4">4</option><option value="5">5</option>
+          </select>
+        </div>
+      </div>
+      <div id="${pfx}cp-candles-${n}"></div>
+    </div>`;
+}
+
+function _buildCpCandleSection(pfx, n, k) {
+    var prevLabel = k > 1 ? `Candle ${k-1} open` : '';
+    var openRelHtml = k > 1 ? `
+      <div class="mt-2 mb-1">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="${pfx}cp-openrel-cb-${k}-${n}"
+            onchange="_cpToggleOpenRel('${pfx}',${n},${k})">
+          <label class="form-check-label small" for="${pfx}cp-openrel-cb-${k}-${n}">
+            Open relative to prior candle <span class="text-muted">(optional)</span>
+          </label>
+        </div>
+        <div id="${pfx}cp-openrel-fields-${k}-${n}" style="display:none;" class="d-flex align-items-center gap-2 mt-1 ms-1 flex-wrap">
+          <span class="small text-muted">Opens</span>
+          <select class="form-select form-select-sm" id="${pfx}cp-openrel-dir-${k}-${n}" style="width:auto;">
+            <option value="above">above</option><option value="below">below</option>
+          </select>
+          <span class="small text-muted">${prevLabel}</span>
+        </div>
+      </div>` : '';
+    var prevRangeOpt = k > 1 ? `<option value="range_prev">Range (Prior Candle)</option>` : '';
+    return `<div class="card p-2 mb-2" id="${pfx}cp-c-${k}-${n}" style="background:#fefce8;border:1px solid #fde047;">
+      <div class="fw-semibold small mb-2" style="color:#92400e;">Candle ${k}</div>
+      <div class="mb-2">
+        <label class="form-label small mb-1">Direction</label>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-success" id="${pfx}cp-dir-bull-${k}-${n}"
+            onclick="_cpSetDir('${pfx}',${n},${k},'bullish')" style="min-width:90px;">
+            <i class="fas fa-arrow-up me-1"></i>Bullish
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger" id="${pfx}cp-dir-bear-${k}-${n}"
+            onclick="_cpSetDir('${pfx}',${n},${k},'bearish')" style="min-width:90px;">
+            <i class="fas fa-arrow-down me-1"></i>Bearish
+          </button>
+        </div>
+        <input type="hidden" id="${pfx}cp-direction-${k}-${n}" value="bullish">
+      </div>
+      ${openRelHtml}
+      <div class="mt-2 pt-2" style="border-top:1px dashed #fde047;">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="${pfx}cp-range-cb-${k}-${n}"
+            onchange="_cpToggleRange('${pfx}',${n},${k})">
+          <label class="form-check-label small fw-semibold" for="${pfx}cp-range-cb-${k}-${n}">
+            Range Condition <span class="fw-normal text-muted">(optional)</span>
+          </label>
+        </div>
+        <div id="${pfx}cp-range-fields-${k}-${n}" style="display:none;" class="row g-2 mt-1">
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small">Range</label>
+            <select class="form-select form-select-sm" id="${pfx}cp-range-type-${k}-${n}">
+              <option value="open_close">Open – Close (Body)</option>
+              <option value="high_low">High – Low (Total)</option>
+              <option value="close_high">Close – High (Upper Wick)</option>
+              <option value="close_low">Close – Low (Lower Wick)</option>
+              <option value="open_low">Open – Low</option>
+              <option value="open_high">Open – High</option>
+            </select>
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">Operator</label>
+            <select class="form-select form-select-sm" id="${pfx}cp-op-${k}-${n}">
+              <option value=">">&gt;</option><option value="<">&lt;</option>
+              <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+              <option value="=">=</option><option value="!=">!=</option>
+              <option value="><">⊂ Within</option><option value="<>">⊃ Outside</option>
+            </select>
+          </div>
+          <div class="col-md-3 col-sm-6">
+            <label class="form-label small">Comparator</label>
+            <select class="form-select form-select-sm" id="${pfx}cp-comp-${k}-${n}"
+              onchange="_cpUpdateComparatorFields('${pfx}',${n},${k})">
+              <option value="value_dollar">$ Value</option>
+              <option value="value_pct">% of Close</option>
+              <option value="pct_avg_range">% Avg Range</option>
+              <option value="dollar_avg_range">× Avg Range</option>
+              <option value="range_same">Range (Same Candle)</option>
+              ${prevRangeOpt}
+            </select>
+          </div>
+          <div class="col-md-3 col-sm-6" id="${pfx}cp-comp-range-grp-${k}-${n}" style="display:none;">
+            <label class="form-label small">Compare Range</label>
+            <select class="form-select form-select-sm" id="${pfx}cp-comp-range-type-${k}-${n}">
+              <option value="open_close">Open – Close</option><option value="high_low">High – Low</option>
+              <option value="close_high">Close – High</option><option value="close_low">Close – Low</option>
+              <option value="open_low">Open – Low</option><option value="open_high">Open – High</option>
+            </select>
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <label class="form-label small">Value</label>
+            <input type="number" class="form-control form-control-sm" id="${pfx}cp-val-${k}-${n}" step="0.01" min="0" placeholder="e.g. 0.5">
+          </div>
+          <div class="col-12">
+            <small class="text-muted" id="${pfx}cp-hint-${k}-${n}"></small>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _updateCpCandleCount(pfx, n, count) {
+    var container = document.getElementById(pfx + 'cp-candles-' + n);
+    if (!container) return;
+    count = Math.max(1, Math.min(5, parseInt(count) || 1));
+    for (var k = 5; k > count; k--) {
+        var el = document.getElementById(pfx + 'cp-c-' + k + '-' + n);
+        if (el) el.remove();
+    }
+    for (var k = 1; k <= count; k++) {
+        if (!document.getElementById(pfx + 'cp-c-' + k + '-' + n)) {
+            container.insertAdjacentHTML('beforeend', _buildCpCandleSection(pfx, n, k));
+            _cpSetDir(pfx, n, k, 'bullish');
+        }
+    }
+}
+
+function _cpSetDir(pfx, n, k, dir) {
+    var hidden = document.getElementById(pfx + 'cp-direction-' + k + '-' + n);
+    if (hidden) hidden.value = dir;
+    var bull = document.getElementById(pfx + 'cp-dir-bull-' + k + '-' + n);
+    var bear = document.getElementById(pfx + 'cp-dir-bear-' + k + '-' + n);
+    if (bull) { bull.className = dir === 'bullish' ? 'btn btn-sm btn-success' : 'btn btn-sm btn-outline-success'; bull.style.minWidth = '90px'; }
+    if (bear) { bear.className = dir === 'bearish' ? 'btn btn-sm btn-danger' : 'btn btn-sm btn-outline-danger'; bear.style.minWidth = '90px'; }
+}
+
+function _cpToggleOpenRel(pfx, n, k) {
+    var cb = document.getElementById(pfx + 'cp-openrel-cb-' + k + '-' + n);
+    var f  = document.getElementById(pfx + 'cp-openrel-fields-' + k + '-' + n);
+    if (f) f.style.display = (cb && cb.checked) ? 'flex' : 'none';
+}
+
+function _cpToggleRange(pfx, n, k) {
+    var cb = document.getElementById(pfx + 'cp-range-cb-' + k + '-' + n);
+    var f  = document.getElementById(pfx + 'cp-range-fields-' + k + '-' + n);
+    if (f) f.style.display = (cb && cb.checked) ? '' : 'none';
+    _cpUpdateComparatorFields(pfx, n, k);
+}
+
+function _cpUpdateComparatorFields(pfx, n, k) {
+    var comp = (document.getElementById(pfx + 'cp-comp-' + k + '-' + n) || {}).value || 'value_dollar';
+    var grp  = document.getElementById(pfx + 'cp-comp-range-grp-' + k + '-' + n);
+    if (grp) grp.style.display = (comp === 'range_same' || comp === 'range_prev') ? '' : 'none';
+    var hint = document.getElementById(pfx + 'cp-hint-' + k + '-' + n);
+    if (hint) {
+        var _hints = {
+            value_dollar: 'Compare range in $ (e.g. body > $0.50)',
+            value_pct: 'Compare range as % of close price (e.g. 0.5 = 0.5% of close)',
+            pct_avg_range: 'Compare range as % of average range (e.g. 150 = 1.5× avg range)',
+            dollar_avg_range: 'Compare range as multiple of average range (e.g. 1.5 = 1.5× avg)',
+            range_same: 'Compare this range against another range of the same candle (% ratio)',
+            range_prev: 'Compare this range against the same/different range of the prior candle (% ratio)'
+        };
+        hint.textContent = _hints[comp] || '';
+    }
+}
+
+function _serializeCpCandles(pfx, n, id) {
+    var numCandles = parseInt((document.getElementById(pfx + 'cp-count-' + id) || {}).value) || 1;
+    var out = [];
+    for (var k = 1; k <= numCandles; k++) {
+        var spec = {
+            direction: (document.getElementById(pfx + 'cp-direction-' + k + '-' + id) || {}).value || 'bullish'
+        };
+        var openRelCb = document.getElementById(pfx + 'cp-openrel-cb-' + k + '-' + id);
+        if (openRelCb && openRelCb.checked) {
+            spec.open_rel = (document.getElementById(pfx + 'cp-openrel-dir-' + k + '-' + id) || {}).value || 'above';
+        }
+        var rangeCb = document.getElementById(pfx + 'cp-range-cb-' + k + '-' + id);
+        spec.range_enabled = !!(rangeCb && rangeCb.checked);
+        if (spec.range_enabled) {
+            spec.range_type  = (document.getElementById(pfx + 'cp-range-type-' + k + '-' + id) || {}).value || 'open_close';
+            spec.operator    = (document.getElementById(pfx + 'cp-op-' + k + '-' + id) || {}).value || '>';
+            spec.comparator  = (document.getElementById(pfx + 'cp-comp-' + k + '-' + id) || {}).value || 'value_dollar';
+            spec.range_value = parseFloat((document.getElementById(pfx + 'cp-val-' + k + '-' + id) || {}).value) || 0;
+            if (spec.comparator === 'range_same' || spec.comparator === 'range_prev') {
+                spec.comp_range_type = (document.getElementById(pfx + 'cp-comp-range-type-' + k + '-' + id) || {}).value || 'open_close';
+            }
+        }
+        out.push(spec);
+    }
+    return out;
+}
 
 function updateOptionsEntryType() {
     const type = document.querySelector('input[name="optionsEntryType"]:checked')?.value || 'none';
@@ -219,6 +436,7 @@ function addOptExitCondition() {
                 </div>
             </div>
         </div>
+        ${_buildCandlePatternPanel('opt-exit-', n)}
         
         <div class="condition-operator mb-3">
             <div class="row g-2 align-items-end">
@@ -351,6 +569,40 @@ function addOptExitCondition() {
 
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
+
+    // Always hide CP panel first; show only for candle_pattern
+    var cpPanelExit = document.getElementById('opt-exit-cp-panel-' + n);
+    if (cpPanelExit) cpPanelExit.style.display = 'none';
+
+    if (metric === 'candle_pattern') {
+        var el;
+        el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = 'none';
+        el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = 'none';
+        el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = 'none';
+        el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = 'none';
+        el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = 'none';
+        el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = 'none';
+        if (cpPanelExit) {
+            cpPanelExit.style.display = 'block';
+            var cpCont = document.getElementById('opt-exit-cp-candles-' + n);
+            if (cpCont && cpCont.children.length === 0) _updateCpCandleCount('opt-exit-', n, 1);
+        }
+        var condDiv = document.getElementById('optExitCondition' + n);
+        if (condDiv) {
+            var opRow = condDiv.querySelector('.condition-operator');
+            if (opRow) opRow.style.display = 'none';
+            var rSide = document.getElementById('optExitRightSide' + n);
+            if (rSide) rSide.style.display = 'none';
+        }
+        return;
+    } else {
+        var condDiv = document.getElementById('optExitCondition' + n);
+        if (condDiv) {
+            var opRow = condDiv.querySelector('.condition-operator');
+            if (opRow) opRow.style.display = '';
+        }
+    }
+
     var isCurrentPrice = metric === 'current_price';
     var isVwap = metric === 'vwap';
     var isIndicator = ['sma', 'ema'].indexOf(metric) !== -1;
@@ -527,7 +779,21 @@ function collectOptExitConditions() {
             delete condition.left.series_type;
         }
 
-        if (comparator === 'value') {
+        if (metric === 'candle_pattern') {
+            condition.metric = 'candle_pattern';
+            condition.left_type = 'candle_pattern';
+            condition.cp_day = parseInt((document.getElementById('opt-exit-cp-day-' + id) || {}).value) || 0;
+            condition.cp_candle = (document.getElementById('opt-exit-cp-candle-' + id) || {}).value || 'min';
+            condition.cp_multiplier = parseInt((document.getElementById('opt-exit-cp-mult-' + id) || {}).value) || 1;
+            condition.cp_num_candles = parseInt((document.getElementById('opt-exit-cp-count-' + id) || {}).value) || 1;
+            condition.cp_candles = _serializeCpCandles('opt-exit-', null, id);
+            condition.operator = '>';
+            condition.comparator = 'value';
+            condition.compare_value = 0;
+            delete condition.left;
+            delete condition.right;
+            delete condition.threshold;
+        } else if (comparator === 'value') {
             var rawVal = (document.getElementById('optExitCompareValue' + id) || {}).value;
             condition.compare_value = rawVal !== '' && rawVal !== undefined ? parseFloat(rawVal) : null;
         } else {
@@ -791,6 +1057,7 @@ function addPriceCondition() {
                 </div>
             </div>
         </div>
+        ${_buildCandlePatternPanel('opt-', conditionId)}
         
         <!-- Operator Row -->
         <div class="condition-operator mb-3">
@@ -1204,7 +1471,6 @@ function updateConditionFields(conditionId) {
             (function() {
                 var tcPanel = document.getElementById('tcLeftPanel' + conditionId);
                 if (tcPanel) tcPanel.style.display = 'block';
-                // Wire toggle checkboxes for optional fields
                 function _wireTcToggle(cbId, fieldsId) {
                     var cb = document.getElementById(cbId);
                     var flds = document.getElementById(fieldsId);
@@ -1218,12 +1484,46 @@ function updateConditionFields(conditionId) {
             updateComparatorOptions(conditionId, ['value', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
+
+        case 'candle_pattern':
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            (function() {
+                var cpP = document.getElementById('opt-cp-panel-' + conditionId);
+                if (cpP) {
+                    cpP.style.display = 'block';
+                    var cpCont = document.getElementById('opt-cp-candles-' + conditionId);
+                    if (cpCont && cpCont.children.length === 0) _updateCpCandleCount('opt-', conditionId, 1);
+                }
+                var condDiv = document.getElementById('priceCondition' + conditionId);
+                if (condDiv) {
+                    var opRow = condDiv.querySelector('.condition-operator');
+                    if (opRow) opRow.style.display = 'none';
+                    var rSide = document.getElementById('rightSide' + conditionId);
+                    if (rSide) rSide.style.display = 'none';
+                }
+            })();
+            updateComparatorOptions(conditionId, []);
+            setCrossOperators('operator' + conditionId, false);
+            break;
     }
 
-    // Always hide TC panels unless metric is trend_capture
+    // Always hide TC/CP panels unless the matching metric is active
     if (metric !== 'trend_capture') {
         var tcP = document.getElementById('tcLeftPanel' + conditionId);
         if (tcP) tcP.style.display = 'none';
+    }
+    if (metric !== 'candle_pattern') {
+        var cpP2 = document.getElementById('opt-cp-panel-' + conditionId);
+        if (cpP2) cpP2.style.display = 'none';
+        var condDiv2 = document.getElementById('priceCondition' + conditionId);
+        if (condDiv2) {
+            var opRow2 = condDiv2.querySelector('.condition-operator');
+            if (opRow2) opRow2.style.display = '';
+        }
     }
 
     updateRightSideVisibility(conditionId);
@@ -1738,8 +2038,25 @@ function collectPriceConditions() {
             condition.restrict_bars = parseInt(document.getElementById(`optEntryRestrictBars${id}`)?.value) || 5;
         }
 
+        // Candle Pattern fields
+        if (metric === 'candle_pattern') {
+            condition.metric = 'candle_pattern';
+            condition.left_type = 'candle_pattern';
+            condition.cp_day = parseInt(document.getElementById(`opt-cp-day-${id}`)?.value) || 0;
+            condition.cp_candle = document.getElementById(`opt-cp-candle-${id}`)?.value || 'min';
+            condition.cp_multiplier = parseInt(document.getElementById(`opt-cp-mult-${id}`)?.value) || 1;
+            condition.cp_num_candles = parseInt(document.getElementById(`opt-cp-count-${id}`)?.value) || 1;
+            condition.cp_candles = _serializeCpCandles('opt-', null, id);
+            condition.operator = '>';
+            condition.comparator = 'value';
+            condition.compare_value = 0;
+            delete condition.left;
+            delete condition.right;
+            delete condition.threshold;
+        }
+
         // Trend Capture fields
-        if (metric === 'trend_capture') {
+        else if (metric === 'trend_capture') {
             function _readTcSide(prefix) {
                 var rEnabled = document.getElementById(prefix + 'REnabled' + id);
                 return {
