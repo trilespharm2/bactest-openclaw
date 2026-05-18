@@ -199,8 +199,6 @@ def eval_condition(cfg, api_key, base_url, account_id):
 def _fetch_daily_history(symbol, api_key, base_url, bars=200):
     """Return up to `bars` daily OHLCV dicts for *symbol*, newest last."""
     import datetime
-    # Market data always uses the live endpoint — sandbox returns delayed/simulated data
-    base_url = TRADIER_LIVE_BASE
     end   = _now_et().date()
     start = end - datetime.timedelta(days=max(bars * 2, 365))
     data  = _tradier(api_key, base_url, '/markets/history',
@@ -247,8 +245,7 @@ def _fetch_intraday_bars(symbol, interval, api_key, base_url,
     else:
         end = f"{today} {window_to}" if window_to else now_et.strftime('%Y-%m-%d %H:%M')
 
-    # Always use live endpoint — sandbox returns delayed/simulated market data
-    data = _tradier(api_key, TRADIER_LIVE_BASE, '/markets/timesales',
+    data = _tradier(api_key, base_url, '/markets/timesales',
                     params={'symbol': symbol, 'interval': tradier_intv,
                             'start': start, 'end': end,
                             'session_filter': 'open'})
@@ -413,9 +410,7 @@ def _compute_bar_metric(metric, period, bars, day=0, series='close',
 def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
     """Return the ATM option dict (with greeks) for the nearest expiration to target_dte."""
     import datetime
-    # Market data always uses the live endpoint — sandbox returns delayed/simulated data
-    mkt = TRADIER_LIVE_BASE
-    q = _tradier(api_key, mkt, '/markets/quotes',
+    q = _tradier(api_key, base_url, '/markets/quotes',
                  params={'symbols': symbol, 'greeks': 'false'})
     if not q:
         return None
@@ -424,7 +419,7 @@ def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
     if current_price <= 0:
         return None
 
-    exp_data = _tradier(api_key, mkt, '/markets/options/expirations',
+    exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
                         params={'symbol': symbol})
     if not exp_data:
         return None
@@ -443,7 +438,7 @@ def _fetch_atm_option(symbol, opt_type, target_dte, api_key, base_url):
     if not best_exp:
         return None
 
-    chain_data = _tradier(api_key, mkt, '/markets/options/chains',
+    chain_data = _tradier(api_key, base_url, '/markets/options/chains',
                           params={'symbol': symbol, 'expiration': best_exp,
                                   'greeks': 'true'})
     if not chain_data:
@@ -497,7 +492,8 @@ def _apply_threshold(rhs, unit, value, operator):
     return rhs * (1 + sign * v / 100)
 
 
-def eval_metric_verbose(cfg, api_key, base_url, symbol):
+def eval_metric_verbose(cfg, api_key, base_url, symbol,
+                        mkt_api_key=None, mkt_base_url=None):
     """Full metric evaluator. Returns (ok, detail_message).
     ok=None means data unavailable (step should be skipped).
     Handles crosses_above/crosses_below and AND conditions."""
@@ -525,6 +521,10 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
     and_period  = int(cfg.get('andPeriod') or 14)
     and_op      = cfg.get('andOperator', '<')
     and_value   = cfg.get('andValue', '')
+
+    # Use live-quote credentials for market data when provided (paper mode with live key)
+    _mkey = mkt_api_key or api_key
+    _murl = mkt_base_url or base_url
 
     _OPT_METRICS = ('iv_rank', 'delta', 'theta')
     is_cross = operator in ('crosses_above', 'crosses_below')
@@ -560,8 +560,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
     lhs_name = _mn(metric)
     try:
         if metric == 'current_price':
-            # Market data always via live endpoint — sandbox returns stale data
-            q = _tradier(api_key, TRADIER_LIVE_BASE, '/markets/quotes',
+            q = _tradier(_mkey, _murl, '/markets/quotes',
                          params={'symbols': symbol, 'greeks': 'false'})
             if not q:
                 return None, 'Could not fetch live price'
@@ -570,7 +569,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
                 return None, 'Live price unavailable'
         elif metric in _OPT_METRICS:
             lhs = _compute_options_metric(metric, symbol, opt_type, opt_dte,
-                                          api_key, TRADIER_LIVE_BASE)
+                                          _mkey, _murl)
             if lhs is None:
                 return None, f'Could not fetch {lhs_name} data'
         else:
@@ -581,13 +580,13 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
             if use_intraday:
                 # Fetch several days of intraday history so Wilder's smoothing
                 # has enough warm-up bars to converge (matches TradingView behaviour).
-                bars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                bars = _fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=10)
                 if not bars:
                     return None, f'Could not fetch intraday bars ({intv}) for {lhs_name}'
                 lhs = _cbm(bars, d=0)   # day offset doesn't apply to intraday
             else:
                 need = max(period * 3, (macd_long + macd_signal) * 3, 100)
-                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                bars = _fetch_daily_history(symbol, _mkey, _murl, bars=need)
                 if not bars:
                     return None, 'Could not fetch daily price history'
                 lhs = _cbm(bars, d=day)
@@ -881,7 +880,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
             and_v = float(and_value)
             if bars is None:
                 need2 = max(and_period * 3, 100)
-                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need2)
+                bars = _fetch_daily_history(symbol, _mkey, _murl, bars=need2)
             and_lhs = (_compute_bar_metric(and_metric, and_period, bars, day=0)
                        if bars else None)
             and_name = _mn(and_metric, and_period)
@@ -901,9 +900,11 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol):
     return ok, detail
 
 
-def eval_metric(cfg, api_key, base_url, symbol):
+def eval_metric(cfg, api_key, base_url, symbol,
+                mkt_api_key=None, mkt_base_url=None):
     """Returns True/False or None (skip step) if data/metric unavailable."""
-    ok, _ = eval_metric_verbose(cfg, api_key, base_url, symbol)
+    ok, _ = eval_metric_verbose(cfg, api_key, base_url, symbol,
+                                mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url)
     return ok
 
 
@@ -1537,7 +1538,9 @@ def _exec_steps_branch(steps, ctx):
                 return False, log
 
         elif stype == 'metric':
-            ok = eval_metric(scfg, ctx['api_key'], ctx['base_url'], ctx['primary_symbol'])
+            ok = eval_metric(scfg, ctx['api_key'], ctx['base_url'], ctx['primary_symbol'],
+                             mkt_api_key=ctx.get('mkt_api_key'),
+                             mkt_base_url=ctx.get('mkt_base_url'))
             if ok is None:
                 log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped")
                 if has_branch:
@@ -1584,10 +1587,16 @@ def execute_strategy(cfg, strategy_dict, app):
         base_url   = TRADIER_PAPER_BASE
         api_key    = (decrypt_value(cfg.paper_api_key_enc)    or '').strip()
         account_id = (decrypt_value(cfg.paper_account_id_enc) or '').strip()
+        # Use live-quote key for market data if configured under "Live Quotes" in settings
+        _live_mkt_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip()
+        mkt_api_key   = _live_mkt_key or None
+        mkt_base_url  = TRADIER_LIVE_BASE if _live_mkt_key else None
     else:
         base_url   = TRADIER_LIVE_BASE
         api_key    = (decrypt_value(cfg.live_api_key_enc)    or '').strip()
         account_id = (decrypt_value(cfg.live_account_id_enc) or '').strip()
+        mkt_api_key  = None
+        mkt_base_url = None
 
     if not api_key or not account_id:
         return False, ["Missing API credentials — check Bot Settings"]
@@ -1610,7 +1619,8 @@ def execute_strategy(cfg, strategy_dict, app):
 
     ctx = dict(api_key=api_key, base_url=base_url, account_id=account_id,
                log=[], n=0, alloc=_alloc, max_pos=_max_pos,
-               primary_symbol=primary_symbol, app=app, user_id=cfg.user_id)
+               primary_symbol=primary_symbol, app=app, user_id=cfg.user_id,
+               mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url)
     return _exec_steps_branch(steps, ctx)
 
 
@@ -1666,7 +1676,9 @@ def _exec_steps_test(steps, tctx):
 
         elif stype == 'metric':
             ok, detail = eval_metric_verbose(scfg, tctx['api_key'], tctx['base_url'],
-                                             tctx['primary_symbol'])
+                                             tctx['primary_symbol'],
+                                             mkt_api_key=tctx.get('mkt_api_key'),
+                                             mkt_base_url=tctx.get('mkt_base_url'))
             if ok is None:
                 tctx['results'].append({
                     'type': 'metric',
@@ -1890,10 +1902,15 @@ def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
         base_url   = TRADIER_PAPER_BASE
         api_key    = (decrypt_value(cfg.paper_api_key_enc)    or '').strip()
         account_id = (decrypt_value(cfg.paper_account_id_enc) or '').strip()
+        _live_mkt_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip()
+        mkt_api_key   = _live_mkt_key or None
+        mkt_base_url  = TRADIER_LIVE_BASE if _live_mkt_key else None
     else:
         base_url   = TRADIER_LIVE_BASE
         api_key    = (decrypt_value(cfg.live_api_key_enc)    or '').strip()
         account_id = (decrypt_value(cfg.live_account_id_enc) or '').strip()
+        mkt_api_key  = None
+        mkt_base_url = None
 
     if not api_key or not account_id:
         return [{'type': 'error', 'label': 'Missing API credentials',
@@ -1918,7 +1935,7 @@ def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
     tctx = dict(api_key=api_key, base_url=base_url, account_id=account_id,
                 results=[], stopped=False, alloc=_alloc, max_pos=_max_pos,
                 primary_symbol=primary_symbol, app=app, user_id=cfg.user_id,
-                dry_run=dry_run)
+                dry_run=dry_run, mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url)
     _exec_steps_test(steps, tctx)
     return tctx['results']
 
