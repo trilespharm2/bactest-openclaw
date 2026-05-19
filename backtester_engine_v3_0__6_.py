@@ -1343,8 +1343,11 @@ class BacktesterEngine:
                 return False
             target_date = dates[target_idx]
 
-            day_data = grouped_data.get(target_date)
-            if day_data is None or len(day_data) == 0:
+            try:
+                day_data = grouped_data.get_group(target_date)
+            except KeyError:
+                return False
+            if len(day_data) == 0:
                 return False
 
             mins_per_bucket = cp_multiplier * (60 if cp_candle == 'hr' else 1)
@@ -1393,8 +1396,11 @@ class BacktesterEngine:
             if len(buckets) < 5:
                 for _pi in range(target_idx - 1, max(target_idx - 10, -1), -1):
                     _pdate = dates[_pi]
-                    _pdata = grouped_data.get(_pdate)
-                    if _pdata is None or len(_pdata) == 0:
+                    try:
+                        _pdata = grouped_data.get_group(_pdate)
+                    except KeyError:
+                        continue
+                    if len(_pdata) == 0:
                         continue
                     _pdf = _pdata.copy()
                     _pdf['_min'] = _pdf['timestamp'].apply(_to_mins)
