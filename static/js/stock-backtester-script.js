@@ -521,6 +521,7 @@ function setCrossOperators(selectId, include) {
     var sel = document.getElementById(selectId);
     if (!sel) return;
     var crossVals = ['cross_up', 'cross_down', 'cross_either'];
+    var savedVal = sel.value;
     crossVals.forEach(function(v) {
         var ex = sel.querySelector('option[value="' + v + '"]');
         if (ex) ex.remove();
@@ -536,6 +537,7 @@ function setCrossOperators(selectId, include) {
             opt.textContent = pair[1];
             sel.appendChild(opt);
         });
+        if (crossVals.indexOf(savedVal) !== -1) sel.value = savedVal;
     } else {
         if (crossVals.indexOf(sel.value) !== -1) sel.value = '>';
     }
