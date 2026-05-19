@@ -1681,7 +1681,7 @@ function buildStockConfigSummaryHtml(config) {
         </div>
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-clock" style="margin-right:6px;"></i>Max Days in Trade</div>
-            <div style="${valueStyle}">${(config.max_days !== '' && config.max_days !== null && config.max_days !== undefined && !isNaN(parseInt(config.max_days))) ? (parseInt(config.max_days) === 0 ? 'Same Day Only' : config.max_days + ' days') : 'Unlimited'}</div>
+            <div style="${valueStyle}">${(() => { const md = config.max_days; const et = config.exit_time || ''; const hasM = md !== '' && md !== null && md !== undefined && !isNaN(parseInt(md)); if (!hasM) return 'Unlimited'; const days = parseInt(md); const dayLabel = days === 0 ? 'Same Day' : days + ' day' + (days !== 1 ? 's' : ''); return et ? dayLabel + ' at ' + et : (days === 0 ? 'Same Day Only' : dayLabel); })()}</div>
         </div>
         ${config.allow_consecutive_trades ? '<div style="' + sectionStyle + '"><div style="' + labelStyle + '"><i class="fas fa-layer-group" style="margin-right:6px;"></i>Consecutive Trades</div><div style="' + valueStyle + '">Allowed</div></div>' : ''}
     `;
@@ -2082,7 +2082,8 @@ async function collectFormData() {
     config.stop_loss_type = document.querySelector('input[name="stop_loss_type"]:checked').value;
     config.stop_loss_value = document.getElementById('stopLossValue').value;
     config.max_days = document.getElementById('maxDays').value;
-    
+    config.exit_time = (document.getElementById('exitTime') || {}).value || '';
+
     // Consecutive trades
     config.allow_consecutive_trades = document.getElementById('allowConsecutive').checked;
     
@@ -2802,8 +2803,11 @@ function applyStockConfig(config) {
         document.getElementById('stopLossValue').value = config.stop_loss_value;
     }
 
-    if (document.getElementById('maxDays') && config.max_days) {
+    if (document.getElementById('maxDays') && config.max_days !== undefined && config.max_days !== null) {
         document.getElementById('maxDays').value = config.max_days;
+    }
+    if (document.getElementById('exitTime') && config.exit_time) {
+        document.getElementById('exitTime').value = config.exit_time;
     }
 
     if (document.getElementById('allowConsecutive')) {

@@ -2174,7 +2174,19 @@ class BacktesterEngine:
                 if entry_found and position is not None:
                     # Same-day exit scan: check TP/SL and signal exits on candles after entry
                     max_days_cfg = self.config.get('max_days', 0) or 0
-                    max_exit_time = position['entry_time'] + timedelta(days=max_days_cfg) if max_days_cfg > 0 else None
+                    exit_time_str = (self.config.get('exit_time', '') or '').strip()
+                    if exit_time_str:
+                        eh, em = map(int, exit_time_str.split(':'))
+                        entry_dt = position['entry_time']
+                        target_date = entry_dt.date() + timedelta(days=max_days_cfg)
+                        max_exit_time = entry_dt.replace(
+                            year=target_date.year, month=target_date.month, day=target_date.day,
+                            hour=eh, minute=em, second=0, microsecond=0
+                        )
+                    elif max_days_cfg > 0:
+                        max_exit_time = position['entry_time'] + timedelta(days=max_days_cfg)
+                    else:
+                        max_exit_time = None
                     for idx, candle in current_data.iterrows():
                         if idx <= position['entry_idx']:
                             continue  # only evaluate candles strictly after entry
@@ -2234,8 +2246,8 @@ class BacktesterEngine:
                             position = None
                             break
 
-                # max_days=0: force EOD close if position still open after same-day scan
-                if position is not None and max_days_cfg == 0 and not current_data.empty:
+                # max_days=0 with no exit_time: force EOD close if position still open after same-day scan
+                if position is not None and max_days_cfg == 0 and not exit_time_str and not current_data.empty:
                     last_c    = current_data.iloc[-1]
                     exit_price  = float(last_c['close'])
                     current_time = last_c['timestamp']
@@ -2313,7 +2325,19 @@ class BacktesterEngine:
             elif position is not None:
                 position['days_in_trade'] += 1
                 max_days_cfg = self.config.get('max_days', 0) or 0
-                max_exit_time = position['entry_time'] + timedelta(days=max_days_cfg) if max_days_cfg > 0 else None
+                exit_time_str = (self.config.get('exit_time', '') or '').strip()
+                if exit_time_str:
+                    eh, em = map(int, exit_time_str.split(':'))
+                    entry_dt = position['entry_time']
+                    target_date = entry_dt.date() + timedelta(days=max_days_cfg)
+                    max_exit_time = entry_dt.replace(
+                        year=target_date.year, month=target_date.month, day=target_date.day,
+                        hour=eh, minute=em, second=0, microsecond=0
+                    )
+                elif max_days_cfg > 0:
+                    max_exit_time = position['entry_time'] + timedelta(days=max_days_cfg)
+                else:
+                    max_exit_time = None
                 
                 day_entry['events'].append({
                     'type': 'holding',
