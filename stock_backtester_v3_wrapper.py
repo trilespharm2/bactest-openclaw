@@ -309,7 +309,8 @@ class StockBacktesterV3Wrapper:
         engine_config['stop_loss_type'] = web_config.get('stop_loss_type', 'percent')
         engine_config['stop_loss_value'] = float(web_config.get('stop_loss_value') or 0)
         engine_config['max_days'] = int(web_config.get('max_days') or 0)
-        
+        engine_config['exit_time'] = (web_config.get('exit_time', '') or '').strip()
+
         # Consecutive trades
         engine_config['allow_consecutive_trades'] = web_config.get('allow_consecutive_trades', False)
         
