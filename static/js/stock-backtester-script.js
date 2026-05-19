@@ -1681,7 +1681,7 @@ function buildStockConfigSummaryHtml(config) {
         </div>
         <div style="${sectionStyle}">
             <div style="${labelStyle}"><i class="fas fa-clock" style="margin-right:6px;"></i>Max Days in Trade</div>
-            <div style="${valueStyle}">${config.max_days || 'Unlimited'}</div>
+            <div style="${valueStyle}">${(config.max_days !== '' && config.max_days !== null && config.max_days !== undefined && !isNaN(parseInt(config.max_days))) ? (parseInt(config.max_days) === 0 ? 'Same Day Only' : config.max_days + ' days') : 'Unlimited'}</div>
         </div>
         ${config.allow_consecutive_trades ? '<div style="' + sectionStyle + '"><div style="' + labelStyle + '"><i class="fas fa-layer-group" style="margin-right:6px;"></i>Consecutive Trades</div><div style="' + valueStyle + '">Allowed</div></div>' : ''}
     `;
@@ -2210,7 +2210,7 @@ function validateConfig(config) {
     // At least one exit mechanism
     const hasTP       = config.take_profit_value && parseFloat(config.take_profit_value) > 0;
     const hasSL       = config.stop_loss_value && parseFloat(config.stop_loss_value) > 0;
-    const hasMaxDays  = config.max_days && parseInt(config.max_days) > 0;
+    const hasMaxDays  = config.max_days !== '' && config.max_days !== null && config.max_days !== undefined && !isNaN(parseInt(config.max_days)) && parseInt(config.max_days) >= 0;
     const hasExitCust = config.exit_cond_type === 'custom' && config.exit_custom_conditions && config.exit_custom_conditions.length > 0;
 
     if (!hasTP && !hasSL && !hasMaxDays && !hasExitCust) {

@@ -2234,6 +2234,45 @@ class BacktesterEngine:
                             position = None
                             break
 
+                # max_days=0: force EOD close if position still open after same-day scan
+                if position is not None and max_days_cfg == 0 and not current_data.empty:
+                    last_c    = current_data.iloc[-1]
+                    exit_price  = float(last_c['close'])
+                    current_time = last_c['timestamp']
+                    pnl, pnl_pct = self.calculate_pnl(
+                        position['entry_price'], exit_price,
+                        position['shares'], position['direction']
+                    )
+                    trades.append({
+                        'symbol': symbol,
+                        'direction': position['direction'],
+                        'prev_close': position['prev_close'],
+                        'prev_close_timestamp': position['prev_close_time'].strftime('%Y-%m-%d %H:%M:%S'),
+                        'entry_timestamp': position['entry_time'].strftime('%Y-%m-%d %H:%M:%S'),
+                        'entry_price': position['entry_price'],
+                        'exit_timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'exit_price': exit_price,
+                        'shares': position['shares'],
+                        'days_in_trade': position['days_in_trade'],
+                        'exit_reason': 'max_days',
+                        'pnl': pnl,
+                        'pnl_pct': pnl_pct,
+                        'condition_values': position.get('condition_values', [])
+                    })
+                    day_entry['events'].append({
+                        'type': 'exit',
+                        'trade_num': position.get('trade_num', 0),
+                        'reason': 'eod_same_day',
+                        'price': round(exit_price, 2),
+                        'time': str(current_time),
+                        'entry_price': round(position['entry_price'], 2),
+                        'pnl': round(pnl, 2),
+                        'pnl_pct': round(pnl_pct, 2)
+                    })
+                    day_entry['status'] = 'EXIT'
+                    print(f"  EXIT (EOD same-day): {symbol} @ ${exit_price:.2f} on {current_time} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
+                    position = None
+
                 if not entry_found:
                     day_high = float(current_data['high'].max()) if len(current_data) > 0 else None
                     day_low  = float(current_data['low'].min())  if len(current_data) > 0 else None
