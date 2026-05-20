@@ -795,8 +795,12 @@ function addCondition() {
                     </select>
                 </div>
                 <div class="col-md-3 col-sm-6">
-                    <label class="form-label small">Threshold Value</label>
-                    <input type="number" class="form-control form-control-sm" id="threshold-value-${n}" step="0.01" placeholder="e.g., 2.5">
+                    <label class="form-label small" id="threshold-value-label-${n}">Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="threshold-value-${n}" step="0.01" placeholder="e.g., 2.5" oninput="updateConditionSummary(${n}, false)">
+                </div>
+                <div class="col-md-3 col-sm-6" id="threshold-value-high-group-${n}" style="display:none;">
+                    <label class="form-label small">High Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="threshold-value-high-${n}" step="0.01" placeholder="e.g., 5.0" oninput="updateConditionSummary(${n}, false)">
                 </div>
             </div>
         </div>
@@ -1070,8 +1074,13 @@ function updateStockRightSide(n) {
         var thresholdUnit = document.getElementById('threshold-unit-' + n);
         var thresholdValue = document.getElementById('threshold-value-' + n);
         var isCross = operator && ['cross_up', 'cross_down', 'cross_either'].indexOf(operator.value) !== -1;
+        var isBetween = operator && operator.value === '><';
+        var thresholdHighGroup = document.getElementById('threshold-value-high-group-' + n);
+        var thresholdLabel = document.getElementById('threshold-value-label-' + n);
         if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
         if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
+        if (thresholdHighGroup) thresholdHighGroup.style.display = (isBetween && !isEquals && !isCross) ? '' : 'none';
+        if (thresholdLabel) thresholdLabel.textContent = (isBetween && !isEquals && !isCross) ? 'Low Threshold Value' : 'Threshold Value';
     }
     updateConditionSummary(n, false);
 }
@@ -1313,8 +1322,12 @@ function addExitCondition() {
                     </select>
                 </div>
                 <div class="col-md-3 col-sm-6">
-                    <label class="form-label small">Threshold Value</label>
-                    <input type="number" class="form-control form-control-sm" id="exit-threshold-value-${n}" step="0.01" placeholder="e.g., 2.5">
+                    <label class="form-label small" id="exit-threshold-value-label-${n}">Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-threshold-value-${n}" step="0.01" placeholder="e.g., 2.5" oninput="updateConditionSummary(${n}, true)">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-threshold-value-high-group-${n}" style="display:none;">
+                    <label class="form-label small">High Threshold Value</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-threshold-value-high-${n}" step="0.01" placeholder="e.g., 5.0" oninput="updateConditionSummary(${n}, true)">
                 </div>
             </div>
         </div>
@@ -1483,8 +1496,13 @@ function updateExitRightSide(n) {
         var thresholdUnit = document.getElementById('exit-threshold-unit-' + n);
         var thresholdValue = document.getElementById('exit-threshold-value-' + n);
         var isCross = ['cross_up', 'cross_down', 'cross_either'].indexOf(operator) !== -1;
+        var isBetween = (operator === '><');
+        var thresholdHighGroup = document.getElementById('exit-threshold-value-high-group-' + n);
+        var thresholdLabel = document.getElementById('exit-threshold-value-label-' + n);
         if (thresholdUnit) thresholdUnit.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
         if (thresholdValue) thresholdValue.closest('.col-md-3').style.display = (isEquals || isCross) ? 'none' : '';
+        if (thresholdHighGroup) thresholdHighGroup.style.display = (isBetween && !isEquals && !isCross) ? '' : 'none';
+        if (thresholdLabel) thresholdLabel.textContent = (isBetween && !isEquals && !isCross) ? 'Low Threshold Value' : 'Threshold Value';
     }
     updateConditionSummary(n, true);
 }
@@ -1585,6 +1603,15 @@ function buildConditionDesc(n, isExit) {
         var right = sideDesc('right');
         var rightDesc = metricDesc(rightMetric, right);
         var threshStr = '';
+        if (operator === '><') {
+            var highThreshVal = parseFloat((document.getElementById(p + 'threshold-value-high-' + n) || {}).value) || 0;
+            if (threshUnit === '$') {
+                threshStr = ' (by $' + threshVal + ' to $' + highThreshVal + ')';
+            } else {
+                threshStr = ' (by ' + threshVal + '% to ' + highThreshVal + '%)';
+            }
+            return leftDesc + ' between ' + rightDesc + threshStr;
+        }
         if (threshUnit === 'x' && threshVal !== 0) {
             threshStr = ' × ' + threshVal + 'x';
         } else if (threshUnit === '%' && threshVal !== 0) {
@@ -1984,6 +2011,9 @@ async function collectFormData() {
 
                 condition.threshold_unit = (document.getElementById(`threshold-unit-${id}`) || {}).value || '%';
                 condition.threshold_value = parseFloat((document.getElementById(`threshold-value-${id}`) || {}).value) || 0;
+                if (condition.operation === '><') {
+                    condition.threshold_value_high = parseFloat((document.getElementById(`threshold-value-high-${id}`) || {}).value) || 0;
+                }
             }
 
             // Sequential phase flag (conditions 2+ only)
@@ -2100,6 +2130,9 @@ async function collectFormData() {
 
                 condition.threshold_unit = (document.getElementById('exit-threshold-unit-' + id) || {}).value || '%';
                 condition.threshold_value = parseFloat((document.getElementById('exit-threshold-value-' + id) || {}).value) || 0;
+                if (condition.operation === '><') {
+                    condition.threshold_value_high = parseFloat((document.getElementById('exit-threshold-value-high-' + id) || {}).value) || 0;
+                }
             }
 
             var exitTwCb = document.getElementById('exit-time-window-enabled-' + id);
@@ -2790,6 +2823,9 @@ function applyStockConfig(config) {
 
             var thresholdValEl = document.getElementById('threshold-value-' + id);
             if (thresholdValEl && cond.threshold_value != null) thresholdValEl.value = cond.threshold_value;
+
+            var thresholdHighEl = document.getElementById('threshold-value-high-' + id);
+            if (thresholdHighEl && cond.threshold_value_high != null) thresholdHighEl.value = cond.threshold_value_high;
         });
     }
 

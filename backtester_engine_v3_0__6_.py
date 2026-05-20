@@ -1341,11 +1341,16 @@ class BacktesterEngine:
             elif operation == '=':
                 return abs(change - threshold_value) < 0.01
             elif operation == '><':
-                # Between: left_value strictly between right_value (low) and right_fixed_value_high (high)
-                high = condition.get('right_fixed_value_high', None)
-                if high is not None:
-                    return float(right_value) < float(left_value) < float(high)
-                return False
+                if right_type == 'value':
+                    # Fixed value comparator: left strictly between right_value and right_fixed_value_high
+                    high = condition.get('right_fixed_value_high', None)
+                    if high is not None:
+                        return float(right_value) < float(left_value) < float(high)
+                    return False
+                else:
+                    # Metric comparator: change (% or $) must be between threshold_value and threshold_value_high
+                    threshold_value_high = float(condition.get('threshold_value_high', 0) or 0)
+                    return threshold_value <= change < threshold_value_high
 
             return False
             
