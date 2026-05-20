@@ -876,5 +876,63 @@
     <script src="/static/js/app-dialogs.js"></script>
     <script src="/static/js/auth-utils.js"></script>
     <script src="stock-backtest-results-script.js"></script>
+
+  <!-- Stock Decision Tree Day Chart Modal -->
+  <style>
+    .stk-day-chart-modal { display:none; position:fixed; inset:0; padding:20px; background:rgba(10,18,35,0.72); z-index:1100; backdrop-filter:blur(8px); }
+    .stk-day-chart-modal.active { display:flex; align-items:stretch; justify-content:center; }
+    .stk-day-chart-panel { width:min(1300px,100%); display:flex; flex-direction:column; background:#0f1923; border-radius:20px; border:1px solid #1e2d3e; box-shadow:0 32px 80px rgba(0,0,0,0.5); overflow:hidden; }
+    .stk-day-chart-header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 22px; border-bottom:1px solid #1e2d3e; background:#111d2b; }
+    .stk-day-chart-header h3 { margin:0; font-size:15px; font-weight:700; color:#e2e8f0; display:flex; align-items:center; gap:8px; }
+    .stk-day-chart-indicator-row { display:flex; align-items:center; gap:12px; }
+    .stk-day-chart-indicator-row label { font-size:12px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; }
+    .stk-day-chart-indicator-row select { background:#1a2535; color:#e2e8f0; border:1px solid #2d3f54; border-radius:8px; padding:7px 30px 7px 12px; font-size:13px; font-weight:600; cursor:pointer; outline:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; }
+    .stk-day-chart-close-btn { background:#1a2535; color:#94a3b8; border:1px solid #2d3f54; padding:8px 14px; border-radius:10px; cursor:pointer; font-size:13px; font-weight:700; transition:all 0.15s; }
+    .stk-day-chart-close-btn:hover { background:#243045; color:#e2e8f0; }
+    .stk-day-chart-body { flex:1; min-height:0; display:flex; flex-direction:column; padding:16px; gap:0; overflow:hidden; }
+    .stk-day-price-chart-wrap { flex:1; min-height:0; position:relative; }
+    .stk-day-indicator-chart-wrap { flex:0 0 170px; min-height:0; position:relative; border-top:1px solid #1e2d3e; padding-top:6px; margin-top:6px; display:none; }
+    .stk-day-indicator-label { position:absolute; top:10px; left:6px; font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em; pointer-events:none; z-index:1; }
+    .day-chart-btn { background:#1e2d3e; color:#7eb8ff; border:1px solid #2d4a6a; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:all 0.15s; white-space:nowrap; }
+    .day-chart-btn:hover { background:#243a52; color:#a8d4ff; }
+  </style>
+  <div class="stk-day-chart-modal" id="stkDayChartModal">
+    <div class="stk-day-chart-panel">
+      <div class="stk-day-chart-header">
+        <h3><i class="fas fa-chart-area"></i> <span id="stkDayChartTitle">Day Chart</span></h3>
+        <div class="stk-day-chart-indicator-row">
+          <label for="stkDayChartIndicator">Indicator:</label>
+          <select id="stkDayChartIndicator" onchange="onStkDayChartIndicatorChange()">
+            <option value="none">None</option>
+            <option value="rsi">RSI (14)</option>
+            <option value="macd">MACD (12, 26, 9)</option>
+          </select>
+          <button class="stk-day-chart-close-btn" type="button" onclick="closeStkDayChartModal()">
+            <i class="fas fa-times"></i> Close
+          </button>
+        </div>
+      </div>
+      <div class="stk-day-chart-body">
+        <div class="stk-day-price-chart-wrap">
+          <canvas id="stkDayPriceChart"></canvas>
+        </div>
+        <div class="stk-day-indicator-chart-wrap" id="stkDayIndicatorWrap">
+          <div class="stk-day-indicator-label" id="stkDayIndicatorLabel"></div>
+          <canvas id="stkDayIndicatorChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var m = document.getElementById('stkDayChartModal');
+        if (m && m.classList.contains('active') && typeof closeStkDayChartModal === 'function') closeStkDayChartModal();
+      }
+    });
+    document.getElementById('stkDayChartModal').addEventListener('click', function(e) {
+      if (e.target === this && typeof closeStkDayChartModal === 'function') closeStkDayChartModal();
+    });
+  </script>
 </body>
 </html>

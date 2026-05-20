@@ -11,6 +11,43 @@ from datetime import datetime
 from typing import Dict, Any, List
 import uuid
 
+
+def _compute_trade_stats(trades: list, config: dict | None = None) -> dict:
+    """Compute summary stats from engine.results trade list."""
+    if not trades:
+        return {}
+    total = len(trades)
+    winning  = [t for t in trades if (t.get('pnl') or 0) > 0]
+    losing   = [t for t in trades if (t.get('pnl') or 0) < 0]
+    total_pnl    = sum(t.get('pnl', 0) for t in trades)
+    win_rate     = len(winning) / total * 100
+    avg_win      = sum(t.get('pnl', 0) for t in winning) / len(winning) if winning else 0.0
+    avg_loss     = sum(t.get('pnl', 0) for t in losing)  / len(losing)  if losing  else 0.0
+    gross_profit = sum(t.get('pnl', 0) for t in winning)
+    gross_loss   = abs(sum(t.get('pnl', 0) for t in losing))
+    profit_factor = min(gross_profit / gross_loss, 9999.0) if gross_loss > 0 else (9999.0 if gross_profit > 0 else 0.0)
+    starting = float((config or {}).get('starting_capital') or 10000) or 10000.0
+    equity = peak = starting
+    max_dd = 0.0
+    for t in trades:
+        equity += t.get('pnl', 0)
+        if equity > peak:
+            peak = equity
+        if peak > 0:
+            dd = (equity - peak) / peak * 100
+            if dd < max_dd:
+                max_dd = dd
+    total_return = total_pnl / starting * 100 if starting else 0.0
+    return {
+        'total_pnl':     round(total_pnl, 2),
+        'win_rate':      round(win_rate, 2),
+        'avg_win':       round(avg_win, 2),
+        'avg_loss':      round(avg_loss, 2),
+        'profit_factor': round(profit_factor, 4),
+        'max_drawdown':  round(max_dd, 2),
+        'total_return':  round(total_return, 2),
+    }
+
 # Add current directory to path to import the backtester engine
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -75,12 +112,14 @@ class StockBacktesterV3Wrapper:
             # Save results with simpler filename (just backtest_id)
             result_file = os.path.join(self.output_dir, f'{backtest_id}.json')
             
+            _trades = engine.results if hasattr(engine, 'results') else []
+            _stats  = _compute_trade_stats(_trades, engine.config)
             results = {
                 'status': 'success',
                 'backtest_id': backtest_id,
                 'timestamp': timestamp,
                 'config': config,
-                'trades': engine.results if hasattr(engine, 'results') else [],
+                'trades': _trades,
                 'decision_log': engine.decision_log if hasattr(engine, 'decision_log') else [],
                 'metadata': {
                     'name': config.get('name'),
@@ -89,7 +128,8 @@ class StockBacktesterV3Wrapper:
                         'end': config.get('end_date')
                     },
                     'symbol_count': len(engine.config.get('symbols', [])),
-                    'total_trades': len(engine.results) if hasattr(engine, 'results') else 0
+                    'total_trades': len(_trades),
+                    **_stats,
                 }
             }
             
@@ -154,13 +194,15 @@ class StockBacktesterV3Wrapper:
             engine.run_backtest(output_dir=self.output_dir, backtest_id=backtest_id)
             
             result_file = os.path.join(self.output_dir, f'{backtest_id}.json')
-            
+
+            _trades = engine.results if hasattr(engine, 'results') else []
+            _stats  = _compute_trade_stats(_trades, engine.config)
             results = {
                 'status': 'success',
                 'backtest_id': backtest_id,
                 'timestamp': timestamp,
                 'config': config,
-                'trades': engine.results if hasattr(engine, 'results') else [],
+                'trades': _trades,
                 'decision_log': engine.decision_log if hasattr(engine, 'decision_log') else [],
                 'metadata': {
                     'name': config.get('name'),
@@ -169,7 +211,8 @@ class StockBacktesterV3Wrapper:
                         'end': config.get('end_date')
                     },
                     'symbol_count': len(engine.config.get('symbols', [])),
-                    'total_trades': len(engine.results) if hasattr(engine, 'results') else 0
+                    'total_trades': len(_trades),
+                    **_stats,
                 }
             }
             

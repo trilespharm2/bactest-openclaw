@@ -2003,6 +2003,20 @@ class BacktesterEngine:
             prev_close, prev_close_time = self.get_regular_hours_close(prev_data)
             open_930_price, open_930_candle = self.get_open_930(current_data)
             
+            def _bars_compact(day_df):
+                out = []
+                for _, r in day_df.iterrows():
+                    ts = str(r['timestamp'])
+                    hhmm = ts[11:16] if len(ts) > 15 else ts
+                    if hhmm >= '09:30':
+                        out.append([hhmm,
+                                    round(float(r['open']),  2),
+                                    round(float(r['high']),  2),
+                                    round(float(r['low']),   2),
+                                    round(float(r['close']), 2),
+                                    int(r['volume'] if 'volume' in r.index and r['volume'] == r['volume'] else 0)])
+                return out
+
             day_entry = {
                 'date': str(current_date),
                 'symbol': symbol,
@@ -2011,7 +2025,9 @@ class BacktesterEngine:
                 'condition': condition_desc,
                 'exit_criteria': exit_criteria_desc,
                 'events': [],
-                'status': 'SKIPPED'
+                'status': 'SKIPPED',
+                'bars':      _bars_compact(current_data),
+                'seed_bars': _bars_compact(prev_data),
             }
             
             exited_this_day = False

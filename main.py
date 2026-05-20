@@ -37,6 +37,44 @@ _backtest_list_cache: dict = {}
 # caching / returning.  They remain available on the per-backtest detail API.
 _HEAVY_FIELDS = frozenset(['decision_log', 'trades'])
 
+def _compute_backtest_stats(trades: list, config: dict | None = None) -> dict:
+    """Compute summary stats from a list of stock backtest trade dicts."""
+    if not trades:
+        return {}
+    total = len(trades)
+    winning  = [t for t in trades if (t.get('pnl') or 0) > 0]
+    losing   = [t for t in trades if (t.get('pnl') or 0) < 0]
+    total_pnl    = sum(t.get('pnl', 0) for t in trades)
+    win_rate     = len(winning) / total * 100
+    avg_win      = sum(t.get('pnl', 0) for t in winning) / len(winning) if winning else 0.0
+    avg_loss     = sum(t.get('pnl', 0) for t in losing)  / len(losing)  if losing  else 0.0
+    gross_profit = sum(t.get('pnl', 0) for t in winning)
+    gross_loss   = abs(sum(t.get('pnl', 0) for t in losing))
+    profit_factor = min(gross_profit / gross_loss, 9999.0) if gross_loss > 0 else (9999.0 if gross_profit > 0 else 0.0)
+    starting = float((config or {}).get('starting_capital') or 10000) or 10000.0
+    equity = peak = starting
+    max_dd = 0.0
+    for t in trades:
+        equity += t.get('pnl', 0)
+        if equity > peak:
+            peak = equity
+        if peak > 0:
+            dd = (equity - peak) / peak * 100
+            if dd < max_dd:
+                max_dd = dd
+    total_return = total_pnl / starting * 100 if starting else 0.0
+    return {
+        'total_trades':  total,
+        'total_pnl':     round(total_pnl, 2),
+        'win_rate':      round(win_rate, 2),
+        'avg_win':       round(avg_win, 2),
+        'avg_loss':      round(avg_loss, 2),
+        'profit_factor': round(profit_factor, 4),
+        'max_drawdown':  round(max_dd, 2),
+        'total_return':  round(total_return, 2),
+    }
+
+
 def _load_backtest_summary(filepath: str) -> dict | None:
     """
     Read *filepath* and return a dict with heavy fields stripped.
@@ -53,6 +91,12 @@ def _load_backtest_summary(filepath: str) -> dict | None:
     try:
         with open(filepath, 'r') as fh:
             data = json.load(fh)
+        meta = data.get('metadata', {})
+        if 'total_pnl' not in meta:
+            trades = data.get('trades', [])
+            if trades:
+                meta.update(_compute_backtest_stats(trades, data.get('config', {})))
+                data['metadata'] = meta
         for field in _HEAVY_FIELDS:
             data.pop(field, None)
         _backtest_list_cache[filepath] = (mtime, data)

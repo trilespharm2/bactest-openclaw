@@ -760,6 +760,119 @@ function formatExitReason(reason) {
     return map[reason] || reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
+let _stkDayPriceChartInst    = null;
+let _stkDayIndicatorChartInst = null;
+let _stkDayChartCurrentDay   = null;
+
+function openStkDayChart(dayIdx) {
+    const day = dtDays[dayIdx];
+    if (!day || !day.bars || day.bars.length === 0) return;
+    _stkDayChartCurrentDay = day;
+    document.getElementById('stkDayChartTitle').textContent = (day.symbol || '') + ' \u2014 ' + day.date;
+    document.getElementById('stkDayChartIndicator').value = 'none';
+    document.getElementById('stkDayIndicatorWrap').style.display = 'none';
+    document.getElementById('stkDayChartModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => _buildStkDayPriceChart(day), 60);
+}
+
+function closeStkDayChartModal() {
+    document.getElementById('stkDayChartModal').classList.remove('active');
+    document.body.style.overflow = '';
+    if (_stkDayPriceChartInst)    { _stkDayPriceChartInst.destroy();    _stkDayPriceChartInst    = null; }
+    if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+    _stkDayChartCurrentDay = null;
+}
+
+function onStkDayChartIndicatorChange() {
+    const ind  = document.getElementById('stkDayChartIndicator').value;
+    const wrap = document.getElementById('stkDayIndicatorWrap');
+    if (!_stkDayChartCurrentDay) return;
+    if (ind === 'none') {
+        wrap.style.display = 'none';
+        if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+        return;
+    }
+    wrap.style.display = 'block';
+    _buildStkDayIndicatorChart(_stkDayChartCurrentDay, ind);
+}
+
+function _stkCRSI(closes, w = 14) {
+    const rsi = new Array(closes.length).fill(null);
+    if (closes.length <= w) return rsi;
+    let ag = 0, al = 0;
+    for (let i = 1; i <= w; i++) { const d = closes[i] - closes[i-1]; if (d > 0) ag += d; else al -= d; }
+    ag /= w; al /= w;
+    rsi[w] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+    for (let i = w+1; i < closes.length; i++) {
+        const d = closes[i] - closes[i-1];
+        ag = (ag*(w-1) + (d>0?d:0)) / w; al = (al*(w-1) + (d<0?-d:0)) / w;
+        rsi[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+    }
+    return rsi;
+}
+function _stkCEMA(vals, span) {
+    const k = 2/(span+1), ema = new Array(vals.length).fill(null);
+    let f = vals.findIndex(v => v != null && !isNaN(v));
+    if (f < 0) return ema;
+    ema[f] = vals[f];
+    for (let i = f+1; i < vals.length; i++) { const v=vals[i]; ema[i]=(v!=null&&!isNaN(v))?v*k+ema[i-1]*(1-k):ema[i-1]; }
+    return ema;
+}
+function _stkCMACD(closes, s=12, l=26, sig=9) {
+    const eS=_stkCEMA(closes,s), eL=_stkCEMA(closes,l);
+    const ml=closes.map((_,i)=>eS[i]!=null&&eL[i]!=null?eS[i]-eL[i]:null);
+    const sl=_stkCEMA(ml.map(v=>v==null?NaN:v),sig);
+    return {macdLine:ml, signalLine:sl, histogram:ml.map((v,i)=>v!=null&&sl[i]!=null?v-sl[i]:null)};
+}
+
+function _buildStkDayPriceChart(day) {
+    const bars=day.bars||[], labels=bars.map(b=>b[0]), opens=bars.map(b=>b[1]), highs=bars.map(b=>b[2]), lows=bars.map(b=>b[3]), closes=bars.map(b=>b[4]);
+    const upC='rgba(16,185,129,0.85)', dnC='rgba(239,68,68,0.82)';
+    const wc=bars.map((_,i)=>closes[i]>=opens[i]?upC:dnC);
+    const et=(day.events||[]).filter(e=>e.type==='entry'&&e.time).map(e=>e.time.slice(11,16));
+    const xt=(day.events||[]).filter(e=>e.type==='exit' &&e.time).map(e=>e.time.slice(11,16));
+    if (_stkDayPriceChartInst) { _stkDayPriceChartInst.destroy(); _stkDayPriceChartInst=null; }
+    const ctx=document.getElementById('stkDayPriceChart');
+    _stkDayPriceChartInst = new Chart(ctx, {
+        type:'bar', data:{ labels, datasets:[
+            {label:'Wick',data:bars.map((_,i)=>[lows[i],highs[i]]),backgroundColor:wc,borderColor:wc,borderWidth:0,barPercentage:0.15,categoryPercentage:1,order:2},
+            {label:'Body',data:bars.map((_,i)=>[opens[i],closes[i]]),backgroundColor:wc,borderColor:wc,borderWidth:0,barPercentage:0.6,categoryPercentage:1,order:1},
+            {label:'Entry',type:'scatter',data:labels.map((l,i)=>et.includes(l)?{x:l,y:lows[i]*0.9995}:null).filter(v=>v),backgroundColor:'#10b981',borderColor:'#fff',borderWidth:1.5,pointStyle:'triangle',pointRadius:8,order:0,showLine:false},
+            {label:'Exit', type:'scatter',data:labels.map((l,i)=>xt.includes(l)?{x:l,y:highs[i]*1.0005}:null).filter(v=>v),backgroundColor:'#f59e0b',borderColor:'#fff',borderWidth:1.5,pointStyle:'triangle',rotation:180,pointRadius:8,order:0,showLine:false}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label(c){if(c.dataset.label==='Entry')return`Entry @ ${c.raw.y.toFixed(2)}`;if(c.dataset.label==='Exit')return`Exit @ ${c.raw.y.toFixed(2)}`;const i=c.dataIndex;return[`O: ${opens[i].toFixed(2)}`,`H: ${highs[i].toFixed(2)}`,`L: ${lows[i].toFixed(2)}`,`C: ${closes[i].toFixed(2)}`];}},backgroundColor:'#1a2535',titleColor:'#94a3b8',bodyColor:'#e2e8f0',borderColor:'#2d3f54',borderWidth:1}},scales:{x:{ticks:{color:'#64748b',maxRotation:0,autoSkip:true,maxTicksLimit:14,font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#64748b',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'}}}}
+    });
+}
+
+function _buildStkDayIndicatorChart(day, indicator) {
+    if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst=null; }
+    const allBars=[...(day.seed_bars||[]),...(day.bars||[])], allCloses=allBars.map(b=>b[4]);
+    const labels=(day.bars||[]).map(b=>b[0]), offset=(day.seed_bars||[]).length;
+    const ctx=document.getElementById('stkDayIndicatorChart'), label=document.getElementById('stkDayIndicatorLabel');
+    if (indicator==='rsi') {
+        label.textContent='RSI (14)';
+        const rsiDay=_stkCRSI(allCloses,14).slice(offset);
+        _stkDayIndicatorChartInst = new Chart(ctx, {
+            type:'line', data:{labels, datasets:[{label:'RSI',data:rsiDay,borderColor:'#818cf8',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.2,spanGaps:true}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`RSI: ${c.parsed.y!=null?c.parsed.y.toFixed(2):'N/A'}`},backgroundColor:'#1a2535',titleColor:'#94a3b8',bodyColor:'#e2e8f0',borderColor:'#2d3f54',borderWidth:1}},scales:{x:{ticks:{color:'#4a5568',font:{size:10},maxTicksLimit:10,autoSkip:true,maxRotation:0},grid:{color:'rgba(255,255,255,0.03)'}},y:{min:0,max:100,ticks:{color:'#4a5568',font:{size:10},stepSize:25},grid:{color:'rgba(255,255,255,0.03)'}}}},
+            plugins:[{id:'rsiLines',afterDraw(chart){const{ctx:c,chartArea:{left,right},scales:{y}}=chart;[70,50,30].forEach(lvl=>{const yp=y.getPixelForValue(lvl);c.save();c.strokeStyle=lvl===50?'rgba(148,163,184,0.3)':(lvl===70?'rgba(239,68,68,0.4)':'rgba(16,185,129,0.4)');c.lineWidth=1;c.setLineDash([4,4]);c.beginPath();c.moveTo(left,yp);c.lineTo(right,yp);c.stroke();c.restore();})}}]
+        });
+    } else if (indicator==='macd') {
+        label.textContent='MACD (12, 26, 9)';
+        const {macdLine,signalLine,histogram}=_stkCMACD(allCloses);
+        const md=macdLine.slice(offset), sd=signalLine.slice(offset), hd=histogram.slice(offset);
+        _stkDayIndicatorChartInst = new Chart(ctx, {
+            type:'bar', data:{labels, datasets:[
+                {label:'Histogram',type:'bar', data:hd, backgroundColor:hd.map(v=>v==null?'transparent':v>=0?'rgba(16,185,129,0.55)':'rgba(239,68,68,0.55)'),borderColor:'transparent',borderWidth:0,barPercentage:0.8,categoryPercentage:1,order:2},
+                {label:'MACD',     type:'line',data:md, borderColor:'#60a5fa',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.15,spanGaps:true,order:1},
+                {label:'Signal',   type:'line',data:sd, borderColor:'#f97316',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:0,tension:0.15,spanGaps:true,order:0}
+            ]},
+            options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:true,position:'top',labels:{color:'#64748b',font:{size:10},boxWidth:20,padding:10}},tooltip:{backgroundColor:'#1a2535',titleColor:'#94a3b8',bodyColor:'#e2e8f0',borderColor:'#2d3f54',borderWidth:1}},scales:{x:{ticks:{color:'#4a5568',font:{size:10},maxTicksLimit:10,autoSkip:true,maxRotation:0},grid:{color:'rgba(255,255,255,0.03)'}},y:{ticks:{color:'#4a5568',font:{size:10}},grid:{color:'rgba(255,255,255,0.03)'}}}}
+        });
+    }
+}
+
 function formatTime(timeStr) {
     if (!timeStr) return '';
     const parts = timeStr.replace('T', ' ').split(' ');
@@ -786,7 +899,8 @@ function renderDtPage(config) {
 
     const dir = config?.direction ? config.direction.charAt(0).toUpperCase() + config.direction.slice(1) : 'Long';
 
-    body.innerHTML = dtDays.slice(start, end).map(day => {
+    body.innerHTML = dtDays.slice(start, end).map((day, relIdx) => {
+        const dayIdx = start + relIdx;
         const status = day.status || 'SKIPPED';
         let badgeColor, badgeText, headerBg;
         switch (status) {
@@ -894,7 +1008,10 @@ function renderDtPage(config) {
                         <span style="background:${badgeColor}; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600;">${badgeText}</span>
                         ${hasPnl ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:600; font-size:13px;">P&L: $${dayPnl.toFixed(2)}</span>` : ''}
                     </div>
-                    <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${(day.bars && day.bars.length > 0) ? `<button class="day-chart-btn" onclick="event.stopPropagation(); openStkDayChart(${dayIdx})" title="View price chart"><i class="fas fa-chart-area"></i> View Chart</button>` : ''}
+                        <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                    </div>
                 </div>
                 <div style="padding:12px 16px; display:none;">
                     ${flowHtml}

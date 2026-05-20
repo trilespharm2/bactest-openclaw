@@ -1216,6 +1216,182 @@ function _dtRefreshIndList() {
     if (clearBtn) clearBtn.style.display = _dtModalIndicators.length > 1 ? 'block' : 'none';
 }
 
+var _stkDayPriceChartInst    = null;
+var _stkDayIndicatorChartInst = null;
+var _stkDayChartCurrentDay   = null;
+
+function openStkDayChart(dayIdx) {
+    var day = _stkDetailState.dtDays[dayIdx];
+    if (!day || !day.bars || day.bars.length === 0) return;
+    _stkDayChartCurrentDay = day;
+    document.getElementById('stkDayChartTitle').textContent = (day.symbol || '') + ' \u2014 ' + day.date;
+    document.getElementById('stkDayChartIndicator').value = 'none';
+    document.getElementById('stkDayIndicatorWrap').style.display = 'none';
+    document.getElementById('stkDayChartModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function() { _buildStkDayPriceChart(day); }, 60);
+}
+
+function closeStkDayChartModal() {
+    document.getElementById('stkDayChartModal').classList.remove('active');
+    document.body.style.overflow = '';
+    if (_stkDayPriceChartInst)    { _stkDayPriceChartInst.destroy();    _stkDayPriceChartInst    = null; }
+    if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+    _stkDayChartCurrentDay = null;
+}
+
+function onStkDayChartIndicatorChange() {
+    var ind  = document.getElementById('stkDayChartIndicator').value;
+    var wrap = document.getElementById('stkDayIndicatorWrap');
+    if (!_stkDayChartCurrentDay) return;
+    if (ind === 'none') {
+        wrap.style.display = 'none';
+        if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+        return;
+    }
+    wrap.style.display = 'block';
+    _buildStkDayIndicatorChart(_stkDayChartCurrentDay, ind);
+}
+
+function _stkComputeRSI(closes, w) {
+    w = w || 14;
+    var rsi = new Array(closes.length).fill(null);
+    if (closes.length <= w) return rsi;
+    var avgGain = 0, avgLoss = 0;
+    for (var i = 1; i <= w; i++) { var d = closes[i] - closes[i-1]; if (d > 0) avgGain += d; else avgLoss -= d; }
+    avgGain /= w; avgLoss /= w;
+    rsi[w] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    for (var i = w+1; i < closes.length; i++) {
+        var d = closes[i] - closes[i-1];
+        avgGain = (avgGain * (w-1) + (d > 0 ? d : 0)) / w;
+        avgLoss = (avgLoss * (w-1) + (d < 0 ? -d : 0)) / w;
+        rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    }
+    return rsi;
+}
+
+function _stkComputeEMA(values, span) {
+    var k = 2 / (span + 1);
+    var ema = new Array(values.length).fill(null);
+    var first = -1;
+    for (var i = 0; i < values.length; i++) { if (values[i] != null && !isNaN(values[i])) { first = i; break; } }
+    if (first < 0) return ema;
+    ema[first] = values[first];
+    for (var i = first+1; i < values.length; i++) {
+        var v = values[i];
+        ema[i] = (v != null && !isNaN(v)) ? v * k + ema[i-1] * (1-k) : ema[i-1];
+    }
+    return ema;
+}
+
+function _stkComputeMACD(closes, s, l, sig) {
+    s = s||12; l = l||26; sig = sig||9;
+    var eS = _stkComputeEMA(closes, s), eL = _stkComputeEMA(closes, l);
+    var macdLine = closes.map(function(_, i) { return eS[i] != null && eL[i] != null ? eS[i] - eL[i] : null; });
+    var sigLine  = _stkComputeEMA(macdLine.map(function(v) { return v == null ? NaN : v; }), sig);
+    var hist     = macdLine.map(function(v, i) { return v != null && sigLine[i] != null ? v - sigLine[i] : null; });
+    return { macdLine: macdLine, signalLine: sigLine, histogram: hist };
+}
+
+function _buildStkDayPriceChart(day) {
+    var bars   = day.bars      || [];
+    var labels = bars.map(function(b) { return b[0]; });
+    var opens  = bars.map(function(b) { return b[1]; });
+    var highs  = bars.map(function(b) { return b[2]; });
+    var lows   = bars.map(function(b) { return b[3]; });
+    var closes = bars.map(function(b) { return b[4]; });
+    var upC = 'rgba(16,185,129,0.85)', dnC = 'rgba(239,68,68,0.82)';
+    var wickColor = bars.map(function(b, i) { return closes[i] >= opens[i] ? upC : dnC; });
+
+    var entryTimes = (day.events || []).filter(function(e) { return e.type === 'entry' && e.time; }).map(function(e) { return e.time.slice(11,16); });
+    var exitTimes  = (day.events || []).filter(function(e) { return e.type === 'exit'  && e.time; }).map(function(e) { return e.time.slice(11,16); });
+
+    if (_stkDayPriceChartInst) { _stkDayPriceChartInst.destroy(); _stkDayPriceChartInst = null; }
+    var ctx = document.getElementById('stkDayPriceChart');
+    _stkDayPriceChartInst = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Wick', data: bars.map(function(b,i) { return [lows[i], highs[i]]; }), backgroundColor: wickColor, borderColor: wickColor, borderWidth: 0, barPercentage: 0.15, categoryPercentage: 1, order: 2 },
+                { label: 'Body', data: bars.map(function(b,i) { return [opens[i], closes[i]]; }), backgroundColor: wickColor, borderColor: wickColor, borderWidth: 0, barPercentage: 0.6, categoryPercentage: 1, order: 1 },
+                { label: 'Entry', type: 'scatter', data: labels.map(function(l,i) { return entryTimes.indexOf(l)>=0 ? {x:l, y:lows[i]*0.9995} : null; }).filter(function(v){return v;}), backgroundColor: '#10b981', borderColor: '#fff', borderWidth: 1.5, pointStyle: 'triangle', pointRadius: 8, pointHoverRadius: 10, order: 0, showLine: false },
+                { label: 'Exit',  type: 'scatter', data: labels.map(function(l,i) { return exitTimes.indexOf(l)>=0  ? {x:l, y:highs[i]*1.0005} : null; }).filter(function(v){return v;}), backgroundColor: '#f59e0b', borderColor: '#fff', borderWidth: 1.5, pointStyle: 'triangle', rotation: 180, pointRadius: 8, pointHoverRadius: 10, order: 0, showLine: false }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            if (ctx.dataset.label==='Entry') return 'Entry @ ' + ctx.raw.y.toFixed(2);
+                            if (ctx.dataset.label==='Exit')  return 'Exit @ '  + ctx.raw.y.toFixed(2);
+                            var i = ctx.dataIndex;
+                            return ['O: '+opens[i].toFixed(2),'H: '+highs[i].toFixed(2),'L: '+lows[i].toFixed(2),'C: '+closes[i].toFixed(2)];
+                        }
+                    },
+                    backgroundColor:'#1a2535', titleColor:'#94a3b8', bodyColor:'#e2e8f0', borderColor:'#2d3f54', borderWidth:1
+                }
+            },
+            scales: {
+                x: { ticks: { color:'#64748b', maxRotation:0, autoSkip:true, maxTicksLimit:14, font:{size:11} }, grid: { color:'rgba(255,255,255,0.04)' } },
+                y: { ticks: { color:'#64748b', font:{size:11} }, grid: { color:'rgba(255,255,255,0.04)' } }
+            }
+        }
+    });
+}
+
+function _buildStkDayIndicatorChart(day, indicator) {
+    if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+    var allBars   = (day.seed_bars || []).concat(day.bars || []);
+    var allCloses = allBars.map(function(b) { return b[4]; });
+    var labels    = (day.bars || []).map(function(b) { return b[0]; });
+    var offset    = (day.seed_bars || []).length;
+    var ctx   = document.getElementById('stkDayIndicatorChart');
+    var label = document.getElementById('stkDayIndicatorLabel');
+
+    if (indicator === 'rsi') {
+        label.textContent = 'RSI (14)';
+        var allRsi = _stkComputeRSI(allCloses, 14);
+        var rsiDay = allRsi.slice(offset);
+        _stkDayIndicatorChartInst = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: [{ label:'RSI', data:rsiDay, borderColor:'#818cf8', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.2, spanGaps:true }] },
+            options: {
+                responsive:true, maintainAspectRatio:false, animation:false,
+                plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: function(c) { return 'RSI: '+(c.parsed.y!=null?c.parsed.y.toFixed(2):'N/A'); } }, backgroundColor:'#1a2535', titleColor:'#94a3b8', bodyColor:'#e2e8f0', borderColor:'#2d3f54', borderWidth:1 } },
+                scales: { x:{ticks:{color:'#4a5568',font:{size:10},maxTicksLimit:10,autoSkip:true,maxRotation:0},grid:{color:'rgba(255,255,255,0.03)'}}, y:{min:0,max:100,ticks:{color:'#4a5568',font:{size:10},stepSize:25},grid:{color:'rgba(255,255,255,0.03)'}} }
+            },
+            plugins: [{ id:'rsiLines', afterDraw: function(chart) {
+                var ca = chart.chartArea, y = chart.scales.y, c = chart.ctx;
+                [70,50,30].forEach(function(lvl) {
+                    var yp = y.getPixelForValue(lvl);
+                    c.save(); c.strokeStyle = lvl===50?'rgba(148,163,184,0.3)':(lvl===70?'rgba(239,68,68,0.4)':'rgba(16,185,129,0.4)'); c.lineWidth=1; c.setLineDash([4,4]); c.beginPath(); c.moveTo(ca.left,yp); c.lineTo(ca.right,yp); c.stroke(); c.restore();
+                });
+            }}]
+        });
+    } else if (indicator === 'macd') {
+        label.textContent = 'MACD (12, 26, 9)';
+        var r = _stkComputeMACD(allCloses);
+        var macdDay = r.macdLine.slice(offset), sigDay = r.signalLine.slice(offset), histDay = r.histogram.slice(offset);
+        _stkDayIndicatorChartInst = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: [
+                { label:'Histogram', type:'bar',  data:histDay,  backgroundColor:histDay.map(function(v){return v==null?'transparent':v>=0?'rgba(16,185,129,0.55)':'rgba(239,68,68,0.55)';}), borderColor:'transparent', borderWidth:0, barPercentage:0.8, categoryPercentage:1, order:2 },
+                { label:'MACD',      type:'line', data:macdDay,  borderColor:'#60a5fa', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.15, spanGaps:true, order:1 },
+                { label:'Signal',    type:'line', data:sigDay,   borderColor:'#f97316', backgroundColor:'transparent', borderWidth:1.5, borderDash:[4,3], pointRadius:0, tension:0.15, spanGaps:true, order:0 }
+            ]},
+            options: {
+                responsive:true, maintainAspectRatio:false, animation:false,
+                plugins: { legend:{display:true,position:'top',labels:{color:'#64748b',font:{size:10},boxWidth:20,padding:10}}, tooltip:{backgroundColor:'#1a2535',titleColor:'#94a3b8',bodyColor:'#e2e8f0',borderColor:'#2d3f54',borderWidth:1} },
+                scales: { x:{ticks:{color:'#4a5568',font:{size:10},maxTicksLimit:10,autoSkip:true,maxRotation:0},grid:{color:'rgba(255,255,255,0.03)'}}, y:{ticks:{color:'#4a5568',font:{size:10}},grid:{color:'rgba(255,255,255,0.03)'}} }
+            }
+        });
+    }
+}
+
 function _fmtExitReason(r) {
     if (!r) return 'N/A';
     var map = { 'TAKE_PROFIT': 'Take Profit', 'STOP_LOSS': 'Stop Loss', 'EXPIRATION': 'Expiration', 'EOD': 'End of Day', 'take_profit': 'Take Profit', 'stop_loss': 'Stop Loss', 'max_days': 'Max Days', 'end_of_backtest': 'End of Backtest' };
@@ -1536,11 +1712,14 @@ function _renderStkDtPage(config) {
         });
         flowHtml += '</div>';
 
+        var chartBtn = (day.bars && day.bars.length > 0)
+            ? '<button class="day-chart-btn" onclick="event.stopPropagation();openStkDayChart(' + i + ')" title="View price chart"><i class="fas fa-chart-area"></i> View Chart</button>'
+            : '';
         html += '<div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden;">' +
             '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'" style="padding:10px 14px;background:' + headerBg + ';cursor:pointer;display:flex;justify-content:space-between;align-items:center;">' +
             '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><i class="fas fa-calendar-day" style="color:#3b7cff;"></i><span style="font-weight:600;">' + day.date + '</span><span style="background:' + badgeColor + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;">' + badgeText + '</span>' +
             (exitEvents.length > 0 ? '<span style="color:' + (dayPnl >= 0 ? '#10b981' : '#ef4444') + ';font-weight:600;font-size:12px;">P&L: $' + dayPnl.toFixed(2) + '</span>' : '') +
-            '</div><i class="fas fa-chevron-down" style="color:#94a3b8;font-size:12px;"></i></div>' +
+            '</div><div style="display:flex;align-items:center;gap:8px;">' + chartBtn + '<i class="fas fa-chevron-down" style="color:#94a3b8;font-size:12px;"></i></div></div>' +
             '<div style="padding:10px 14px;display:none;">' + flowHtml + '</div></div>';
     }
     document.getElementById('stkDetailDtContent').innerHTML = html;
