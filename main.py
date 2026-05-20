@@ -7479,8 +7479,11 @@ def evaluate_single_condition(condition, symbol, timestamp, api_key):
     elif operator == '==':
         met = abs(left_value - right_value) < 0.0001
     elif operator == '><':
-        # Between operator - would need a second right value
-        met = False  # Not fully implemented for between
+        right_high = condition.get('right_fixed_value_high') if condition else None
+        if right_high is not None:
+            met = float(right_value) < float(left_value) < float(right_high)
+        else:
+            met = False
     
     return {
         'met': met,

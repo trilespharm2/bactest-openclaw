@@ -1340,6 +1340,12 @@ class BacktesterEngine:
                 return change <= threshold_value
             elif operation == '=':
                 return abs(change - threshold_value) < 0.01
+            elif operation == '><':
+                # Between: left_value strictly between right_value (low) and right_fixed_value_high (high)
+                high = condition.get('right_fixed_value_high', None)
+                if high is not None:
+                    return float(right_value) < float(left_value) < float(high)
+                return False
 
             return False
             

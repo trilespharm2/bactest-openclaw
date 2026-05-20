@@ -725,6 +725,7 @@ function addCondition() {
                         <option value=">=">&gt;=</option>
                         <option value="<=">&lt;=</option>
                         <option value="=">=</option>
+                        <option value="><">&gt;&lt; (between)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -737,8 +738,12 @@ function addCondition() {
                     </select>
                 </div>
                 <div class="col-md-3" id="value-input-group-${n}">
-                    <label class="form-label">Value</label>
-                    <input type="number" class="form-control" id="compare-value-${n}" step="0.01" placeholder="e.g., 50">
+                    <label class="form-label" id="value-label-${n}">Value</label>
+                    <input type="number" class="form-control" id="compare-value-${n}" step="0.01" placeholder="e.g., 50" oninput="updateConditionSummary(${n}, false)">
+                </div>
+                <div class="col-md-3" id="value-high-input-group-${n}" style="display:none;">
+                    <label class="form-label">High Value</label>
+                    <input type="number" class="form-control" id="compare-value-high-${n}" step="0.01" placeholder="e.g., 60" oninput="updateConditionSummary(${n}, false)">
                 </div>
             </div>
         </div>
@@ -1036,7 +1041,14 @@ function updateStockRightSide(n) {
     if (comp === 'value') {
         rightSide.style.display = 'none';
         valueGroup.style.display = 'block';
+        var isBetween = operator && operator.value === '><';
+        var highGroup = document.getElementById('value-high-input-group-' + n);
+        var valLabel  = document.getElementById('value-label-' + n);
+        if (highGroup) highGroup.style.display = isBetween ? 'block' : 'none';
+        if (valLabel)  valLabel.textContent = isBetween ? 'Low Value' : 'Value';
     } else {
+        var highGroup2 = document.getElementById('value-high-input-group-' + n);
+        if (highGroup2) highGroup2.style.display = 'none';
         rightSide.style.display = 'block';
         valueGroup.style.display = 'none';
 
@@ -1231,6 +1243,7 @@ function addExitCondition() {
                         <option value=">=">&gt;=</option>
                         <option value="<=">&lt;=</option>
                         <option value="=">=</option>
+                        <option value="><">&gt;&lt; (between)</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -1243,8 +1256,12 @@ function addExitCondition() {
                     </select>
                 </div>
                 <div class="col-md-3" id="exit-value-input-group-${n}">
-                    <label class="form-label">Value</label>
-                    <input type="number" class="form-control" id="exit-compare-value-${n}" step="0.01" placeholder="e.g., 50">
+                    <label class="form-label" id="exit-value-label-${n}">Value</label>
+                    <input type="number" class="form-control" id="exit-compare-value-${n}" step="0.01" placeholder="e.g., 50" oninput="updateConditionSummary(${n}, true)">
+                </div>
+                <div class="col-md-3" id="exit-value-high-input-group-${n}" style="display:none;">
+                    <label class="form-label">High Value</label>
+                    <input type="number" class="form-control" id="exit-compare-value-high-${n}" step="0.01" placeholder="e.g., 60" oninput="updateConditionSummary(${n}, true)">
                 </div>
             </div>
         </div>
@@ -1439,7 +1456,14 @@ function updateExitRightSide(n) {
     if (comp === 'value') {
         if (rightSide) rightSide.style.display = 'none';
         if (valueGroup) valueGroup.style.display = '';
+        var exitIsBetween = (operator === '><');
+        var exitHighGroup = document.getElementById('exit-value-high-input-group-' + n);
+        var exitValLabel  = document.getElementById('exit-value-label-' + n);
+        if (exitHighGroup) exitHighGroup.style.display = exitIsBetween ? '' : 'none';
+        if (exitValLabel)  exitValLabel.textContent = exitIsBetween ? 'Low Value' : 'Value';
     } else {
+        var exitHighGroup2 = document.getElementById('exit-value-high-input-group-' + n);
+        if (exitHighGroup2) exitHighGroup2.style.display = 'none';
         if (rightSide) rightSide.style.display = 'block';
         if (valueGroup) valueGroup.style.display = 'none';
 
@@ -1523,7 +1547,7 @@ function buildConditionDesc(n, isExit) {
     var left = sideDesc('left');
     var leftDesc = metricDesc(metric, left);
     var opSym = {
-        '>': '>', '<': '<', '>=': '≥', '<=': '≤', '=': '=',
+        '>': '>', '<': '<', '>=': '≥', '<=': '≤', '=': '=', '><': 'between',
         'cross_up': 'crosses above', 'cross_down': 'crosses below', 'cross_either': 'crosses'
     }[operator] || operator;
 
@@ -1550,6 +1574,11 @@ function buildConditionDesc(n, isExit) {
     if (comparator === 'value') {
         var fixedVal = (document.getElementById(p + 'compare-value-' + n) || {}).value;
         var numStr = fixedVal ? Number(fixedVal).toLocaleString() : '?';
+        if (operator === '><') {
+            var highVal = (document.getElementById(p + 'compare-value-high-' + n) || {}).value;
+            var highStr = highVal ? Number(highVal).toLocaleString() : '?';
+            return leftDesc + ' between ' + numStr + ' and ' + highStr;
+        }
         return leftDesc + ' ' + opSym + ' ' + numStr;
     } else {
         var rightMetric = comparator.replace('compare_', '');
@@ -1928,6 +1957,9 @@ async function collectFormData() {
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
+                if (operation === '><') {
+                    condition.right_fixed_value_high = parseFloat((document.getElementById(`compare-value-high-${id}`) || {}).value) || 0;
+                }
                 condition.right_day = 0;
                 condition.right_candle = 'min';
                 condition.right_multiplier = 1;
@@ -2041,6 +2073,9 @@ async function collectFormData() {
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById('exit-compare-value-' + id) || {}).value) || 0;
+                if (operation === '><') {
+                    condition.right_fixed_value_high = parseFloat((document.getElementById('exit-compare-value-high-' + id) || {}).value) || 0;
+                }
                 condition.right_day = 0;
                 condition.right_candle = 'min';
                 condition.right_multiplier = 1;
