@@ -1187,13 +1187,8 @@ class BacktesterEngine:
         if condition.get('type') == 'velocity':
             return self.check_velocity_condition(condition, grouped_data, dates, current_date_index, current_candle)
 
-        if condition.get('left_type') == 'trend_capture':
-            return self._check_trend_capture_condition(condition, grouped_data, dates, current_date_index, current_candle)
-
-        if condition.get('left_type') == 'candle_pattern':
-            return self._check_candle_pattern_condition(condition, grouped_data, dates, current_date_index, current_candle)
-
-        # Apply optional time window filter
+        # Apply optional time window filter before any condition type check
+        # (applies to trend_capture, candle_pattern, and all other condition types)
         if condition.get('time_window_enabled') and current_candle is not None:
             ts = current_candle.get('timestamp')
             if ts is not None:
@@ -1205,6 +1200,12 @@ class BacktesterEngine:
                         return False
                 except Exception:
                     pass
+
+        if condition.get('left_type') == 'trend_capture':
+            return self._check_trend_capture_condition(condition, grouped_data, dates, current_date_index, current_candle)
+
+        if condition.get('left_type') == 'candle_pattern':
+            return self._check_candle_pattern_condition(condition, grouped_data, dates, current_date_index, current_candle)
 
         try:
             left_type = condition.get('left_type', 'close')
