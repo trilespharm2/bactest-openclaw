@@ -1957,7 +1957,7 @@ async function collectFormData() {
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
-                if (operation === '><') {
+                if (condition.operation === '><') {
                     condition.right_fixed_value_high = parseFloat((document.getElementById(`compare-value-high-${id}`) || {}).value) || 0;
                 }
                 condition.right_day = 0;
@@ -2073,7 +2073,7 @@ async function collectFormData() {
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById('exit-compare-value-' + id) || {}).value) || 0;
-                if (operation === '><') {
+                if (condition.operation === '><') {
                     condition.right_fixed_value_high = parseFloat((document.getElementById('exit-compare-value-high-' + id) || {}).value) || 0;
                 }
                 condition.right_day = 0;
