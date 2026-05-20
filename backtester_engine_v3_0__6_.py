@@ -656,9 +656,75 @@ class BacktesterEngine:
     
     def fetch_data(self, symbol: str, start_date: str, end_date: str, 
                    multiplier: int = 1, timespan: str = "minute") -> pd.DataFrame:
-        """Fetch data and convert to US/Eastern timezone"""
+        """Fetch data and convert to US/Eastern timezone. Uses SPY cache for SPY 1-min data."""
         print(f"Fetching data for {symbol} from {start_date} to {end_date}...")
-        
+
+        # ── SPY 1-min cache shortcut ──────────────────────────────────────────
+        if symbol.upper() == 'SPY' and timespan == 'minute' and multiplier == 1:
+            try:
+                import spy_data_cache
+                cache_info = spy_data_cache.get_cache_info()
+                if cache_info.get('exists'):
+                    cache_first = pd.to_datetime(cache_info['first_date']).date()
+                    cache_last  = pd.to_datetime(cache_info['last_date']).date()
+                    req_start   = pd.to_datetime(start_date).date()
+                    req_end     = pd.to_datetime(end_date).date()
+
+                    if req_start >= cache_first and req_end <= cache_last:
+                        # Full cache hit — no API call needed
+                        cached_df = spy_data_cache.load_cached_data(start_date, end_date)
+                        if cached_df is not None and not cached_df.empty:
+                            cached_df = cached_df.copy()
+                            cached_df['timestamp'] = (
+                                pd.to_datetime(cached_df['timestamp'], unit='ms', utc=True)
+                                  .dt.tz_convert('US/Eastern')
+                            )
+                            cached_df = cached_df.sort_values('timestamp').reset_index(drop=True)
+                            print(f"[SPY Cache] Loaded {len(cached_df)} candles (no API call)")
+                            return cached_df
+
+                    elif req_start >= cache_first:
+                        # Partial hit: cache covers start, need Polygon for the tail
+                        cached_df = spy_data_cache.load_cached_data(start_date, cache_last.strftime('%Y-%m-%d'))
+                        frames = []
+                        if cached_df is not None and not cached_df.empty:
+                            cached_df = cached_df.copy()
+                            cached_df['timestamp'] = (
+                                pd.to_datetime(cached_df['timestamp'], unit='ms', utc=True)
+                                  .dt.tz_convert('US/Eastern')
+                            )
+                            frames.append(cached_df)
+                            print(f"[SPY Cache] Partial hit: {len(cached_df)} cached candles, fetching tail from Polygon...")
+                        tail_start = (cache_last + timedelta(days=1)).strftime('%Y-%m-%d')
+                        try:
+                            tail_aggs = []
+                            for a in self.client.list_aggs(
+                                symbol, multiplier, timespan, tail_start, end_date,
+                                adjusted=True, sort="asc", limit=50000,
+                            ):
+                                tail_aggs.append(a)
+                            if tail_aggs:
+                                tail_df = pd.DataFrame([{
+                                    'timestamp': a.timestamp, 'open': a.open, 'high': a.high,
+                                    'low': a.low, 'close': a.close, 'volume': a.volume,
+                                    'vwap': a.vwap if hasattr(a, 'vwap') else None,
+                                } for a in tail_aggs])
+                                tail_df['timestamp'] = (
+                                    pd.to_datetime(tail_df['timestamp'], unit='ms', utc=True)
+                                      .dt.tz_convert('US/Eastern')
+                                )
+                                frames.append(tail_df)
+                                print(f"[SPY Cache] Added {len(tail_df)} live candles for tail")
+                        except Exception as tail_err:
+                            print(f"[SPY Cache] Tail fetch failed: {tail_err}")
+                        if frames:
+                            combined = pd.concat(frames, ignore_index=True)
+                            combined = combined.sort_values('timestamp').drop_duplicates(subset=['timestamp']).reset_index(drop=True)
+                            return combined
+            except Exception as cache_err:
+                print(f"[SPY Cache] Load failed, falling back to Polygon: {cache_err}")
+        # ─────────────────────────────────────────────────────────────────────
+
         try:
             aggs = []
             for a in self.client.list_aggs(
