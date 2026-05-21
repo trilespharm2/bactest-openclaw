@@ -7422,6 +7422,18 @@ def evaluate_single_condition(condition, symbol, timestamp, api_key):
     # Get right side value
     if comparator == 'value':
         right_value = condition.get('compare_value', 0)
+    elif comparator == 'zero_line':
+        right_value = 0.0
+    elif comparator in ('compare_macd_line', 'compare_signal'):
+        # MACD self-comparator: same MACD params as left, different component
+        _mc_right_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
+        right_value = get_indicator_value(
+            symbol=symbol,
+            metric='macd',
+            params={**left, 'component': _mc_right_comp},
+            timestamp=timestamp,
+            api_key=api_key
+        )
     else:
         right = condition.get('right', {})
         right_metric = comparator.replace('compare_', '')
@@ -7461,6 +7473,37 @@ def evaluate_single_condition(condition, symbol, timestamp, api_key):
             met = float(right_value) < float(left_value) < float(right_high)
         else:
             met = False
+    elif operator in ('cross_up', 'cross_down', 'cross_either'):
+        # Cross: need the previous bar's value (1 min back)
+        prev_ts = timestamp - 60000 if timestamp else None
+        prev_left = get_indicator_value(
+            symbol=symbol, metric=metric, params=left,
+            timestamp=prev_ts, api_key=api_key
+        ) if prev_ts else None
+        if comparator in ('value', 'zero_line'):
+            prev_right = right_value  # fixed — never changes
+        elif comparator in ('compare_macd_line', 'compare_signal'):
+            _mc_cx_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
+            prev_right = get_indicator_value(
+                symbol=symbol, metric='macd',
+                params={**left, 'component': _mc_cx_comp},
+                timestamp=prev_ts, api_key=api_key
+            ) if prev_ts else None
+        else:
+            prev_right = get_indicator_value(
+                symbol=symbol, metric=comparator.replace('compare_', ''),
+                params=condition.get('right', {}),
+                timestamp=prev_ts, api_key=api_key
+            ) if prev_ts else None
+        if prev_left is not None and prev_right is not None:
+            _cx_up   = prev_left < prev_right and left_value >= right_value
+            _cx_down = prev_left > prev_right and left_value <= right_value
+            if operator == 'cross_up':
+                met = _cx_up
+            elif operator == 'cross_down':
+                met = _cx_down
+            else:
+                met = _cx_up or _cx_down
     
     return {
         'met': met,

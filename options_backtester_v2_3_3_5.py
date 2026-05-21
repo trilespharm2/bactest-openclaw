@@ -578,6 +578,19 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
             # Get right side value
             if comparator == 'value':
                 right_value = condition.get('compare_value', 0)
+            elif comparator == 'zero_line':
+                right_value = 0.0
+            elif comparator in ('compare_macd_line', 'compare_signal'):
+                # MACD self-comparator: right side uses same params as left, different component
+                right_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
+                right_params_derived = dict(left)
+                right_params_derived['component'] = right_comp
+                right_value = get_indicator_value_for_backtest(
+                    client, underlying_sym, 'macd', right_params_derived, trade_date, entry_timestamp
+                )
+                if right_value is None:
+                    print(f"  [Condition {idx+1}] Could not fetch MACD {right_comp} comparison data - skipping trade")
+                    return False, f"Missing MACD {right_comp} comparison data"
             else:
                 right = condition.get('right', {})
                 right_metric = comparator.replace('compare_', '')
@@ -628,8 +641,14 @@ def evaluate_price_conditions(config: Dict, client: RESTClient, trade_date: date
                 prev_left = get_indicator_value_for_backtest(
                     client, underlying_sym, metric, left, trade_date, prev_ts
                 )
-                if comparator == 'value':
-                    prev_right = right_value  # fixed value never changes
+                if comparator in ('value', 'zero_line'):
+                    prev_right = right_value  # fixed value never changes (0 for zero_line)
+                elif comparator in ('compare_macd_line', 'compare_signal'):
+                    _mc_prev_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
+                    prev_right = get_indicator_value_for_backtest(
+                        client, underlying_sym, 'macd',
+                        {**left, 'component': _mc_prev_comp}, trade_date, prev_ts
+                    )
                 else:
                     _rm = comparator.replace('compare_', '')
                     _rp = condition.get('right', {})
@@ -1090,6 +1109,14 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                                 indicator_data[_ts] = v.get('signal')
                             else:
                                 indicator_data[_ts] = v.get('value')
+                            # Also cache all three components for self-comparator support
+                            if 'macd_all' not in indicators:
+                                indicators['macd_all'] = {}
+                            indicators['macd_all'][_ts] = {
+                                'histogram': v.get('histogram'),
+                                'signal': v.get('signal'),
+                                'macd_line': v.get('value')
+                            }
                         _macd_page += 1
                         _next_cursor = data.get('next_url')
                         if _next_cursor and values:
@@ -1492,6 +1519,28 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 right_value = condition.get('compare_value', 0)
                 _raw_right = right_value
                 threshold = {}
+            elif comparator == 'zero_line':
+                right_value = 0.0
+                _raw_right = 0.0
+                threshold = {}
+            elif comparator in ('compare_macd_line', 'compare_signal'):
+                # MACD self-comparator: same MACD params as left, but the other component
+                _mc_right_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
+                _mc_all = indicators_cache.get('macd_all', {})
+                if _mc_all:
+                    # Find closest timestamp in macd_all cache and extract right component
+                    _mc_best_ts = None
+                    for _ts_k in _mc_all:
+                        if _ts_k <= bar_timestamp:
+                            if _mc_best_ts is None or _ts_k > _mc_best_ts:
+                                _mc_best_ts = _ts_k
+                    right_value = _mc_all[_mc_best_ts].get(_mc_right_comp) if _mc_best_ts is not None else None
+                else:
+                    right_value = None
+                if right_value is None:
+                    return False, f"Missing MACD {_mc_right_comp} data for condition {idx+1}", _cond_details
+                _raw_right = right_value
+                threshold = {}
             elif comparator == 'compare_trend_capture':
                 # Price vs TC regression line value (no lookahead — uses bars strictly before bar_time)
                 _bar_time_tc = bar.get('time', '')[:5] if bar else None
@@ -1692,14 +1741,25 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                               f"bar_ts={bar_timestamp} prev_ts={_prev_left_ts} "
                               f"first3={_pkeys[:3]} last3={_pkeys[-3:]}", flush=True)
                         indicators_cache['_price_cache_diag_done'] = True
+                elif metric in ('macd', 'rsi'):
+                    # For MACD/RSI cross: find the 2nd most recent cached value
+                    _left_ind_cache = indicators_cache.get(metric, {})
+                    _sorted_l_ts = sorted([t for t in _left_ind_cache if t <= bar_timestamp], reverse=True)
+                    prev_left = _left_ind_cache.get(_sorted_l_ts[1]) if len(_sorted_l_ts) >= 2 else None
                 else:
                     prev_left = None
 
                 # Previous right value (uses right side's own timeframe)
                 _rtf_mins = int(right_params.get('timeframe_minutes', 5))
                 _prev_right_ts = bar_timestamp - _rtf_mins * 60000
-                if comparator == 'value':
-                    prev_right = right_value  # constant — never changes
+                if comparator in ('value', 'zero_line'):
+                    prev_right = right_value  # constant — never changes (0 for zero_line)
+                elif comparator in ('compare_macd_line', 'compare_signal'):
+                    # MACD self-comparator: get the 2nd most recent value of the other component
+                    _mc_pr_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
+                    _mc_all_pr = indicators_cache.get('macd_all', {})
+                    _sorted_mac_ts = sorted([t for t in _mc_all_pr if t <= bar_timestamp], reverse=True)
+                    prev_right = _mc_all_pr[_sorted_mac_ts[1]].get(_mc_pr_comp) if len(_sorted_mac_ts) >= 2 else None
                 elif comparator == 'compare_trend_capture':
                     # Compute TC line value at the previous bar's time
                     _date_str_cx = trade_date.strftime('%Y-%m-%d') if hasattr(trade_date, 'strftime') else str(trade_date)[:10]

@@ -90,6 +90,16 @@ function setCrossOperators(selectId, include) {
     }
 }
 
+function _updateMacdCrossOperators(conditionId) {
+    var macdComponent = document.getElementById('leftMacdComponent' + conditionId);
+    var comparatorEl = document.getElementById('comparator' + conditionId);
+    var component = macdComponent ? macdComponent.value : 'histogram';
+    var comp = comparatorEl ? comparatorEl.value : 'value';
+    var crossOk = (component === 'signal' || component === 'macd_line') &&
+                  (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal');
+    setCrossOperators('operator' + conditionId, crossOk);
+}
+
 const METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
@@ -1478,7 +1488,6 @@ function updateConditionFields(conditionId) {
             if (leftMacdSignalGroup) leftMacdSignalGroup.style.display = 'block';
             if (leftMacdComponentGroup) leftMacdComponentGroup.style.display = 'block';
             updateMacdComparatorOptions(conditionId);
-            setCrossOperators('operator' + conditionId, false);
             break;
 
         case 'trend_capture':
@@ -1652,20 +1661,29 @@ function updateComparatorOptions(conditionId, options) {
 }
 
 function updateMacdComparatorOptions(conditionId) {
-    const macdComponent = document.getElementById(`leftMacdComponent${conditionId}`)?.value;
-    const comparatorSelect = document.getElementById(`comparator${conditionId}`);
+    var macdComponent = document.getElementById('leftMacdComponent' + conditionId) ? document.getElementById('leftMacdComponent' + conditionId).value : 'histogram';
+    var comparatorSelect = document.getElementById('comparator' + conditionId);
     if (!comparatorSelect) return;
-    
-    const componentLabels = {
-        'histogram': 'Compare Histogram',
-        'signal': 'Compare Signal',
-        'macd_line': 'Compare MACD Line'
-    };
-    
-    comparatorSelect.innerHTML = `
-        <option value="value">Value</option>
-        <option value="compare_${macdComponent}">${componentLabels[macdComponent] || 'Compare'}</option>
-    `;
+    var savedVal = comparatorSelect.value;
+    if (macdComponent === 'signal') {
+        comparatorSelect.innerHTML =
+            '<option value="value">Value</option>' +
+            '<option value="zero_line">Zero Line</option>' +
+            '<option value="compare_macd_line">Cross / Compare MACD Line</option>';
+    } else if (macdComponent === 'macd_line') {
+        comparatorSelect.innerHTML =
+            '<option value="value">Value</option>' +
+            '<option value="zero_line">Zero Line</option>' +
+            '<option value="compare_signal">Cross / Compare Signal Line</option>';
+    } else {
+        comparatorSelect.innerHTML =
+            '<option value="value">Value</option>' +
+            '<option value="compare_histogram">Compare Histogram</option>';
+    }
+    if (comparatorSelect.querySelector('option[value="' + savedVal + '"]')) {
+        comparatorSelect.value = savedVal;
+    }
+    _updateMacdCrossOperators(conditionId);
 }
 
 function updateRightSideVisibility(conditionId) {
@@ -1683,7 +1701,11 @@ function updateRightSideVisibility(conditionId) {
         var crossOk = comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_vwap';
         setCrossOperators('operator' + conditionId, crossOk);
     }
-    
+    // MACD: update cross operators whenever comparator changes
+    if (metric === 'macd') {
+        _updateMacdCrossOperators(conditionId);
+    }
+
     // TC right panel: show/hide based on comparator
     var tcRightPanelEl = document.getElementById('tcRightPanel' + conditionId);
     if (tcRightPanelEl) tcRightPanelEl.style.display = (comparator === 'compare_trend_capture') ? 'block' : 'none';
@@ -1692,12 +1714,15 @@ function updateRightSideVisibility(conditionId) {
     const valueInputGroupHigh = document.getElementById(`valueInputGroupHigh${conditionId}`);
     const valueInputLabel = document.getElementById(`valueInputLabel${conditionId}`);
 
-    if (comparator === 'value' || comparator === 'compare_trend_capture') {
+    const isMacdSelfComp = metric === 'macd' && (comparator === 'zero_line' || comparator === 'compare_macd_line' || comparator === 'compare_signal');
+    if (comparator === 'value' || comparator === 'compare_trend_capture' || isMacdSelfComp) {
         rightSide.style.display = 'none';
         valueInputGroup.style.display = comparator === 'value' ? 'block' : 'none';
         if (comparator === 'value') {
             if (valueInputLabel) valueInputLabel.textContent = isBetween ? 'Low' : 'Value';
             if (valueInputGroupHigh) valueInputGroupHigh.style.display = isBetween ? 'block' : 'none';
+        } else {
+            if (valueInputGroupHigh) valueInputGroupHigh.style.display = 'none';
         }
     } else {
         if (valueInputGroupHigh) valueInputGroupHigh.style.display = 'none';
@@ -1921,6 +1946,15 @@ function buildOptConditionDesc(n, isExit) {
         return leftDesc + ' ' + opLabel + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
+    if (comparator === 'zero_line') {
+        return leftDesc + ' ' + opLabel + ' Zero Line';
+    }
+    if (metric === 'macd' && comparator === 'compare_macd_line') {
+        return leftDesc + ' ' + opLabel + ' MACD Line';
+    }
+    if (metric === 'macd' && comparator === 'compare_signal') {
+        return leftDesc + ' ' + opLabel + ' Signal Line';
+    }
     var rightMetric = comparator.replace('compare_', '');
     var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
@@ -1993,7 +2027,24 @@ function collectPriceConditions() {
             condition.left.component = document.getElementById(`leftMacdComponent${id}`)?.value || 'histogram';
         }
         
-        if (comparator === 'value') {
+        if (comparator === 'zero_line') {
+            // MACD zero-line: right value is always 0; no form fields needed
+            condition.compare_value = 0;
+        } else if (metric === 'macd' && (comparator === 'compare_macd_line' || comparator === 'compare_signal')) {
+            // MACD self-comparators: derive right side from left params (same MACD calc, different component)
+            var _rightComp = (comparator === 'compare_macd_line') ? 'macd_line' : 'signal';
+            condition.right = {
+                candle_type: condition.left.candle_type || 'day',
+                multiplier: condition.left.multiplier || 1,
+                series_type: condition.left.series_type || 'close',
+                day: condition.left.day || '0',
+                short_window: condition.left.short_window || 12,
+                long_window: condition.left.long_window || 26,
+                signal_window: condition.left.signal_window || 9,
+                component: _rightComp
+            };
+            condition.threshold = { unit: 'percent', value: 0 };
+        } else if (comparator === 'value') {
             const _op = document.getElementById(`operator${id}`)?.value || '>';
             if (_op === '><') {
                 condition.compare_value_low  = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
@@ -4818,7 +4869,8 @@ function applyPriceConditions(conditions) {
                 var _m = document.getElementById('metric' + id) ? document.getElementById('metric' + id).value : metricToSet;
                 var _c = condition.comparator || 'value';
                 var _needsCross = (_m === 'sma' || _m === 'ema' || _m === 'vwap') ||
-                    (_m === 'current_price' && (_c === 'compare_sma' || _c === 'compare_ema' || _c === 'compare_vwap'));
+                    (_m === 'current_price' && (_c === 'compare_sma' || _c === 'compare_ema' || _c === 'compare_vwap')) ||
+                    (_m === 'macd' && (_c === 'zero_line' || _c === 'compare_macd_line' || _c === 'compare_signal'));
                 setCrossOperators('operator' + id, _needsCross);
             })();
             // Operator after — cross options are now present in the select
