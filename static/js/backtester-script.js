@@ -95,8 +95,12 @@ function _updateMacdCrossOperators(conditionId) {
     var comparatorEl = document.getElementById('comparator' + conditionId);
     var component = macdComponent ? macdComponent.value : 'histogram';
     var comp = comparatorEl ? comparatorEl.value : 'value';
-    var crossOk = (component === 'signal' || component === 'macd_line') &&
-                  (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal');
+    // Cross operators are available:
+    // - for signal or macd_line when comparing to zero_line, MACD Line, or Signal Line
+    // - for ANY component when comparing to a fixed value (e.g. "MACD line crosses above 0")
+    var crossOk = comp === 'value' ||
+                  ((component === 'signal' || component === 'macd_line') &&
+                   (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal'));
     setCrossOperators('operator' + conditionId, crossOk);
 }
 
