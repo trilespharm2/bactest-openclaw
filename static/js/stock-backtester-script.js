@@ -1068,11 +1068,13 @@ function updateStockMacdComparatorOptions(n) {
     if (component === 'signal') {
         sel.innerHTML =
             '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_macd_line">MACD Line</option>';
+            '<option value="compare_macd_line">MACD Line</option>' +
+            '<option value="value">Value</option>';
     } else if (component === 'macd_line') {
         sel.innerHTML =
             '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_signal">Signal Line</option>';
+            '<option value="compare_signal">Signal Line</option>' +
+            '<option value="value">Value</option>';
     } else {
         sel.innerHTML = '<option value="value">Value</option>';
     }
@@ -1092,11 +1094,13 @@ function updateExitMacdComparatorOptions(n) {
     if (component === 'signal') {
         sel.innerHTML =
             '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_macd_line">MACD Line</option>';
+            '<option value="compare_macd_line">MACD Line</option>' +
+            '<option value="value">Value</option>';
     } else if (component === 'macd_line') {
         sel.innerHTML =
             '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_signal">Signal Line</option>';
+            '<option value="compare_signal">Signal Line</option>' +
+            '<option value="value">Value</option>';
     } else {
         sel.innerHTML = '<option value="value">Value</option>';
     }
