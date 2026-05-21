@@ -710,6 +710,27 @@ function addCondition() {
                         ${STOCK_SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
                     </select>
                 </div>
+                <!-- MACD specific fields -->
+                <div class="col-md-3 col-sm-6" id="left-macd-short-group-${n}" style="display:none;">
+                    <label class="form-label small">Short Window</label>
+                    <input type="number" class="form-control form-control-sm" id="left-macd-short-${n}" value="12" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="left-macd-long-group-${n}" style="display:none;">
+                    <label class="form-label small">Long Window</label>
+                    <input type="number" class="form-control form-control-sm" id="left-macd-long-${n}" value="26" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="left-macd-signal-group-${n}" style="display:none;">
+                    <label class="form-label small">Signal Window</label>
+                    <input type="number" class="form-control form-control-sm" id="left-macd-signal-${n}" value="9" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="left-macd-component-group-${n}" style="display:none;">
+                    <label class="form-label small">Component</label>
+                    <select class="form-select form-select-sm" id="left-macd-component-${n}">
+                        <option value="histogram">Histogram</option>
+                        <option value="signal">Signal</option>
+                        <option value="macd_line">MACD Line</option>
+                    </select>
+                </div>
             </div>
             ${_buildTCPanel('left', n)}
             ${_buildCandlePatternPanel('', n)}
@@ -893,6 +914,16 @@ function updateStockConditionFields(n) {
     var cpPanel = document.getElementById('cp-panel-' + n);
     if (cpPanel) cpPanel.style.display = 'none';
 
+    // Always hide MACD-specific fields; show them only for MACD
+    var macdShortGroup = document.getElementById('left-macd-short-group-' + n);
+    var macdLongGroup = document.getElementById('left-macd-long-group-' + n);
+    var macdSignalGroup = document.getElementById('left-macd-signal-group-' + n);
+    var macdComponentGroup = document.getElementById('left-macd-component-group-' + n);
+    if (macdShortGroup) macdShortGroup.style.display = 'none';
+    if (macdLongGroup) macdLongGroup.style.display = 'none';
+    if (macdSignalGroup) macdSignalGroup.style.display = 'none';
+    if (macdComponentGroup) macdComponentGroup.style.display = 'none';
+
     if (val === 'candle_pattern') {
         if (leftDayGroup) leftDayGroup.style.display = 'none';
         if (leftCandleGroup) leftCandleGroup.style.display = 'none';
@@ -987,6 +1018,10 @@ function updateStockConditionFields(n) {
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+        if (macdShortGroup) macdShortGroup.style.display = 'block';
+        if (macdLongGroup) macdLongGroup.style.display = 'block';
+        if (macdSignalGroup) macdSignalGroup.style.display = 'block';
+        if (macdComponentGroup) macdComponentGroup.style.display = 'block';
         updateStockComparatorOptions(n, ['value']);
         setCrossOperators('operator-' + n, false);
     }
@@ -1238,6 +1273,27 @@ function addExitCondition() {
                         ${STOCK_SERIES_TYPES.map(s => '<option value="' + s.value + '"' + (s.value === 'close' ? ' selected' : '') + '>' + s.label + '</option>').join('')}
                     </select>
                 </div>
+                <!-- MACD specific fields -->
+                <div class="col-md-3 col-sm-6" id="exit-left-macd-short-group-${n}" style="display:none;">
+                    <label class="form-label small">Short Window</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-left-macd-short-${n}" value="12" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-left-macd-long-group-${n}" style="display:none;">
+                    <label class="form-label small">Long Window</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-left-macd-long-${n}" value="26" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-left-macd-signal-group-${n}" style="display:none;">
+                    <label class="form-label small">Signal Window</label>
+                    <input type="number" class="form-control form-control-sm" id="exit-left-macd-signal-${n}" value="9" min="1">
+                </div>
+                <div class="col-md-3 col-sm-6" id="exit-left-macd-component-group-${n}" style="display:none;">
+                    <label class="form-label small">Component</label>
+                    <select class="form-select form-select-sm" id="exit-left-macd-component-${n}">
+                        <option value="histogram">Histogram</option>
+                        <option value="signal">Signal</option>
+                        <option value="macd_line">MACD Line</option>
+                    </select>
+                </div>
             </div>
             ${_buildCandlePatternPanel('exit-', n)}
         </div>
@@ -1372,6 +1428,16 @@ function updateExitConditionFields(n) {
     var exitCpPanel = document.getElementById('exit-cp-panel-' + n);
     if (exitCpPanel) exitCpPanel.style.display = 'none';
 
+    // Always hide MACD-specific fields; show them only for MACD
+    var exitMacdShortGroup = document.getElementById('exit-left-macd-short-group-' + n);
+    var exitMacdLongGroup = document.getElementById('exit-left-macd-long-group-' + n);
+    var exitMacdSignalGroup = document.getElementById('exit-left-macd-signal-group-' + n);
+    var exitMacdComponentGroup = document.getElementById('exit-left-macd-component-group-' + n);
+    if (exitMacdShortGroup) exitMacdShortGroup.style.display = 'none';
+    if (exitMacdLongGroup) exitMacdLongGroup.style.display = 'none';
+    if (exitMacdSignalGroup) exitMacdSignalGroup.style.display = 'none';
+    if (exitMacdComponentGroup) exitMacdComponentGroup.style.display = 'none';
+
     if (metric === 'candle_pattern') {
         var el;
         el = document.getElementById('exit-left-day-group-' + n); if (el) el.style.display = 'none';
@@ -1403,14 +1469,14 @@ function updateExitConditionFields(n) {
     var isCurrentPrice = metric === 'current_price';
     var isPrice = metric === 'price';
     var isVolume = metric === 'volume';
-    var isIndicator = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
-    var needsWindow = ['sma', 'ema', 'rsi', 'macd'].indexOf(metric) !== -1;
+    var isMacd = metric === 'macd';
+    var needsWindow = ['sma', 'ema', 'rsi'].indexOf(metric) !== -1;
 
     var showDay = !isCurrentPrice;
     var showCandle = !isCurrentPrice;
     var showMult = !isCurrentPrice;
     var showWindow = needsWindow;
-    var showSeries = !isVolume && (isPrice || isCurrentPrice || ['sma', 'ema'].indexOf(metric) !== -1);
+    var showSeries = !isVolume && (isPrice || isCurrentPrice || ['sma', 'ema', 'macd'].indexOf(metric) !== -1);
 
     var el;
     el = document.getElementById('exit-left-day-group-' + n); if (el) el.style.display = showDay ? '' : 'none';
@@ -1420,9 +1486,16 @@ function updateExitConditionFields(n) {
     el = document.getElementById('exit-left-series-group-' + n); if (el) el.style.display = (showSeries && !isCurrentPrice) ? '' : 'none';
 
     var windowLabel = document.getElementById('exit-left-window-label-' + n);
-    if (windowLabel) windowLabel.textContent = (metric === 'macd') ? 'Signal' : 'Window';
+    if (windowLabel) windowLabel.textContent = 'Window';
     var seriesLabel = document.getElementById('exit-left-series-label-' + n);
     if (seriesLabel) seriesLabel.textContent = (isPrice || isCurrentPrice) ? 'Price Type' : 'Series Type';
+
+    if (isMacd) {
+        if (exitMacdShortGroup) exitMacdShortGroup.style.display = '';
+        if (exitMacdLongGroup) exitMacdLongGroup.style.display = '';
+        if (exitMacdSignalGroup) exitMacdSignalGroup.style.display = '';
+        if (exitMacdComponentGroup) exitMacdComponentGroup.style.display = '';
+    }
 
     setCrossOperators('exit-operator-' + n, ['sma', 'ema'].indexOf(metric) !== -1);
     updateExitComparatorOptions(n);
@@ -1558,7 +1631,14 @@ function buildConditionDesc(n, isExit) {
         if (m === 'sma') return 'SMA(' + s.win + ') (' + dayLabel(s.day) + ')';
         if (m === 'ema') return 'EMA(' + s.win + ') (' + dayLabel(s.day) + ')';
         if (m === 'rsi') return 'RSI(' + s.win + ') (' + dayLabel(s.day) + ')';
-        if (m === 'macd') return 'MACD (' + dayLabel(s.day) + ')';
+        if (m === 'macd') {
+            var mShort = parseInt((document.getElementById(p + 'left-macd-short-' + n) || {}).value) || 12;
+            var mLong  = parseInt((document.getElementById(p + 'left-macd-long-'  + n) || {}).value) || 26;
+            var mSig   = parseInt((document.getElementById(p + 'left-macd-signal-' + n) || {}).value) || 9;
+            var mComp  = (document.getElementById(p + 'left-macd-component-' + n) || {}).value || 'histogram';
+            var compMap = { 'histogram': 'Hist', 'signal': 'Sig', 'macd_line': 'Line' };
+            return 'MACD(' + mShort + ',' + mLong + ',' + mSig + ')[' + (compMap[mComp] || mComp) + '] (' + dayLabel(s.day) + ')';
+        }
         return m;
     }
 
@@ -1921,6 +2001,13 @@ async function collectFormData() {
                 comparator: comparator
             };
 
+            if (metric === 'macd') {
+                condition.left_macd_short = parseInt((document.getElementById(`left-macd-short-${id}`) || {}).value) || 12;
+                condition.left_macd_long = parseInt((document.getElementById(`left-macd-long-${id}`) || {}).value) || 26;
+                condition.left_macd_signal = parseInt((document.getElementById(`left-macd-signal-${id}`) || {}).value) || 9;
+                condition.left_macd_component = (document.getElementById(`left-macd-component-${id}`) || {}).value || 'histogram';
+            }
+
             // --- Candle Pattern fields ---
             if (metric === 'candle_pattern') {
                 var _cpPfx = '';
@@ -2083,6 +2170,13 @@ async function collectFormData() {
                 operation: (document.getElementById('exit-operator-' + id) || {}).value || '>',
                 comparator: comparator
             };
+
+            if (metric === 'macd') {
+                condition.left_macd_short = parseInt((document.getElementById('exit-left-macd-short-' + id) || {}).value) || 12;
+                condition.left_macd_long = parseInt((document.getElementById('exit-left-macd-long-' + id) || {}).value) || 26;
+                condition.left_macd_signal = parseInt((document.getElementById('exit-left-macd-signal-' + id) || {}).value) || 9;
+                condition.left_macd_component = (document.getElementById('exit-left-macd-component-' + id) || {}).value || 'histogram';
+            }
 
             if (metric === 'candle_pattern') {
                 condition.left_type = 'candle_pattern';
@@ -2780,6 +2874,17 @@ function applyStockConfig(config) {
 
             var leftWindowEl = document.getElementById('left-window-' + id);
             if (leftWindowEl && cond.left_window) leftWindowEl.value = cond.left_window;
+
+            if (cond.metric === 'macd') {
+                var macdShortEl = document.getElementById('left-macd-short-' + id);
+                if (macdShortEl) macdShortEl.value = cond.left_macd_short || 12;
+                var macdLongEl = document.getElementById('left-macd-long-' + id);
+                if (macdLongEl) macdLongEl.value = cond.left_macd_long || 26;
+                var macdSignalEl = document.getElementById('left-macd-signal-' + id);
+                if (macdSignalEl) macdSignalEl.value = cond.left_macd_signal || 9;
+                var macdCompEl = document.getElementById('left-macd-component-' + id);
+                if (macdCompEl) macdCompEl.value = cond.left_macd_component || 'histogram';
+            }
 
             var operatorEl = document.getElementById('operator-' + id);
             if (operatorEl && cond.operation) operatorEl.value = cond.operation;
