@@ -92,16 +92,30 @@ function setCrossOperators(selectId, include) {
 
 function _updateMacdCrossOperators(conditionId) {
     var macdComponent = document.getElementById('leftMacdComponent' + conditionId);
-    var comparatorEl = document.getElementById('comparator' + conditionId);
     var component = macdComponent ? macdComponent.value : 'histogram';
-    var comp = comparatorEl ? comparatorEl.value : 'value';
-    // Cross operators are available:
-    // - for signal or macd_line when comparing to zero_line, MACD Line, or Signal Line
-    // - for ANY component when comparing to a fixed value (e.g. "MACD line crosses above 0")
-    var crossOk = comp === 'value' ||
-                  ((component === 'signal' || component === 'macd_line') &&
-                   (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal'));
-    setCrossOperators('operator' + conditionId, crossOk);
+    // Signal / MACD Line components get Cross Up + Cross Down (no Cross Either).
+    // Histogram component has no cross operators.
+    var sel = document.getElementById('operator' + conditionId);
+    if (!sel) return;
+    var allCross = ['cross_up', 'cross_down', 'cross_either'];
+    var savedVal = sel.value;
+    allCross.forEach(function(v) {
+        var ex = sel.querySelector('option[value="' + v + '"]');
+        if (ex) ex.remove();
+    });
+    if (component === 'signal' || component === 'macd_line') {
+        var upOpt = document.createElement('option');
+        upOpt.value = 'cross_up';
+        upOpt.textContent = 'Cross Up \u2191 (was below, now above)';
+        sel.appendChild(upOpt);
+        var dnOpt = document.createElement('option');
+        dnOpt.value = 'cross_down';
+        dnOpt.textContent = 'Cross Down \u2193 (was above, now below)';
+        sel.appendChild(dnOpt);
+        if (savedVal === 'cross_up' || savedVal === 'cross_down') sel.value = savedVal;
+    } else {
+        if (allCross.indexOf(sel.value) !== -1) sel.value = '>';
+    }
 }
 
 const METRICS = [
@@ -1671,14 +1685,12 @@ function updateMacdComparatorOptions(conditionId) {
     var savedVal = comparatorSelect.value;
     if (macdComponent === 'signal') {
         comparatorSelect.innerHTML =
-            '<option value="value">Value</option>' +
             '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_macd_line">Cross / Compare MACD Line</option>';
+            '<option value="compare_macd_line">MACD Line</option>';
     } else if (macdComponent === 'macd_line') {
         comparatorSelect.innerHTML =
-            '<option value="value">Value</option>' +
             '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_signal">Cross / Compare Signal Line</option>';
+            '<option value="compare_signal">Signal Line</option>';
     } else {
         comparatorSelect.innerHTML =
             '<option value="value">Value</option>' +
