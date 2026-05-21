@@ -2159,6 +2159,25 @@ async function collectFormData() {
                 condition.right_multiplier = 1;
                 condition.threshold_unit = '%';
                 condition.threshold_value = 0;
+            } else if (comparator === 'zero_line') {
+                condition.right_type = 'value';
+                condition.right_fixed_value = 0;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '$';
+                condition.threshold_value = 0;
+            } else if (comparator === 'compare_macd_line' || comparator === 'compare_signal') {
+                condition.right_type = 'macd';
+                condition.right_macd_short = condition.left_macd_short || 12;
+                condition.right_macd_long = condition.left_macd_long || 26;
+                condition.right_macd_signal = condition.left_macd_signal || 9;
+                condition.right_macd_component = comparator === 'compare_macd_line' ? 'macd_line' : 'signal';
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '$';
+                condition.threshold_value = 0;
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
@@ -2285,6 +2304,25 @@ async function collectFormData() {
                 condition.threshold_value = 0;
                 condition.operation = '>';
                 condition.comparator = 'value';
+            } else if (comparator === 'zero_line') {
+                condition.right_type = 'value';
+                condition.right_fixed_value = 0;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '$';
+                condition.threshold_value = 0;
+            } else if (comparator === 'compare_macd_line' || comparator === 'compare_signal') {
+                condition.right_type = 'macd';
+                condition.right_macd_short = condition.left_macd_short || 12;
+                condition.right_macd_long = condition.left_macd_long || 26;
+                condition.right_macd_signal = condition.left_macd_signal || 9;
+                condition.right_macd_component = comparator === 'compare_macd_line' ? 'macd_line' : 'signal';
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '$';
+                condition.threshold_value = 0;
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById('exit-compare-value-' + id) || {}).value) || 0;

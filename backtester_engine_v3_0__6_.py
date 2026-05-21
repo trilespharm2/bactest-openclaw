@@ -1031,7 +1031,7 @@ class BacktesterEngine:
                 macd_line = ema_short - ema_long
                 signal_line = macd_line.ewm(span=signal_w, adjust=False).mean()
                 histogram = macd_line - signal_line
-                if component == 'macd':
+                if component == 'macd_line':
                     val = macd_line.iloc[-1]
                 elif component == 'signal':
                     val = signal_line.iloc[-1]
