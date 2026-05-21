@@ -1251,8 +1251,23 @@ function openStkDayChart(dayIdx) {
     var dayBars = (day.bars || []).filter(function(b) { return b[1] > 0; }).map(function(b) {
         return { timestamp: _toTs(day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
     });
+    // Full bars (seed + whole day) kept for SMA/EMA warmup computation.
     _stkDtRawAllBars = seedBars.concat(dayBars);
-    _stkDtRawDayBars = dayBars;
+
+    // Clip the DISPLAYED candlestick bars to a window around entry/exit.
+    // This means LWCT's internal fitContent() — triggered when a new indicator
+    // series is added — zooms to the window rather than the full trading day,
+    // keeping the entry/exit candles visible.  The SMA/EMA is still computed
+    // over all bars (above) for accuracy; only the cutoff timestamp changes.
+    var WIN_PRE_MS  = 90 * 60 * 1000;  // 90 min before entry
+    var WIN_POST_MS = 60 * 60 * 1000;  // 60 min after exit
+    var clipStartMs = entryTime ? (_toTs(day.date, entryTime) * 1000 - WIN_PRE_MS)  : null;
+    var clipEndMs   = exitTime  ? (_toTs(day.date, exitTime)  * 1000 + WIN_POST_MS) : null;
+    var windowedBars = dayBars.filter(function(b) {
+        return (!clipStartMs || b.timestamp >= clipStartMs) &&
+               (!clipEndMs   || b.timestamp <= clipEndMs);
+    });
+    _stkDtRawDayBars = windowedBars.length >= 5 ? windowedBars : dayBars;
 
     _stkDtCurrentTf = 1;
     document.querySelectorAll('.stk-dt-tf-btn').forEach(function(btn) {
@@ -1265,7 +1280,7 @@ function openStkDayChart(dayIdx) {
 
     _stkDtModalBars     = _stkDtRawAllBars.slice();
     _stkDtModalDayBars  = _stkDtRawDayBars.slice();
-    _stkDtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;
+    _stkDtModalCutoffTs = _stkDtRawDayBars.length > 0 ? Math.floor(_stkDtRawDayBars[0].timestamp / 1000) : 0;
 
     var modal = document.getElementById('stkDtChartModal');
     modal.style.display = 'flex';
@@ -1441,19 +1456,12 @@ function _stkDtAddIndicator() {
     if (type !== 'macd' && (period < 2 || period > 500)) { alert('Period must be between 2 and 500.'); return; }
     if (_stkDtModalDayBars.length === 0) { alert('No bar data available for this trade.'); return; }
 
-    var prevRange;
-    try { prevRange = body._lwModalChart.timeScale().getVisibleRange(); } catch(e){}
-
     var id = _stkDtModalIndNextId++;
     var label = type === 'macd' ? 'MACD(12,26,9)' : type === 'rsi' ? 'RSI(' + period + ')' : type.toUpperCase() + '(' + period + ')';
     var ind = { id: id, type: type, period: period, color: color, lineWidth: lineWidth, label: label, series: null, isSubPanel: false, subChart: null, subDiv: null, subRo: null, extraSeries: null };
     ind.series = _stkDtCreateIndSeries(body._lwModalChart, ind);
     _stkDtModalIndicators.push(ind);
     _stkDtRefreshIndList();
-
-    if (prevRange) {
-        try { body._lwModalChart.timeScale().setVisibleRange(prevRange); } catch(e){}
-    }
 }
 
 function _stkDtRemoveIndicator(id) {
@@ -1461,10 +1469,6 @@ function _stkDtRemoveIndicator(id) {
     var idx  = _stkDtModalIndicators.findIndex(function(i) { return i.id === id; });
     if (idx === -1) return;
     var ind  = _stkDtModalIndicators[idx];
-
-    var prevRange;
-    try { if (body && body._lwModalChart) prevRange = body._lwModalChart.timeScale().getVisibleRange(); } catch(e){}
-
     if (ind.isSubPanel) {
         if (ind.subRo)   { try { ind.subRo.disconnect();  } catch(e){} }
         if (ind.subChart){ try { ind.subChart.remove();   } catch(e){} }
@@ -1474,16 +1478,10 @@ function _stkDtRemoveIndicator(id) {
     }
     _stkDtModalIndicators.splice(idx, 1);
     _stkDtRefreshIndList();
-
-    if (prevRange) { try { body._lwModalChart.timeScale().setVisibleRange(prevRange); } catch(e){} }
 }
 
 function _stkDtClearIndicators() {
     var body = document.getElementById('stkDtChartModalBody');
-
-    var prevRange;
-    try { if (body && body._lwModalChart) prevRange = body._lwModalChart.timeScale().getVisibleRange(); } catch(e){}
-
     _stkDtModalIndicators.forEach(function(ind) {
         if (ind.isSubPanel) {
             if (ind.subRo)   { try { ind.subRo.disconnect();  } catch(e){} }
@@ -1495,8 +1493,6 @@ function _stkDtClearIndicators() {
     });
     _stkDtModalIndicators = [];
     _stkDtRefreshIndList();
-
-    if (prevRange) { try { body._lwModalChart.timeScale().setVisibleRange(prevRange); } catch(e){} }
 }
 
 function _stkDtRefreshIndList() {
