@@ -566,7 +566,10 @@ function _renderOptDtPage() {
             if (_eEvt && _eEvt.time) _eT = _eEvt.time.slice(0, 5);
             var _xEvt = (day.events || []).find(function(e) { return e.type === 'exit'; });
             var _xT = _xEvt && _xEvt.exit_time ? _xEvt.exit_time.slice(0, 5) : null;
-            _dtChartData[i] = { day: day, bars: day.bars, entryTime: _eT, exitTime: _xT, exitDate: day.exit_date || day.date, multi_day_bars: day.multi_day_bars || null, chart: null };
+            // Underlying price at entry from the conditions_met event; no underlying exit price available for options
+            var _cmEvt = (day.events || []).find(function(e) { return e.type === 'conditions_met'; });
+            var _optEntryPx = _cmEvt ? (_cmEvt.price || null) : null;
+            _dtChartData[i] = { day: day, bars: day.bars, entryTime: _eT, exitTime: _xT, exitDate: day.exit_date || day.date, multi_day_bars: day.multi_day_bars || null, chart: null, entryPrice: _optEntryPx, exitPrice: null };
 
             flowHtml += '<div style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;">' +
                 '<div style="padding:7px 12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;background:#fafbfc;">' +
@@ -671,13 +674,21 @@ function _buildLwChart(container, stored, isModal, aggBars, tf) {
     var markers = [];
     if (stored.entryTime) {
         var eRaw = _toTs(stored.day.date, stored.entryTime);
-        markers.push({ time: _dtSnapToTf(eRaw, tf), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' });
+        markers.push({ time: _dtSnapToTf(eRaw, tf), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' + (stored.entryPrice != null ? ' $' + stored.entryPrice.toFixed(2) : '') });
     }
     if (stored.exitTime) {
         var xRaw = _toTs(stored.exitDate || stored.day.date, stored.exitTime);
-        markers.push({ time: _dtSnapToTf(xRaw, tf), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit' });
+        markers.push({ time: _dtSnapToTf(xRaw, tf), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit' + (stored.exitPrice != null ? ' $' + stored.exitPrice.toFixed(2) : '') });
     }
     if (markers.length) cs.setMarkers(markers);
+
+    // Draw horizontal dashed lines at the actual fill prices so direction is unambiguous
+    if (stored.entryPrice != null) {
+        cs.createPriceLine({ price: stored.entryPrice, color: '#10b981', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Entry' });
+    }
+    if (stored.exitPrice != null) {
+        cs.createPriceLine({ price: stored.exitPrice, color: '#ef4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Exit' });
+    }
 
     // Initial view:
     //   Inline card  → ±15 min around entry (zoomed in, like TradingView default)
@@ -1235,8 +1246,10 @@ function openStkDayChart(dayIdx) {
     var exitEvts  = (day.events || []).filter(function(e) { return e.type === 'exit' && e.time; });
     var entryTime = entryEvts.length > 0 ? entryEvts[0].time.slice(11, 16) : null;
     var exitTime  = exitEvts.length  > 0 ? exitEvts[exitEvts.length - 1].time.slice(11, 16) : null;
+    var entryPrice = entryEvts.length > 0 ? (entryEvts[0].price || null) : null;
+    var exitPrice  = exitEvts.length  > 0 ? (exitEvts[exitEvts.length - 1].price || null) : null;
 
-    var stored = { day: day, bars: day.bars, entryTime: entryTime, exitTime: exitTime, exitDate: day.date, multi_day_bars: null };
+    var stored = { day: day, bars: day.bars, entryTime: entryTime, exitTime: exitTime, exitDate: day.date, multi_day_bars: null, entryPrice: entryPrice, exitPrice: exitPrice };
     _stkDtCurrentStored = stored;
 
     document.getElementById('stkDtChartModalTitle').textContent = day.symbol || '';
