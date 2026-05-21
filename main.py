@@ -6336,6 +6336,7 @@ def get_simulated_trading_bars():
         end_date = data.get('end_date')
         bar_size = data.get('bar_size', 'day')
         multiplier = int(data.get('multiplier', 1))
+        print(f"[SimBars] symbol={symbol!r} start={start_date!r} end={end_date!r} bar_size={bar_size!r} user={'auth' if current_user.is_authenticated else 'anon'}")
 
         if not symbol or not start_date or not end_date:
             return jsonify({'error': 'Symbol, start_date, and end_date are required'}), 400
@@ -6367,98 +6368,55 @@ def get_simulated_trading_bars():
                     return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
                                     'multiplier': multiplier, 'bars': bars, 'count': len(bars), 'source': 'cache'})
 
-                bars = []
-                source = 'cache'
-                cached_bars = spy_data_cache.load_cached_bars_as_list(
-                    max(start_date, cache_first.strftime('%Y-%m-%d')),
-                    min(end_date, cache_last.strftime('%Y-%m-%d'))
-                )
-                for b in (cached_bars or []):
-                    bars.append({'timestamp': int(b['timestamp']), 'open': b['open'], 'high': b['high'],
-                                 'low': b['low'], 'close': b['close'], 'volume': b['volume'],
-                                 'vwap': b.get('vwap')})
-                cached_count = len(bars)
-
-                api_key = request.headers.get('X-API-Key') or API_KEY
-                if api_key:
-                    from polygon.rest import RESTClient
-                    client = RESTClient(api_key)
-                    gap_ranges = []
-                    if needs_before:
-                        gap_ranges.append((start_date, (cache_first - timedelta(days=1)).strftime('%Y-%m-%d')))
-                    if needs_after:
-                        gap_ranges.append(((cache_last + timedelta(days=1)).strftime('%Y-%m-%d'), end_date))
-
-                    for gap_start, gap_end in gap_ranges:
-                        try:
-                            aggs = client.get_aggs(ticker='SPY', multiplier=1, timespan='minute',
-                                                   from_=gap_start, to=gap_end, limit=50000)
-                            if aggs:
-                                for agg in aggs:
-                                    ts = agg.timestamp
-                                    if hasattr(ts, 'timestamp'):
-                                        ts = int(ts.timestamp() * 1000)
-                                    else:
-                                        ts = int(ts)
-                                    bars.append({'timestamp': ts, 'open': agg.open, 'high': agg.high,
-                                                 'low': agg.low, 'close': agg.close, 'volume': agg.volume,
-                                                 'vwap': getattr(agg, 'vwap', None)})
-                                source = 'cache+live'
-                        except Exception as live_err:
-                            print(f"[SPY Cache] Live fetch for gap {gap_start}-{gap_end} failed: {live_err}")
-
-                live_count = len(bars) - cached_count
-                print(f"[SPY Cache] Served {cached_count} cached + {live_count} live bars")
-                bars.sort(key=lambda x: x['timestamp'])
-                seen = set()
-                unique_bars = []
-                for b in bars:
-                    if b['timestamp'] not in seen:
-                        seen.add(b['timestamp'])
-                        unique_bars.append(b)
+                # Simulated trading only needs historical data — serve from cache only.
+                # The daily scheduler keeps the cache current; live gap-fill is skipped here
+                # to avoid long Polygon API waits that would trip the proxy timeout.
+                clamp_start = max(start_date, cache_first.strftime('%Y-%m-%d'))
+                clamp_end = min(end_date, cache_last.strftime('%Y-%m-%d'))
+                cached_bars = spy_data_cache.load_cached_bars_as_list(clamp_start, clamp_end)
+                bars = [{'timestamp': int(b['timestamp']), 'open': b['open'], 'high': b['high'],
+                         'low': b['low'], 'close': b['close'], 'volume': b['volume'],
+                         'vwap': b.get('vwap')} for b in (cached_bars or [])]
+                print(f"[SPY Cache] Served {len(bars)} bars from cache for {clamp_start} to {clamp_end} (requested {start_date} to {end_date})")
                 return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
-                                'multiplier': multiplier, 'bars': unique_bars, 'count': len(unique_bars),
-                                'source': source})
+                                'multiplier': multiplier, 'bars': bars, 'count': len(bars), 'source': 'cache'})
 
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
             return jsonify({'error': 'Polygon API key not configured'}), 400
 
-        from polygon.rest import RESTClient
-        client = RESTClient(api_key)
-
         # Normalize index symbols to Polygon's "I:" prefix format
         _SIM_INDEX_MAP = {'SPX': 'I:SPX', 'SPXW': 'I:SPX', 'NDX': 'I:NDX', 'RUT': 'I:RUT', 'XSP': 'I:XSP'}
         polygon_ticker = _SIM_INDEX_MAP.get(symbol, symbol)
 
+        def _fetch_polygon_bars(_api_key, _ticker, _multiplier, _bar_size, _start, _end):
+            from polygon.rest import RESTClient as _RC
+            _client = _RC(_api_key, connect_timeout=5, read_timeout=10, retries=0)
+            _aggs = _client.get_aggs(ticker=_ticker, multiplier=_multiplier, timespan=_bar_size,
+                                     from_=_start, to=_end, limit=50000)
+            _result = []
+            for _agg in _aggs:
+                _ts = _agg.timestamp
+                if hasattr(_ts, 'timestamp'):
+                    _ts = int(_ts.timestamp() * 1000)
+                else:
+                    _ts = int(_ts)
+                _result.append({'timestamp': _ts, 'open': _agg.open, 'high': _agg.high,
+                                'low': _agg.low, 'close': _agg.close, 'volume': _agg.volume,
+                                'vwap': getattr(_agg, 'vwap', None)})
+            return _result
+
+        import concurrent.futures as _cf
         bars = []
         try:
-            aggs = client.get_aggs(
-                ticker=polygon_ticker,
-                multiplier=multiplier,
-                timespan=bar_size,
-                from_=start_date,
-                to=end_date,
-                limit=50000
-            )
-
-            for agg in aggs:
-                ts = agg.timestamp
-                if hasattr(ts, 'timestamp'):
-                    ts = int(ts.timestamp() * 1000)
-                elif isinstance(ts, (int, float)):
-                    ts = int(ts)
-                else:
-                    ts = int(ts)
-                bars.append({
-                    'timestamp': ts,
-                    'open': agg.open,
-                    'high': agg.high,
-                    'low': agg.low,
-                    'close': agg.close,
-                    'volume': agg.volume,
-                    'vwap': getattr(agg, 'vwap', None),
-                })
+            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
+                _future = _pool.submit(_fetch_polygon_bars, api_key, polygon_ticker,
+                                       multiplier, bar_size, start_date, end_date)
+                try:
+                    bars = _future.result(timeout=20)
+                except _cf.TimeoutError:
+                    _future.cancel()
+                    return jsonify({'error': 'Data request timed out — Polygon API is slow. Try a different date range or symbol.'}), 504
         except Exception as e:
             return jsonify({'error': f'Failed to fetch data from Polygon: {str(e)}'}), 500
 

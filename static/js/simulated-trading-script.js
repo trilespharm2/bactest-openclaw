@@ -1033,11 +1033,17 @@ async function fetchMinuteBars(symbol, startDate, endDate) {
             credentials: 'include',
             body: JSON.stringify({ symbol, start_date: startDate, end_date: endDate, bar_size: 'minute', multiplier: 1 })
         });
-        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed to fetch data'); }
+        if (!response.ok) {
+            const text = await response.text();
+            let errMsg = `HTTP ${response.status}`;
+            try { const parsed = JSON.parse(text); errMsg = parsed.error || errMsg; } catch(e) {}
+            console.error('Error fetching 1m data: server returned', response.status, text.slice(0, 200));
+            throw new Error(errMsg);
+        }
         const data = await response.json();
         return data.bars || [];
     } catch (error) {
-        console.error('Error fetching 1m data:', error);
+        console.error('Error fetching 1m data:', error.message || error);
         return null;
     }
 }
