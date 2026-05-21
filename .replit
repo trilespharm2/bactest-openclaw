@@ -1,5 +1,5 @@
 entrypoint = "main.py"
-modules = ["nodejs-20", "web", "python-3.11"]
+modules = ["nodejs-20", "web", "python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
@@ -44,7 +44,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PATH=/home/runner/workspace/.pythonlibs/bin:$PATH gunicorn --bind 0.0.0.0:5000 --reuse-port --reload --timeout 120 --keep-alive 5 --worker-class gthread --workers 1 --threads 4 main:app"
+args = "/home/runner/workspace/.pythonlibs/bin/gunicorn --bind 0.0.0.0:5000 --reuse-port --reload --timeout 120 --keep-alive 5 --worker-class gthread --workers 1 --threads 4 main:app"
 waitForPort = 5000
 
 [userenv]
