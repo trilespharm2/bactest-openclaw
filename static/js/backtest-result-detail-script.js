@@ -1251,23 +1251,8 @@ function openStkDayChart(dayIdx) {
     var dayBars = (day.bars || []).filter(function(b) { return b[1] > 0; }).map(function(b) {
         return { timestamp: _toTs(day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
     });
-    // Full bars (seed + whole day) kept for SMA/EMA warmup computation.
     _stkDtRawAllBars = seedBars.concat(dayBars);
-
-    // Clip the DISPLAYED candlestick bars to a window around entry/exit.
-    // This means LWCT's internal fitContent() — triggered when a new indicator
-    // series is added — zooms to the window rather than the full trading day,
-    // keeping the entry/exit candles visible.  The SMA/EMA is still computed
-    // over all bars (above) for accuracy; only the cutoff timestamp changes.
-    var WIN_PRE_MS  = 90 * 60 * 1000;  // 90 min before entry
-    var WIN_POST_MS = 60 * 60 * 1000;  // 60 min after exit
-    var clipStartMs = entryTime ? (_toTs(day.date, entryTime) * 1000 - WIN_PRE_MS)  : null;
-    var clipEndMs   = exitTime  ? (_toTs(day.date, exitTime)  * 1000 + WIN_POST_MS) : null;
-    var windowedBars = dayBars.filter(function(b) {
-        return (!clipStartMs || b.timestamp >= clipStartMs) &&
-               (!clipEndMs   || b.timestamp <= clipEndMs);
-    });
-    _stkDtRawDayBars = windowedBars.length >= 5 ? windowedBars : dayBars;
+    _stkDtRawDayBars = dayBars;
 
     _stkDtCurrentTf = 1;
     document.querySelectorAll('.stk-dt-tf-btn').forEach(function(btn) {
@@ -1280,7 +1265,7 @@ function openStkDayChart(dayIdx) {
 
     _stkDtModalBars     = _stkDtRawAllBars.slice();
     _stkDtModalDayBars  = _stkDtRawDayBars.slice();
-    _stkDtModalCutoffTs = _stkDtRawDayBars.length > 0 ? Math.floor(_stkDtRawDayBars[0].timestamp / 1000) : 0;
+    _stkDtModalCutoffTs = dayBars.length > 0 ? Math.floor(dayBars[0].timestamp / 1000) : 0;
 
     var modal = document.getElementById('stkDtChartModal');
     modal.style.display = 'flex';
