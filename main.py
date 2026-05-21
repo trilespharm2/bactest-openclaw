@@ -6330,7 +6330,7 @@ def clear_screener_filters():
 def get_simulated_trading_bars():
     """Fetch OHLCV bars for simulated trading chart — uses SPY cache when available"""
     try:
-        data = request.json
+        data = request.get_json(force=True, silent=True) or {}
         symbol = data.get('symbol', '').upper().strip()
         start_date = data.get('start_date')
         end_date = data.get('end_date')
