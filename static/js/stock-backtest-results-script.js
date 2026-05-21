@@ -884,6 +884,28 @@ function formatTime(timeStr) {
     return timeStr;
 }
 
+function _fmtMetricValue(v) {
+    if (v == null) return 'N/A';
+    const n = parseFloat(v);
+    return isNaN(n) ? String(v) : (Number.isInteger(n) ? n.toString() : n.toFixed(4).replace(/\.?0+$/, ''));
+}
+
+function _buildEntryMetricsHtml(em, showLeft) {
+    if (!em) return '';
+    let parts = [];
+    if (showLeft && em.left_label != null && em.left_value != null) {
+        parts.push(`<span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${em.left_label}: ${_fmtMetricValue(em.left_value)}</span>`);
+    }
+    if (em.right_label != null && em.effective_right != null) {
+        const threshStr = em.threshold && em.threshold !== 0
+            ? ` <span style="color:#94a3b8; font-size:10px;">(base ${_fmtMetricValue(em.right_value)} ${em.threshold > 0 ? '+' : ''}${em.threshold}${em.threshold_unit || '%'})</span>`
+            : '';
+        parts.push(`<span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${em.right_label}: ${_fmtMetricValue(em.effective_right)}${threshStr}</span>`);
+    }
+    if (!parts.length) return '';
+    return `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;">${parts.join('')}</div>`;
+}
+
 function renderDtPage(config) {
     const body = document.getElementById('decisionTreeBody');
     const totalPages = Math.ceil(dtDays.length / dtPerPage);
@@ -924,75 +946,128 @@ function renderDtPage(config) {
 
         let flowHtml = '';
 
-        flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f1f5f9; border-radius:8px; margin-bottom:8px;">
-            <i class="fas fa-chart-line" style="color:#64748b;"></i>
-            <span style="color:#475569; font-size:13px;"><strong>Previous Close:</strong> $${day.prev_close != null ? day.prev_close.toFixed(2) : 'N/A'}</span>
-        </div>`;
+        // ── Day-level context row ─────────────────────────────────────────────
+        flowHtml += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">`;
+        if (day.prev_close != null) {
+            flowHtml += `<div style="display:flex; align-items:center; gap:7px; padding:6px 12px; background:#f1f5f9; border-radius:8px; flex:1; min-width:160px;">
+                <i class="fas fa-chart-line" style="color:#64748b; font-size:12px;"></i>
+                <span style="color:#475569; font-size:12px;"><strong>Prev Close:</strong> $${day.prev_close.toFixed(2)}</span>
+            </div>`;
+        }
+        if (day.condition) {
+            flowHtml += `<div style="display:flex; align-items:center; gap:7px; padding:6px 12px; background:#f1f5f9; border-radius:8px; flex:2; min-width:200px;">
+                <i class="fas fa-filter" style="color:#64748b; font-size:12px;"></i>
+                <span style="color:#475569; font-size:12px;"><strong>Condition:</strong> ${day.condition}</span>
+            </div>`;
+        }
+        flowHtml += `</div>`;
 
-        flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f1f5f9; border-radius:8px; margin-bottom:8px;">
-            <i class="fas fa-filter" style="color:#64748b;"></i>
-            <span style="color:#475569; font-size:13px;"><strong>Condition:</strong> ${day.condition || 'N/A'}</span>
-        </div>`;
-
+        // ── Event timeline ────────────────────────────────────────────────────
         flowHtml += '<div style="border-left:2px solid #e2e8f0; margin-left:20px; padding-left:16px;">';
 
         (day.events || []).forEach(evt => {
-            if (evt.type === 'no_signal') {
+
+            if (evt.type === 'no_data') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border-left:3px solid #94a3b8;">
+                    <i class="fas fa-database" style="color:#94a3b8; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#64748b; font-size:13px;">NO DATA</div>
+                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'No market data available for this day'}</div>
+                    </div>
+                </div>`;
+
+            } else if (evt.type === 'no_signal') {
+                const metricsHtml = _buildEntryMetricsHtml(evt.entry_metrics, false);
+                let rangeHtml = '';
+                if (evt.day_high != null && evt.day_low != null) {
+                    rangeHtml = `<div style="color:#94a3b8; font-size:11px; margin-top:4px;">Day range: $${evt.day_low.toFixed(2)} – $${evt.day_high.toFixed(2)}</div>`;
+                }
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border-left:3px solid #94a3b8;">
                     <i class="fas fa-ban" style="color:#94a3b8; margin-top:2px;"></i>
-                    <div>
-                        <div style="font-weight:600; color:#64748b; font-size:13px;">NO TRADE</div>
-                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'Condition not met'}</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#64748b; font-size:13px;">CONDITIONS NOT MET</div>
+                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'Entry condition not satisfied'}</div>
+                        ${metricsHtml}
+                        ${rangeHtml}
                     </div>
                 </div>`;
+
             } else if (evt.type === 'condition_met') {
-                const valStr = evt.computed_value != null ? ` (computed: ${evt.computed_value}%)` : '';
+                const metricsHtml = _buildEntryMetricsHtml(evt.entry_metrics, true);
+                let computedLine = '';
+                if (evt.computed_value != null) {
+                    computedLine = `<span style="background:#d1fae5; color:#065f46; padding:1px 7px; border-radius:5px; font-size:11px; font-weight:600; margin-left:6px;">Δ ${evt.computed_value > 0 ? '+' : ''}${evt.computed_value}%</span>`;
+                }
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#ecfdf5; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">
                     <i class="fas fa-check-circle" style="color:#10b981; margin-top:2px;"></i>
-                    <div>
-                        <div style="font-weight:600; color:#065f46; font-size:13px;">CONDITION MET</div>
-                        <div style="color:#475569; font-size:12px;">Price at ${formatTime(evt.time)}: $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} (${evt.price_point || 'close'})${valStr}</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#065f46; font-size:13px;">CONDITIONS MET</div>
+                        <div style="color:#475569; font-size:12px; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                            Price @ ${formatTime(evt.time)}: <strong>$${evt.price != null ? evt.price.toFixed(2) : 'N/A'}</strong>
+                            <span style="color:#94a3b8;">(${evt.price_point || 'close'})</span>${computedLine}
+                        </div>
+                        ${metricsHtml}
                     </div>
                 </div>`;
+
             } else if (evt.type === 'entry' || evt.type === 're_entry') {
                 const label = evt.type === 're_entry' ? 'RE-ENTRY' : 'ENTRY';
+                const icon  = evt.type === 're_entry' ? 'fa-redo' : 'fa-sign-in-alt';
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f0fdf4; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">
-                    <i class="fas fa-sign-in-alt" style="color:#10b981; margin-top:2px;"></i>
+                    <i class="fas ${icon}" style="color:#10b981; margin-top:2px;"></i>
                     <div>
-                        <div style="font-weight:600; color:#1e293b; font-size:13px;">${label} - Trade #${evt.trade_num || '?'}</div>
-                        <div style="color:#475569; font-size:12px;">${dir} ${evt.shares || '—'} shares @ $${evt.price != null ? evt.price.toFixed(2) : 'N/A'}</div>
-                        <div style="color:#64748b; font-size:11px; margin-top:2px;">${evt.exit_criteria || ''}</div>
+                        <div style="font-weight:600; color:#1e293b; font-size:13px;">${label} @ ${formatTime(evt.time)} — Trade #${evt.trade_num || '?'}</div>
+                        <div style="color:#475569; font-size:12px;">${dir} <strong>${evt.shares || '—'} shares</strong> @ $${evt.price != null ? evt.price.toFixed(2) : 'N/A'}</div>
+                        ${evt.exit_criteria ? `<div style="color:#64748b; font-size:11px; margin-top:2px;">${evt.exit_criteria}</div>` : ''}
                     </div>
                 </div>`;
+
             } else if (evt.type === 'holding') {
+                const currentPrice = evt.current_price;
+                const unrealPnl = currentPrice != null && evt.entry_price != null
+                    ? (dir === 'Long' ? currentPrice - evt.entry_price : evt.entry_price - currentPrice) * (evt.shares || 0)
+                    : null;
+                const upColor = unrealPnl == null ? '#475569' : unrealPnl >= 0 ? '#10b981' : '#ef4444';
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f5f3ff; border-radius:8px; margin-bottom:6px; border-left:3px solid #8b5cf6;">
                     <i class="fas fa-clock" style="color:#8b5cf6; margin-top:2px;"></i>
                     <div>
-                        <div style="font-weight:600; color:#5b21b6; font-size:13px;">IN POSITION - Trade #${evt.trade_num || '?'}</div>
-                        <div style="color:#475569; font-size:12px;">Entered ${evt.entry_date || '?'} @ $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'} | Day ${evt.days_held || '?'} of hold</div>
+                        <div style="font-weight:600; color:#5b21b6; font-size:13px;">IN POSITION — Trade #${evt.trade_num || '?'} (Day ${evt.days_held || '?'})</div>
+                        <div style="color:#475569; font-size:12px;">Entered ${evt.entry_date || '?'} @ $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'}${unrealPnl != null ? ` | Unrealized: <span style="font-weight:600; color:${upColor};">$${unrealPnl.toFixed(2)}</span>` : ''}</div>
                     </div>
                 </div>`;
+
             } else if (evt.type === 'exit') {
                 const pnl = evt.pnl || 0;
                 const pnlColor = pnl >= 0 ? '#10b981' : '#ef4444';
-                const bgColor = pnl >= 0 ? '#f0fdf4' : '#fef2f2';
-                const borderColor = pnl >= 0 ? '#10b981' : '#ef4444';
-                const exitIcon = (evt.reason || '').includes('stop') ? 'fa-shield-alt' :
-                                 (evt.reason || '').includes('profit') ? 'fa-bullseye' : 'fa-sign-out-alt';
-                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${bgColor}; border-radius:8px; margin-bottom:6px; border-left:3px solid ${borderColor};">
+                const bgColor  = pnl >= 0 ? '#f0fdf4' : '#fef2f2';
+                const bdColor  = pnl >= 0 ? '#10b981' : '#ef4444';
+                const exitIcon = (evt.reason || '').includes('stop')   ? 'fa-shield-alt' :
+                                 (evt.reason || '').includes('profit')  ? 'fa-bullseye' :
+                                 (evt.reason || '').includes('max')     ? 'fa-hourglass-end' : 'fa-sign-out-alt';
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${bgColor}; border-radius:8px; margin-bottom:6px; border-left:3px solid ${bdColor};">
                     <i class="fas ${exitIcon}" style="color:${pnlColor}; margin-top:2px;"></i>
                     <div>
-                        <div style="font-weight:600; color:#1e293b; font-size:13px;">EXIT - Trade #${evt.trade_num || '?'} (${formatExitReason(evt.reason)})</div>
-                        <div style="color:#475569; font-size:12px;">Price at ${formatTime(evt.time)}: $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} | Entry was $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'}</div>
-                        <div style="font-weight:600; font-size:13px; margin-top:2px; color:${pnlColor};">P&L: $${pnl.toFixed(2)} (${(evt.pnl_pct || 0).toFixed(2)}%)</div>
+                        <div style="font-weight:600; color:#1e293b; font-size:13px;">EXIT — Trade #${evt.trade_num || '?'} (${formatExitReason(evt.reason)})</div>
+                        <div style="color:#475569; font-size:12px;">@ ${formatTime(evt.time)}: $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} | Entry $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'}</div>
+                        <div style="font-weight:700; font-size:13px; margin-top:3px; color:${pnlColor};">P&L: $${pnl.toFixed(2)} <span style="font-weight:500; font-size:12px;">(${(evt.pnl_pct || 0).toFixed(2)}%)</span></div>
                     </div>
                 </div>`;
+
             } else if (evt.type === 'skip_consecutive') {
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fffbeb; border-radius:8px; margin-bottom:6px; border-left:3px solid #f59e0b;">
                     <i class="fas fa-exclamation-triangle" style="color:#f59e0b; margin-top:2px;"></i>
                     <div>
                         <div style="font-weight:600; color:#92400e; font-size:13px;">SIGNAL SKIPPED</div>
                         <div style="color:#78716c; font-size:12px;">${evt.reason || 'Consecutive trades disabled'}</div>
+                    </div>
+                </div>`;
+
+            } else if (evt.type === 'error') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fef2f2; border-radius:8px; margin-bottom:6px; border-left:3px solid #ef4444;">
+                    <i class="fas fa-exclamation-circle" style="color:#ef4444; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#991b1b; font-size:13px;">ERROR</div>
+                        <div style="color:#78716c; font-size:12px;">${evt.reason || 'Unknown error occurred'}</div>
                     </div>
                 </div>`;
             }
@@ -1006,11 +1081,12 @@ function renderDtPage(config) {
                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                         <i class="fas fa-calendar-day" style="color:#3b7cff;"></i>
                         <span style="font-weight:600; font-size:15px;">${day.date}</span>
+                        <span style="font-weight:600; font-size:11px; color:#475569;">${day.symbol || ''}</span>
                         <span style="background:${badgeColor}; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600;">${badgeText}</span>
-                        ${hasPnl ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:600; font-size:13px;">P&L: $${dayPnl.toFixed(2)}</span>` : ''}
+                        ${hasPnl ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:700; font-size:13px;">P&L: $${dayPnl.toFixed(2)}</span>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:10px;">
-                        ${(day.bars && day.bars.length > 0) ? `<button class="day-chart-btn" onclick="event.stopPropagation(); openStkDayChart(${dayIdx})" title="View price chart"><i class="fas fa-chart-area"></i> View Chart</button>` : ''}
+                        ${(day.bars && day.bars.length > 0) ? `<button class="day-chart-btn" onclick="event.stopPropagation(); openStkDayChart(${dayIdx})" title="View intraday price chart"><i class="fas fa-chart-area"></i> View Chart</button>` : ''}
                         <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
                     </div>
                 </div>
