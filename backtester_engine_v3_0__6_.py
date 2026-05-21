@@ -970,7 +970,7 @@ class BacktesterEngine:
             target_idx = current_date_index + day_offset
             end_idx = min(target_idx + 1, len(dates))
             frames = []
-            for i in range(max(0, end_idx - 500), end_idx):
+            for i in range(max(0, end_idx - 60), end_idx):
                 d = dates[i]
                 if d in grouped_data.groups:
                     frames.append(grouped_data.get_group(d))
