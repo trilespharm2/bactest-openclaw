@@ -725,7 +725,7 @@ function addCondition() {
                 </div>
                 <div class="col-md-3 col-sm-6" id="left-macd-component-group-${n}" style="display:none;">
                     <label class="form-label small">Component</label>
-                    <select class="form-select form-select-sm" id="left-macd-component-${n}">
+                    <select class="form-select form-select-sm" id="left-macd-component-${n}" onchange="updateStockMacdComparatorOptions(${n})">
                         <option value="histogram">Histogram</option>
                         <option value="signal">Signal</option>
                         <option value="macd_line">MACD Line</option>
@@ -1022,8 +1022,7 @@ function updateStockConditionFields(n) {
         if (macdLongGroup) macdLongGroup.style.display = 'block';
         if (macdSignalGroup) macdSignalGroup.style.display = 'block';
         if (macdComponentGroup) macdComponentGroup.style.display = 'block';
-        updateStockComparatorOptions(n, ['value']);
-        setCrossOperators('operator-' + n, false);
+        updateStockMacdComparatorOptions(n);
     }
     updateThresholdUnitOptions(n, val, false);
     updateStockRightSide(n);
@@ -1034,6 +1033,78 @@ function updateStockComparatorOptions(n, options) {
     if (!sel) return;
     var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume', 'compare_trend_capture': 'Trend Capture' };
     sel.innerHTML = options.map(function(o) { return '<option value="' + o + '">' + (labels[o] || o) + '</option>'; }).join('');
+}
+
+function _setStockMacdCrossOperators(selectId, component) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    var allCross = ['cross_up', 'cross_down', 'cross_either'];
+    var savedVal = sel.value;
+    allCross.forEach(function(v) {
+        var ex = sel.querySelector('option[value="' + v + '"]');
+        if (ex) ex.remove();
+    });
+    if (component === 'signal' || component === 'macd_line') {
+        var upOpt = document.createElement('option');
+        upOpt.value = 'cross_up';
+        upOpt.textContent = 'Cross Up \u2191 (was below, now above)';
+        sel.appendChild(upOpt);
+        var dnOpt = document.createElement('option');
+        dnOpt.value = 'cross_down';
+        dnOpt.textContent = 'Cross Down \u2193 (was above, now below)';
+        sel.appendChild(dnOpt);
+        if (savedVal === 'cross_up' || savedVal === 'cross_down') sel.value = savedVal;
+    } else {
+        if (allCross.indexOf(sel.value) !== -1) sel.value = '>';
+    }
+}
+
+function updateStockMacdComparatorOptions(n) {
+    var compEl = document.getElementById('left-macd-component-' + n);
+    var component = compEl ? compEl.value : 'histogram';
+    var sel = document.getElementById('comparator-' + n);
+    if (!sel) return;
+    var savedVal = sel.value;
+    if (component === 'signal') {
+        sel.innerHTML =
+            '<option value="zero_line">Zero Line</option>' +
+            '<option value="compare_macd_line">MACD Line</option>';
+    } else if (component === 'macd_line') {
+        sel.innerHTML =
+            '<option value="zero_line">Zero Line</option>' +
+            '<option value="compare_signal">Signal Line</option>';
+    } else {
+        sel.innerHTML = '<option value="value">Value</option>';
+    }
+    if (sel.querySelector('option[value="' + savedVal + '"]')) {
+        sel.value = savedVal;
+    }
+    _setStockMacdCrossOperators('operator-' + n, component);
+    updateStockRightSide(n);
+}
+
+function updateExitMacdComparatorOptions(n) {
+    var compEl = document.getElementById('exit-left-macd-component-' + n);
+    var component = compEl ? compEl.value : 'histogram';
+    var sel = document.getElementById('exit-comparator-' + n);
+    if (!sel) return;
+    var savedVal = sel.value;
+    if (component === 'signal') {
+        sel.innerHTML =
+            '<option value="zero_line">Zero Line</option>' +
+            '<option value="compare_macd_line">MACD Line</option>';
+    } else if (component === 'macd_line') {
+        sel.innerHTML =
+            '<option value="zero_line">Zero Line</option>' +
+            '<option value="compare_signal">Signal Line</option>';
+    } else {
+        sel.innerHTML = '<option value="value">Value</option>';
+    }
+    if (sel.querySelector('option[value="' + savedVal + '"]')) {
+        sel.value = savedVal;
+    }
+    _setStockMacdCrossOperators('exit-operator-' + n, component);
+    updateExitRightSide(n);
 }
 
 function updateThresholdUnitOptions(n, metric, isExit) {
@@ -1075,6 +1146,14 @@ function updateStockRightSide(n) {
     // Enable cross operators for current_price/price when RHS is SMA or EMA
     if (leftMetric === 'current_price' || leftMetric === 'price') {
         setCrossOperators('operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
+    }
+
+    // MACD self-contained comparators: hide both panels
+    if (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal') {
+        rightSide.style.display = 'none';
+        valueGroup.style.display = 'none';
+        updateConditionSummary(n, false);
+        return;
     }
 
     if (comp === 'value') {
@@ -1288,7 +1367,7 @@ function addExitCondition() {
                 </div>
                 <div class="col-md-3 col-sm-6" id="exit-left-macd-component-group-${n}" style="display:none;">
                     <label class="form-label small">Component</label>
-                    <select class="form-select form-select-sm" id="exit-left-macd-component-${n}">
+                    <select class="form-select form-select-sm" id="exit-left-macd-component-${n}" onchange="updateExitMacdComparatorOptions(${n})">
                         <option value="histogram">Histogram</option>
                         <option value="signal">Signal</option>
                         <option value="macd_line">MACD Line</option>
@@ -1513,10 +1592,15 @@ function updateExitComparatorOptions(n) {
     var metric = (document.getElementById('exit-metric-' + n) || {}).value || 'current_price';
     var comp = document.getElementById('exit-comparator-' + n);
     if (!comp) return;
+    if (metric === 'macd') {
+        updateExitMacdComparatorOptions(n);
+        updateThresholdUnitOptions(n, metric, true);
+        return;
+    }
     var opts = '<option value="value">Value</option>';
     if (metric === 'volume') {
         opts += '<option value="compare_volume">Compare Volume</option>';
-    } else if (metric !== 'rsi' && metric !== 'macd') {
+    } else if (metric !== 'rsi') {
         opts += '<option value="compare_price">Compare Price</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
@@ -1537,6 +1621,13 @@ function updateExitRightSide(n) {
     var leftMetric = (document.getElementById('exit-metric-' + n) || {}).value || '';
     if (leftMetric === 'current_price' || leftMetric === 'price') {
         setCrossOperators('exit-operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
+    }
+
+    // MACD self-contained comparators: hide both panels
+    if (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal') {
+        if (rightSide) rightSide.style.display = 'none';
+        if (valueGroup) valueGroup.style.display = 'none';
+        return;
     }
 
     if (comp === 'value') {
