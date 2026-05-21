@@ -970,7 +970,7 @@ class BacktesterEngine:
             target_idx = current_date_index + day_offset
             end_idx = min(target_idx + 1, len(dates))
             frames = []
-            for i in range(max(0, end_idx - 60), end_idx):
+            for i in range(max(0, end_idx - 500), end_idx):
                 d = dates[i]
                 if d in grouped_data.groups:
                     frames.append(grouped_data.get_group(d))
@@ -1014,8 +1014,8 @@ class BacktesterEngine:
                 delta = series.diff()
                 gain = delta.clip(lower=0)
                 loss = (-delta.clip(upper=0))
-                avg_gain = gain.rolling(window=window, min_periods=window).mean()
-                avg_loss = loss.rolling(window=window, min_periods=window).mean()
+                avg_gain = gain.ewm(alpha=1.0 / window, adjust=False, min_periods=window).mean()
+                avg_loss = loss.ewm(alpha=1.0 / window, adjust=False, min_periods=window).mean()
                 rs = avg_gain / avg_loss.replace(0, float('nan'))
                 rsi = 100 - (100 / (1 + rs))
                 val = rsi.iloc[-1]
