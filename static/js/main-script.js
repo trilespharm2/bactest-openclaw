@@ -125,6 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function checkAuthStatus() {
     try {
         const response = await authFetch('/api/auth/status');
+        if (!response.ok) throw new Error('Auth check failed: ' + response.status);
         const data = await response.json();
         isAuthenticated = data.authenticated;
         currentUser = data.user || null;
@@ -2033,6 +2034,7 @@ function closeMobileSearch() {
 
     async function _fetch(url) {
         const r = await fetch(url);
+        if (!r.ok) throw new Error('Request failed: ' + r.status);
         return r.json();
     }
 

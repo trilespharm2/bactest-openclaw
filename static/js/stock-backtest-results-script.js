@@ -134,6 +134,7 @@ function setupButtons() {
 async function checkStatusAndLoad() {
     try {
         const statusResponse = await authFetch(`/api/stocks-backtest-v3/status/${backtestId}`);
+        if (!statusResponse.ok) throw new Error('Status check failed: ' + statusResponse.status);
         const statusData = await statusResponse.json();
         
         console.log('Status check:', statusData);

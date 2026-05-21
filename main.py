@@ -227,6 +227,25 @@ def unauthorized_callback():
         return jsonify({'error': 'Authentication required', 'auth_required': True}), 401
     return redirect(url_for('login_page'))
 
+@app.errorhandler(404)
+def not_found_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Not found', 'status': 404}), 404
+    return e
+
+@app.errorhandler(500)
+def internal_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Internal server error', 'status': 500}), 500
+    return e
+
+@app.errorhandler(Exception)
+def unhandled_exception(e):
+    if request.path.startswith('/api/'):
+        logging.exception("Unhandled exception on API route %s", request.path)
+        return jsonify({'error': str(e) or 'Internal server error'}), 500
+    raise e
+
 # User model
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
