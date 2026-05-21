@@ -604,7 +604,7 @@ async function loadPageContent(pageName) {
                     scriptName = '/static/js/strategy-guide-script.js';
                 }
                 if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
-                    scriptName = '/static/js/backtest-result-detail-script.js?v=2';
+                    scriptName = '/static/js/backtest-result-detail-script.js?v=3';
                     if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         scriptName = null;
@@ -689,7 +689,7 @@ async function loadPageContent(pageName) {
                     }
                 }
                 if (pageName === 'optionsResultDetail' || pageName === 'stockResultDetail') {
-                    scriptName = '/static/js/backtest-result-detail-script.js?v=2';
+                    scriptName = '/static/js/backtest-result-detail-script.js?v=3';
                     if (loadedScripts.has('optionsResultDetail') || loadedScripts.has('stockResultDetail')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
