@@ -134,6 +134,7 @@ function setupButtons() {
 async function checkStatusAndLoad() {
     try {
         const statusResponse = await authFetch(`/api/stocks-backtest-v3/status/${backtestId}`);
+        if (!statusResponse.ok) throw new Error('Status check failed: ' + statusResponse.status);
         const statusData = await statusResponse.json();
         
         console.log('Status check:', statusData);
@@ -760,6 +761,398 @@ function formatExitReason(reason) {
     return map[reason] || reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Day Chart Modal — mirrors options-backtest-result-detail-script.js exactly
+// (same structure, same Chart.js config, same algorithms, same styling).
+// ────────────────────────────────────────────────────────────────────────────
+
+let _stkDayPriceChartInst     = null;
+let _stkDayIndicatorChartInst = null;
+let _stkDayChartCurrentDay    = null;
+
+function openStkDayChart(dayIdx) {
+    const day = dtDays[dayIdx];
+    if (!day || !day.bars || day.bars.length === 0) return;
+    _stkDayChartCurrentDay = day;
+
+    document.getElementById('stkDayChartTitle').textContent =
+        `${day.symbol || ''} — ${day.date}`;
+    document.getElementById('stkDayChartIndicator').value = 'none';
+    document.getElementById('stkDayIndicatorWrap').style.display = 'none';
+
+    document.getElementById('stkDayChartModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    setTimeout(() => _buildStkDayPriceChart(day), 60);
+}
+
+function closeStkDayChartModal() {
+    document.getElementById('stkDayChartModal').classList.remove('active');
+    document.body.style.overflow = '';
+    if (_stkDayPriceChartInst)     { _stkDayPriceChartInst.destroy();     _stkDayPriceChartInst     = null; }
+    if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+    _stkDayChartCurrentDay = null;
+}
+
+function onStkDayChartIndicatorChange() {
+    const ind  = document.getElementById('stkDayChartIndicator').value;
+    const wrap = document.getElementById('stkDayIndicatorWrap');
+    if (!_stkDayChartCurrentDay) return;
+
+    if (ind === 'none') {
+        wrap.style.display = 'none';
+        if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+        // Let the browser reflow, then resize the price chart back to full height
+        requestAnimationFrame(() => { if (_stkDayPriceChartInst) _stkDayPriceChartInst.resize(); });
+        return;
+    }
+    wrap.style.display = 'block';
+    // Let the browser reflow the flex layout (price chart shrinks, indicator panel appears),
+    // then resize the price chart before building the indicator chart to avoid stale canvas size.
+    requestAnimationFrame(() => {
+        if (_stkDayPriceChartInst) _stkDayPriceChartInst.resize();
+        _buildStkDayIndicatorChart(_stkDayChartCurrentDay, ind);
+    });
+}
+
+// ── Indicator math (identical to options _computeRSI / _computeEMA / _computeMACD) ──
+function _stkCRSI(closes, window = 14) {
+    const rsi = new Array(closes.length).fill(null);
+    if (closes.length <= window) return rsi;
+    let avgGain = 0, avgLoss = 0;
+    for (let i = 1; i <= window; i++) {
+        const d = closes[i] - closes[i - 1];
+        if (d > 0) avgGain += d; else avgLoss -= d;
+    }
+    avgGain /= window; avgLoss /= window;
+    rsi[window] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    for (let i = window + 1; i < closes.length; i++) {
+        const d = closes[i] - closes[i - 1];
+        avgGain = (avgGain * (window - 1) + (d > 0 ? d : 0)) / window;
+        avgLoss = (avgLoss * (window - 1) + (d < 0 ? -d : 0)) / window;
+        rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    }
+    return rsi;
+}
+
+function _stkCEMA(values, span) {
+    const k = 2 / (span + 1);
+    const ema = new Array(values.length).fill(null);
+    let first = values.findIndex(v => v != null && !isNaN(v));
+    if (first < 0) return ema;
+    ema[first] = values[first];
+    for (let i = first + 1; i < values.length; i++) {
+        const v = values[i];
+        ema[i] = (v != null && !isNaN(v)) ? v * k + ema[i - 1] * (1 - k) : ema[i - 1];
+    }
+    return ema;
+}
+
+function _stkCMACD(closes, short = 12, long = 26, signal = 9) {
+    const emaShort  = _stkCEMA(closes, short);
+    const emaLong   = _stkCEMA(closes, long);
+    const macdLine  = closes.map((_, i) =>
+        emaShort[i] != null && emaLong[i] != null ? emaShort[i] - emaLong[i] : null);
+    const signalLine = _stkCEMA(macdLine.map(v => v == null ? NaN : v), signal);
+    const histogram  = macdLine.map((v, i) =>
+        v != null && signalLine[i] != null ? v - signalLine[i] : null);
+    return { macdLine, signalLine, histogram };
+}
+
+function _buildStkDayPriceChart(day) {
+    const bars     = day.bars      || [];   // [[HH:MM, o, h, l, c, v], ...]
+    const seedBars = day.seed_bars || [];   // prior day bars for warm-up context
+
+    if (_stkDayPriceChartInst) { _stkDayPriceChartInst.destroy(); _stkDayPriceChartInst = null; }
+
+    const labels = bars.map(b => b[0]);
+    const opens  = bars.map(b => b[1]);
+    const highs  = bars.map(b => b[2]);
+    const lows   = bars.map(b => b[3]);
+    const closes = bars.map(b => b[4]);
+
+    const upColor   = 'rgba(16,185,129,0.85)';
+    const downColor = 'rgba(239,68,68,0.82)';
+    const wickColor = bars.map((b, i) => closes[i] >= opens[i] ? upColor : downColor);
+
+    // Stock engine writes every event's intraday timestamp into a single `time` field
+    // formatted as "YYYY-MM-DD HH:MM:SS" — extract the HH:MM portion to match bar labels.
+    const entryTimes = (day.events || [])
+        .filter(e => (e.type === 'entry' || e.type === 're_entry') && e.time)
+        .map(e => e.time.slice(11, 16));
+    const exitTimes  = (day.events || [])
+        .filter(e => e.type === 'exit' && e.time)
+        .map(e => e.time.slice(11, 16));
+
+    const ctx = document.getElementById('stkDayPriceChart');
+    _stkDayPriceChartInst = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Wick',
+                    data: bars.map((b, i) => [lows[i], highs[i]]),
+                    backgroundColor: wickColor,
+                    borderColor: wickColor,
+                    borderWidth: 0,
+                    barPercentage: 0.15,
+                    categoryPercentage: 1,
+                    order: 2
+                },
+                {
+                    label: 'Body',
+                    data: bars.map((b, i) => [opens[i], closes[i]]),
+                    backgroundColor: wickColor,
+                    borderColor: wickColor,
+                    borderWidth: 0,
+                    barPercentage: 0.6,
+                    categoryPercentage: 1,
+                    order: 1
+                },
+                {
+                    label: 'Entry',
+                    type: 'scatter',
+                    data: labels.map((lbl, i) => entryTimes.includes(lbl) ? { x: lbl, y: lows[i] * 0.9995 } : null).filter(v => v),
+                    backgroundColor: '#10b981',
+                    borderColor: '#fff',
+                    borderWidth: 1.5,
+                    pointStyle: 'triangle',
+                    pointRadius: 8,
+                    pointHoverRadius: 10,
+                    order: 0,
+                    showLine: false
+                },
+                {
+                    label: 'Exit',
+                    type: 'scatter',
+                    data: labels.map((lbl, i) => exitTimes.includes(lbl) ? { x: lbl, y: highs[i] * 1.0005 } : null).filter(v => v),
+                    backgroundColor: '#f59e0b',
+                    borderColor: '#fff',
+                    borderWidth: 1.5,
+                    pointStyle: 'triangle',
+                    rotation: 180,
+                    pointRadius: 8,
+                    pointHoverRadius: 10,
+                    order: 0,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label(ctx) {
+                            if (ctx.dataset.label === 'Entry') return `Entry @ ${ctx.raw.y.toFixed(2)}`;
+                            if (ctx.dataset.label === 'Exit')  return `Exit @ ${ctx.raw.y.toFixed(2)}`;
+                            const i = ctx.dataIndex;
+                            return [
+                                `O: ${opens[i].toFixed(2)}`,
+                                `H: ${highs[i].toFixed(2)}`,
+                                `L: ${lows[i].toFixed(2)}`,
+                                `C: ${closes[i].toFixed(2)}`
+                            ];
+                        }
+                    },
+                    backgroundColor: '#1a2535',
+                    titleColor: '#94a3b8',
+                    bodyColor: '#e2e8f0',
+                    borderColor: '#2d3f54',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: '#64748b',
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 14,
+                        font: { size: 11 }
+                    },
+                    grid: { color: 'rgba(255,255,255,0.04)' }
+                },
+                y: {
+                    ticks: { color: '#64748b', font: { size: 11 } },
+                    grid: { color: 'rgba(255,255,255,0.04)' }
+                }
+            }
+        }
+    });
+}
+
+function _buildStkDayIndicatorChart(day, indicator) {
+    if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+
+    const seedBars = day.seed_bars || [];
+    const bars     = day.bars      || [];
+
+    // Combine seed bars + current bars for warm-up, then slice to current-day only
+    const allBars   = [...seedBars, ...bars];
+    const allCloses = allBars.map(b => b[4]);
+    const labels    = bars.map(b => b[0]);
+    const offset    = seedBars.length;
+
+    const ctx   = document.getElementById('stkDayIndicatorChart');
+    const label = document.getElementById('stkDayIndicatorLabel');
+
+    if (indicator === 'rsi') {
+        label.textContent = 'RSI (14)';
+        const allRsi = _stkCRSI(allCloses, 14);
+        const rsiDay = allRsi.slice(offset);
+
+        _stkDayIndicatorChartInst = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'RSI',
+                    data: rsiDay,
+                    borderColor: '#818cf8',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0.2,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `RSI: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : 'N/A'}`
+                        },
+                        backgroundColor: '#1a2535',
+                        titleColor: '#94a3b8',
+                        bodyColor: '#e2e8f0',
+                        borderColor: '#2d3f54',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#4a5568', font: { size: 10 }, maxTicksLimit: 10, autoSkip: true, maxRotation: 0 },
+                        grid: { color: 'rgba(255,255,255,0.03)' }
+                    },
+                    y: {
+                        min: 0, max: 100,
+                        ticks: { color: '#4a5568', font: { size: 10 }, stepSize: 25 },
+                        grid: { color: 'rgba(255,255,255,0.03)' }
+                    }
+                }
+            },
+            plugins: [{
+                id: 'rsiLines',
+                afterDraw(chart) {
+                    const { ctx: c, chartArea: { left, right }, scales: { y } } = chart;
+                    [70, 50, 30].forEach(lvl => {
+                        const yPos = y.getPixelForValue(lvl);
+                        c.save();
+                        c.strokeStyle = lvl === 50 ? 'rgba(148,163,184,0.3)' : (lvl === 70 ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)');
+                        c.lineWidth = 1;
+                        c.setLineDash([4, 4]);
+                        c.beginPath();
+                        c.moveTo(left, yPos);
+                        c.lineTo(right, yPos);
+                        c.stroke();
+                        c.restore();
+                    });
+                }
+            }]
+        });
+
+    } else if (indicator === 'macd') {
+        label.textContent = 'MACD (12, 26, 9)';
+        const { macdLine, signalLine, histogram } = _stkCMACD(allCloses);
+        const macdDay = macdLine.slice(offset);
+        const sigDay  = signalLine.slice(offset);
+        const histDay = histogram.slice(offset);
+
+        _stkDayIndicatorChartInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Histogram',
+                        type: 'bar',
+                        data: histDay,
+                        backgroundColor: histDay.map(v => v == null ? 'transparent' : v >= 0 ? 'rgba(16,185,129,0.55)' : 'rgba(239,68,68,0.55)'),
+                        borderColor: 'transparent',
+                        borderWidth: 0,
+                        barPercentage: 0.8,
+                        categoryPercentage: 1,
+                        order: 2
+                    },
+                    {
+                        label: 'MACD',
+                        type: 'line',
+                        data: macdDay,
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        tension: 0.15,
+                        spanGaps: true,
+                        order: 1
+                    },
+                    {
+                        label: 'Signal',
+                        type: 'line',
+                        data: sigDay,
+                        borderColor: '#f97316',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        borderDash: [4, 3],
+                        pointRadius: 0,
+                        tension: 0.15,
+                        spanGaps: true,
+                        order: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#64748b', font: { size: 10 }, boxWidth: 20, padding: 10 }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1a2535',
+                        titleColor: '#94a3b8',
+                        bodyColor: '#e2e8f0',
+                        borderColor: '#2d3f54',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#4a5568', font: { size: 10 }, maxTicksLimit: 10, autoSkip: true, maxRotation: 0 },
+                        grid: { color: 'rgba(255,255,255,0.03)' }
+                    },
+                    y: {
+                        ticks: { color: '#4a5568', font: { size: 10 } },
+                        grid: { color: 'rgba(255,255,255,0.03)' }
+                    }
+                }
+            }
+        });
+    }
+}
+
 function formatTime(timeStr) {
     if (!timeStr) return '';
     const parts = timeStr.replace('T', ' ').split(' ');
@@ -768,6 +1161,28 @@ function formatTime(timeStr) {
         return timePart;
     }
     return timeStr;
+}
+
+function _fmtMetricValue(v) {
+    if (v == null) return 'N/A';
+    const n = parseFloat(v);
+    return isNaN(n) ? String(v) : (Number.isInteger(n) ? n.toString() : n.toFixed(4).replace(/\.?0+$/, ''));
+}
+
+function _buildEntryMetricsHtml(em, showLeft) {
+    if (!em) return '';
+    let parts = [];
+    if (showLeft && em.left_label != null && em.left_value != null) {
+        parts.push(`<span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${em.left_label}: ${_fmtMetricValue(em.left_value)}</span>`);
+    }
+    if (em.right_label != null && em.effective_right != null) {
+        const threshStr = em.threshold && em.threshold !== 0
+            ? ` <span style="color:#94a3b8; font-size:10px;">(base ${_fmtMetricValue(em.right_value)} ${em.threshold > 0 ? '+' : ''}${em.threshold}${em.threshold_unit || '%'})</span>`
+            : '';
+        parts.push(`<span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${em.right_label}: ${_fmtMetricValue(em.effective_right)}${threshStr}</span>`);
+    }
+    if (!parts.length) return '';
+    return `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;">${parts.join('')}</div>`;
 }
 
 function renderDtPage(config) {
@@ -786,7 +1201,8 @@ function renderDtPage(config) {
 
     const dir = config?.direction ? config.direction.charAt(0).toUpperCase() + config.direction.slice(1) : 'Long';
 
-    body.innerHTML = dtDays.slice(start, end).map(day => {
+    body.innerHTML = dtDays.slice(start, end).map((day, relIdx) => {
+        const dayIdx = start + relIdx;
         const status = day.status || 'SKIPPED';
         let badgeColor, badgeText, headerBg;
         switch (status) {
@@ -809,75 +1225,128 @@ function renderDtPage(config) {
 
         let flowHtml = '';
 
-        flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f1f5f9; border-radius:8px; margin-bottom:8px;">
-            <i class="fas fa-chart-line" style="color:#64748b;"></i>
-            <span style="color:#475569; font-size:13px;"><strong>Previous Close:</strong> $${day.prev_close != null ? day.prev_close.toFixed(2) : 'N/A'}</span>
-        </div>`;
+        // ── Day-level context row ─────────────────────────────────────────────
+        flowHtml += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">`;
+        if (day.prev_close != null) {
+            flowHtml += `<div style="display:flex; align-items:center; gap:7px; padding:6px 12px; background:#f1f5f9; border-radius:8px; flex:1; min-width:160px;">
+                <i class="fas fa-chart-line" style="color:#64748b; font-size:12px;"></i>
+                <span style="color:#475569; font-size:12px;"><strong>Prev Close:</strong> $${day.prev_close.toFixed(2)}</span>
+            </div>`;
+        }
+        if (day.condition) {
+            flowHtml += `<div style="display:flex; align-items:center; gap:7px; padding:6px 12px; background:#f1f5f9; border-radius:8px; flex:2; min-width:200px;">
+                <i class="fas fa-filter" style="color:#64748b; font-size:12px;"></i>
+                <span style="color:#475569; font-size:12px;"><strong>Condition:</strong> ${day.condition}</span>
+            </div>`;
+        }
+        flowHtml += `</div>`;
 
-        flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f1f5f9; border-radius:8px; margin-bottom:8px;">
-            <i class="fas fa-filter" style="color:#64748b;"></i>
-            <span style="color:#475569; font-size:13px;"><strong>Condition:</strong> ${day.condition || 'N/A'}</span>
-        </div>`;
-
+        // ── Event timeline ────────────────────────────────────────────────────
         flowHtml += '<div style="border-left:2px solid #e2e8f0; margin-left:20px; padding-left:16px;">';
 
         (day.events || []).forEach(evt => {
-            if (evt.type === 'no_signal') {
+
+            if (evt.type === 'no_data') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border-left:3px solid #94a3b8;">
+                    <i class="fas fa-database" style="color:#94a3b8; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#64748b; font-size:13px;">NO DATA</div>
+                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'No market data available for this day'}</div>
+                    </div>
+                </div>`;
+
+            } else if (evt.type === 'no_signal') {
+                const metricsHtml = _buildEntryMetricsHtml(evt.entry_metrics, false);
+                let rangeHtml = '';
+                if (evt.day_high != null && evt.day_low != null) {
+                    rangeHtml = `<div style="color:#94a3b8; font-size:11px; margin-top:4px;">Day range: $${evt.day_low.toFixed(2)} – $${evt.day_high.toFixed(2)}</div>`;
+                }
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border-left:3px solid #94a3b8;">
                     <i class="fas fa-ban" style="color:#94a3b8; margin-top:2px;"></i>
-                    <div>
-                        <div style="font-weight:600; color:#64748b; font-size:13px;">NO TRADE</div>
-                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'Condition not met'}</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#64748b; font-size:13px;">CONDITIONS NOT MET</div>
+                        <div style="color:#94a3b8; font-size:12px;">${evt.reason || 'Entry condition not satisfied'}</div>
+                        ${metricsHtml}
+                        ${rangeHtml}
                     </div>
                 </div>`;
+
             } else if (evt.type === 'condition_met') {
-                const valStr = evt.computed_value != null ? ` (computed: ${evt.computed_value}%)` : '';
+                const metricsHtml = _buildEntryMetricsHtml(evt.entry_metrics, true);
+                let computedLine = '';
+                if (evt.computed_value != null) {
+                    computedLine = `<span style="background:#d1fae5; color:#065f46; padding:1px 7px; border-radius:5px; font-size:11px; font-weight:600; margin-left:6px;">Δ ${evt.computed_value > 0 ? '+' : ''}${evt.computed_value}%</span>`;
+                }
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#ecfdf5; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">
                     <i class="fas fa-check-circle" style="color:#10b981; margin-top:2px;"></i>
-                    <div>
-                        <div style="font-weight:600; color:#065f46; font-size:13px;">CONDITION MET</div>
-                        <div style="color:#475569; font-size:12px;">Price at ${formatTime(evt.time)}: $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} (${evt.price_point || 'close'})${valStr}</div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; color:#065f46; font-size:13px;">CONDITIONS MET</div>
+                        <div style="color:#475569; font-size:12px; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                            Price @ ${formatTime(evt.time)}: <strong>$${evt.price != null ? evt.price.toFixed(2) : 'N/A'}</strong>
+                            <span style="color:#94a3b8;">(${evt.price_point || 'close'})</span>${computedLine}
+                        </div>
+                        ${metricsHtml}
                     </div>
                 </div>`;
+
             } else if (evt.type === 'entry' || evt.type === 're_entry') {
                 const label = evt.type === 're_entry' ? 'RE-ENTRY' : 'ENTRY';
+                const icon  = evt.type === 're_entry' ? 'fa-redo' : 'fa-sign-in-alt';
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f0fdf4; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">
-                    <i class="fas fa-sign-in-alt" style="color:#10b981; margin-top:2px;"></i>
+                    <i class="fas ${icon}" style="color:#10b981; margin-top:2px;"></i>
                     <div>
-                        <div style="font-weight:600; color:#1e293b; font-size:13px;">${label} - Trade #${evt.trade_num || '?'}</div>
-                        <div style="color:#475569; font-size:12px;">${dir} ${evt.shares || '—'} shares @ $${evt.price != null ? evt.price.toFixed(2) : 'N/A'}</div>
-                        <div style="color:#64748b; font-size:11px; margin-top:2px;">${evt.exit_criteria || ''}</div>
+                        <div style="font-weight:600; color:#1e293b; font-size:13px;">${label} @ ${formatTime(evt.time)} — Trade #${evt.trade_num || '?'}</div>
+                        <div style="color:#475569; font-size:12px;">${dir} <strong>${evt.shares || '—'} shares</strong> @ $${evt.price != null ? evt.price.toFixed(2) : 'N/A'}</div>
+                        ${evt.exit_criteria ? `<div style="color:#64748b; font-size:11px; margin-top:2px;">${evt.exit_criteria}</div>` : ''}
                     </div>
                 </div>`;
+
             } else if (evt.type === 'holding') {
+                const currentPrice = evt.current_price;
+                const unrealPnl = currentPrice != null && evt.entry_price != null
+                    ? (dir === 'Long' ? currentPrice - evt.entry_price : evt.entry_price - currentPrice) * (evt.shares || 0)
+                    : null;
+                const upColor = unrealPnl == null ? '#475569' : unrealPnl >= 0 ? '#10b981' : '#ef4444';
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f5f3ff; border-radius:8px; margin-bottom:6px; border-left:3px solid #8b5cf6;">
                     <i class="fas fa-clock" style="color:#8b5cf6; margin-top:2px;"></i>
                     <div>
-                        <div style="font-weight:600; color:#5b21b6; font-size:13px;">IN POSITION - Trade #${evt.trade_num || '?'}</div>
-                        <div style="color:#475569; font-size:12px;">Entered ${evt.entry_date || '?'} @ $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'} | Day ${evt.days_held || '?'} of hold</div>
+                        <div style="font-weight:600; color:#5b21b6; font-size:13px;">IN POSITION — Trade #${evt.trade_num || '?'} (Day ${evt.days_held || '?'})</div>
+                        <div style="color:#475569; font-size:12px;">Entered ${evt.entry_date || '?'} @ $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'}${unrealPnl != null ? ` | Unrealized: <span style="font-weight:600; color:${upColor};">$${unrealPnl.toFixed(2)}</span>` : ''}</div>
                     </div>
                 </div>`;
+
             } else if (evt.type === 'exit') {
                 const pnl = evt.pnl || 0;
                 const pnlColor = pnl >= 0 ? '#10b981' : '#ef4444';
-                const bgColor = pnl >= 0 ? '#f0fdf4' : '#fef2f2';
-                const borderColor = pnl >= 0 ? '#10b981' : '#ef4444';
-                const exitIcon = (evt.reason || '').includes('stop') ? 'fa-shield-alt' :
-                                 (evt.reason || '').includes('profit') ? 'fa-bullseye' : 'fa-sign-out-alt';
-                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${bgColor}; border-radius:8px; margin-bottom:6px; border-left:3px solid ${borderColor};">
+                const bgColor  = pnl >= 0 ? '#f0fdf4' : '#fef2f2';
+                const bdColor  = pnl >= 0 ? '#10b981' : '#ef4444';
+                const exitIcon = (evt.reason || '').includes('stop')   ? 'fa-shield-alt' :
+                                 (evt.reason || '').includes('profit')  ? 'fa-bullseye' :
+                                 (evt.reason || '').includes('max')     ? 'fa-hourglass-end' : 'fa-sign-out-alt';
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:${bgColor}; border-radius:8px; margin-bottom:6px; border-left:3px solid ${bdColor};">
                     <i class="fas ${exitIcon}" style="color:${pnlColor}; margin-top:2px;"></i>
                     <div>
-                        <div style="font-weight:600; color:#1e293b; font-size:13px;">EXIT - Trade #${evt.trade_num || '?'} (${formatExitReason(evt.reason)})</div>
-                        <div style="color:#475569; font-size:12px;">Price at ${formatTime(evt.time)}: $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} | Entry was $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'}</div>
-                        <div style="font-weight:600; font-size:13px; margin-top:2px; color:${pnlColor};">P&L: $${pnl.toFixed(2)} (${(evt.pnl_pct || 0).toFixed(2)}%)</div>
+                        <div style="font-weight:600; color:#1e293b; font-size:13px;">EXIT — Trade #${evt.trade_num || '?'} (${formatExitReason(evt.reason)})</div>
+                        <div style="color:#475569; font-size:12px;">@ ${formatTime(evt.time)}: $${evt.price != null ? evt.price.toFixed(2) : 'N/A'} | Entry $${evt.entry_price != null ? evt.entry_price.toFixed(2) : 'N/A'}</div>
+                        <div style="font-weight:700; font-size:13px; margin-top:3px; color:${pnlColor};">P&L: $${pnl.toFixed(2)} <span style="font-weight:500; font-size:12px;">(${(evt.pnl_pct || 0).toFixed(2)}%)</span></div>
                     </div>
                 </div>`;
+
             } else if (evt.type === 'skip_consecutive') {
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fffbeb; border-radius:8px; margin-bottom:6px; border-left:3px solid #f59e0b;">
                     <i class="fas fa-exclamation-triangle" style="color:#f59e0b; margin-top:2px;"></i>
                     <div>
                         <div style="font-weight:600; color:#92400e; font-size:13px;">SIGNAL SKIPPED</div>
                         <div style="color:#78716c; font-size:12px;">${evt.reason || 'Consecutive trades disabled'}</div>
+                    </div>
+                </div>`;
+
+            } else if (evt.type === 'error') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fef2f2; border-radius:8px; margin-bottom:6px; border-left:3px solid #ef4444;">
+                    <i class="fas fa-exclamation-circle" style="color:#ef4444; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#991b1b; font-size:13px;">ERROR</div>
+                        <div style="color:#78716c; font-size:12px;">${evt.reason || 'Unknown error occurred'}</div>
                     </div>
                 </div>`;
             }
@@ -891,10 +1360,14 @@ function renderDtPage(config) {
                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                         <i class="fas fa-calendar-day" style="color:#3b7cff;"></i>
                         <span style="font-weight:600; font-size:15px;">${day.date}</span>
+                        <span style="font-weight:600; font-size:11px; color:#475569;">${day.symbol || ''}</span>
                         <span style="background:${badgeColor}; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600;">${badgeText}</span>
-                        ${hasPnl ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:600; font-size:13px;">P&L: $${dayPnl.toFixed(2)}</span>` : ''}
+                        ${hasPnl ? `<span style="color:${dayPnl >= 0 ? '#10b981' : '#ef4444'}; font-weight:700; font-size:13px;">P&L: $${dayPnl.toFixed(2)}</span>` : ''}
                     </div>
-                    <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${(day.bars && day.bars.length > 0) ? `<button class="day-chart-btn" onclick="event.stopPropagation(); openStkDayChart(${dayIdx})" title="View intraday price chart"><i class="fas fa-chart-area"></i> View Chart</button>` : ''}
+                        <i class="fas fa-chevron-down dt-chevron" style="color:#94a3b8; transition:transform 0.2s;"></i>
+                    </div>
                 </div>
                 <div style="padding:12px 16px; display:none;">
                     ${flowHtml}

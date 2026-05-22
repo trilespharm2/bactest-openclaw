@@ -802,10 +802,17 @@ function onStkDayChartIndicatorChange() {
     if (ind === 'none') {
         wrap.style.display = 'none';
         if (_stkDayIndicatorChartInst) { _stkDayIndicatorChartInst.destroy(); _stkDayIndicatorChartInst = null; }
+        // Let the browser reflow, then resize the price chart back to full height
+        requestAnimationFrame(() => { if (_stkDayPriceChartInst) _stkDayPriceChartInst.resize(); });
         return;
     }
     wrap.style.display = 'block';
-    _buildStkDayIndicatorChart(_stkDayChartCurrentDay, ind);
+    // Let the browser reflow the flex layout (price chart shrinks, indicator panel appears),
+    // then resize the price chart before building the indicator chart to avoid stale canvas size.
+    requestAnimationFrame(() => {
+        if (_stkDayPriceChartInst) _stkDayPriceChartInst.resize();
+        _buildStkDayIndicatorChart(_stkDayChartCurrentDay, ind);
+    });
 }
 
 // ── Indicator math (identical to options _computeRSI / _computeEMA / _computeMACD) ──
