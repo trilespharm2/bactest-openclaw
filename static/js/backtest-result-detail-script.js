@@ -1136,7 +1136,10 @@ function _dtCreateIndSeries(chart, ind) {
     var series = chart.addLineSeries({
         color: ind.color, lineWidth: ind.lineWidth,
         priceLineVisible: false, lastValueVisible: true,
-        crosshairMarkerVisible: false, title: ind.label
+        crosshairMarkerVisible: false, title: ind.label,
+        // Don't widen the candle price-axis when overlay (SMA/EMA/VWAP) is added.
+        // See _stkDtCreateIndSeries for full rationale (blank-chart bug fix).
+        autoscaleInfoProvider: function() { return null; }
     });
     series.setData(clean);
     return series;
@@ -1439,7 +1442,11 @@ function _stkDtCreateIndSeries(chart, ind) {
     else if (ind.type === 'ema')  data = _dtComputeEMA(_stkDtModalBars, ind.period);
     else if (ind.type === 'vwap') data = _dtComputeVWAP(_stkDtModalBars, ind.period);
     var clean = _dtDedup(data.filter(filterFn));
-    var series = chart.addLineSeries({ color: ind.color, lineWidth: ind.lineWidth, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: ind.label });
+    // autoscaleInfoProvider:()=>null prevents the overlay (SMA/EMA/VWAP) from
+    // widening the chart's price-axis range. Without this, LWC v4 considers
+    // the full SMA series (which spans seed-day + day bars) when autoscaling,
+    // pushing candles to ~0px tall — the "blank chart after Add SMA" bug.
+    var series = chart.addLineSeries({ color: ind.color, lineWidth: ind.lineWidth, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, title: ind.label, autoscaleInfoProvider: function() { return null; } });
     series.setData(clean);
     return series;
 }
