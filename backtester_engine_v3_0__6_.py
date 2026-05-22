@@ -1304,8 +1304,11 @@ class BacktesterEngine:
             def _mins(t):
                 return t.hour * 60 + t.minute
 
-            window_start = condition.get('change_window_start')   # e.g. '09:30' or None
-            window_end   = condition.get('change_window_end')     # e.g. '16:00' or None
+            # Use the existing "Restrict to Time Window" fields as the computation
+            # window — no separate window inputs needed.
+            tw_enabled   = condition.get('time_window_enabled', False)
+            window_start = condition.get('time_window_start') if tw_enabled else None
+            window_end   = condition.get('time_window_end')   if tw_enabled else None
 
             if window_start:
                 sh, sm_v = map(int, window_start.split(':'))
