@@ -1266,6 +1266,115 @@ class BacktesterEngine:
 
     # ------------------------------------------------------------------
 
+    def _check_window_change_condition(self, condition: Dict, grouped_data, dates: List,
+                                       current_date_index: int, current_candle=None) -> bool:
+        """
+        Handle change_pct_window and roc_window comparators.
+
+        change_pct_window : (close_at_window_end / open_at_window_start - 1) * 100
+                            For indicators : (val_end / val_start - 1) * 100
+        roc_window        : linear-regression slope of closes within window, normalised
+                            to %/bar.  For indicators : simple per-bar rate of change.
+        """
+        try:
+            comparator  = condition.get('comparator')
+            left_type   = condition.get('left_type', 'close')
+            operation   = condition.get('operation', '>')
+            threshold   = float(condition.get('right_fixed_value', 0))
+
+            # ── current day's bars ────────────────────────────────────────────
+            current_date = dates[current_date_index]
+            if current_date not in grouped_data.groups:
+                return False
+            day_bars = grouped_data.get_group(current_date)
+
+            if 'timestamp' not in day_bars.columns:
+                return False
+
+            # no lookahead: truncate at current candle
+            if current_candle is not None:
+                ts = current_candle.get('timestamp')
+                if ts is not None:
+                    day_bars = day_bars[day_bars['timestamp'] <= ts]
+
+            if day_bars.empty:
+                return False
+
+            # ── parse time window ─────────────────────────────────────────────
+            def _mins(t):
+                return t.hour * 60 + t.minute
+
+            window_start = condition.get('change_window_start')   # e.g. '09:30' or None
+            window_end   = condition.get('change_window_end')     # e.g. '16:00' or None
+
+            if window_start:
+                sh, sm_v = map(int, window_start.split(':'))
+                s_mins = sh * 60 + sm_v
+                start_pool = day_bars[day_bars['timestamp'].apply(_mins) >= s_mins]
+            else:
+                start_pool = day_bars
+
+            if window_end:
+                eh, em_v = map(int, window_end.split(':'))
+                e_mins = eh * 60 + em_v
+                end_pool = day_bars[day_bars['timestamp'].apply(_mins) <= e_mins]
+            else:
+                end_pool = day_bars
+
+            if start_pool.empty or end_pool.empty:
+                return False
+
+            start_row = start_pool.iloc[0]
+            end_row   = end_pool.iloc[-1]
+
+            # bars fully within [start_ts, end_ts] for slope computation
+            start_ts = start_row['timestamp']
+            end_ts   = end_row['timestamp']
+            window_bars = day_bars[(day_bars['timestamp'] >= start_ts) &
+                                   (day_bars['timestamp'] <= end_ts)]
+            num_bars = max(1, len(window_bars))
+
+            # ── compute start_val / end_val ───────────────────────────────────
+            if left_type in self._INDICATOR_TYPES:
+                start_val = self._compute_indicator(condition, 'left', grouped_data, dates,
+                                                    current_date_index, start_row)
+                end_val   = self._compute_indicator(condition, 'left', grouped_data, dates,
+                                                    current_date_index, end_row)
+                if start_val is None or end_val is None or start_val == 0:
+                    return False
+            else:
+                col = left_type if left_type in day_bars.columns else 'close'
+                if comparator == 'change_pct_window':
+                    # user spec: open of first bar → close of last bar
+                    start_val = float(start_row.get('open') if 'open' in start_row.index else start_row[col])
+                else:
+                    start_val = float(start_row[col])
+                end_val = float(end_row[col])
+                if start_val == 0:
+                    return False
+
+            # ── compute metric value ──────────────────────────────────────────
+            if comparator == 'change_pct_window':
+                metric_value = (end_val / start_val - 1.0) * 100.0
+
+            else:  # roc_window — normalised %/bar via linear regression (price)
+                #                  or simple per-bar rate (indicators)
+                if left_type in self._INDICATOR_TYPES:
+                    metric_value = (end_val - start_val) / abs(start_val) / num_bars * 100.0
+                else:
+                    col = left_type if left_type in day_bars.columns else 'close'
+                    prices = window_bars[col].dropna().values
+                    if len(prices) < 2:
+                        return False
+                    x     = np.arange(len(prices), dtype=float)
+                    slope = np.polyfit(x, prices, 1)[0]          # $/bar
+                    metric_value = slope / abs(prices[0]) * 100.0 if prices[0] != 0 else 0.0
+
+            return self._evaluate_operator(metric_value, operation, threshold)
+
+        except Exception:
+            return False
+
     def check_custom_condition(self, condition: Dict, grouped_data: Dict, dates: List,
                               current_date_index: int, current_candle: Optional[pd.Series] = None) -> bool:
         """
@@ -1295,6 +1404,9 @@ class BacktesterEngine:
 
         if condition.get('left_type') == 'candle_pattern':
             return self._check_candle_pattern_condition(condition, grouped_data, dates, current_date_index, current_candle)
+
+        if condition.get('comparator') in ('change_pct_window', 'roc_window'):
+            return self._check_window_change_condition(condition, grouped_data, dates, current_date_index, current_candle)
 
         try:
             left_type = condition.get('left_type', 'close')

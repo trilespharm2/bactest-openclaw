@@ -769,6 +769,19 @@ function addCondition() {
             </div>
         </div>
 
+        <div id="change-window-group-${n}" class="change-window-panel mb-3 p-2 rounded" style="display:none; background:#eaf0fb; border:1px solid #c2d4f0;">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Window Start <small class="text-muted">(blank = market open)</small></label>
+                    <input type="time" class="form-control form-control-sm" id="change-window-start-${n}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Window End <small class="text-muted">(blank = current bar)</small></label>
+                    <input type="time" class="form-control form-control-sm" id="change-window-end-${n}">
+                </div>
+            </div>
+        </div>
+
         <div class="condition-right-side mb-3" id="right-side-${n}" style="display:none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
             <div class="row g-2">
@@ -972,7 +985,7 @@ function updateStockConditionFields(n) {
         if (leftMultGroup) leftMultGroup.style.display = 'none';
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
-        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, false);
     } else if (val === 'price') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -981,7 +994,7 @@ function updateStockConditionFields(n) {
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
-        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, false);
     } else if (val === 'sma' || val === 'ema') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -991,7 +1004,7 @@ function updateStockConditionFields(n) {
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
-        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, true);
     } else if (val === 'rsi') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -1033,7 +1046,7 @@ function updateStockConditionFields(n) {
 function updateStockComparatorOptions(n, options) {
     var sel = document.getElementById('comparator-' + n);
     if (!sel) return;
-    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume', 'compare_trend_capture': 'Trend Capture' };
+    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume', 'compare_trend_capture': 'Trend Capture', 'change_pct_window': 'Change % in Window', 'roc_window': 'Rate of Change in Window' };
     sel.innerHTML = options.map(function(o) { return '<option value="' + o + '">' + (labels[o] || o) + '</option>'; }).join('');
 }
 
@@ -1158,8 +1171,26 @@ function updateStockRightSide(n) {
     if (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal') {
         rightSide.style.display = 'none';
         valueGroup.style.display = 'none';
+        var cwg0 = document.getElementById('change-window-group-' + n);
+        if (cwg0) cwg0.style.display = 'none';
         updateConditionSummary(n, false);
         return;
+    }
+
+    // Window-based comparators (Change % or Rate of Change)
+    var changeWindowGroup = document.getElementById('change-window-group-' + n);
+    if (comp === 'change_pct_window' || comp === 'roc_window') {
+        rightSide.style.display = 'none';
+        valueGroup.style.display = 'block';
+        if (changeWindowGroup) changeWindowGroup.style.display = 'block';
+        var highGroup0 = document.getElementById('value-high-input-group-' + n);
+        var valLabel0  = document.getElementById('value-label-' + n);
+        if (highGroup0) highGroup0.style.display = 'none';
+        if (valLabel0)  valLabel0.textContent = comp === 'change_pct_window' ? 'Change % Threshold' : 'Rate (%/bar) Threshold';
+        updateConditionSummary(n, false);
+        return;
+    } else {
+        if (changeWindowGroup) changeWindowGroup.style.display = 'none';
     }
 
     if (comp === 'value') {
@@ -1416,6 +1447,19 @@ function addExitCondition() {
             </div>
         </div>
 
+        <div id="exit-change-window-group-${n}" class="change-window-panel mb-3 p-2 rounded" style="display:none; background:#eaf0fb; border:1px solid #c2d4f0;">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Window Start <small class="text-muted">(blank = market open)</small></label>
+                    <input type="time" class="form-control form-control-sm" id="exit-change-window-start-${n}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Window End <small class="text-muted">(blank = current bar)</small></label>
+                    <input type="time" class="form-control form-control-sm" id="exit-change-window-end-${n}">
+                </div>
+            </div>
+        </div>
+
         <div class="condition-right-side mb-3" id="exit-right-side-${n}" style="display:none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
             <div class="row g-2">
@@ -1612,6 +1656,8 @@ function updateExitComparatorOptions(n) {
         opts += '<option value="compare_price">Compare Price</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
+        opts += '<option value="change_pct_window">Change % in Window</option>';
+        opts += '<option value="roc_window">Rate of Change in Window</option>';
     }
     comp.innerHTML = opts;
     updateThresholdUnitOptions(n, metric, true);
@@ -1635,7 +1681,24 @@ function updateExitRightSide(n) {
     if (comp === 'zero_line' || comp === 'compare_macd_line' || comp === 'compare_signal') {
         if (rightSide) rightSide.style.display = 'none';
         if (valueGroup) valueGroup.style.display = 'none';
+        var ecwg0 = document.getElementById('exit-change-window-group-' + n);
+        if (ecwg0) ecwg0.style.display = 'none';
         return;
+    }
+
+    // Window-based comparators (Change % or Rate of Change)
+    var exitChangeWindowGroup = document.getElementById('exit-change-window-group-' + n);
+    if (comp === 'change_pct_window' || comp === 'roc_window') {
+        if (rightSide) rightSide.style.display = 'none';
+        if (valueGroup) valueGroup.style.display = '';
+        if (exitChangeWindowGroup) exitChangeWindowGroup.style.display = '';
+        var exitHighGroup0 = document.getElementById('exit-value-high-input-group-' + n);
+        var exitValLabel0  = document.getElementById('exit-value-label-' + n);
+        if (exitHighGroup0) exitHighGroup0.style.display = 'none';
+        if (exitValLabel0)  exitValLabel0.textContent = comp === 'change_pct_window' ? 'Change % Threshold' : 'Rate (%/bar) Threshold';
+        return;
+    } else {
+        if (exitChangeWindowGroup) exitChangeWindowGroup.style.display = 'none';
     }
 
     if (comp === 'value') {
@@ -2186,6 +2249,16 @@ async function collectFormData() {
                 condition.right_multiplier = 1;
                 condition.threshold_unit = '$';
                 condition.threshold_value = 0;
+            } else if (comparator === 'change_pct_window' || comparator === 'roc_window') {
+                condition.right_type = 'value';
+                condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
+                condition.change_window_start = (document.getElementById(`change-window-start-${id}`) || {}).value || null;
+                condition.change_window_end = (document.getElementById(`change-window-end-${id}`) || {}).value || null;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '%';
+                condition.threshold_value = 0;
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
                 condition.right_fixed_value = parseFloat((document.getElementById(`compare-value-${id}`) || {}).value) || 0;
@@ -2330,6 +2403,16 @@ async function collectFormData() {
                 condition.right_candle = 'min';
                 condition.right_multiplier = 1;
                 condition.threshold_unit = '$';
+                condition.threshold_value = 0;
+            } else if (comparator === 'change_pct_window' || comparator === 'roc_window') {
+                condition.right_type = 'value';
+                condition.right_fixed_value = parseFloat((document.getElementById('exit-compare-value-' + id) || {}).value) || 0;
+                condition.change_window_start = (document.getElementById('exit-change-window-start-' + id) || {}).value || null;
+                condition.change_window_end = (document.getElementById('exit-change-window-end-' + id) || {}).value || null;
+                condition.right_day = 0;
+                condition.right_candle = 'min';
+                condition.right_multiplier = 1;
+                condition.threshold_unit = '%';
                 condition.threshold_value = 0;
             } else if (comparator === 'value') {
                 condition.right_type = 'value';
