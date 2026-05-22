@@ -987,6 +987,29 @@ class BacktesterEngine:
         except Exception:
             return None
 
+    @staticmethod
+    def _sma_seeded_ema(series: 'pd.Series', span: int) -> 'pd.Series':
+        """EMA with SMA seed — matches TradingView's ta.ema() behaviour.
+
+        The first `span` bars are averaged to produce the seed value (SMA seed).
+        All bars before the seed index are set to NaN.  Subsequent values use
+        the standard EMA formula: alpha = 2 / (span + 1).
+        """
+        values = series.values.astype(float)
+        n = len(values)
+        result = [float('nan')] * n
+        if n < span:
+            return pd.Series(result, index=series.index, dtype=float)
+        seed = float(pd.Series(values[:span]).mean())
+        if pd.isna(seed):
+            return pd.Series(result, index=series.index, dtype=float)
+        alpha = 2.0 / (span + 1)
+        result[span - 1] = seed
+        for i in range(span, n):
+            v = values[i]
+            result[i] = alpha * v + (1.0 - alpha) * result[i - 1] if not pd.isna(v) else result[i - 1]
+        return pd.Series(result, index=series.index, dtype=float)
+
     def _build_indicator_series(self, condition, side, grouped_data, dates,
                                 current_date_index, current_candle=None):
         """
@@ -1089,10 +1112,13 @@ class BacktesterEngine:
                 long_w = int(condition.get(f'{side}_macd_long', 26))
                 signal_w = int(condition.get(f'{side}_macd_signal', 9))
                 component = condition.get(f'{side}_macd_component', 'histogram')
-                ema_short = series.ewm(span=short_w, adjust=False).mean()
-                ema_long = series.ewm(span=long_w, adjust=False).mean()
+                ema_short = self._sma_seeded_ema(series, short_w)
+                ema_long = self._sma_seeded_ema(series, long_w)
                 macd_line = ema_short - ema_long
-                signal_line = macd_line.ewm(span=signal_w, adjust=False).mean()
+                macd_line = macd_line.dropna()
+                if len(macd_line) < signal_w:
+                    return None
+                signal_line = self._sma_seeded_ema(macd_line, signal_w)
                 histogram = macd_line - signal_line
                 if component == 'macd_line':
                     val = macd_line.iloc[-1]

@@ -1018,6 +1018,8 @@ function updateStockConditionFields(n) {
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+        var leftCandleEl = document.getElementById('left-candle-' + n);
+        if (leftCandleEl) leftCandleEl.value = 'day';
         if (macdShortGroup) macdShortGroup.style.display = 'block';
         if (macdLongGroup) macdLongGroup.style.display = 'block';
         if (macdSignalGroup) macdSignalGroup.style.display = 'block';
@@ -1578,6 +1580,8 @@ function updateExitConditionFields(n) {
         if (exitMacdLongGroup) exitMacdLongGroup.style.display = '';
         if (exitMacdSignalGroup) exitMacdSignalGroup.style.display = '';
         if (exitMacdComponentGroup) exitMacdComponentGroup.style.display = '';
+        el = document.getElementById('exit-left-candle-' + n);
+        if (el) el.value = 'day';
     }
 
     setCrossOperators('exit-operator-' + n, ['sma', 'ema'].indexOf(metric) !== -1);
