@@ -987,14 +987,77 @@ class BacktesterEngine:
         except Exception:
             return None
 
+    def _build_indicator_series(self, condition, side, grouped_data, dates,
+                                current_date_index, current_candle=None):
+        """
+        Build the price series used for indicator computation, respecting the
+        candle type (min / hr / day) chosen by the user.
+
+        - 'min'  : 1-minute bars up to current_candle  (original behaviour)
+        - 'hr'   : aggregated to hourly OHLCV bars
+        - 'day'  : one data-point per trading day (last close of each day;
+                   for day_offset==0 the current bar's close stands in for
+                   today's still-incomplete session)
+        """
+        day_offset   = condition.get(f'{side}_day', 0)
+        candle_type  = condition.get(f'{side}_candle', 'min')
+        series_type  = condition.get(f'{side}_series', 'close')
+
+        # ── daily series ─────────────────────────────────────────────────────
+        if candle_type == 'day':
+            target_idx = current_date_index + day_offset
+            end_idx    = min(target_idx + 1, len(dates))
+            # collect up to 200 daily closes for stable EMA warm-up
+            closes = []
+            for i in range(max(0, end_idx - 200), end_idx):
+                d = dates[i]
+                if d not in grouped_data.groups:
+                    continue
+                day_data = grouped_data.get_group(d)
+                col = series_type if series_type in day_data.columns else 'close'
+                if day_offset == 0 and i == current_date_index and current_candle is not None:
+                    # use current bar as the live close for today's incomplete session
+                    val = current_candle.get(col) if isinstance(current_candle, dict) \
+                          else (current_candle[col] if col in current_candle.index else None)
+                else:
+                    val = day_data[col].iloc[-1]
+                if val is not None and not pd.isna(val):
+                    closes.append(float(val))
+            if len(closes) < 2:
+                return None
+            return pd.Series(closes, dtype=float)
+
+        # ── hourly series ─────────────────────────────────────────────────────
+        if candle_type == 'hr':
+            raw = self._get_price_series(grouped_data, dates, current_date_index,
+                                         day_offset, series_type,
+                                         current_candle=current_candle)
+            if raw is None or raw.empty:
+                return None
+            # resample: group every 60 rows into one bar, take the last value
+            raw = raw.reset_index(drop=True)
+            multiplier = max(1, int(condition.get(f'{side}_multiplier', 1)))
+            bars_per_hr = 60 * multiplier
+            hourly = raw.groupby(raw.index // bars_per_hr).last()
+            if len(hourly) < 2:
+                return None
+            return hourly.reset_index(drop=True)
+
+        # ── 1-minute series (default) ─────────────────────────────────────────
+        return self._get_price_series(grouped_data, dates, current_date_index,
+                                      day_offset, series_type,
+                                      current_candle=current_candle)
+
     def _compute_indicator(self, condition, side, grouped_data, dates, current_date_index,
                            current_candle=None):
-        """Compute an indicator value for a given side (left/right) of a condition."""
+        """Compute an indicator value for a given side (left/right) of a condition.
+
+        Respects left_candle / right_candle: 'min' uses 1-minute bars (original
+        behaviour), 'day' builds a daily-close series, 'hr' aggregates to hourly.
+        """
         ind_type = condition.get(f'{side}_type')
-        day_offset = condition.get(f'{side}_day', 0)
-        series_type = condition.get(f'{side}_series', 'close')
-        series = self._get_price_series(grouped_data, dates, current_date_index, day_offset,
-                                        series_type, current_candle=current_candle)
+        series = self._build_indicator_series(condition, side, grouped_data, dates,
+                                              current_date_index, current_candle)
         if series is None or len(series) < 2:
             return None
 
