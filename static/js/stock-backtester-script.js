@@ -1170,7 +1170,7 @@ function updateStockRightSide(n) {
         var highGroup0 = document.getElementById('value-high-input-group-' + n);
         var valLabel0  = document.getElementById('value-label-' + n);
         if (highGroup0) highGroup0.style.display = 'none';
-        if (valLabel0)  valLabel0.textContent = comp === 'change_pct_window' ? 'Change % Threshold' : 'Rate (%/bar) Threshold';
+        if (valLabel0)  valLabel0.textContent = comp === 'change_pct_window' ? 'Change % Threshold' : 'Rate (%/hr) Threshold';
         updateConditionSummary(n, false);
         return;
     }
@@ -1661,7 +1661,7 @@ function updateExitRightSide(n) {
         var exitHighGroup0 = document.getElementById('exit-value-high-input-group-' + n);
         var exitValLabel0  = document.getElementById('exit-value-label-' + n);
         if (exitHighGroup0) exitHighGroup0.style.display = 'none';
-        if (exitValLabel0)  exitValLabel0.textContent = comp === 'change_pct_window' ? 'Change % Threshold' : 'Rate (%/bar) Threshold';
+        if (exitValLabel0)  exitValLabel0.textContent = comp === 'change_pct_window' ? 'Change % Threshold' : 'Rate (%/hr) Threshold';
         return;
     }
 

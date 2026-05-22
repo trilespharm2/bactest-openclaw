@@ -1369,18 +1369,15 @@ class BacktesterEngine:
             if comparator == 'change_pct_window':
                 metric_value = (end_val / start_val - 1.0) * 100.0
 
-            else:  # roc_window — normalised %/bar via linear regression (price)
-                #                  or simple per-bar rate (indicators)
-                if left_type in self._INDICATOR_TYPES:
-                    metric_value = (end_val - start_val) / abs(start_val) / num_bars * 100.0
-                else:
-                    col = left_type if left_type in day_bars.columns else 'close'
-                    prices = window_bars[col].dropna().values
-                    if len(prices) < 2:
-                        return False
-                    x     = np.arange(len(prices), dtype=float)
-                    slope = np.polyfit(x, prices, 1)[0]          # $/bar
-                    metric_value = slope / abs(prices[0]) * 100.0 if prices[0] != 0 else 0.0
+            else:  # roc_window — total % change per hour (%/hr)
+                #   window_hours derived from real timestamps, so the threshold
+                #   is always in intuitive %/hr units regardless of bar size.
+                window_secs = (end_row['timestamp'] - start_row['timestamp']).total_seconds()
+                window_hours = window_secs / 3600.0
+                if window_hours < 1 / 3600.0:   # guard against sub-second windows
+                    return False
+                total_pct = (end_val / start_val - 1.0) * 100.0
+                metric_value = total_pct / window_hours  # %/hr
 
             return self._evaluate_operator(metric_value, operation, threshold)
 
