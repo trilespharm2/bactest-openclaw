@@ -1136,10 +1136,7 @@ function _dtCreateIndSeries(chart, ind) {
     var series = chart.addLineSeries({
         color: ind.color, lineWidth: ind.lineWidth,
         priceLineVisible: false, lastValueVisible: true,
-        crosshairMarkerVisible: false, title: ind.label,
-        // Don't widen the candle price-axis when overlay (SMA/EMA/VWAP) is added.
-        // See _stkDtCreateIndSeries for full rationale (blank-chart bug fix).
-        autoscaleInfoProvider: function() { return null; }
+        crosshairMarkerVisible: false, title: ind.label
     });
     series.setData(clean);
     return series;
