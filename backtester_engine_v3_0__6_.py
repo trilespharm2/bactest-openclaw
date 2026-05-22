@@ -1310,6 +1310,15 @@ class BacktesterEngine:
             window_start = condition.get('time_window_start') if tw_enabled else None
             window_end   = condition.get('time_window_end')   if tw_enabled else None
 
+            # Entry can only occur AT OR AFTER window_end.
+            # If the current bar hasn't reached the end of the window yet, bail out.
+            if window_end and current_candle is not None:
+                ts = current_candle.get('timestamp')
+                if ts is not None:
+                    eh_v, em_v = map(int, window_end.split(':'))
+                    if _mins(ts) < eh_v * 60 + em_v:
+                        return False
+
             if window_start:
                 sh, sm_v = map(int, window_start.split(':'))
                 s_mins = sh * 60 + sm_v
@@ -1387,6 +1396,11 @@ class BacktesterEngine:
         """
         if condition.get('type') == 'velocity':
             return self.check_velocity_condition(condition, grouped_data, dates, current_date_index, current_candle)
+
+        # Window-change comparators manage their own time logic (entry only
+        # after window_end), so they must bypass the general time-window filter.
+        if condition.get('comparator') in ('change_pct_window', 'roc_window'):
+            return self._check_window_change_condition(condition, grouped_data, dates, current_date_index, current_candle)
 
         # Apply optional time window filter before any condition type check
         # (applies to trend_capture, candle_pattern, and all other condition types)
