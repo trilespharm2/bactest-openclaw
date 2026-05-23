@@ -1075,6 +1075,10 @@ function _dtCreateSubPanel(ind, labelText) {
 function _dtDedup(arr) {
     var seen = new Set(), out = [];
     arr.forEach(function(d){ if (!seen.has(d.time)){ seen.add(d.time); out.push(d); } });
+    // LWC v4 setData() throws a string error (not an Error object) if times
+    // aren't strictly ascending — sort defensively to harden against any
+    // upstream bar ordering issues.
+    out.sort(function(a, b){ return a.time - b.time; });
     return out;
 }
 
@@ -1258,9 +1262,14 @@ function openStkDayChart(dayIdx) {
         + (exitTime  ? '  \u00b7  Exit: '  + exitTime  : '');
 
     var seedDate = day.seed_date || null;
-    var seedBars = (day.seed_bars || []).filter(function(b) { return b[1] > 0; }).map(function(b) {
-        return { timestamp: _toTs(seedDate || day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
-    });
+    // If seed_date isn't provided, skip seed bars entirely — otherwise they'd be
+    // timestamped with the same date as the day bars and collide at every HH:MM,
+    // producing non-monotonic indicator series that crash setData() in LWC v4.
+    var seedBars = seedDate
+        ? (day.seed_bars || []).filter(function(b) { return b[1] > 0; }).map(function(b) {
+            return { timestamp: _toTs(seedDate, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
+          })
+        : [];
     var dayBars = (day.bars || []).filter(function(b) { return b[1] > 0; }).map(function(b) {
         return { timestamp: _toTs(day.date, b[0]) * 1000, open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] || 0 };
     });

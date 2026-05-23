@@ -2262,6 +2262,7 @@ class BacktesterEngine:
                 'status': 'SKIPPED',
                 'bars':      _bars_compact(current_data),
                 'seed_bars': _bars_compact(prev_data),
+                'seed_date': str(prev_date),
             }
             
             exited_this_day = False
