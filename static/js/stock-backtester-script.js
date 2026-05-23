@@ -313,6 +313,14 @@ function _buildCandlePatternPanel(pfx, n) {
             <option value="4">4</option><option value="5">5</option>
           </select>
         </div>
+        <div class="col-12">
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" id="${pfx}cp-include-current-${n}">
+            <label class="form-check-label small" for="${pfx}cp-include-current-${n}">
+              Include entry bar itself <span class="text-muted">(check the current bar instead of prior bars)</span>
+            </label>
+          </div>
+        </div>
       </div>
       <div id="${pfx}cp-candles-${n}"></div>
     </div>`;
@@ -2143,6 +2151,8 @@ async function collectFormData() {
                 condition.cp_multiplier = parseInt((document.getElementById(_cpPfx + 'cp-mult-' + id) || {}).value) || 1;
                 condition.cp_num_candles = parseInt((document.getElementById(_cpPfx + 'cp-count-' + id) || {}).value) || 1;
                 condition.cp_candles = _serializeCpCandles(_cpPfx, null, id);
+                var _cpInc = document.getElementById(_cpPfx + 'cp-include-current-' + id);
+                condition.cp_include_current = !!(_cpInc && _cpInc.checked);
                 condition.right_type = 'value';
                 condition.right_fixed_value = 0;
                 condition.right_day = 0;
@@ -2338,6 +2348,8 @@ async function collectFormData() {
                 condition.cp_multiplier = parseInt((document.getElementById('exit-cp-mult-' + id) || {}).value) || 1;
                 condition.cp_num_candles = parseInt((document.getElementById('exit-cp-count-' + id) || {}).value) || 1;
                 condition.cp_candles = _serializeCpCandles('exit-', null, id);
+                var _cpIncEx = document.getElementById('exit-cp-include-current-' + id);
+                condition.cp_include_current = !!(_cpIncEx && _cpIncEx.checked);
                 condition.right_type = 'value';
                 condition.right_fixed_value = 0;
                 condition.right_day = 0;

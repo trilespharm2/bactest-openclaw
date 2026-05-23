@@ -1678,7 +1678,12 @@ class BacktesterEngine:
                     cur_min    = cur_ts.hour * 60 + cur_ts.minute if hasattr(cur_ts, 'hour') else 0
                     cur_offset = cur_min - MARKET_OPEN_MIN
                     cur_bid    = int(cur_offset // mins_per_bucket)
-                    day_df     = day_df[day_df['_bucket_id'] < cur_bid]
+                    # cp_include_current=True: include the bar currently being evaluated
+                    # (e.g., "entry bar itself is red"). Default False = prior bars only.
+                    if condition.get('cp_include_current'):
+                        day_df = day_df[day_df['_bucket_id'] <= cur_bid]
+                    else:
+                        day_df = day_df[day_df['_bucket_id'] <  cur_bid]
 
             if day_df.empty:
                 return False
