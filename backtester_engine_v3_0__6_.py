@@ -2273,14 +2273,23 @@ class BacktesterEngine:
             exited_this_day = False
             exit_time = None
             
-            # Split custom conditions into day-level prerequisites vs sequential (bar-level) phases
+            # Split custom conditions into day-level prerequisites, per-bar filters,
+            # and sequential (bar-level) phases.
+            #   - per_bar_filter_conds: non-sequential conds that must be true on the SAME
+            #     bar as condition 0 (e.g., candle_pattern with cp_include_current=True
+            #     meaning "entry bar itself is red").
+            #   - day_level_prereqs: non-sequential conds evaluated once per day with
+            #     current_candle=None (original "prior" semantics).
+            #   - seq_conds: sequential phases evaluated on bars AFTER cond 0 fires.
             custom_conds = self.config.get('custom_conditions', []) if self.config['entry_type'] == 'custom' else []
-            prereq_conds = [c for c in custom_conds[1:] if not c.get('is_sequential')]
-            seq_conds    = [c for c in custom_conds[1:] if c.get('is_sequential')]
+            non_seq_conds        = [c for c in custom_conds[1:] if not c.get('is_sequential')]
+            per_bar_filter_conds = [c for c in non_seq_conds if c.get('cp_include_current')]
+            day_level_prereqs    = [c for c in non_seq_conds if not c.get('cp_include_current')]
+            seq_conds            = [c for c in custom_conds[1:] if c.get('is_sequential')]
 
             prior_conditions_met = True
             if self.config['entry_type'] == 'custom':
-                for condition in prereq_conds:
+                for condition in day_level_prereqs:
                     if not self.check_custom_condition(condition, grouped, dates, i, None):
                         prior_conditions_met = False
                         break
@@ -2321,7 +2330,15 @@ class BacktesterEngine:
                         if seq_phase == 0:
                             # Phase 1: check the entry condition (condition 0)
                             entry_condition = custom_conds[0]
-                            if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
+                            cond0_ok = self.check_custom_condition(entry_condition, grouped, dates, i, candle)
+                            # Per-bar filters (e.g., "entry bar itself is red") must also
+                            # be true on this same bar.
+                            if cond0_ok and per_bar_filter_conds:
+                                for _pbc in per_bar_filter_conds:
+                                    if not self.check_custom_condition(_pbc, grouped, dates, i, candle):
+                                        cond0_ok = False
+                                        break
+                            if cond0_ok:
                                 if seq_conds:
                                     # Sequential conditions exist — arm phase 2, don't enter yet
                                     seq_phase = 1
