@@ -732,11 +732,13 @@ function closeChartModal() {
 let dtDays = [];
 let dtPage = 1;
 const dtPerPage = 10;
+let _dtConfig = null;
 
 function buildDecisionTree(decisionLog, config) {
     if (!decisionLog || decisionLog.length === 0) return;
 
     dtDays = decisionLog;
+    _dtConfig = config || null;
 
     document.getElementById('decisionTreeSection').style.display = '';
     document.getElementById('dtTotalCount').textContent = dtDays.length;
@@ -859,37 +861,90 @@ function _stkCMACD(closes, short = 12, long = 26, signal = 9) {
     return { macdLine, signalLine, histogram };
 }
 
+// ── Helpers for extracting condition indicator lines ─────────────────────────
+function _stkCMA(values, span) {
+    const out = new Array(values.length).fill(null);
+    for (let i = span - 1; i < values.length; i++) {
+        let sum = 0;
+        for (let j = 0; j < span; j++) sum += values[i - j];
+        out[i] = sum / span;
+    }
+    return out;
+}
+
+function _condIndicatorKey(type, period) { return `${type}_${period}`; }
+
+function _extractCondIndicators(conditions) {
+    // Returns array of { key, type, period, label, condDescriptions[] }
+    const map = {};
+    const COLORS = ['#3b7cff','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4'];
+    let colorIdx = 0;
+
+    (conditions || []).forEach(cond => {
+        const indTypes = ['ema', 'sma'];
+        ['left', 'right'].forEach(side => {
+            const t = (cond[`${side}_type`] || '').toLowerCase();
+            if (!indTypes.includes(t)) return;
+            const period = parseInt(cond[`${side}_window`] || cond[`${side}_period`] || 0);
+            if (!period) return;
+            const key = _condIndicatorKey(t, period);
+            if (!map[key]) {
+                map[key] = {
+                    key, type: t, period,
+                    label: `${t.toUpperCase()}(${period})`,
+                    color: COLORS[colorIdx++ % COLORS.length],
+                    condDescriptions: []
+                };
+            }
+            // Build a short condition description for the legend
+            const opMap = { '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'cross_up': 'cross ↑', 'cross_down': 'cross ↓' };
+            const opLabel = opMap[cond.operation] || cond.operation || '';
+            const thresh  = parseFloat(cond.threshold_value || 0);
+            const thUnit  = cond.threshold_unit || '%';
+            const thStr   = thresh !== 0 ? ` ±${thresh}${thUnit}` : '';
+            const role    = cond.is_sequential ? 'Entry' : 'Arm';
+            const desc    = `${role}: price ${opLabel} ${t.toUpperCase()}(${period})${thStr}`;
+            if (!map[key].condDescriptions.includes(desc)) map[key].condDescriptions.push(desc);
+        });
+    });
+    return Object.values(map);
+}
+
 function _buildStkDayPriceChart(day) {
     const bars     = day.bars      || [];   // [[HH:MM, o, h, l, c, v], ...]
-    const seedBars = day.seed_bars || [];   // prior day bars for warm-up context
+    const seedBars = day.seed_bars || [];   // prior day bars for EMA warm-up
 
     if (_stkDayPriceChartInst) { _stkDayPriceChartInst.destroy(); _stkDayPriceChartInst = null; }
 
-    // Combine prior-day seed bars + current-day bars into one contiguous series.
-    // Seed bars render in muted gray; current-day bars render in green/red.
-    const allBars   = [...seedBars, ...bars];
-    const seedCount = seedBars.length;
+    // Trim seed bars to last 60 (≈ 1 hr of warm-up context) to keep the chart readable.
+    const displaySeed = seedBars.slice(-60);
+    const seedCount   = displaySeed.length;
+
+    // For accurate indicator computation, warm up over the FULL prior day + current day.
+    // Then slice back to displaySeed + bars for chart rendering.
+    const warmupBars   = [...seedBars, ...bars];
+    const warmupCloses = warmupBars.map(b => b[4]);
+    const warmupOffset = seedBars.length - seedCount; // how many seed bars we trimmed
+
+    // The combined array we actually display
+    const allBars   = [...displaySeed, ...bars];
     const allLabels = allBars.map(b => b[0]);
     const allOpens  = allBars.map(b => b[1]);
     const allHighs  = allBars.map(b => b[2]);
     const allLows   = allBars.map(b => b[3]);
     const allCloses = allBars.map(b => b[4]);
 
+    // ── Candle colours ────────────────────────────────────────────────────────
     const upColor   = 'rgba(16,185,129,0.85)';
     const downColor = 'rgba(239,68,68,0.82)';
-    const seedUp    = 'rgba(148,163,184,0.35)';
-    const seedDown  = 'rgba(148,163,184,0.35)';
+    const seedColor = 'rgba(148,163,184,0.30)';
 
-    const wickColor = allBars.map((_, i) => {
-        if (i < seedCount) return seedUp;
-        return allCloses[i] >= allOpens[i] ? upColor : downColor;
-    });
-    const bodyColor = allBars.map((_, i) => {
-        if (i < seedCount) return allCloses[i] >= allOpens[i] ? seedUp : seedDown;
-        return allCloses[i] >= allOpens[i] ? upColor : downColor;
-    });
+    const wickColor = allBars.map((_, i) =>
+        i < seedCount ? seedColor : (allCloses[i] >= allOpens[i] ? upColor : downColor));
+    const bodyColor = allBars.map((_, i) =>
+        i < seedCount ? seedColor : (allCloses[i] >= allOpens[i] ? upColor : downColor));
 
-    // Stock engine writes timestamps as "YYYY-MM-DD HH:MM:SS" — extract HH:MM.
+    // ── Event timestamps ──────────────────────────────────────────────────────
     const entryTimes = (day.events || [])
         .filter(e => (e.type === 'entry' || e.type === 're_entry') && e.time)
         .map(e => e.time.slice(11, 16));
@@ -900,50 +955,114 @@ function _buildStkDayPriceChart(day) {
         .filter(e => e.type === 'arm' && e.time)
         .map(e => e.time.slice(11, 16));
 
-    // Custom plugin: draws a vertical divider between seed bars and current-day bars,
-    // with "Prior Day" and "Current Day" section labels.
+    // ── Indicator lines from conditions ───────────────────────────────────────
+    const conditions  = (_dtConfig || {}).custom_conditions || [];
+    const indicators  = _extractCondIndicators(conditions);
+    const indicatorDatasets = indicators.map(ind => {
+        // Compute over full warmup series, then slice to display range
+        const full = ind.type === 'ema'
+            ? _stkCEMA(warmupCloses, ind.period)
+            : _stkCMA(warmupCloses, ind.period);
+        const sliced = full.slice(warmupOffset); // align with allBars
+        return {
+            label: ind.label,
+            type: 'line',
+            data: sliced,
+            borderColor: ind.color,
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            tension: 0.2,
+            spanGaps: true,
+            order: 0,
+            _indMeta: ind   // stash for legend plugin
+        };
+    });
+
+    // ── Custom plugins ────────────────────────────────────────────────────────
     const dividerPlugin = {
         id: 'stkDayDivider',
         afterDraw(chart) {
             if (seedCount === 0) return;
-            const { ctx: c, chartArea: { top, bottom }, scales: { x, y } } = chart;
-            // Position divider between last seed bar and first current-day bar.
-            const x0 = x.getPixelForValue(seedCount - 1);
-            const x1 = x.getPixelForValue(seedCount);
+            const { ctx: c, chartArea: { left, top, bottom } } = chart;
+            const x0  = chart.scales.x.getPixelForValue(seedCount - 1);
+            const x1  = chart.scales.x.getPixelForValue(seedCount);
             const xDiv = (x0 + x1) / 2;
 
-            // Shaded background for seed section
+            // Shaded warm-up region
             c.save();
-            c.fillStyle = 'rgba(148,163,184,0.06)';
-            c.fillRect(chart.chartArea.left, top, xDiv - chart.chartArea.left, bottom - top);
+            c.fillStyle = 'rgba(148,163,184,0.05)';
+            c.fillRect(left, top, xDiv - left, bottom - top);
             c.restore();
 
-            // Vertical dashed line
+            // Dashed divider line
             c.save();
-            c.strokeStyle = 'rgba(148,163,184,0.5)';
+            c.strokeStyle = 'rgba(148,163,184,0.45)';
             c.lineWidth = 1.5;
             c.setLineDash([4, 3]);
-            c.beginPath();
-            c.moveTo(xDiv, top);
-            c.lineTo(xDiv, bottom);
-            c.stroke();
+            c.beginPath(); c.moveTo(xDiv, top); c.lineTo(xDiv, bottom); c.stroke();
             c.setLineDash([]);
             c.restore();
 
-            // "Prior Day" label (left of divider)
+            // Labels
             c.save();
             c.font = 'bold 10px Inter, sans-serif';
-            c.fillStyle = 'rgba(148,163,184,0.7)';
+            c.fillStyle = 'rgba(148,163,184,0.6)';
             c.textAlign = 'left';
-            c.fillText('◀ Prior Day', chart.chartArea.left + 4, top + 13);
+            c.fillText('Warm-up ▸', left + 4, top + 13);
+            c.fillStyle = 'rgba(100,116,139,0.8)';
+            c.fillText('◂ Today', xDiv + 5, top + 13);
             c.restore();
+        }
+    };
 
-            // "Current Day" label (right of divider)
+    // Condition legend drawn as an overlay in the top-right corner
+    const legendPlugin = {
+        id: 'stkCondLegend',
+        afterDraw(chart) {
+            if (indicators.length === 0) return;
+            const { ctx: c, chartArea: { right, top } } = chart;
+
+            // Build legend lines: one per indicator, with its condition description(s)
+            const lines = [];
+            indicators.forEach(ind => {
+                ind.condDescriptions.forEach((desc, di) => {
+                    lines.push({ color: ind.color, text: di === 0 ? `${ind.label} — ${desc}` : `  ${desc}` });
+                });
+            });
+
+            const pad = 8, lineH = 14, dotR = 4;
+            const boxW = Math.min(right - chart.chartArea.left - 16, 340);
+            const boxH = pad * 2 + lines.length * lineH;
+            const bx   = right - boxW - 6;
+            const by   = top + 6;
+
             c.save();
-            c.font = 'bold 10px Inter, sans-serif';
-            c.fillStyle = 'rgba(100,116,139,0.85)';
-            c.textAlign = 'left';
-            c.fillText('Current Day ▶', xDiv + 5, top + 13);
+            c.fillStyle = 'rgba(15,23,42,0.82)';
+            c.strokeStyle = 'rgba(255,255,255,0.08)';
+            c.lineWidth = 1;
+            c.beginPath();
+            if (c.roundRect) {
+                c.roundRect(bx, by, boxW, boxH, 6);
+            } else {
+                c.rect(bx, by, boxW, boxH);
+            }
+            c.fill(); c.stroke();
+
+            lines.forEach((line, li) => {
+                const tx = bx + pad + dotR * 2 + 4;
+                const ty = by + pad + li * lineH + lineH / 2;
+                // Colour dot
+                c.fillStyle = line.color;
+                c.beginPath(); c.arc(bx + pad + dotR, ty, dotR, 0, Math.PI * 2); c.fill();
+                // Label text
+                c.fillStyle = '#cbd5e1';
+                c.font = '10px Inter, sans-serif';
+                c.textAlign = 'left';
+                c.textBaseline = 'middle';
+                c.fillText(line.text, tx, ty);
+            });
             c.restore();
         }
     };
@@ -974,6 +1093,7 @@ function _buildStkDayPriceChart(day) {
                     categoryPercentage: 1,
                     order: 1
                 },
+                ...indicatorDatasets,
                 {
                     label: 'Entry',
                     type: 'scatter',
@@ -1025,13 +1145,16 @@ function _buildStkDayPriceChart(day) {
                 tooltip: {
                     callbacks: {
                         label(ctx) {
-                            if (ctx.dataset.label === 'Entry') return `Entry @ ${ctx.raw.y.toFixed(2)}`;
-                            if (ctx.dataset.label === 'Exit')  return `Exit @ ${ctx.raw.y.toFixed(2)}`;
-                            if (ctx.dataset.label === 'Arm')   return `Arm triggered`;
+                            if (ctx.dataset.label === 'Entry') return `Entry @ ${ctx.raw.y != null ? ctx.raw.y.toFixed(2) : '?'}`;
+                            if (ctx.dataset.label === 'Exit')  return `Exit @ ${ctx.raw.y != null ? ctx.raw.y.toFixed(2) : '?'}`;
+                            if (ctx.dataset.label === 'Arm')   return 'Arm triggered';
+                            // Indicator lines
+                            const indDs = indicators.find(ind => ind.label === ctx.dataset.label);
+                            if (indDs) return `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(4) : 'N/A'}`;
+                            // Candles
                             const i = ctx.dataIndex;
-                            const isSeed = i < seedCount;
                             return [
-                                isSeed ? '(Prior Day)' : '',
+                                i < seedCount ? '(Warm-up)' : '',
                                 `O: ${allOpens[i].toFixed(2)}`,
                                 `H: ${allHighs[i].toFixed(2)}`,
                                 `L: ${allLows[i].toFixed(2)}`,
@@ -1049,9 +1172,7 @@ function _buildStkDayPriceChart(day) {
             scales: {
                 x: {
                     ticks: {
-                        color(ctx) {
-                            return ctx.index < seedCount ? 'rgba(148,163,184,0.5)' : '#64748b';
-                        },
+                        color: (ctx) => ctx.index < seedCount ? 'rgba(148,163,184,0.45)' : '#64748b',
                         maxRotation: 0,
                         autoSkip: true,
                         maxTicksLimit: 16,
@@ -1065,7 +1186,7 @@ function _buildStkDayPriceChart(day) {
                 }
             }
         },
-        plugins: [dividerPlugin]
+        plugins: [dividerPlugin, legendPlugin]
     });
 }
 
