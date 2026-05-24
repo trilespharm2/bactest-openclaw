@@ -4880,23 +4880,34 @@ def start_stocks_backtest_v3_async():
 @app.route('/api/stocks-backtest-v3/status/<backtest_id>', methods=['GET'])
 def get_stocks_backtest_v3_status(backtest_id):
     """Get status of a running stock backtest"""
-    # First check in-memory status
+    # First check in-memory status (authoritative for actively running backtests)
     if backtest_id in running_stock_backtests:
         return jsonify(running_stock_backtests[backtest_id])
-    
-    # Check metadata file
+
+    # Check the sidecar (fast) then fall back to full file
     metadata_path = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
-    if os.path.exists(metadata_path):
-        try:
-            with open(metadata_path, 'r') as f:
-                metadata = json.load(f)
-            return jsonify({
-                'status': metadata.get('status', 'completed'),
-                'error': metadata.get('error')
-            })
-        except:
-            pass
-    
+    sidecar_path  = _sidecar_path(metadata_path)
+    metadata = None
+    for path in (sidecar_path, metadata_path):
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    metadata = json.load(f)
+                break
+            except Exception:
+                continue
+
+    if metadata is not None:
+        file_status = metadata.get('status', 'completed')
+        # If the file still says "running" but there is no active in-memory entry,
+        # the process was killed / server restarted — treat it as failed.
+        if file_status == 'running':
+            file_status = 'failed'
+        return jsonify({
+            'status': file_status,
+            'error': metadata.get('error')
+        })
+
     return jsonify({'status': 'not_found', 'error': 'Backtest not found'}), 404
 
 
