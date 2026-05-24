@@ -75,18 +75,60 @@ def _compute_backtest_stats(trades: list, config: dict | None = None) -> dict:
     }
 
 
+def _sidecar_path(filepath: str) -> str:
+    """Return the .meta.json sidecar path for a given backtest JSON filepath."""
+    base, _ = os.path.splitext(filepath)
+    return base + '.meta.json'
+
+
+def _write_sidecar(filepath: str, data: dict) -> None:
+    """Write a lightweight sidecar file containing only the list-view fields."""
+    try:
+        sidecar = {k: v for k, v in data.items() if k not in _HEAVY_FIELDS}
+        with open(_sidecar_path(filepath), 'w') as fh:
+            json.dump(sidecar, fh, separators=(',', ':'), default=str)
+    except Exception:
+        pass
+
+
 def _load_backtest_summary(filepath: str) -> dict | None:
     """
-    Read *filepath* and return a dict with heavy fields stripped.
-    Returns None on any error.  Results are memoised by file mtime so that
-    an unchanged file is never parsed twice across requests.
+    Return a stripped summary dict for the given backtest JSON filepath.
+
+    Fast path (after first load):
+      Reads the tiny .meta.json sidecar (~2 KB) instead of the full file
+      (which can be 70 MB+).  The sidecar is written on first parse and
+      after every completed backtest.
+
+    Slow path (first time only, or if sidecar is missing):
+      Reads the full JSON, strips heavy fields, writes the sidecar, caches.
     """
+    sidecar = _sidecar_path(filepath)
     try:
-        mtime = os.stat(filepath).st_mtime_ns
+        sc_mtime = os.stat(sidecar).st_mtime_ns
+    except OSError:
+        sc_mtime = None
+
+    # ── Fast path: sidecar exists ─────────────────────────────────────────
+    if sc_mtime is not None:
+        cached = _backtest_list_cache.get(sidecar)
+        if cached and cached[0] == sc_mtime:
+            return cached[1]
+        try:
+            with open(sidecar, 'r') as fh:
+                data = json.load(fh)
+            _backtest_list_cache[sidecar] = (sc_mtime, data)
+            return data
+        except Exception:
+            pass  # fall through to full-file parse
+
+    # ── Slow path: read full file, write sidecar ──────────────────────────
+    try:
+        full_mtime = os.stat(filepath).st_mtime_ns
     except OSError:
         return None
     cached = _backtest_list_cache.get(filepath)
-    if cached and cached[0] == mtime:
+    if cached and cached[0] == full_mtime:
         return cached[1]
     try:
         with open(filepath, 'r') as fh:
@@ -99,7 +141,8 @@ def _load_backtest_summary(filepath: str) -> dict | None:
                 data['metadata'] = meta
         for field in _HEAVY_FIELDS:
             data.pop(field, None)
-        _backtest_list_cache[filepath] = (mtime, data)
+        _write_sidecar(filepath, data)
+        _backtest_list_cache[filepath] = (full_mtime, data)
         return data
     except Exception:
         return None
@@ -4763,6 +4806,15 @@ def start_stocks_backtest_v3_async():
                         except Exception as db_err:
                             print(f"Error updating stock backtest database record: {db_err}")
                 
+                # Write sidecar so future list loads skip the full JSON
+                try:
+                    _fp = os.path.join(output_dir, f'{unique_id}.json')
+                    _summary_data = _load_backtest_summary(_fp)
+                    if _summary_data is not None:
+                        _write_sidecar(_fp, _summary_data)
+                except Exception:
+                    pass
+
                 # Remove progress file so the row no longer shows a progress bar
                 try:
                     _pp = os.path.join('backtest_results', f'progress_{unique_id}.json')
@@ -4995,8 +5047,9 @@ def delete_stocks_backtest_v3(backtest_id):
                 filepath = os.path.join(output_dir, filename)
                 os.remove(filepath)
                 files_deleted += 1
-                # Evict from list cache so next load reflects the deletion
-                _backtest_list_cache.pop(os.path.abspath(filepath), None)
+                # Evict from list cache (both full-file key and sidecar key)
+                _backtest_list_cache.pop(filepath, None)
+                _backtest_list_cache.pop(_sidecar_path(filepath), None)
 
         # Delete database record
         db.session.delete(record)
