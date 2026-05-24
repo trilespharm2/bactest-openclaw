@@ -865,34 +865,98 @@ function _buildStkDayPriceChart(day) {
 
     if (_stkDayPriceChartInst) { _stkDayPriceChartInst.destroy(); _stkDayPriceChartInst = null; }
 
-    const labels = bars.map(b => b[0]);
-    const opens  = bars.map(b => b[1]);
-    const highs  = bars.map(b => b[2]);
-    const lows   = bars.map(b => b[3]);
-    const closes = bars.map(b => b[4]);
+    // Combine prior-day seed bars + current-day bars into one contiguous series.
+    // Seed bars render in muted gray; current-day bars render in green/red.
+    const allBars   = [...seedBars, ...bars];
+    const seedCount = seedBars.length;
+    const allLabels = allBars.map(b => b[0]);
+    const allOpens  = allBars.map(b => b[1]);
+    const allHighs  = allBars.map(b => b[2]);
+    const allLows   = allBars.map(b => b[3]);
+    const allCloses = allBars.map(b => b[4]);
 
     const upColor   = 'rgba(16,185,129,0.85)';
     const downColor = 'rgba(239,68,68,0.82)';
-    const wickColor = bars.map((b, i) => closes[i] >= opens[i] ? upColor : downColor);
+    const seedUp    = 'rgba(148,163,184,0.35)';
+    const seedDown  = 'rgba(148,163,184,0.35)';
 
-    // Stock engine writes every event's intraday timestamp into a single `time` field
-    // formatted as "YYYY-MM-DD HH:MM:SS" — extract the HH:MM portion to match bar labels.
+    const wickColor = allBars.map((_, i) => {
+        if (i < seedCount) return seedUp;
+        return allCloses[i] >= allOpens[i] ? upColor : downColor;
+    });
+    const bodyColor = allBars.map((_, i) => {
+        if (i < seedCount) return allCloses[i] >= allOpens[i] ? seedUp : seedDown;
+        return allCloses[i] >= allOpens[i] ? upColor : downColor;
+    });
+
+    // Stock engine writes timestamps as "YYYY-MM-DD HH:MM:SS" — extract HH:MM.
     const entryTimes = (day.events || [])
         .filter(e => (e.type === 'entry' || e.type === 're_entry') && e.time)
         .map(e => e.time.slice(11, 16));
     const exitTimes  = (day.events || [])
         .filter(e => e.type === 'exit' && e.time)
         .map(e => e.time.slice(11, 16));
+    const armTimes   = (day.events || [])
+        .filter(e => e.type === 'arm' && e.time)
+        .map(e => e.time.slice(11, 16));
+
+    // Custom plugin: draws a vertical divider between seed bars and current-day bars,
+    // with "Prior Day" and "Current Day" section labels.
+    const dividerPlugin = {
+        id: 'stkDayDivider',
+        afterDraw(chart) {
+            if (seedCount === 0) return;
+            const { ctx: c, chartArea: { top, bottom }, scales: { x, y } } = chart;
+            // Position divider between last seed bar and first current-day bar.
+            const x0 = x.getPixelForValue(seedCount - 1);
+            const x1 = x.getPixelForValue(seedCount);
+            const xDiv = (x0 + x1) / 2;
+
+            // Shaded background for seed section
+            c.save();
+            c.fillStyle = 'rgba(148,163,184,0.06)';
+            c.fillRect(chart.chartArea.left, top, xDiv - chart.chartArea.left, bottom - top);
+            c.restore();
+
+            // Vertical dashed line
+            c.save();
+            c.strokeStyle = 'rgba(148,163,184,0.5)';
+            c.lineWidth = 1.5;
+            c.setLineDash([4, 3]);
+            c.beginPath();
+            c.moveTo(xDiv, top);
+            c.lineTo(xDiv, bottom);
+            c.stroke();
+            c.setLineDash([]);
+            c.restore();
+
+            // "Prior Day" label (left of divider)
+            c.save();
+            c.font = 'bold 10px Inter, sans-serif';
+            c.fillStyle = 'rgba(148,163,184,0.7)';
+            c.textAlign = 'left';
+            c.fillText('◀ Prior Day', chart.chartArea.left + 4, top + 13);
+            c.restore();
+
+            // "Current Day" label (right of divider)
+            c.save();
+            c.font = 'bold 10px Inter, sans-serif';
+            c.fillStyle = 'rgba(100,116,139,0.85)';
+            c.textAlign = 'left';
+            c.fillText('Current Day ▶', xDiv + 5, top + 13);
+            c.restore();
+        }
+    };
 
     const ctx = document.getElementById('stkDayPriceChart');
     _stkDayPriceChartInst = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels,
+            labels: allLabels,
             datasets: [
                 {
                     label: 'Wick',
-                    data: bars.map((b, i) => [lows[i], highs[i]]),
+                    data: allBars.map((_, i) => [allLows[i], allHighs[i]]),
                     backgroundColor: wickColor,
                     borderColor: wickColor,
                     borderWidth: 0,
@@ -902,9 +966,9 @@ function _buildStkDayPriceChart(day) {
                 },
                 {
                     label: 'Body',
-                    data: bars.map((b, i) => [opens[i], closes[i]]),
-                    backgroundColor: wickColor,
-                    borderColor: wickColor,
+                    data: allBars.map((_, i) => [allOpens[i], allCloses[i]]),
+                    backgroundColor: bodyColor,
+                    borderColor: bodyColor,
                     borderWidth: 0,
                     barPercentage: 0.6,
                     categoryPercentage: 1,
@@ -913,7 +977,7 @@ function _buildStkDayPriceChart(day) {
                 {
                     label: 'Entry',
                     type: 'scatter',
-                    data: labels.map((lbl, i) => entryTimes.includes(lbl) ? { x: lbl, y: lows[i] * 0.9995 } : null).filter(v => v),
+                    data: allLabels.map((lbl, i) => entryTimes.includes(lbl) ? { x: lbl, y: allLows[i] * 0.9995 } : null).filter(v => v),
                     backgroundColor: '#10b981',
                     borderColor: '#fff',
                     borderWidth: 1.5,
@@ -926,7 +990,7 @@ function _buildStkDayPriceChart(day) {
                 {
                     label: 'Exit',
                     type: 'scatter',
-                    data: labels.map((lbl, i) => exitTimes.includes(lbl) ? { x: lbl, y: highs[i] * 1.0005 } : null).filter(v => v),
+                    data: allLabels.map((lbl, i) => exitTimes.includes(lbl) ? { x: lbl, y: allHighs[i] * 1.0005 } : null).filter(v => v),
                     backgroundColor: '#f59e0b',
                     borderColor: '#fff',
                     borderWidth: 1.5,
@@ -934,6 +998,19 @@ function _buildStkDayPriceChart(day) {
                     rotation: 180,
                     pointRadius: 8,
                     pointHoverRadius: 10,
+                    order: 0,
+                    showLine: false
+                },
+                {
+                    label: 'Arm',
+                    type: 'scatter',
+                    data: allLabels.map((lbl, i) => armTimes.includes(lbl) ? { x: lbl, y: allHighs[i] * 1.0005 } : null).filter(v => v),
+                    backgroundColor: '#f59e0b',
+                    borderColor: '#fff',
+                    borderWidth: 1.5,
+                    pointStyle: 'rectRot',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
                     order: 0,
                     showLine: false
                 }
@@ -950,13 +1027,16 @@ function _buildStkDayPriceChart(day) {
                         label(ctx) {
                             if (ctx.dataset.label === 'Entry') return `Entry @ ${ctx.raw.y.toFixed(2)}`;
                             if (ctx.dataset.label === 'Exit')  return `Exit @ ${ctx.raw.y.toFixed(2)}`;
+                            if (ctx.dataset.label === 'Arm')   return `Arm triggered`;
                             const i = ctx.dataIndex;
+                            const isSeed = i < seedCount;
                             return [
-                                `O: ${opens[i].toFixed(2)}`,
-                                `H: ${highs[i].toFixed(2)}`,
-                                `L: ${lows[i].toFixed(2)}`,
-                                `C: ${closes[i].toFixed(2)}`
-                            ];
+                                isSeed ? '(Prior Day)' : '',
+                                `O: ${allOpens[i].toFixed(2)}`,
+                                `H: ${allHighs[i].toFixed(2)}`,
+                                `L: ${allLows[i].toFixed(2)}`,
+                                `C: ${allCloses[i].toFixed(2)}`
+                            ].filter(Boolean);
                         }
                     },
                     backgroundColor: '#1a2535',
@@ -969,10 +1049,12 @@ function _buildStkDayPriceChart(day) {
             scales: {
                 x: {
                     ticks: {
-                        color: '#64748b',
+                        color(ctx) {
+                            return ctx.index < seedCount ? 'rgba(148,163,184,0.5)' : '#64748b';
+                        },
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 14,
+                        maxTicksLimit: 16,
                         font: { size: 11 }
                     },
                     grid: { color: 'rgba(255,255,255,0.04)' }
@@ -982,7 +1064,8 @@ function _buildStkDayPriceChart(day) {
                     grid: { color: 'rgba(255,255,255,0.04)' }
                 }
             }
-        }
+        },
+        plugins: [dividerPlugin]
     });
 }
 
