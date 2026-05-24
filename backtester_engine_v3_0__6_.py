@@ -962,26 +962,19 @@ class BacktesterEngine:
             return None
 
     def _get_price_series(self, grouped_data, dates, current_date_index, day_offset,
-                          series_type='close', current_candle=None):
+                          series_type='close', current_candle=None, cutoff_time_str=None):
         """Build a price series from grouped_data up to and including the target day.
 
-        Lookahead-bias rules:
-        - When current_candle is provided and day_offset==0, truncates at the
-          current bar's timestamp (per-bar evaluation path).
-        - When current_candle is None and day_offset==0 (day-level prereq path),
-          today's bars are excluded entirely — only prior days are used.  This
-          prevents the prereq from seeing future intraday data that isn't
-          available at the moment the condition is checked before the entry loop.
+        Lookahead-bias rules for day_offset==0:
+        - current_candle provided  → truncate at that bar's timestamp (per-bar path).
+        - cutoff_time_str provided → truncate today's bars strictly before that
+          time string ('HH:MM'), used for day-level prereqs that have a time window.
+        - Neither provided         → include all of today's bars (original behaviour,
+          only appropriate when the caller knows today is complete / not yet started).
         """
         try:
             target_idx = current_date_index + day_offset
             end_idx = min(target_idx + 1, len(dates))
-
-            # When no current_candle and looking at today (day_offset==0), exclude
-            # today to avoid lookahead: use data through end of the prior trading day.
-            if current_candle is None and day_offset == 0:
-                end_idx = min(current_date_index, len(dates))  # stop before today
-
             frames = []
             for i in range(max(0, end_idx - 60), end_idx):
                 d = dates[i]
@@ -990,11 +983,23 @@ class BacktesterEngine:
             if not frames:
                 return None
             combined = pd.concat(frames)
-            if current_candle is not None and day_offset == 0 and 'timestamp' in combined.columns:
-                ts = current_candle.get('timestamp') or current_candle.name
-                combined = combined[combined['timestamp'] <= ts]
-                if combined.empty:
-                    return None
+            if day_offset == 0 and 'timestamp' in combined.columns:
+                if current_candle is not None:
+                    ts = current_candle.get('timestamp') or current_candle.name
+                    combined = combined[combined['timestamp'] <= ts]
+                    if combined.empty:
+                        return None
+                elif cutoff_time_str is not None:
+                    try:
+                        ch, cm = map(int, cutoff_time_str.split(':'))
+                        cutoff_mins = ch * 60 + cm
+                        def _ts_mins(ts):
+                            return ts.hour * 60 + ts.minute if hasattr(ts, 'hour') else 9999
+                        combined = combined[combined['timestamp'].apply(_ts_mins) < cutoff_mins]
+                        if combined.empty:
+                            return None
+                    except Exception:
+                        pass
             col = series_type if series_type in combined.columns else 'close'
             return combined[col]
         except Exception:
@@ -1024,7 +1029,7 @@ class BacktesterEngine:
         return pd.Series(result, index=series.index, dtype=float)
 
     def _build_indicator_series(self, condition, side, grouped_data, dates,
-                                current_date_index, current_candle=None):
+                                current_date_index, current_candle=None, cutoff_time_str=None):
         """
         Build the price series used for indicator computation, respecting the
         candle type (min / hr / day) chosen by the user.
@@ -1043,10 +1048,6 @@ class BacktesterEngine:
         if candle_type == 'day':
             target_idx = current_date_index + day_offset
             end_idx    = min(target_idx + 1, len(dates))
-            # When called as a day-level prereq (current_candle=None) with day_offset==0,
-            # exclude today to avoid lookahead — use only prior completed days.
-            if current_candle is None and day_offset == 0:
-                end_idx = min(current_date_index, len(dates))
             # collect up to 200 daily closes for stable EMA warm-up
             closes = []
             for i in range(max(0, end_idx - 200), end_idx):
@@ -1055,10 +1056,24 @@ class BacktesterEngine:
                     continue
                 day_data = grouped_data.get_group(d)
                 col = series_type if series_type in day_data.columns else 'close'
-                if day_offset == 0 and i == current_date_index and current_candle is not None:
-                    # use current bar as the live close for today's incomplete session
-                    val = current_candle.get(col) if isinstance(current_candle, dict) \
-                          else (current_candle[col] if col in current_candle.index else None)
+                if day_offset == 0 and i == current_date_index:
+                    if current_candle is not None:
+                        # per-bar path: use current bar as today's live close
+                        val = current_candle.get(col) if isinstance(current_candle, dict) \
+                              else (current_candle[col] if col in current_candle.index else None)
+                    elif cutoff_time_str is not None and 'timestamp' in day_data.columns:
+                        # prereq path with time cutoff: last bar strictly before cutoff
+                        try:
+                            ch, cm = map(int, cutoff_time_str.split(':'))
+                            cutoff_mins = ch * 60 + cm
+                            def _dm(ts): return ts.hour * 60 + ts.minute if hasattr(ts, 'hour') else 9999
+                            day_pre = day_data[day_data['timestamp'].apply(_dm) < cutoff_mins]
+                            val = day_pre[col].iloc[-1] if not day_pre.empty else None
+                        except Exception:
+                            val = None
+                    else:
+                        # no cutoff available: skip today to avoid lookahead
+                        continue
                 else:
                     val = day_data[col].iloc[-1]
                 if val is not None and not pd.isna(val):
@@ -1071,7 +1086,8 @@ class BacktesterEngine:
         if candle_type == 'hr':
             raw = self._get_price_series(grouped_data, dates, current_date_index,
                                          day_offset, series_type,
-                                         current_candle=current_candle)
+                                         current_candle=current_candle,
+                                         cutoff_time_str=cutoff_time_str)
             if raw is None or raw.empty:
                 return None
             # resample: group every 60 rows into one bar, take the last value
@@ -1086,10 +1102,11 @@ class BacktesterEngine:
         # ── 1-minute series (default) ─────────────────────────────────────────
         return self._get_price_series(grouped_data, dates, current_date_index,
                                       day_offset, series_type,
-                                      current_candle=current_candle)
+                                      current_candle=current_candle,
+                                      cutoff_time_str=cutoff_time_str)
 
     def _compute_indicator(self, condition, side, grouped_data, dates, current_date_index,
-                           current_candle=None):
+                           current_candle=None, cutoff_time_str=None):
         """Compute an indicator value for a given side (left/right) of a condition.
 
         Respects left_candle / right_candle: 'min' uses 1-minute bars (original
@@ -1097,7 +1114,8 @@ class BacktesterEngine:
         """
         ind_type = condition.get(f'{side}_type')
         series = self._build_indicator_series(condition, side, grouped_data, dates,
-                                              current_date_index, current_candle)
+                                              current_date_index, current_candle,
+                                              cutoff_time_str=cutoff_time_str)
         if series is None or len(series) < 2:
             return None
 
@@ -1450,10 +1468,20 @@ class BacktesterEngine:
             left_type = condition.get('left_type', 'close')
             right_type = condition.get('right_type', 'close')
 
+            # When evaluating a day-level prereq (current_candle=None), pass the
+            # condition's time_window_start as a cutoff so indicators computed on
+            # today's bars only use data available before the entry window opens.
+            _prereq_cutoff = (
+                condition.get('time_window_start')
+                if current_candle is None and condition.get('time_window_enabled')
+                else None
+            )
+
             if left_type == 'volume':
                 left_value = self._get_volume(condition, 'left', grouped_data, dates, current_date_index, current_candle)
             elif left_type in self._INDICATOR_TYPES:
-                left_value = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, current_candle)
+                left_value = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, current_candle,
+                                                     cutoff_time_str=_prereq_cutoff)
             elif condition['left_day'] == 0 and condition['left_candle'] == 'min' and current_candle is not None:
                 left_value = current_candle[left_type]
             else:
@@ -1469,7 +1497,8 @@ class BacktesterEngine:
             elif right_type == 'volume':
                 right_value = self._get_volume(condition, 'right', grouped_data, dates, current_date_index, current_candle)
             elif right_type in self._INDICATOR_TYPES:
-                right_value = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, current_candle)
+                right_value = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, current_candle,
+                                                      cutoff_time_str=_prereq_cutoff)
             elif condition['right_day'] == 0 and condition['right_candle'] == 'min' and current_candle is not None:
                 right_value = current_candle[right_type]
             else:
