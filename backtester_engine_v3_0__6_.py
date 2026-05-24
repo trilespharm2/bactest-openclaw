@@ -964,11 +964,24 @@ class BacktesterEngine:
     def _get_price_series(self, grouped_data, dates, current_date_index, day_offset,
                           series_type='close', current_candle=None):
         """Build a price series from grouped_data up to and including the target day.
-        When current_candle is provided and day_offset==0, truncates at current_candle
-        timestamp to avoid lookahead bias."""
+
+        Lookahead-bias rules:
+        - When current_candle is provided and day_offset==0, truncates at the
+          current bar's timestamp (per-bar evaluation path).
+        - When current_candle is None and day_offset==0 (day-level prereq path),
+          today's bars are excluded entirely — only prior days are used.  This
+          prevents the prereq from seeing future intraday data that isn't
+          available at the moment the condition is checked before the entry loop.
+        """
         try:
             target_idx = current_date_index + day_offset
             end_idx = min(target_idx + 1, len(dates))
+
+            # When no current_candle and looking at today (day_offset==0), exclude
+            # today to avoid lookahead: use data through end of the prior trading day.
+            if current_candle is None and day_offset == 0:
+                end_idx = min(current_date_index, len(dates))  # stop before today
+
             frames = []
             for i in range(max(0, end_idx - 60), end_idx):
                 d = dates[i]
@@ -1030,6 +1043,10 @@ class BacktesterEngine:
         if candle_type == 'day':
             target_idx = current_date_index + day_offset
             end_idx    = min(target_idx + 1, len(dates))
+            # When called as a day-level prereq (current_candle=None) with day_offset==0,
+            # exclude today to avoid lookahead — use only prior completed days.
+            if current_candle is None and day_offset == 0:
+                end_idx = min(current_date_index, len(dates))
             # collect up to 200 daily closes for stable EMA warm-up
             closes = []
             for i in range(max(0, end_idx - 200), end_idx):
