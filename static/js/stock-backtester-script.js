@@ -1902,7 +1902,17 @@ function buildStockConfigSummaryHtml(config) {
                 rightDesc = compLabel + ' [' + dayLabel(c.right_day) + ' ' + candleFmt(c.right_candle, c.right_multiplier) + ']';
                 if (c.threshold_value) rightDesc += ' ±' + c.threshold_value + (c.threshold_unit || '%');
             }
-            const prefix = i === 0 ? '<span style="color:#3b7cff; font-weight:600;">Entry:</span>' : '<span style="color:#64748b; font-weight:600;">Prior:</span>';
+            var _condLabel, _condColor;
+            if (i === 0) {
+                _condLabel = 'Entry:'; _condColor = '#3b7cff';
+            } else if (c.is_sequential) {
+                _condLabel = 'Sequential:'; _condColor = '#7c3aed';
+            } else if (parseInt(c.left_day || 0) === 0) {
+                _condLabel = 'Entry:'; _condColor = '#3b7cff';
+            } else {
+                _condLabel = 'Prior:'; _condColor = '#64748b';
+            }
+            const prefix = `<span style="color:${_condColor}; font-weight:600;">${_condLabel}</span>`;
             return `<div style="margin-bottom:4px;">${prefix} ${leftDesc} ${c.operation} ${rightDesc}</div>`;
         }).join('');
     }
@@ -2123,7 +2133,7 @@ async function collectFormData() {
             }
 
             const condition = {
-                type: index === 0 ? 'entry' : 'prior',
+                type: (index === 0 || leftDayVal === 0) ? 'entry' : 'prior',
                 metric: metric,
                 left_day: leftDayVal,
                 left_candle: metric === 'current_price' ? 'min' : ((document.getElementById(`left-candle-${id}`) || {}).value || 'min'),
