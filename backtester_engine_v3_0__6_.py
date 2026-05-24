@@ -2321,17 +2321,38 @@ class BacktesterEngine:
             
             # Split custom conditions into day-level prerequisites, per-bar filters,
             # and sequential (bar-level) phases.
-            #   - per_bar_filter_conds: non-sequential conds that must be true on the SAME
-            #     bar as condition 0 (e.g., candle_pattern with cp_include_current=True
-            #     meaning "entry bar itself is red").
-            #   - day_level_prereqs: non-sequential conds evaluated once per day with
-            #     current_candle=None (original "prior" semantics).
-            #   - seq_conds: sequential phases evaluated on bars AFTER cond 0 fires.
+            #
+            # Routing rules for non-sequential conditions (indices 1+):
+            #   per_bar_filter_conds — evaluated on the SAME bar as condition 0:
+            #     • Any condition whose left_day OR right_day is 0 (references
+            #       today's data), because today's indicators are time-varying and
+            #       must be checked at each bar inside the time window.
+            #     • candle_pattern with cp_include_current=True (entry bar check).
+            #   day_level_prereqs — evaluated ONCE per day before the bar loop:
+            #     • Conditions that reference only prior days (left_day < 0 AND
+            #       right_day <= 0 / fixed value), e.g. "yesterday's close > 200".
+            #   seq_conds — sequential state-machine phases (bar AFTER previous fires).
             custom_conds = self.config.get('custom_conditions', []) if self.config['entry_type'] == 'custom' else []
-            non_seq_conds        = [c for c in custom_conds[1:] if not c.get('is_sequential')]
-            per_bar_filter_conds = [c for c in non_seq_conds if c.get('cp_include_current')]
-            day_level_prereqs    = [c for c in non_seq_conds if not c.get('cp_include_current')]
-            seq_conds            = [c for c in custom_conds[1:] if c.get('is_sequential')]
+            non_seq_conds = [c for c in custom_conds[1:] if not c.get('is_sequential')]
+            seq_conds     = [c for c in custom_conds[1:] if c.get('is_sequential')]
+
+            def _is_per_bar_cond(c):
+                """True when the condition must be re-evaluated at every entry bar."""
+                if c.get('cp_include_current'):
+                    return True
+                left_day  = int(c.get('left_day',  0) or 0)
+                right_day = int(c.get('right_day', 0) or 0)
+                right_type = c.get('right_type', 'value')
+                # If left side references today, must be per-bar.
+                if left_day == 0:
+                    return True
+                # If right side also references today (and is not a fixed value), per-bar.
+                if right_day == 0 and right_type not in ('value',):
+                    return True
+                return False
+
+            per_bar_filter_conds = [c for c in non_seq_conds if _is_per_bar_cond(c)]
+            day_level_prereqs    = [c for c in non_seq_conds if not _is_per_bar_cond(c)]
 
             prior_conditions_met = True
             if self.config['entry_type'] == 'custom':
