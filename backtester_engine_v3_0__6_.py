@@ -2367,6 +2367,7 @@ class BacktesterEngine:
             # Per-day sequential state machine (resets each day, only used when seq_conds exist)
             seq_phase = 0        # 0 = scanning for phase-1 trigger; k>0 = waiting for seq_conds[k-1]
             seq_arm_bar_loc = -1 # bar position (iloc) when the phase last advanced
+            seq_arm_candle = None  # the candle row at which the arm fired (for accurate logging)
 
             if position is None and current_date <= end_date and prior_conditions_met:
                 entry_found = False
@@ -2410,6 +2411,12 @@ class BacktesterEngine:
                                     # Sequential conditions exist — arm phase 2, don't enter yet
                                     seq_phase = 1
                                     seq_arm_bar_loc = bar_loc
+                                    seq_arm_candle = candle  # snapshot for accurate logging
+                                    day_entry['events'].append({
+                                        'type': 'arm',
+                                        'time': str(candle['timestamp']),
+                                        'reason': f'Arm conditions satisfied — waiting for sequential trigger',
+                                    })
                                 else:
                                     # No sequential conditions — enter immediately
                                     entry_signal = True
@@ -2452,22 +2459,27 @@ class BacktesterEngine:
                             for cond_idx, condition in enumerate(self.config['custom_conditions']):
                                 lt = condition.get('left_type', 'close')
                                 rt = condition.get('right_type', 'close')
+                                is_seq = bool(condition.get('is_sequential'))
+
+                                # Non-sequential (arm) conditions fired at seq_arm_candle;
+                                # sequential conditions fired at the entry candle.
+                                log_candle = candle if (is_seq or seq_arm_candle is None) else seq_arm_candle
 
                                 if lt in self._INDICATOR_TYPES:
-                                    left_val = self._compute_indicator(condition, 'left', grouped, dates, i, candle)
+                                    left_val = self._compute_indicator(condition, 'left', grouped, dates, i, log_candle)
                                     left_date = current_date
-                                    left_time = candle['timestamp']
+                                    left_time = log_candle['timestamp']
                                 elif condition['left_day'] == 0 and condition['left_candle'] == 'min':
-                                    left_val = candle.get(lt)
+                                    left_val = log_candle.get(lt)
                                     left_date = current_date
-                                    left_time = candle['timestamp']
+                                    left_time = log_candle['timestamp']
                                 else:
                                     left_val = self.get_candle_value(grouped, dates, i,
                                                                      condition['left_day'],
                                                                      condition['left_candle'],
                                                                      condition['left_multiplier'],
                                                                      lt,
-                                                                     current_candle=candle)
+                                                                     current_candle=log_candle)
                                     left_idx = i + condition['left_day']
                                     left_date = dates[left_idx] if 0 <= left_idx < len(dates) else None
                                     left_time = None
@@ -2477,24 +2489,24 @@ class BacktesterEngine:
                                     right_date = None
                                     right_time = None
                                 elif rt in self._INDICATOR_TYPES:
-                                    right_val = self._compute_indicator(condition, 'right', grouped, dates, i, candle)
+                                    right_val = self._compute_indicator(condition, 'right', grouped, dates, i, log_candle)
                                     right_date = current_date
-                                    right_time = candle['timestamp']
+                                    right_time = log_candle['timestamp']
                                 elif condition['right_day'] == 0 and condition['right_candle'] == 'min':
-                                    right_val = candle.get(rt)
+                                    right_val = log_candle.get(rt)
                                     right_date = current_date
-                                    right_time = candle['timestamp']
+                                    right_time = log_candle['timestamp']
                                 else:
                                     right_val = self.get_candle_value(grouped, dates, i,
                                                                       condition['right_day'],
                                                                       condition['right_candle'],
                                                                       condition['right_multiplier'],
                                                                       rt,
-                                                                      current_candle=candle)
+                                                                      current_candle=log_candle)
                                     right_idx = i + condition['right_day']
                                     right_date = dates[right_idx] if 0 <= right_idx < len(dates) else None
                                     right_time = None
-                                
+
                                 condition_values.append({
                                     'condition': condition,
                                     'left_value': left_val,
@@ -2503,7 +2515,8 @@ class BacktesterEngine:
                                     'right_value': right_val,
                                     'right_date': right_date,
                                     'right_time': right_time,
-                                    'is_entry': (cond_idx == 0)
+                                    'is_entry': (cond_idx == 0),
+                                    'is_arm_bar': not is_seq,  # True = values from arm bar, False = entry bar
                                 })
                         
                         computed_val = self._compute_condition_value_for_candle(candle, prev_close, open_930_price)

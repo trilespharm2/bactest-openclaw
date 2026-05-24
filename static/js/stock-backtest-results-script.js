@@ -1271,6 +1271,15 @@ function renderDtPage(config) {
                     </div>
                 </div>`;
 
+            } else if (evt.type === 'arm') {
+                flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#fffbeb; border-radius:8px; margin-bottom:6px; border-left:3px solid #f59e0b;">
+                    <i class="fas fa-crosshairs" style="color:#f59e0b; margin-top:2px;"></i>
+                    <div>
+                        <div style="font-weight:600; color:#92400e; font-size:13px;">ARM CONDITIONS MET @ ${formatTime(evt.time)}</div>
+                        <div style="color:#78716c; font-size:12px;">${evt.reason || 'Waiting for sequential entry trigger'}</div>
+                    </div>
+                </div>`;
+
             } else if (evt.type === 'condition_met') {
                 const metricsHtml = _buildEntryMetricsHtml(evt.entry_metrics, true);
                 let computedLine = '';
