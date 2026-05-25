@@ -273,6 +273,7 @@ function syncStockToggleUI() {
 const STOCK_METRICS = [
     { value: 'current_price', label: 'Current Price' },
     { value: 'price', label: 'Price' },
+    { value: 'vwap', label: 'VWAP' },
     { value: 'volume', label: 'Volume' },
     { value: 'sma', label: 'SMA' },
     { value: 'ema', label: 'EMA' },
@@ -991,6 +992,14 @@ function updateStockConditionFields(n) {
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, false);
+    } else if (val === 'vwap') {
+        if (leftDayGroup) leftDayGroup.style.display = 'none';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'none';
+        if (leftMultGroup) leftMultGroup.style.display = 'none';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
+        setCrossOperators('operator-' + n, true);
     } else if (val === 'sma' || val === 'ema') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
@@ -1157,8 +1166,8 @@ function updateStockRightSide(n) {
     }
     if (tcRightWrapper) tcRightWrapper.style.display = 'none';
 
-    // Enable cross operators for current_price/price when RHS is SMA or EMA
-    if (leftMetric === 'current_price' || leftMetric === 'price') {
+    // Enable cross operators for current_price/price/vwap when RHS is SMA or EMA
+    if (leftMetric === 'current_price' || leftMetric === 'price' || leftMetric === 'vwap') {
         setCrossOperators('operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
     }
 
@@ -1573,16 +1582,17 @@ function updateExitConditionFields(n) {
     }
 
     var isCurrentPrice = metric === 'current_price';
+    var isVwap = metric === 'vwap';
     var isPrice = metric === 'price';
     var isVolume = metric === 'volume';
     var isMacd = metric === 'macd';
     var needsWindow = ['sma', 'ema', 'rsi'].indexOf(metric) !== -1;
 
-    var showDay = !isCurrentPrice;
-    var showCandle = !isCurrentPrice;
-    var showMult = !isCurrentPrice;
+    var showDay = !isCurrentPrice && !isVwap;
+    var showCandle = !isCurrentPrice && !isVwap;
+    var showMult = !isCurrentPrice && !isVwap;
     var showWindow = needsWindow;
-    var showSeries = !isVolume && (isPrice || isCurrentPrice || ['sma', 'ema', 'macd'].indexOf(metric) !== -1);
+    var showSeries = !isVolume && !isVwap && (isPrice || isCurrentPrice || ['sma', 'ema', 'macd'].indexOf(metric) !== -1);
 
     var el;
     el = document.getElementById('exit-left-day-group-' + n); if (el) el.style.display = showDay ? '' : 'none';
@@ -1605,10 +1615,10 @@ function updateExitConditionFields(n) {
         if (el) el.value = 'day';
     }
 
-    setCrossOperators('exit-operator-' + n, ['sma', 'ema'].indexOf(metric) !== -1);
+    setCrossOperators('exit-operator-' + n, ['sma', 'ema', 'vwap'].indexOf(metric) !== -1);
     updateExitComparatorOptions(n);
 
-    if (isCurrentPrice) {
+    if (isCurrentPrice || isVwap) {
         el = document.getElementById('exit-left-day-' + n); if (el) el.value = '0';
         el = document.getElementById('exit-left-candle-' + n); if (el) el.value = 'min';
         el = document.getElementById('exit-left-mult-' + n); if (el) el.value = '1';
@@ -1629,6 +1639,10 @@ function updateExitComparatorOptions(n) {
     var opts = '<option value="value">Value</option>';
     if (metric === 'volume') {
         opts += '<option value="compare_volume">Compare Volume</option>';
+    } else if (metric === 'vwap') {
+        opts += '<option value="compare_price">Compare Price</option>';
+        opts += '<option value="compare_sma">Compare SMA</option>';
+        opts += '<option value="compare_ema">Compare EMA</option>';
     } else if (metric !== 'rsi') {
         opts += '<option value="compare_price">Compare Price</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
@@ -1760,6 +1774,7 @@ function buildConditionDesc(n, isExit) {
     }
     function metricDesc(m, s) {
         if (m === 'current_price') return 'current price';
+        if (m === 'vwap') return 'VWAP';
         if (m === 'volume') return candleLabel(s.candle, s.mult) + ' volume (' + dayLabel(s.day) + ')';
         if (m === 'price') return candleLabel(s.candle, s.mult) + ' ' + s.series + ' (' + dayLabel(s.day) + ')';
         if (m === 'sma') return 'SMA(' + s.win + ') (' + dayLabel(s.day) + ')';
@@ -1880,7 +1895,7 @@ function buildStockConfigSummaryHtml(config) {
         }
     } else if (config.custom_conditions && config.custom_conditions.length > 0) {
         entryHtml = config.custom_conditions.map((c, i) => {
-            const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
+            const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'vwap': 'VWAP', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
             const dayLabel = (d) => d === 0 ? 'Today' : `Day(${d})`;
             const candleFmt = (candle, mult) => {
                 const m = parseInt(mult) || 1;
@@ -1891,7 +1906,7 @@ function buildStockConfigSummaryHtml(config) {
             };
             var met = c.metric || 'price';
             var leftDesc = metricLabels[met] || met;
-            if (met !== 'current_price') {
+            if (met !== 'current_price' && met !== 'vwap') {
                 leftDesc += ' [' + dayLabel(c.left_day) + ' ' + candleFmt(c.left_candle, c.left_multiplier) + ']';
             }
             var rightDesc = '';
@@ -1925,7 +1940,7 @@ function buildStockConfigSummaryHtml(config) {
 
     let exitCondHtml = '';
     if (config.exit_custom_conditions && config.exit_custom_conditions.length > 0) {
-        const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
+        const metricLabels = { 'current_price': 'Current Price', 'price': 'Price', 'vwap': 'VWAP', 'sma': 'SMA', 'ema': 'EMA', 'rsi': 'RSI', 'macd': 'MACD' };
         exitCondHtml = config.exit_custom_conditions.map(function(c, i) {
             var met = c.metric || 'price';
             var leftDesc = metricLabels[met] || met;
@@ -2122,7 +2137,7 @@ async function collectFormData() {
             const comparator = (document.getElementById(`comparator-${id}`) || {}).value || 'value';
 
             const leftDaySelect = document.getElementById(`left-day-${id}`);
-            const leftDayVal = metric === 'current_price' ? 0 :
+            const leftDayVal = (metric === 'current_price' || metric === 'vwap') ? 0 :
                 (leftDaySelect && leftDaySelect.value === 'custom'
                     ? parseInt(document.getElementById(`left-day-custom-${id}`).value) || 0
                     : parseInt((leftDaySelect || {}).value) || 0);
@@ -2136,7 +2151,7 @@ async function collectFormData() {
                 type: (index === 0 || leftDayVal === 0) ? 'entry' : 'prior',
                 metric: metric,
                 left_day: leftDayVal,
-                left_candle: metric === 'current_price' ? 'min' : ((document.getElementById(`left-candle-${id}`) || {}).value || 'min'),
+                left_candle: (metric === 'current_price' || metric === 'vwap') ? 'min' : ((document.getElementById(`left-candle-${id}`) || {}).value || 'min'),
                 left_multiplier: parseInt((document.getElementById(`left-mult-${id}`) || {}).value) || 1,
                 left_type: leftType,
                 left_series: (document.getElementById(`left-series-${id}`) || {}).value || 'close',
@@ -2321,7 +2336,7 @@ async function collectFormData() {
             var comparator = (document.getElementById('exit-comparator-' + id) || {}).value || 'value';
 
             var leftDaySelect = document.getElementById('exit-left-day-' + id);
-            var leftDayVal = metric === 'current_price' ? 0 :
+            var leftDayVal = (metric === 'current_price' || metric === 'vwap') ? 0 :
                 (leftDaySelect && leftDaySelect.value === 'custom'
                     ? parseInt(document.getElementById('exit-left-day-custom-' + id).value) || 0
                     : parseInt((leftDaySelect || {}).value) || 0);
@@ -2335,7 +2350,7 @@ async function collectFormData() {
                 type: 'exit',
                 metric: metric,
                 left_day: leftDayVal,
-                left_candle: metric === 'current_price' ? 'min' : ((document.getElementById('exit-left-candle-' + id) || {}).value || 'min'),
+                left_candle: (metric === 'current_price' || metric === 'vwap') ? 'min' : ((document.getElementById('exit-left-candle-' + id) || {}).value || 'min'),
                 left_multiplier: parseInt((document.getElementById('exit-left-mult-' + id) || {}).value) || 1,
                 left_type: leftType,
                 left_series: (document.getElementById('exit-left-series-' + id) || {}).value || 'close',
