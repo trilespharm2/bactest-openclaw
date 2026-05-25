@@ -994,8 +994,8 @@ function updateStockConditionFields(n) {
         setCrossOperators('operator-' + n, false);
     } else if (val === 'vwap') {
         if (leftDayGroup) leftDayGroup.style.display = 'none';
-        if (leftCandleGroup) leftCandleGroup.style.display = 'none';
-        if (leftMultGroup) leftMultGroup.style.display = 'none';
+        if (leftCandleGroup) leftCandleGroup.style.display = 'block';
+        if (leftMultGroup) leftMultGroup.style.display = 'block';
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
@@ -1216,6 +1216,8 @@ function updateStockRightSide(n) {
         } else if (rightType === 'volume' || rightType === 'vwap') {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
+            var rightDayGroup = document.getElementById('right-day-group-' + n);
+            if (rightDayGroup) rightDayGroup.style.display = rightType === 'vwap' ? 'none' : '';
         } else {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'block';
@@ -1589,8 +1591,8 @@ function updateExitConditionFields(n) {
     var needsWindow = ['sma', 'ema', 'rsi'].indexOf(metric) !== -1;
 
     var showDay = !isCurrentPrice && !isVwap;
-    var showCandle = !isCurrentPrice && !isVwap;
-    var showMult = !isCurrentPrice && !isVwap;
+    var showCandle = !isCurrentPrice;
+    var showMult = !isCurrentPrice;
     var showWindow = needsWindow;
     var showSeries = !isVolume && !isVwap && (isPrice || isCurrentPrice || ['sma', 'ema', 'macd'].indexOf(metric) !== -1);
 
@@ -1618,10 +1620,12 @@ function updateExitConditionFields(n) {
     setCrossOperators('exit-operator-' + n, ['sma', 'ema', 'vwap'].indexOf(metric) !== -1);
     updateExitComparatorOptions(n);
 
-    if (isCurrentPrice || isVwap) {
+    if (isCurrentPrice) {
         el = document.getElementById('exit-left-day-' + n); if (el) el.value = '0';
         el = document.getElementById('exit-left-candle-' + n); if (el) el.value = 'min';
         el = document.getElementById('exit-left-mult-' + n); if (el) el.value = '1';
+    } else if (isVwap) {
+        el = document.getElementById('exit-left-day-' + n); if (el) el.value = '0';
     }
 
     enforceStockDayCandleRestriction('exit-left', n);
@@ -1710,6 +1714,7 @@ function updateExitRightSide(n) {
         } else if (rightType === 'volume' || rightType === 'vwap') {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
+            el = document.getElementById('exit-right-day-group-' + n); if (el) el.style.display = rightType === 'vwap' ? 'none' : '';
         } else {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = '';
@@ -2152,7 +2157,7 @@ async function collectFormData() {
                 type: (index === 0 || leftDayVal === 0) ? 'entry' : 'prior',
                 metric: metric,
                 left_day: leftDayVal,
-                left_candle: (metric === 'current_price' || metric === 'vwap') ? 'min' : ((document.getElementById(`left-candle-${id}`) || {}).value || 'min'),
+                left_candle: metric === 'current_price' ? 'min' : ((document.getElementById(`left-candle-${id}`) || {}).value || 'min'),
                 left_multiplier: parseInt((document.getElementById(`left-mult-${id}`) || {}).value) || 1,
                 left_type: leftType,
                 left_series: (document.getElementById(`left-series-${id}`) || {}).value || 'close',
@@ -2351,7 +2356,7 @@ async function collectFormData() {
                 type: 'exit',
                 metric: metric,
                 left_day: leftDayVal,
-                left_candle: (metric === 'current_price' || metric === 'vwap') ? 'min' : ((document.getElementById('exit-left-candle-' + id) || {}).value || 'min'),
+                left_candle: metric === 'current_price' ? 'min' : ((document.getElementById('exit-left-candle-' + id) || {}).value || 'min'),
                 left_multiplier: parseInt((document.getElementById('exit-left-mult-' + id) || {}).value) || 1,
                 left_type: leftType,
                 left_series: (document.getElementById('exit-left-series-' + id) || {}).value || 'close',
