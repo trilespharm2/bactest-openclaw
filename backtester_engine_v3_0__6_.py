@@ -1874,11 +1874,8 @@ class BacktesterEngine:
                 gap_pct = ((open_price / prev_close) - 1) * 100
                 
                 if self._evaluate_operator(gap_pct, operator, threshold):
-                    vwap = current_candle.get('vwap')
-                    if pd.notna(vwap):
-                        return True, 'vwap', vwap
-                    else:
-                        return True, 'close', current_candle['close']
+                    mid = (current_candle['high'] + current_candle['low']) / 2.0
+                    return True, 'mid', mid
                 
                 return False, None, None
             
@@ -1916,11 +1913,8 @@ class BacktesterEngine:
             change_pct = ((price / reference_price) - 1) * 100
             
             if self._evaluate_operator(change_pct, operator, threshold):
-                vwap = candle.get('vwap')
-                if pd.notna(vwap):
-                    return True, 'vwap', vwap
-                else:
-                    return True, 'close', candle['close']
+                mid = (candle['high'] + candle['low']) / 2.0
+                return True, 'mid', mid
         
         return False, None, None
     
@@ -2389,11 +2383,8 @@ class BacktesterEngine:
                         }
                         if self.check_velocity_condition(velocity_condition, grouped, dates, i, candle):
                             entry_signal = True
-                            price_point = 'vwap'
-                            entry_price = candle.get('vwap')
-                            if pd.isna(entry_price):
-                                entry_price = candle['close']
-                                price_point = 'close'
+                            price_point = 'mid'
+                            entry_price = (candle['high'] + candle['low']) / 2.0
                     elif self.config['entry_type'] == 'custom':
                         if seq_phase == 0:
                             # Phase 1: check the entry condition (condition 0)
@@ -2420,11 +2411,8 @@ class BacktesterEngine:
                                 else:
                                     # No sequential conditions — enter immediately
                                     entry_signal = True
-                                    price_point = 'vwap'
-                                    entry_price = candle.get('vwap')
-                                    if pd.isna(entry_price):
-                                        entry_price = candle['close']
-                                        price_point = 'close'
+                                    price_point = 'mid'
+                                    entry_price = (candle['high'] + candle['low']) / 2.0
                         else:
                             # Sequential phase k: check seq_conds[seq_phase - 1]
                             seq_cond_current = seq_conds[seq_phase - 1]
@@ -2437,11 +2425,8 @@ class BacktesterEngine:
                                 if seq_phase == len(seq_conds):
                                     # All sequential phases satisfied — entry!
                                     entry_signal = True
-                                    price_point = 'vwap'
-                                    entry_price = candle.get('vwap')
-                                    if pd.isna(entry_price):
-                                        entry_price = candle['close']
-                                        price_point = 'close'
+                                    price_point = 'mid'
+                                    entry_price = (candle['high'] + candle['low']) / 2.0
                                 else:
                                     # Advance to next sequential phase
                                     seq_phase += 1
@@ -2869,20 +2854,14 @@ class BacktesterEngine:
                             }
                             if self.check_velocity_condition(velocity_condition, grouped, dates, i, candle):
                                 entry_signal = True
-                                price_point = 'vwap'
-                                entry_price = candle.get('vwap')
-                                if pd.isna(entry_price):
-                                    entry_price = candle['close']
-                                    price_point = 'close'
+                                price_point = 'mid'
+                                entry_price = (candle['high'] + candle['low']) / 2.0
                         elif self.config['entry_type'] == 'custom':
                             entry_condition = self.config['custom_conditions'][0]
                             if self.check_custom_condition(entry_condition, grouped, dates, i, candle):
                                 entry_signal = True
-                                price_point = 'vwap'
-                                entry_price = candle.get('vwap')
-                                if pd.isna(entry_price):
-                                    entry_price = candle['close']
-                                    price_point = 'close'
+                                price_point = 'mid'
+                                entry_price = (candle['high'] + candle['low']) / 2.0
                         
                         if entry_signal:
                             entry_time = candle['timestamp']
