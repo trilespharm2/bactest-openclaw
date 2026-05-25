@@ -981,7 +981,7 @@ function updateStockConditionFields(n) {
         if (leftMultGroup) leftMultGroup.style.display = 'none';
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
-        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, false);
     } else if (val === 'price') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -990,7 +990,7 @@ function updateStockConditionFields(n) {
         if (leftWindowGroup) leftWindowGroup.style.display = 'none';
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
-        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, false);
     } else if (val === 'vwap') {
         if (leftDayGroup) leftDayGroup.style.display = 'none';
@@ -1008,7 +1008,7 @@ function updateStockConditionFields(n) {
         if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
         if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
         if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
-        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
+        updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, true);
     } else if (val === 'rsi') {
         if (leftDayGroup) leftDayGroup.style.display = 'block';
@@ -1050,7 +1050,7 @@ function updateStockConditionFields(n) {
 function updateStockComparatorOptions(n, options) {
     var sel = document.getElementById('comparator-' + n);
     if (!sel) return;
-    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume', 'compare_trend_capture': 'Trend Capture', 'change_pct_window': 'Change % in Window', 'roc_window': 'Rate of Change in Window' };
+    var labels = { 'value': 'Value', 'compare_price': 'Compare Price', 'compare_vwap': 'Compare VWAP', 'compare_sma': 'Compare SMA', 'compare_ema': 'Compare EMA', 'compare_volume': 'Compare Volume', 'compare_trend_capture': 'Trend Capture', 'change_pct_window': 'Change % in Window', 'roc_window': 'Rate of Change in Window' };
     sel.innerHTML = options.map(function(o) { return '<option value="' + o + '">' + (labels[o] || o) + '</option>'; }).join('');
 }
 
@@ -1166,9 +1166,9 @@ function updateStockRightSide(n) {
     }
     if (tcRightWrapper) tcRightWrapper.style.display = 'none';
 
-    // Enable cross operators for current_price/price/vwap when RHS is SMA or EMA
+    // Enable cross operators for current_price/price/vwap when RHS is SMA, EMA, or VWAP
     if (leftMetric === 'current_price' || leftMetric === 'price' || leftMetric === 'vwap') {
-        setCrossOperators('operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
+        setCrossOperators('operator-' + n, comp === 'compare_sma' || comp === 'compare_ema' || comp === 'compare_vwap');
     }
 
     // MACD self-contained comparators: hide both panels
@@ -1213,7 +1213,7 @@ function updateStockRightSide(n) {
         if (rightType === 'sma' || rightType === 'ema') {
             if (rightWindowGroup) rightWindowGroup.style.display = 'block';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
-        } else if (rightType === 'volume') {
+        } else if (rightType === 'volume' || rightType === 'vwap') {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
         } else {
@@ -1645,6 +1645,7 @@ function updateExitComparatorOptions(n) {
         opts += '<option value="compare_ema">Compare EMA</option>';
     } else if (metric !== 'rsi') {
         opts += '<option value="compare_price">Compare Price</option>';
+        opts += '<option value="compare_vwap">Compare VWAP</option>';
         opts += '<option value="compare_sma">Compare SMA</option>';
         opts += '<option value="compare_ema">Compare EMA</option>';
         opts += '<option value="change_pct_window">Change % in Window</option>';
@@ -1662,10 +1663,10 @@ function updateExitRightSide(n) {
     var valueGroup = document.getElementById('exit-value-input-group-' + n);
     var isEquals = (operator === '=' || operator === '==');
 
-    // Enable cross operators for current_price/price when RHS is SMA or EMA
+    // Enable cross operators for current_price/price/vwap when RHS is SMA, EMA, or VWAP
     var leftMetric = (document.getElementById('exit-metric-' + n) || {}).value || '';
-    if (leftMetric === 'current_price' || leftMetric === 'price') {
-        setCrossOperators('exit-operator-' + n, comp === 'compare_sma' || comp === 'compare_ema');
+    if (leftMetric === 'current_price' || leftMetric === 'price' || leftMetric === 'vwap') {
+        setCrossOperators('exit-operator-' + n, comp === 'compare_sma' || comp === 'compare_ema' || comp === 'compare_vwap');
     }
 
     // MACD self-contained comparators: hide both panels
@@ -1706,7 +1707,7 @@ function updateExitRightSide(n) {
         if (rightType === 'sma' || rightType === 'ema') {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = '';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
-        } else if (rightType === 'volume') {
+        } else if (rightType === 'volume' || rightType === 'vwap') {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
         } else {
