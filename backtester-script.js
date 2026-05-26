@@ -1912,10 +1912,10 @@ function initializeBacktesterPage() {
     function updateExpiryCloseTimeVisibility() {
         var sym = (document.getElementById('symbol') || {}).value || '';
         var isIndex = INDEX_SYMS.has(sym.trim().toUpperCase());
-        var section = document.getElementById('expiryCloseTimeSection');
-        var group = document.getElementById('expiryCloseTimeGroup');
-        if (section) section.style.display = isIndex ? 'none' : '';
-        if (group) group.style.display = isIndex ? 'none' : '';
+        ['expiryCloseTimeRow', 'expiryCloseTimeSection', 'expiryCloseTimeGroup'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = isIndex ? 'none' : '';
+        });
     }
     var symbolInputEl = document.getElementById('symbol');
     if (symbolInputEl) {

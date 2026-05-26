@@ -1661,6 +1661,17 @@
                           <input type="radio" name="allowSynthetic" id="syntheticNo" value="n" class="bt-hidden-radio">
                           <div class="field-hint" style="margin-top:6px;">When enabled, days with no Polygon bar data are priced using Black-Scholes (30-day hist. vol). Trades are tagged <strong>theoretical</strong> in the log.</div>
                         </div>
+                        <div id="expiryCloseTimeRow" style="margin-top:12px; padding-top:12px; border-top:1px solid #e2e8f0;">
+                          <label style="font-size:0.8rem; color:#1e293b; font-weight:600; display:block; margin-bottom:4px;">Expiry Close Time <span style="font-size:0.72rem; color:#64748b; font-weight:400;">(stock options only)</span></label>
+                          <div class="field-hint" style="margin-bottom:8px;">For options held to expiration, calculate P&amp;L using the underlying price at:</div>
+                          <div class="bt-toggle-row">
+                            <button type="button" class="bt-toggle-btn on" data-radio="expiryCloseTime" data-val="16:15" onclick="btToggle(this)">16:15 extended hours</button>
+                            <button type="button" class="bt-toggle-btn" data-radio="expiryCloseTime" data-val="16:00" onclick="btToggle(this)">16:00 market close</button>
+                          </div>
+                          <input type="radio" name="expiryCloseTime" id="expiryClose1615" value="16:15" checked class="bt-hidden-radio">
+                          <input type="radio" name="expiryCloseTime" id="expiryClose1600" value="16:00" class="bt-hidden-radio">
+                          <div class="field-hint" style="margin-top:6px;">Index options (SPX, NDX, RUT) always use 16:00 and ignore this setting.</div>
+                        </div>
                       </div>
                     </div>
 
@@ -5784,6 +5795,7 @@
         config.concurrent_trades = document.querySelector('input[name="concurrentTrades"]:checked')?.value === 'y';
         config.avoid_pdt = document.querySelector('input[name="avoidPdt"]:checked')?.value === 'y';
         config.allow_synthetic = document.querySelector('input[name="allowSynthetic"]:checked')?.value !== 'n';
+        config.expiry_close_time = document.querySelector('input[name="expiryCloseTime"]:checked')?.value || '16:15';
         config.starting_capital = parseFloat(document.getElementById('startingCapital')?.value) || 50000;
         
         const allocTypeRaw = document.querySelector('input[name="allocationType"]:checked')?.value || '1';
