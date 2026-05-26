@@ -6074,11 +6074,11 @@ def run_backtest(config: Dict, client: RESTClient):
                     )
 
                 # For equity options, the settlement reference is the underlying price
-                # at 16:15 ET (extended-hours close), not the 16:00 regular-session
-                # close. Look up the last underlying 1-min bar at or before 16:15 on
-                # the expiration date and use it for intrinsic-value pricing. Fall
-                # back to the daily close when no intraday bar is available.
-                if not is_index:
+                # at 16:15 ET (extended-hours close) by default, or 16:00 if the user
+                # selected the 16:00 option. Index options always use 16:00 intrinsic.
+                # Look up the last underlying 1-min bar at or before the chosen close
+                # time. Fall back to the daily close when no intraday bar is available.
+                if not is_index and exp_close_time == '16:15':
                     _u1615 = get_underlying_price_at_1615(underlying_bars_1min, monitoring_exp)
                     if _u1615 is not None:
                         expiration_underlying_price = _u1615
@@ -6107,7 +6107,7 @@ def run_backtest(config: Dict, client: RESTClient):
                             else:
                                 intrinsic = max(0, leg['strike'] - expiration_underlying_price)
                             final_leg_prices.append(intrinsic)
-                            _ref = "16:15" if not is_index else "16:00"
+                            _ref = exp_close_time
                             print(f"    {leg['name']} (near leg) @ {leg['strike']}: intrinsic from underlying {_ref} = {intrinsic:.4f}")
                         else:
                             # Far-term leg: still has time value — use actual last market price.
@@ -6141,7 +6141,7 @@ def run_backtest(config: Dict, client: RESTClient):
                     final_premium, final_leg_prices = calculate_expiration_values(
                         legs_info, expiration_underlying_price
                     )
-                    _ref = "16:15" if not is_index else "16:00"
+                    _ref = exp_close_time
                     for i, leg in enumerate(legs_info):
                         print(f"    {leg['name']} @ {leg['strike']}: intrinsic from underlying {_ref} = {final_leg_prices[i]:.4f}")
             
