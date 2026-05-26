@@ -44,7 +44,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "/home/runner/workspace/.pythonlibs/bin/gunicorn --bind 0.0.0.0:5000 --reuse-port --reload --timeout 120 --keep-alive 5 --worker-class gthread --workers 1 --threads 4 main:app"
+args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload --timeout 120 --keep-alive 5 --worker-class gthread --workers 1 --threads 4 main:app"
 waitForPort = 5000
 
 [userenv]
