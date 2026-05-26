@@ -3441,6 +3441,7 @@ def start_backtest_async():
                 'eod_action': params.get('eod_action') or params.get('eodAction', 'close'),
                 'trade_frequency': params.get('trade_frequency') or params.get('tradeFrequency', 'daily'),
                 'entry_days': params.get('entry_days') or params.get('entryDays', []),
+                'expiry_close_time': params.get('expiry_close_time', '16:15'),
             },
             'summary': {}
         }

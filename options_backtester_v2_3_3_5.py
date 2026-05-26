@@ -4683,10 +4683,14 @@ def run_backtest(config: Dict, client: RESTClient):
     underlying_sym = get_underlying_ticker(config['symbol'])
     
     # Index options (SPX, SPXW, XSP, NDX, RUT) expire at 16:00 using intrinsic value.
-    # Stock options (SPY, QQQ, AAPL, etc.) expire at 16:15 using the last traded market price.
+    # Stock options (SPY, QQQ, AAPL, etc.) expire at 16:15 using the last traded market price
+    # unless the user has selected 16:00 via the expiry_close_time config setting.
     INDEX_SYMBOLS = {"SPX", "SPXW", "XSP", "NDX", "RUT"}
     is_index = config['symbol'].upper() in INDEX_SYMBOLS
-    exp_close_time = "16:00" if is_index else "16:15"
+    if is_index:
+        exp_close_time = "16:00"
+    else:
+        exp_close_time = config.get('expiry_close_time', '16:15')
     
     # CRITICAL: Entry uses 1-minute bars for precision.
     # Fetch a 7-day buffer before start_date so that the very first backtest day always

@@ -67,11 +67,7 @@ function setCrossOperators(selectId, include) {
     var sel = document.getElementById(selectId);
     if (!sel) return;
     var crossVals = ['cross_up', 'cross_down', 'cross_either'];
-    // Early-exit if already in the right state — avoids removing the selected
-    // option from the DOM (which resets the value to the first option).
-    var hasCross = !!sel.querySelector('option[value="cross_up"]');
-    if (hasCross === !!include) return;
-    var savedVal = sel.value;
+    var savedVal = sel.value; // preserve current selection before removing options
     crossVals.forEach(function(v) {
         var ex = sel.querySelector('option[value="' + v + '"]');
         if (ex) ex.remove();
@@ -83,38 +79,10 @@ function setCrossOperators(selectId, include) {
             opt.textContent = o.label;
             sel.appendChild(opt);
         });
-        // Restore a previously-selected cross value if any
+        // Restore cross selection if it was previously chosen
         if (crossVals.indexOf(savedVal) !== -1) sel.value = savedVal;
     } else {
         if (crossVals.indexOf(sel.value) !== -1) sel.value = '>';
-    }
-}
-
-function _updateMacdCrossOperators(conditionId) {
-    var macdComponent = document.getElementById('leftMacdComponent' + conditionId);
-    var component = macdComponent ? macdComponent.value : 'histogram';
-    // Signal / MACD Line components get Cross Up + Cross Down (no Cross Either).
-    // Histogram component has no cross operators.
-    var sel = document.getElementById('operator' + conditionId);
-    if (!sel) return;
-    var allCross = ['cross_up', 'cross_down', 'cross_either'];
-    var savedVal = sel.value;
-    allCross.forEach(function(v) {
-        var ex = sel.querySelector('option[value="' + v + '"]');
-        if (ex) ex.remove();
-    });
-    if (component === 'signal' || component === 'macd_line') {
-        var upOpt = document.createElement('option');
-        upOpt.value = 'cross_up';
-        upOpt.textContent = 'Cross Up \u2191 (was below, now above)';
-        sel.appendChild(upOpt);
-        var dnOpt = document.createElement('option');
-        dnOpt.value = 'cross_down';
-        dnOpt.textContent = 'Cross Down \u2193 (was above, now below)';
-        sel.appendChild(dnOpt);
-        if (savedVal === 'cross_up' || savedVal === 'cross_down') sel.value = savedVal;
-    } else {
-        if (allCross.indexOf(sel.value) !== -1) sel.value = '>';
     }
 }
 
@@ -127,244 +95,8 @@ const METRICS = [
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
     { value: 'macd', label: 'MACD' },
-    { value: 'trend_capture', label: 'Trend Capture' },
-    { value: 'candle_pattern', label: 'Candle Pattern' }
+    { value: 'trend_capture', label: 'Trend Capture' }
 ];
-
-function _buildCandlePatternPanel(pfx, n) {
-    return `<div id="${pfx}cp-panel-${n}" class="mt-2 p-3 rounded" style="display:none;background:#fdf4ff;border:1px solid #d8b4fe;">
-      <div class="fw-semibold mb-2" style="font-size:11px;color:#7e22ce;text-transform:uppercase;letter-spacing:0.6px;">
-        <i class="fas fa-chart-bar me-1"></i>Candle Pattern Config
-      </div>
-      <div class="row g-2 mb-3">
-        <div class="col-md-3 col-sm-6">
-          <label class="form-label small">Day</label>
-          <select class="form-select form-select-sm" id="${pfx}cp-day-${n}">
-            <option value="0">Today (0)</option><option value="-1">Yesterday (-1)</option>
-            <option value="-2">2 Days Ago (-2)</option><option value="-3">3 Days Ago (-3)</option>
-          </select>
-        </div>
-        <div class="col-md-3 col-sm-6">
-          <label class="form-label small">Candle Type</label>
-          <select class="form-select form-select-sm" id="${pfx}cp-candle-${n}"
-            onchange="_cpUpdateMultMax('${pfx}',${n})">
-            <option value="min">Minute</option><option value="hr">Hour</option>
-          </select>
-        </div>
-        <div class="col-md-2 col-sm-6">
-          <label class="form-label small">Multiplier <small class="text-muted">(max 4h)</small></label>
-          <input type="number" class="form-control form-control-sm" id="${pfx}cp-mult-${n}" min="1" max="240" value="1">
-        </div>
-        <div class="col-md-3 col-sm-6">
-          <label class="form-label small"># Candles in Sequence</label>
-          <select class="form-select form-select-sm" id="${pfx}cp-count-${n}" onchange="_updateCpCandleCount('${pfx}',${n},parseInt(this.value))">
-            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-            <option value="4">4</option><option value="5">5</option>
-          </select>
-        </div>
-      </div>
-      <div id="${pfx}cp-candles-${n}"></div>
-    </div>`;
-}
-
-function _buildCpCandleSection(pfx, n, k) {
-    var prevLabel = k > 1 ? `Candle ${k-1} open` : '';
-    var openRelHtml = k > 1 ? `
-      <div class="mt-2 mb-1">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="${pfx}cp-openrel-cb-${k}-${n}"
-            onchange="_cpToggleOpenRel('${pfx}',${n},${k})">
-          <label class="form-check-label small" for="${pfx}cp-openrel-cb-${k}-${n}">
-            Open relative to prior candle <span class="text-muted">(optional)</span>
-          </label>
-        </div>
-        <div id="${pfx}cp-openrel-fields-${k}-${n}" style="opacity:0.4;pointer-events:none;" class="d-flex align-items-center gap-2 mt-1 ms-1 flex-wrap">
-          <span class="small text-muted">Opens</span>
-          <select class="form-select form-select-sm" id="${pfx}cp-openrel-dir-${k}-${n}" style="width:auto;" disabled>
-            <option value="above">above</option><option value="below">below</option>
-          </select>
-          <span class="small text-muted">${prevLabel}</span>
-        </div>
-      </div>` : '';
-    var prevRangeOpts = '';
-    for (var _j = 1; _j < k; _j++) { prevRangeOpts += `<option value="range_${_j}">Range of Candle ${_j}</option>`; }
-    return `<div class="card p-2 mb-2" id="${pfx}cp-c-${k}-${n}" style="background:#fefce8;border:1px solid #fde047;">
-      <div class="fw-semibold small mb-2" style="color:#92400e;">Candle ${k}</div>
-      <div class="mb-2">
-        <label class="form-label small mb-1">Direction</label>
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-sm btn-success" id="${pfx}cp-dir-bull-${k}-${n}"
-            onclick="_cpSetDir('${pfx}',${n},${k},'bullish')" style="min-width:90px;">
-            <i class="fas fa-arrow-up me-1"></i>Bullish
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-danger" id="${pfx}cp-dir-bear-${k}-${n}"
-            onclick="_cpSetDir('${pfx}',${n},${k},'bearish')" style="min-width:90px;">
-            <i class="fas fa-arrow-down me-1"></i>Bearish
-          </button>
-        </div>
-        <input type="hidden" id="${pfx}cp-direction-${k}-${n}" value="bullish">
-      </div>
-      ${openRelHtml}
-      <div class="mt-2 pt-2" style="border-top:1px dashed #fde047;">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="${pfx}cp-range-cb-${k}-${n}"
-            onchange="_cpToggleRange('${pfx}',${n},${k})">
-          <label class="form-check-label small fw-semibold" for="${pfx}cp-range-cb-${k}-${n}">
-            Range Condition <span class="fw-normal text-muted">(optional)</span>
-          </label>
-        </div>
-        <div id="${pfx}cp-range-fields-${k}-${n}" style="display:none;" class="row g-2 mt-1">
-          <div class="col-md-3 col-sm-6">
-            <label class="form-label small">Range</label>
-            <select class="form-select form-select-sm" id="${pfx}cp-range-type-${k}-${n}">
-              <option value="open_close">Open – Close (Body)</option>
-              <option value="high_low">High – Low (Total)</option>
-              <option value="close_high">Close – High (Upper Wick)</option>
-              <option value="close_low">Close – Low (Lower Wick)</option>
-              <option value="open_low">Open – Low</option>
-              <option value="open_high">Open – High</option>
-            </select>
-          </div>
-          <div class="col-md-2 col-sm-6">
-            <label class="form-label small">Operator</label>
-            <select class="form-select form-select-sm" id="${pfx}cp-op-${k}-${n}">
-              <option value=">">&gt;</option><option value="<">&lt;</option>
-              <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
-              <option value="=">=</option><option value="!=">!=</option>
-              <option value="><">⊂ Within</option><option value="<>">⊃ Outside</option>
-            </select>
-          </div>
-          <div class="col-md-3 col-sm-6">
-            <label class="form-label small">Comparator</label>
-            <select class="form-select form-select-sm" id="${pfx}cp-comp-${k}-${n}"
-              onchange="_cpUpdateComparatorFields('${pfx}',${n},${k})">
-              <option value="value_dollar">$ Value</option>
-              <option value="value_pct">% of Close</option>
-              <option value="pct_avg_range">% Avg Range</option>
-              <option value="dollar_avg_range">$ Avg Range</option>
-              <option value="range_same">Range of Same Candle</option>
-              ${prevRangeOpts}
-            </select>
-          </div>
-          <div class="col-md-3 col-sm-6" id="${pfx}cp-comp-range-grp-${k}-${n}" style="display:none;">
-            <label class="form-label small">Compare Range</label>
-            <select class="form-select form-select-sm" id="${pfx}cp-comp-range-type-${k}-${n}">
-              <option value="open_close">Open – Close</option><option value="high_low">High – Low</option>
-              <option value="close_high">Close – High</option><option value="close_low">Close – Low</option>
-              <option value="open_low">Open – Low</option><option value="open_high">Open – High</option>
-            </select>
-          </div>
-          <div class="col-md-2 col-sm-6">
-            <label class="form-label small">Value</label>
-            <input type="number" class="form-control form-control-sm" id="${pfx}cp-val-${k}-${n}" step="0.01" min="0" placeholder="e.g. 0.5">
-          </div>
-          <div class="col-12">
-            <small class="text-muted" id="${pfx}cp-hint-${k}-${n}"></small>
-          </div>
-        </div>
-      </div>
-    </div>`;
-}
-
-function _updateCpCandleCount(pfx, n, count) {
-    var container = document.getElementById(pfx + 'cp-candles-' + n);
-    if (!container) return;
-    count = Math.max(1, Math.min(5, parseInt(count) || 1));
-    for (var k = 5; k > count; k--) {
-        var el = document.getElementById(pfx + 'cp-c-' + k + '-' + n);
-        if (el) el.remove();
-    }
-    for (var k = 1; k <= count; k++) {
-        if (!document.getElementById(pfx + 'cp-c-' + k + '-' + n)) {
-            container.insertAdjacentHTML('beforeend', _buildCpCandleSection(pfx, n, k));
-            _cpSetDir(pfx, n, k, 'bullish');
-        }
-    }
-}
-
-function _cpSetDir(pfx, n, k, dir) {
-    var hidden = document.getElementById(pfx + 'cp-direction-' + k + '-' + n);
-    if (hidden) hidden.value = dir;
-    var bull = document.getElementById(pfx + 'cp-dir-bull-' + k + '-' + n);
-    var bear = document.getElementById(pfx + 'cp-dir-bear-' + k + '-' + n);
-    if (bull) { bull.className = dir === 'bullish' ? 'btn btn-sm btn-success' : 'btn btn-sm btn-outline-success'; bull.style.minWidth = '90px'; }
-    if (bear) { bear.className = dir === 'bearish' ? 'btn btn-sm btn-danger' : 'btn btn-sm btn-outline-danger'; bear.style.minWidth = '90px'; }
-}
-
-function _cpUpdateMultMax(pfx, n) {
-    var candleSel = document.getElementById(pfx + 'cp-candle-' + n);
-    var multInp   = document.getElementById(pfx + 'cp-mult-' + n);
-    if (!candleSel || !multInp) return;
-    var maxV = candleSel.value === 'hr' ? 4 : 240;
-    multInp.max = maxV;
-    var cur = parseInt(multInp.value) || 1;
-    if (cur > maxV) multInp.value = maxV;
-}
-
-function _cpToggleOpenRel(pfx, n, k) {
-    var cb  = document.getElementById(pfx + 'cp-openrel-cb-' + k + '-' + n);
-    var f   = document.getElementById(pfx + 'cp-openrel-fields-' + k + '-' + n);
-    var sel = document.getElementById(pfx + 'cp-openrel-dir-' + k + '-' + n);
-    var active = !!(cb && cb.checked);
-    if (f) { f.style.opacity = active ? '1' : '0.4'; f.style.pointerEvents = active ? '' : 'none'; }
-    if (sel) sel.disabled = !active;
-}
-
-function _cpToggleRange(pfx, n, k) {
-    var cb = document.getElementById(pfx + 'cp-range-cb-' + k + '-' + n);
-    var f  = document.getElementById(pfx + 'cp-range-fields-' + k + '-' + n);
-    if (f) f.style.display = (cb && cb.checked) ? '' : 'none';
-    _cpUpdateComparatorFields(pfx, n, k);
-}
-
-function _cpUpdateComparatorFields(pfx, n, k) {
-    var comp = (document.getElementById(pfx + 'cp-comp-' + k + '-' + n) || {}).value || 'value_dollar';
-    var grp  = document.getElementById(pfx + 'cp-comp-range-grp-' + k + '-' + n);
-    var isRangeRef = comp === 'range_same' || /^range_\d+$/.test(comp);
-    if (grp) grp.style.display = isRangeRef ? '' : 'none';
-    var hint = document.getElementById(pfx + 'cp-hint-' + k + '-' + n);
-    if (hint) {
-        var _hints = {
-            value_dollar: 'Compare range in $ (e.g. body > $0.50)',
-            value_pct: 'Compare range as % of close price (e.g. 0.5 = 0.5% of close)',
-            pct_avg_range: 'Compare range as % of average range (e.g. 150 = 1.5× avg range)',
-            dollar_avg_range: 'Compare range as $ multiple of average range (e.g. 1.5 = 1.5× avg)',
-            range_same: 'Compare this range against another range of the same candle (% ratio)'
-        };
-        var hintText = _hints[comp];
-        if (!hintText && /^range_\d+$/.test(comp)) {
-            hintText = 'Compare this range against a range of Candle ' + comp.split('_')[1] + ' (% ratio)';
-        }
-        hint.textContent = hintText || '';
-    }
-}
-
-function _serializeCpCandles(pfx, n, id) {
-    var numCandles = parseInt((document.getElementById(pfx + 'cp-count-' + id) || {}).value) || 1;
-    var out = [];
-    for (var k = 1; k <= numCandles; k++) {
-        var spec = {
-            direction: (document.getElementById(pfx + 'cp-direction-' + k + '-' + id) || {}).value || 'bullish'
-        };
-        var openRelCb = document.getElementById(pfx + 'cp-openrel-cb-' + k + '-' + id);
-        if (openRelCb && openRelCb.checked) {
-            spec.open_rel = (document.getElementById(pfx + 'cp-openrel-dir-' + k + '-' + id) || {}).value || 'above';
-        }
-        var rangeCb = document.getElementById(pfx + 'cp-range-cb-' + k + '-' + id);
-        spec.range_enabled = !!(rangeCb && rangeCb.checked);
-        if (spec.range_enabled) {
-            spec.range_type  = (document.getElementById(pfx + 'cp-range-type-' + k + '-' + id) || {}).value || 'open_close';
-            spec.operator    = (document.getElementById(pfx + 'cp-op-' + k + '-' + id) || {}).value || '>';
-            spec.comparator  = (document.getElementById(pfx + 'cp-comp-' + k + '-' + id) || {}).value || 'value_dollar';
-            spec.range_value = parseFloat((document.getElementById(pfx + 'cp-val-' + k + '-' + id) || {}).value) || 0;
-            if (spec.comparator === 'range_same' || /^range_\d+$/.test(spec.comparator)) {
-                spec.comp_range_type = (document.getElementById(pfx + 'cp-comp-range-type-' + k + '-' + id) || {}).value || 'open_close';
-            }
-        }
-        out.push(spec);
-    }
-    return out;
-}
 
 function updateOptionsEntryType() {
     const type = document.querySelector('input[name="optionsEntryType"]:checked')?.value || 'none';
@@ -483,7 +215,6 @@ function addOptExitCondition() {
                 </div>
             </div>
         </div>
-        ${_buildCandlePatternPanel('opt-exit-', n)}
         
         <div class="condition-operator mb-3">
             <div class="row g-2 align-items-end">
@@ -616,40 +347,6 @@ function addOptExitCondition() {
 
 function updateOptExitConditionFields(n) {
     var metric = (document.getElementById('optExitMetric' + n) || {}).value || 'current_price';
-
-    // Always hide CP panel first; show only for candle_pattern
-    var cpPanelExit = document.getElementById('opt-exit-cp-panel-' + n);
-    if (cpPanelExit) cpPanelExit.style.display = 'none';
-
-    if (metric === 'candle_pattern') {
-        var el;
-        el = document.getElementById('optExitLeftDayGroup' + n); if (el) el.style.display = 'none';
-        el = document.getElementById('optExitLeftCandleTypeGroup' + n); if (el) el.style.display = 'none';
-        el = document.getElementById('optExitLeftMultiplierGroup' + n); if (el) el.style.display = 'none';
-        el = document.getElementById('optExitLeftWindowGroup' + n); if (el) el.style.display = 'none';
-        el = document.getElementById('optExitLeftSeriesTypeGroup' + n); if (el) el.style.display = 'none';
-        el = document.getElementById('optExitLeftTimeframeGroup' + n); if (el) el.style.display = 'none';
-        if (cpPanelExit) {
-            cpPanelExit.style.display = 'block';
-            var cpCont = document.getElementById('opt-exit-cp-candles-' + n);
-            if (cpCont && cpCont.children.length === 0) _updateCpCandleCount('opt-exit-', n, 1);
-        }
-        var condDiv = document.getElementById('optExitCondition' + n);
-        if (condDiv) {
-            var opRow = condDiv.querySelector('.condition-operator');
-            if (opRow) opRow.style.display = 'none';
-            var rSide = document.getElementById('optExitRightSide' + n);
-            if (rSide) rSide.style.display = 'none';
-        }
-        return;
-    } else {
-        var condDiv = document.getElementById('optExitCondition' + n);
-        if (condDiv) {
-            var opRow = condDiv.querySelector('.condition-operator');
-            if (opRow) opRow.style.display = '';
-        }
-    }
-
     var isCurrentPrice = metric === 'current_price';
     var isVwap = metric === 'vwap';
     var isIndicator = ['sma', 'ema'].indexOf(metric) !== -1;
@@ -826,21 +523,7 @@ function collectOptExitConditions() {
             delete condition.left.series_type;
         }
 
-        if (metric === 'candle_pattern') {
-            condition.metric = 'candle_pattern';
-            condition.left_type = 'candle_pattern';
-            condition.cp_day = parseInt((document.getElementById('opt-exit-cp-day-' + id) || {}).value) || 0;
-            condition.cp_candle = (document.getElementById('opt-exit-cp-candle-' + id) || {}).value || 'min';
-            condition.cp_multiplier = parseInt((document.getElementById('opt-exit-cp-mult-' + id) || {}).value) || 1;
-            condition.cp_num_candles = parseInt((document.getElementById('opt-exit-cp-count-' + id) || {}).value) || 1;
-            condition.cp_candles = _serializeCpCandles('opt-exit-', null, id);
-            condition.operator = '>';
-            condition.comparator = 'value';
-            condition.compare_value = 0;
-            delete condition.left;
-            delete condition.right;
-            delete condition.threshold;
-        } else if (comparator === 'value') {
+        if (comparator === 'value') {
             var rawVal = (document.getElementById('optExitCompareValue' + id) || {}).value;
             condition.compare_value = rawVal !== '' && rawVal !== undefined ? parseFloat(rawVal) : null;
         } else {
@@ -1009,13 +692,8 @@ function addPriceCondition() {
                         </select>
                     </div>
                     <div class="col-md-3 col-sm-6">
-                        <label class="form-label small">Time Window</label>
-                        <select class="form-select form-select-sm" id="tcLeftTimeWindow${conditionId}">
-                            <option value="day_of_entry" selected>Day of Entry</option>
-                            <option value="prior_day">Prior Day</option>
-                            <option value="week_of_entry">Week of Entry</option>
-                            <option value="month_of_entry">Month of Entry</option>
-                        </select>
+                        <label class="form-label small">Days Back <span class="text-muted" style="font-size:10px;">(1=today, 2=prev+today…)</span></label>
+                        <input type="number" class="form-control form-control-sm" id="tcLeftTimeWindow${conditionId}" value="1" min="1" max="30" step="1" placeholder="1">
                     </div>
                     <div class="col-md-3 col-sm-6">
                         <label class="form-label small">Price Type</label>
@@ -1065,13 +743,8 @@ function addPriceCondition() {
                         </select>
                     </div>
                     <div class="col-md-3 col-sm-6">
-                        <label class="form-label small">Time Window</label>
-                        <select class="form-select form-select-sm" id="tcRightTimeWindow${conditionId}">
-                            <option value="day_of_entry" selected>Day of Entry</option>
-                            <option value="prior_day">Prior Day</option>
-                            <option value="week_of_entry">Week of Entry</option>
-                            <option value="month_of_entry">Month of Entry</option>
-                        </select>
+                        <label class="form-label small">Days Back <span class="text-muted" style="font-size:10px;">(1=today, 2=prev+today…)</span></label>
+                        <input type="number" class="form-control form-control-sm" id="tcRightTimeWindow${conditionId}" value="1" min="1" max="30" step="1" placeholder="1">
                     </div>
                     <div class="col-md-3 col-sm-6">
                         <label class="form-label small">Price Type</label>
@@ -1079,6 +752,27 @@ function addPriceCondition() {
                             <option value="highest_high">Highest High</option>
                             <option value="lowest_low" selected>Lowest Low</option>
                         </select>
+                    </div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-12">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" id="tcRightSlopeEnabled${conditionId}" onchange="toggleOptTimeWindow('tcRightSlopeFields${conditionId}', this.checked)">
+                            <label class="form-check-label small text-muted" for="tcRightSlopeEnabled${conditionId}">Optional: Slope direction check</label>
+                        </div>
+                        <div id="tcRightSlopeFields${conditionId}" style="display:none;" class="row g-2 mb-2">
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label small">Slope Operator</label>
+                                <select class="form-select form-select-sm" id="tcRightSlopeOp${conditionId}">
+                                    <option value=">">&gt;</option><option value="<">&lt;</option>
+                                    <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label small">Slope Value</label>
+                                <input type="number" class="form-control form-control-sm" id="tcRightSlopeVal${conditionId}" value="0" step="0.01" placeholder="0">
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="row g-2 mt-1">
@@ -1104,7 +798,6 @@ function addPriceCondition() {
                 </div>
             </div>
         </div>
-        ${_buildCandlePatternPanel('opt-', conditionId)}
         
         <!-- Operator Row -->
         <div class="condition-operator mb-3">
@@ -1126,12 +819,8 @@ function addPriceCondition() {
                     </select>
                 </div>
                 <div class="col-md-3" id="valueInputGroup${conditionId}">
-                    <label class="form-label" id="valueInputLabel${conditionId}">Value</label>
+                    <label class="form-label">Value</label>
                     <input type="number" class="form-control" id="compareValue${conditionId}" step="0.01" placeholder="e.g., 50">
-                </div>
-                <div class="col-md-3" id="valueInputGroupHigh${conditionId}" style="display:none;">
-                    <label class="form-label">High</label>
-                    <input type="number" class="form-control" id="compareValueHigh${conditionId}" step="0.01" placeholder="e.g., 80">
                 </div>
             </div>
         </div>
@@ -1250,17 +939,23 @@ function addPriceCondition() {
                 <input class="form-check-input" type="checkbox" id="optEntrySeqEnabled${conditionId}" onchange="_updateOptSeqMode(${conditionId})">
                 <label class="form-check-label small fw-bold" for="optEntrySeqEnabled${conditionId}" style="color:#374151;">
                     Sequential Phase
-                    <span style="font-weight:400;color:#6b7280;">— triggers <em>after</em> previous condition fires, not simultaneously</span>
+                    <span style="font-weight:400;color:#6b7280;">— triggers <em>after</em> a selected phase fires, not simultaneously</span>
                 </label>
             </div>
             <div id="optSeqFields${conditionId}" style="display:none;" class="mt-2">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Triggers after</label>
+                        <select class="form-select form-select-sm" id="optEntrySeqPrereqPhase${conditionId}" onchange="_relabelAllPriceConditions()">
+                            <option value="1">Phase 1 (Initial)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
                         <label class="form-label small">Max Wait Bars <span class="text-muted">(0 = no limit)</span></label>
                         <input type="number" class="form-control form-control-sm" id="optEntrySeqMaxWait${conditionId}" value="0" min="0" max="500" placeholder="e.g. 10">
                     </div>
                     <div class="col-12">
-                        <small class="text-muted">Entry fires when this condition triggers after the previous phase. Set <strong>Max Wait Bars &gt; 0</strong> to auto-reset and re-arm if this phase does not trigger in time.</small>
+                        <small class="text-muted">Arms after the selected phase fires. Conditions sharing the same prerequisite phase are checked <strong>simultaneously</strong> (concurrent group). Set <strong>Max Wait Bars &gt; 0</strong> to auto-reset if not triggered in time.</small>
                     </div>
                 </div>
             </div>
@@ -1279,7 +974,6 @@ function addPriceCondition() {
     });
 
     updateConditionFields(conditionId);
-    _updateClearAllConditionsBtn();
 }
 
 function removePriceCondition(conditionId) {
@@ -1301,28 +995,72 @@ function _updateOptSeqMode(id) {
     _relabelAllPriceConditions();
 }
 
-// Recompute phase labels for all options entry conditions
+// Recompute phase labels and prereq dropdowns for all options entry conditions
 function _relabelAllPriceConditions() {
     const container = document.getElementById('priceConditionsContainer');
     if (!container) return;
     const rows = container.querySelectorAll('.price-condition-row');
-    var nextSeqPhase = 2;
+
+    // First pass: snapshot current seq state so we can compute available phases
+    var condData = [];
+    rows.forEach(function(row, index) {
+        var id = row.id.replace('priceCondition', '');
+        var seqCb = document.getElementById('optEntrySeqEnabled' + id);
+        var isSeq = index > 0 && seqCb && seqCb.checked;
+        var prereqEl = document.getElementById('optEntrySeqPrereqPhase' + id);
+        var prereqPhase = isSeq ? (parseInt(prereqEl && prereqEl.value) || 1) : null;
+        condData.push({ id: id, index: index, isSeq: isSeq, prereqPhase: prereqPhase });
+    });
+
+    // Second pass: update labels and prereq dropdowns
     rows.forEach(function(row, index) {
         var id = row.id.replace('priceCondition', '');
         var labelEl = document.getElementById('optCondModeLabel' + id);
         var seqCb   = document.getElementById('optEntrySeqEnabled' + id);
         if (!labelEl) return;
+
         if (index === 0) {
             labelEl.textContent = 'Condition 1 — Phase 1: Initial Trigger';
-        } else {
-            var isSeq = seqCb && seqCb.checked;
-            if (isSeq) {
-                labelEl.textContent = `Condition ${index + 1} — Phase ${nextSeqPhase}: Sequential Trigger`;
-                nextSeqPhase++;
-            } else {
-                labelEl.textContent = `Condition ${index + 1} — Phase 1: Prerequisite`;
-            }
+            return;
         }
+
+        var isSeq = seqCb && seqCb.checked;
+        if (!isSeq) {
+            labelEl.textContent = 'Condition ' + (index + 1) + ' — Phase 1: Prerequisite (simultaneous)';
+            return;
+        }
+
+        // Populate prereq dropdown: Phase 1 always available; Phase N+1 available if any
+        // earlier seq condition has prereqPhase=N (meaning it creates phase N+1)
+        var prereqEl = document.getElementById('optEntrySeqPrereqPhase' + id);
+        if (prereqEl) {
+            var currentVal = parseInt(prereqEl.value) || 1;
+            var availPhases = [1];
+            for (var j = 0; j < index; j++) {
+                var d = condData[j];
+                if (d.isSeq && d.prereqPhase) {
+                    var generated = d.prereqPhase + 1;
+                    if (availPhases.indexOf(generated) === -1) availPhases.push(generated);
+                }
+            }
+            availPhases.sort(function(a, b) { return a - b; });
+            // Clamp stored value to available options
+            if (availPhases.indexOf(currentVal) === -1) currentVal = availPhases[availPhases.length - 1];
+            prereqEl.innerHTML = availPhases.map(function(ph) {
+                var label = ph === 1 ? 'Phase 1 (Initial)' : 'Phase ' + ph;
+                return '<option value="' + ph + '"' + (ph === currentVal ? ' selected' : '') + '>' + label + '</option>';
+            }).join('');
+            condData[index].prereqPhase = currentVal;
+        }
+
+        var prereqPhase = condData[index].prereqPhase || 1;
+        var myPhase = prereqPhase + 1;
+        // Check if concurrent (another seq condition sharing the same prereqPhase)
+        var concurrentCount = condData.filter(function(d, i) {
+            return i !== index && d.isSeq && d.prereqPhase === prereqPhase;
+        }).length;
+        var concurrentNote = concurrentCount > 0 ? ' (concurrent)' : '';
+        labelEl.textContent = 'Condition ' + (index + 1) + ' — Phase ' + myPhase + ': Sequential Trigger' + concurrentNote;
     });
 }
 
@@ -1332,35 +1070,10 @@ function renumberPriceConditions() {
     
     const conditionRows = container.querySelectorAll('.price-condition-row');
     
-    // Use max existing element ID + 1 to avoid collisions when a non-last
-    // condition is removed (e.g. remove id=0, keep id=1 → count must be 2,
-    // not 1, so the next addPriceCondition uses id=2 not id=1).
-    let maxId = -1;
-    conditionRows.forEach(row => {
-        const id = parseInt(row.id.replace('priceCondition', ''), 10);
-        if (!isNaN(id) && id > maxId) maxId = id;
-    });
-    priceConditionCount = maxId + 1;
+    // Reset counter to match current count (for next add)
+    priceConditionCount = conditionRows.length;
 
-    _updateClearAllConditionsBtn();
     _relabelAllPriceConditions();
-}
-
-function _updateClearAllConditionsBtn() {
-    const btn = document.getElementById('clearAllConditionsBtn');
-    if (!btn) return;
-    const container = document.getElementById('priceConditionsContainer');
-    const count = container ? container.querySelectorAll('.price-condition-row').length : 0;
-    btn.style.display = count > 0 ? 'inline-flex' : 'none';
-}
-
-function clearAllPriceConditions() {
-    const container = document.getElementById('priceConditionsContainer');
-    if (!container) return;
-    container.innerHTML = '';
-    priceConditionCount = 0;
-    _updateClearAllConditionsBtn();
-    checkDayCandleConditions();
 }
 
 function updateConditionFields(conditionId) {
@@ -1405,7 +1118,7 @@ function updateConditionFields(conditionId) {
             if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
             if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
             if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
         case 'price':
@@ -1415,7 +1128,7 @@ function updateConditionFields(conditionId) {
             if (leftWindowGroup) leftWindowGroup.style.display = 'none';
             if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'block';
             if (leftSeriesLabel) leftSeriesLabel.textContent = 'Price Type';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
 
@@ -1506,6 +1219,7 @@ function updateConditionFields(conditionId) {
             if (leftMacdSignalGroup) leftMacdSignalGroup.style.display = 'block';
             if (leftMacdComponentGroup) leftMacdComponentGroup.style.display = 'block';
             updateMacdComparatorOptions(conditionId);
+            setCrossOperators('operator' + conditionId, false);
             break;
 
         case 'trend_capture':
@@ -1530,49 +1244,14 @@ function updateConditionFields(conditionId) {
             updateComparatorOptions(conditionId, ['value', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
-
-        case 'candle_pattern':
-            if (leftDayGroup) leftDayGroup.style.display = 'none';
-            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
-            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
-            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
-            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
-            (function() {
-                var cpP = document.getElementById('opt-cp-panel-' + conditionId);
-                if (cpP) {
-                    cpP.style.display = 'block';
-                    var cpCont = document.getElementById('opt-cp-candles-' + conditionId);
-                    if (cpCont && cpCont.children.length === 0) _updateCpCandleCount('opt-', conditionId, 1);
-                }
-                var condDiv = document.getElementById('priceCondition' + conditionId);
-                if (condDiv) {
-                    var opRow = condDiv.querySelector('.condition-operator');
-                    if (opRow) opRow.style.display = 'none';
-                    var rSide = document.getElementById('rightSide' + conditionId);
-                    if (rSide) rSide.style.display = 'none';
-                }
-            })();
-            updateComparatorOptions(conditionId, []);
-            setCrossOperators('operator' + conditionId, false);
-            break;
     }
 
-    // Always hide TC/CP panels unless the matching metric is active
+    // Always hide TC panels unless metric is trend_capture
     if (metric !== 'trend_capture') {
         var tcP = document.getElementById('tcLeftPanel' + conditionId);
         if (tcP) tcP.style.display = 'none';
     }
-    if (metric !== 'candle_pattern') {
-        var cpP2 = document.getElementById('opt-cp-panel-' + conditionId);
-        if (cpP2) cpP2.style.display = 'none';
-        var condDiv2 = document.getElementById('priceCondition' + conditionId);
-        if (condDiv2) {
-            var opRow2 = condDiv2.querySelector('.condition-operator');
-            if (opRow2) opRow2.style.display = '';
-        }
-    }
 
-    if (metric === 'candle_pattern') return;
     updateRightSideVisibility(conditionId);
 }
 
@@ -1679,27 +1358,20 @@ function updateComparatorOptions(conditionId, options) {
 }
 
 function updateMacdComparatorOptions(conditionId) {
-    var macdComponent = document.getElementById('leftMacdComponent' + conditionId) ? document.getElementById('leftMacdComponent' + conditionId).value : 'histogram';
-    var comparatorSelect = document.getElementById('comparator' + conditionId);
+    const macdComponent = document.getElementById(`leftMacdComponent${conditionId}`)?.value;
+    const comparatorSelect = document.getElementById(`comparator${conditionId}`);
     if (!comparatorSelect) return;
-    var savedVal = comparatorSelect.value;
-    if (macdComponent === 'signal') {
-        comparatorSelect.innerHTML =
-            '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_macd_line">MACD Line</option>';
-    } else if (macdComponent === 'macd_line') {
-        comparatorSelect.innerHTML =
-            '<option value="zero_line">Zero Line</option>' +
-            '<option value="compare_signal">Signal Line</option>';
-    } else {
-        comparatorSelect.innerHTML =
-            '<option value="value">Value</option>' +
-            '<option value="compare_histogram">Compare Histogram</option>';
-    }
-    if (comparatorSelect.querySelector('option[value="' + savedVal + '"]')) {
-        comparatorSelect.value = savedVal;
-    }
-    _updateMacdCrossOperators(conditionId);
+    
+    const componentLabels = {
+        'histogram': 'Compare Histogram',
+        'signal': 'Compare Signal',
+        'macd_line': 'Compare MACD Line'
+    };
+    
+    comparatorSelect.innerHTML = `
+        <option value="value">Value</option>
+        <option value="compare_${macdComponent}">${componentLabels[macdComponent] || 'Compare'}</option>
+    `;
 }
 
 function updateRightSideVisibility(conditionId) {
@@ -1709,45 +1381,40 @@ function updateRightSideVisibility(conditionId) {
     const valueInputGroup = document.getElementById(`valueInputGroup${conditionId}`);
     const metric = document.getElementById(`metric${conditionId}`)?.value;
     const isEquals = (operator === '==' || operator === '=');
-    
+
     if (!rightSide || !valueInputGroup) return;
 
-    // Enable cross operators for current_price when RHS is SMA, EMA, or VWAP
+    // Whether price metric is being compared to TC line value
+    var isPriceTc = (comparator === 'compare_trend_capture') && (metric === 'current_price' || metric === 'price');
+
+    // Cross operators: price vs TC supports crosses; current_price vs SMA/EMA/VWAP also
     if (metric === 'current_price') {
-        var crossOk = comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_vwap';
+        var crossOk = comparator === 'compare_sma' || comparator === 'compare_ema' || comparator === 'compare_vwap' || isPriceTc;
         setCrossOperators('operator' + conditionId, crossOk);
     }
-    // MACD: update cross operators whenever comparator changes
-    if (metric === 'macd') {
-        _updateMacdCrossOperators(conditionId);
+    if (metric === 'price') {
+        setCrossOperators('operator' + conditionId, isPriceTc);
     }
 
-    // TC right panel: show/hide based on comparator
+    // TC right panel: always show when comparator=compare_trend_capture
     var tcRightPanelEl = document.getElementById('tcRightPanel' + conditionId);
     if (tcRightPanelEl) tcRightPanelEl.style.display = (comparator === 'compare_trend_capture') ? 'block' : 'none';
 
-    const isBetween = operator === '><';
-    const valueInputGroupHigh = document.getElementById(`valueInputGroupHigh${conditionId}`);
-    const valueInputLabel = document.getElementById(`valueInputLabel${conditionId}`);
-
-    const isMacdSelfComp = metric === 'macd' && (comparator === 'zero_line' || comparator === 'compare_macd_line' || comparator === 'compare_signal');
-    if (comparator === 'value' || comparator === 'compare_trend_capture' || isMacdSelfComp) {
+    if (comparator === 'value') {
         rightSide.style.display = 'none';
-        valueInputGroup.style.display = comparator === 'value' ? 'block' : 'none';
-        if (comparator === 'value') {
-            if (valueInputLabel) valueInputLabel.textContent = isBetween ? 'Low' : 'Value';
-            if (valueInputGroupHigh) valueInputGroupHigh.style.display = isBetween ? 'block' : 'none';
-        } else {
-            if (valueInputGroupHigh) valueInputGroupHigh.style.display = 'none';
-        }
+        valueInputGroup.style.display = 'block';
+    } else if (comparator === 'compare_trend_capture' && !isPriceTc) {
+        // TC slope vs TC slope: hide standard right side entirely
+        rightSide.style.display = 'none';
+        valueInputGroup.style.display = 'none';
     } else {
-        if (valueInputGroupHigh) valueInputGroupHigh.style.display = 'none';
+        // All standard comparators + price-vs-TC (show rightSide so threshold is visible)
         rightSide.style.display = 'block';
         valueInputGroup.style.display = 'none';
-        
+
         // Update right side fields based on comparator type
         updateRightSideFields(conditionId, comparator);
-        
+
         var thresholdUnit = document.getElementById(`thresholdUnit${conditionId}`);
         var thresholdValue = document.getElementById(`thresholdValue${conditionId}`);
         var threshUnitCol = thresholdUnit ? thresholdUnit.closest('.col-md-3') : null;
@@ -1827,6 +1494,16 @@ function updateRightSideFields(conditionId, comparator) {
         if (rightMacdShortGroup) rightMacdShortGroup.style.display = 'block';
         if (rightMacdLongGroup) rightMacdLongGroup.style.display = 'block';
         if (rightMacdSignalGroup) rightMacdSignalGroup.style.display = 'block';
+    } else if (comparator === 'compare_trend_capture') {
+        // Price vs TC line: hide all standard right-side fields (TC config shown in tcRightPanel)
+        if (rightWindowGroup) rightWindowGroup.style.display = 'none';
+        if (rightSeriesTypeGroup) rightSeriesTypeGroup.style.display = 'none';
+        var _rDayGrp   = document.getElementById('rightDayGroup' + conditionId);
+        var _rCndlGrp  = document.getElementById('rightCandleTypeGroup' + conditionId);
+        var _rMultGrp  = document.getElementById('rightMultiplierGroup' + conditionId);
+        if (_rDayGrp)   _rDayGrp.style.display = 'none';
+        if (_rCndlGrp)  _rCndlGrp.style.display = 'none';
+        if (_rMultGrp)  _rMultGrp.style.display = 'none';
     }
 }
 
@@ -1856,7 +1533,7 @@ function buildOptConditionDesc(n, isExit) {
     function getVal(id) { return (document.getElementById(id) || {}).value; }
 
     var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe;
-    var compareValue, compareValueHigh, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
+    var compareValue, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
 
     if (isExit) {
         metric         = getVal('optExitMetric' + n) || 'current_price';
@@ -1885,7 +1562,6 @@ function buildOptConditionDesc(n, isExit) {
         leftSeries     = getVal('leftSeriesType' + n) || 'close';
         leftTimeframe  = parseInt(getVal('leftTimeframe' + n) || '5') || 5;
         compareValue   = getVal('compareValue' + n);
-        compareValueHigh = getVal('compareValueHigh' + n);
         rightDay       = parseInt(getVal('rightDay' + n) || '0');
         rightCandle    = getVal('rightCandleType' + n) || 'minute';
         rightMult      = parseInt(getVal('rightMultiplier' + n) || '1');
@@ -1910,23 +1586,22 @@ function buildOptConditionDesc(n, isExit) {
     }
     // Trend Capture shortcut description
     if (metric === 'trend_capture') {
-        var prefix = isExit ? 'optExit' : '';
         function _tcDesc(side) {
             var intervalEl  = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'Interval' + n);
             var windowEl    = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'TimeWindow' + n);
             var priceEl     = document.getElementById((side === 'left' ? 'tcLeft' : 'tcRight') + 'PriceType' + n);
             var interval    = intervalEl ? intervalEl.value : '1hr';
-            var window_     = windowEl  ? windowEl.value   : 'day_of_entry';
+            var window_     = windowEl  ? (parseInt(windowEl.value) || 1) : 1;
             var pt          = priceEl   ? priceEl.value    : 'lowest_low';
             var ptLabel = pt === 'highest_high' ? 'HH' : 'LL';
-            var winLabel = {'day_of_entry':'today','prior_day':'prev day','week_of_entry':'this week','month_of_entry':'this month'}[window_] || window_;
+            var winLabel = window_ + 'd';
             return 'TC(' + interval + ', ' + ptLabel + ', ' + winLabel + ')';
         }
         var leftTcDesc = _tcDesc('left');
         if (comparator === 'compare_trend_capture') {
             return leftTcDesc + ' ' + operator + ' ' + _tcDesc('right');
         }
-        return leftTcDesc + ' — slope direction met';
+        return leftTcDesc + ' ' + operator + ' ' + (compareValue !== undefined && compareValue !== '' ? compareValue : '?');
     }
 
     function sideDesc(m, day, candle, mult, series, timeframe) {
@@ -1954,23 +1629,28 @@ function buildOptConditionDesc(n, isExit) {
     }[operator] || operator;
 
     if (comparator === 'value') {
-        if (operator === '><') {
-            var lo = compareValue !== '' && compareValue !== undefined ? compareValue : '?';
-            var hi = compareValueHigh !== '' && compareValueHigh !== undefined ? compareValueHigh : '?';
-            return leftDesc + ' between ' + lo + ' and ' + hi;
-        }
         return leftDesc + ' ' + opLabel + ' ' + (compareValue !== '' && compareValue !== undefined ? compareValue : '?');
     }
 
-    if (comparator === 'zero_line') {
-        return leftDesc + ' ' + opLabel + ' Zero Line';
+    // Price vs Trend Capture line value
+    if (comparator === 'compare_trend_capture') {
+        var _tcInt  = document.getElementById((isExit ? 'optExitTcRightInterval' : 'tcRightInterval') + n)?.value
+                   || document.getElementById('tcRightInterval' + n)?.value || '1hr';
+        var _tcWin  = parseInt(document.getElementById((isExit ? 'optExitTcRightTimeWindow' : 'tcRightTimeWindow') + n)?.value
+                   || document.getElementById('tcRightTimeWindow' + n)?.value) || 1;
+        var _tcPt   = document.getElementById((isExit ? 'optExitTcRightPriceType' : 'tcRightPriceType') + n)?.value
+                   || document.getElementById('tcRightPriceType' + n)?.value || 'lowest_low';
+        var _ptLbl  = _tcPt === 'highest_high' ? 'HH' : 'LL';
+        var _tcLbl  = 'TC(' + _tcInt + ', ' + _ptLbl + ', ' + _tcWin + 'd)';
+        var _thUnit = !isExit ? (document.getElementById('thresholdUnit' + n)?.value || 'percent') : 'percent';
+        var _thVal  = !isExit ? (parseFloat(document.getElementById('thresholdValue' + n)?.value) || 0) : 0;
+        var _thSufx = '';
+        if (_thVal && _thVal !== 0 && ['cross_up','cross_down','cross_either'].indexOf(operator) === -1) {
+            _thSufx = _thUnit === 'dollar' ? ' by $' + _thVal : ' by ' + _thVal + '%';
+        }
+        return leftDesc + ' ' + opLabel + ' ' + _tcLbl + _thSufx;
     }
-    if (metric === 'macd' && comparator === 'compare_macd_line') {
-        return leftDesc + ' ' + opLabel + ' MACD Line';
-    }
-    if (metric === 'macd' && comparator === 'compare_signal') {
-        return leftDesc + ' ' + opLabel + ' Signal Line';
-    }
+
     var rightMetric = comparator.replace('compare_', '');
     var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
@@ -2043,31 +1723,54 @@ function collectPriceConditions() {
             condition.left.component = document.getElementById(`leftMacdComponent${id}`)?.value || 'histogram';
         }
         
-        if (comparator === 'zero_line') {
-            // MACD zero-line: right value is always 0; no form fields needed
-            condition.compare_value = 0;
-        } else if (metric === 'macd' && (comparator === 'compare_macd_line' || comparator === 'compare_signal')) {
-            // MACD self-comparators: derive right side from left params (same MACD calc, different component)
-            var _rightComp = (comparator === 'compare_macd_line') ? 'macd_line' : 'signal';
-            condition.right = {
-                candle_type: condition.left.candle_type || 'day',
-                multiplier: condition.left.multiplier || 1,
-                series_type: condition.left.series_type || 'close',
-                day: condition.left.day || '0',
-                short_window: condition.left.short_window || 12,
-                long_window: condition.left.long_window || 26,
-                signal_window: condition.left.signal_window || 9,
-                component: _rightComp
-            };
-            condition.threshold = { unit: 'percent', value: 0 };
-        } else if (comparator === 'value') {
-            const _op = document.getElementById(`operator${id}`)?.value || '>';
-            if (_op === '><') {
-                condition.compare_value_low  = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
-                condition.compare_value_high = parseFloat(document.getElementById(`compareValueHigh${id}`)?.value) || 0;
-            } else {
+        // Trend Capture fields
+        if (metric === 'trend_capture') {
+            function _readTcSide(prefix) {
+                var rEnabled     = document.getElementById(prefix + 'REnabled' + id);
+                var slopeEnabled = document.getElementById(prefix + 'SlopeEnabled' + id);
+                return {
+                    interval:              document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
+                    time_window:           parseInt(document.getElementById(prefix + 'TimeWindow' + id)?.value) || 1,
+                    price_type:            document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
+                    slope_filter_enabled:  !!(slopeEnabled && slopeEnabled.checked),
+                    slope_op:              document.getElementById(prefix + 'SlopeOp' + id)?.value || '>',
+                    slope_val:             parseFloat(document.getElementById(prefix + 'SlopeVal' + id)?.value) || 0,
+                    r_enabled:             !!(rEnabled && rEnabled.checked),
+                    r_op:                  document.getElementById(prefix + 'ROp' + id)?.value || '>',
+                    r_val:                 parseFloat(document.getElementById(prefix + 'RVal' + id)?.value) || 0
+                };
+            }
+            condition.tc_left = _readTcSide('tcLeft');
+            if (comparator === 'compare_trend_capture') {
+                condition.tc_right = _readTcSide('tcRight');
+            }
+            if (comparator === 'value') {
                 condition.compare_value = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
             }
+            delete condition.left;
+            delete condition.right;
+            delete condition.threshold;
+        } else if (comparator === 'compare_trend_capture') {
+            // Price vs TC line value: read TC config from tcRightPanel
+            var _slopeEn = document.getElementById('tcRightSlopeEnabled' + id);
+            var _rEn     = document.getElementById('tcRightREnabled' + id);
+            condition.tc_right = {
+                interval:             document.getElementById('tcRightInterval' + id)?.value || '1hr',
+                time_window:          parseInt(document.getElementById('tcRightTimeWindow' + id)?.value) || 1,
+                price_type:           document.getElementById('tcRightPriceType' + id)?.value || 'lowest_low',
+                slope_filter_enabled: !!(  _slopeEn && _slopeEn.checked),
+                slope_op:             document.getElementById('tcRightSlopeOp' + id)?.value || '>',
+                slope_val:            parseFloat(document.getElementById('tcRightSlopeVal' + id)?.value) || 0,
+                r_enabled:            !!(_rEn && _rEn.checked),
+                r_op:                 document.getElementById('tcRightROp' + id)?.value || '>',
+                r_val:                parseFloat(document.getElementById('tcRightRVal' + id)?.value) || 0
+            };
+            condition.threshold = {
+                unit:  document.getElementById('thresholdUnit' + id)?.value || 'percent',
+                value: parseFloat(document.getElementById('thresholdValue' + id)?.value) || 0
+            };
+        } else if (comparator === 'value') {
+            condition.compare_value = parseFloat(document.getElementById(`compareValue${id}`)?.value) || 0;
         } else {
             // Right side values
             condition.right = {
@@ -2125,52 +1828,13 @@ function collectPriceConditions() {
             condition.restrict_bars = parseInt(document.getElementById(`optEntryRestrictBars${id}`)?.value) || 5;
         }
 
-        // Candle Pattern fields
-        if (metric === 'candle_pattern') {
-            condition.metric = 'candle_pattern';
-            condition.left_type = 'candle_pattern';
-            condition.cp_day = parseInt(document.getElementById(`opt-cp-day-${id}`)?.value) || 0;
-            condition.cp_candle = document.getElementById(`opt-cp-candle-${id}`)?.value || 'min';
-            condition.cp_multiplier = parseInt(document.getElementById(`opt-cp-mult-${id}`)?.value) || 1;
-            condition.cp_num_candles = parseInt(document.getElementById(`opt-cp-count-${id}`)?.value) || 1;
-            condition.cp_candles = _serializeCpCandles('opt-', null, id);
-            condition.operator = '>';
-            condition.comparator = 'value';
-            condition.compare_value = 0;
-            delete condition.left;
-            delete condition.right;
-            delete condition.threshold;
-        }
-
-        // Trend Capture fields
-        else if (metric === 'trend_capture') {
-            function _readTcSide(prefix) {
-                var rEnabled = document.getElementById(prefix + 'REnabled' + id);
-                return {
-                    interval:    document.getElementById(prefix + 'Interval' + id)?.value || '1hr',
-                    time_window: document.getElementById(prefix + 'TimeWindow' + id)?.value || 'day_of_entry',
-                    price_type:  document.getElementById(prefix + 'PriceType' + id)?.value || 'lowest_low',
-                    r_enabled:   !!(rEnabled && rEnabled.checked),
-                    r_op:        document.getElementById(prefix + 'ROp' + id)?.value || '>',
-                    r_val:       parseFloat(document.getElementById(prefix + 'RVal' + id)?.value) || 0
-                };
-            }
-            condition.tc_left = _readTcSide('tcLeft');
-            if (comparator === 'compare_trend_capture') {
-                condition.tc_right = _readTcSide('tcRight');
-            }
-            // TC conditions don't use the standard left/comparator/right structure
-            delete condition.left;
-            delete condition.compare_value;
-            delete condition.right;
-            delete condition.threshold;
-        }
-
         // Sequential phase flag (conditions 2+ only)
         var optSeqCb = document.getElementById(`optEntrySeqEnabled${id}`);
         condition.is_sequential = !!(optSeqCb && optSeqCb.checked);
         if (condition.is_sequential) {
             condition.max_wait_bars = parseInt(document.getElementById(`optEntrySeqMaxWait${id}`)?.value) || 0;
+            var prereqEl = document.getElementById(`optEntrySeqPrereqPhase${id}`);
+            condition.seq_prereq_phase = parseInt(prereqEl?.value) || 1;
         }
 
         conditions.push(condition);
@@ -2243,6 +1907,23 @@ function initializeBacktesterPage() {
     setupFormControls();
     setupStrategySelection();
     
+    // Show/hide expiry close time section based on index vs stock symbol
+    var INDEX_SYMS = new Set(['SPX','SPXW','XSP','NDX','RUT']);
+    function updateExpiryCloseTimeVisibility() {
+        var sym = (document.getElementById('symbol') || {}).value || '';
+        var isIndex = INDEX_SYMS.has(sym.trim().toUpperCase());
+        var section = document.getElementById('expiryCloseTimeSection');
+        var group = document.getElementById('expiryCloseTimeGroup');
+        if (section) section.style.display = isIndex ? 'none' : '';
+        if (group) group.style.display = isIndex ? 'none' : '';
+    }
+    var symbolInputEl = document.getElementById('symbol');
+    if (symbolInputEl) {
+        symbolInputEl.addEventListener('input', updateExpiryCloseTimeVisibility);
+        symbolInputEl.addEventListener('change', updateExpiryCloseTimeVisibility);
+    }
+    updateExpiryCloseTimeVisibility();
+
     var ivCheckbox = document.getElementById('ivConditionEnabled');
     if (ivCheckbox) {
         ivCheckbox.addEventListener('change', function() {
@@ -2271,27 +1952,6 @@ function initializeBacktesterPage() {
             sessionStorage.removeItem('optionsBacktestUseTemplate');
             applyOptionsConfig(config);
             console.log('Applied options config from Use Template');
-            // Show a dismissible notice so the user knows the previous config was restored
-            setTimeout(function() {
-                var existingBanner = document.getElementById('useTemplateBanner');
-                if (existingBanner) existingBanner.remove();
-                var condCount = (config.priceConditions || config.price_conditions || []).length;
-                var entryType = config.optionsEntryType || config.options_entry_type || 'none';
-                var condNote = '';
-                if (entryType === 'custom' && condCount > 0) {
-                    condNote = ' <strong>' + condCount + ' entry condition' + (condCount > 1 ? 's' : '') + '</strong> were restored. Review or clear them before running.';
-                } else if (entryType === 'preset') {
-                    condNote = ' A <strong>preset entry condition</strong> was restored. Review before running.';
-                }
-                var banner = document.createElement('div');
-                banner.id = 'useTemplateBanner';
-                banner.className = 'alert alert-warning alert-dismissible fade show';
-                banner.style.cssText = 'margin: 0 0 16px 0; border-radius: 8px; font-size: 13px;';
-                banner.innerHTML = '<i class="fas fa-clone me-2"></i><strong>Previous configuration loaded.</strong>' + condNote +
-                    ' <button type="button" class="btn-close" onclick="this.closest(\'#useTemplateBanner\').remove()" style="float:right; background:none; border:none; font-size:16px; line-height:1; opacity:0.6; cursor:pointer;">&times;</button>';
-                var form = document.getElementById('backtestForm');
-                if (form) form.parentNode.insertBefore(banner, form);
-            }, 200);
         } catch (e) {
             console.error('Error applying Use Template config:', e);
         }
@@ -3506,44 +3166,47 @@ function buildOptConfigSummaryHtml(config) {
             conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}%`;
         }
     } else if (config.price_conditions && config.price_conditions.length > 0) {
-        var _opLabel = function(op) {
-            var map = {'cross_up':'↑ Cross Up','cross_down':'↓ Cross Down','cross_either':'↕ Crosses','>=':'≥','<=':'≤','==':'=','><':'≠'};
-            return map[op] || op;
-        };
-        var _sideFmt = function(metric, sideObj) {
-            var s = sideObj || {};
-            var day = parseInt(s.day) || 0;
-            var candle = s.candle_type || 'minute';
-            var series = s.series_type || 'close';
-            var window = s.window ? '(' + s.window + ')' : '';
-            var isCurrentPrice = metric === 'PRICE' && day === 0 && candle === 'minute' && series === 'vwap';
-            if (isCurrentPrice) return 'Current Price';
-            var candleFmt = function(c, tf, mult) {
-                if (c === 'minute') return (tf || parseInt(mult) || 1) + 'min';
-                if (c === 'hour') return (parseInt(mult) || 1) + 'hr';
-                if (c === 'day') return (parseInt(mult) || 1) > 1 ? (parseInt(mult) || 1) + 'day' : 'day';
-                return c;
-            };
-            return metric + window + ' ' + series + ' [day ' + day + ', ' + candleFmt(candle, s.timeframe_minutes, s.multiplier) + ']';
-        };
-        conditionsHtml = config.price_conditions.map(function(pc) {
+        conditionsHtml = config.price_conditions.map(function(pc, idx) {
             var metric = (pc.metric || 'price').toUpperCase();
-            var leftDesc = _sideFmt(metric, pc.left);
-            var op = _opLabel(pc.operator || '>');
+            var left = pc.left || {};
+            var leftDay = parseInt(left.day) || 0;
+            var leftCandle = left.candle_type || 'minute';
+            var leftSeries = left.series_type || 'close';
+            var leftWindow = left.window ? '(' + left.window + ')' : '';
+            var leftMult = parseInt(left.multiplier) || 1;
+            var isCurrentPrice = metric === 'PRICE' && leftDay === 0 && leftCandle === 'minute' && leftSeries === 'vwap';
+            var candleFmt = function(candle, mult) {
+                var m = parseInt(mult) || 1;
+                if (candle === 'minute') return m + 'min';
+                if (candle === 'hour') return m + 'hr';
+                if (candle === 'day') return m > 1 ? m + 'day' : 'day';
+                return candle;
+            };
+            var leftDesc = isCurrentPrice ? 'Current Price' : (metric + leftWindow + ' ' + leftSeries + ' [day ' + leftDay + ', ' + candleFmt(leftCandle, leftMult) + ']');
+
+            var op = pc.operator || '>';
+
             var rightDesc = '';
             if (pc.comparator === 'value') {
-                if (pc.operator === '><') {
-                    rightDesc = String(pc.compare_value_low != null ? pc.compare_value_low : '?') + ' — ' + String(pc.compare_value_high != null ? pc.compare_value_high : '?');
-                } else {
-                    rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
-                }
+                rightDesc = String(pc.compare_value != null ? pc.compare_value : '');
             } else {
                 var rightMetric = (pc.comparator || '').replace('compare_', '').toUpperCase();
-                rightDesc = _sideFmt(rightMetric, pc.right);
+                var right = pc.right || {};
+                var rightDay = parseInt(right.day) || 0;
+                var rightCandle = right.candle_type || 'minute';
+                var rightMult = parseInt(right.multiplier) || 1;
+                var rightSeries = right.series_type || 'close';
+                var rightWindow = right.window ? '(' + right.window + ')' : '';
+                rightDesc = rightMetric + rightWindow + ' ' + rightSeries + ' [day ' + rightDay + ', ' + candleFmt(rightCandle, rightMult) + ']';
+
                 var threshold = pc.threshold || {};
                 var threshVal = parseFloat(threshold.value);
-                if (threshVal) rightDesc += ' ±' + threshVal + (threshold.unit === 'percent' ? '%' : '$');
+                if (threshVal) {
+                    var unit = threshold.unit === 'percent' ? '%' : '$';
+                    rightDesc += ' ±' + threshVal + unit;
+                }
             }
+
             return '<div style="margin-bottom:4px;">' + leftDesc + ' ' + op + ' ' + rightDesc + '</div>';
         }).join('');
     }
@@ -3778,14 +3441,8 @@ function validateOptionsConfig(config) {
                         errors.push(`${label}: RSI window must be between 2 and 100`);
                     }
                 }
-                if (pc.comparator === 'value' && pc.metric !== 'trend_capture') {
-                    if (pc.operator === '><') {
-                        if (pc.compare_value_low === undefined || pc.compare_value_high === undefined) {
-                            errors.push(`${label}: Both Low and High values are required for Between`);
-                        }
-                    } else if (pc.compare_value === undefined) {
-                        errors.push(`${label}: Compare value is required when comparing to a fixed value`);
-                    }
+                if (pc.comparator === 'value' && pc.compare_value === undefined && pc.metric !== 'trend_capture') {
+                    errors.push(`${label}: Compare value is required when comparing to a fixed value`);
                 }
                 if (pc.comparator !== 'value' && pc.threshold) {
                     if (pc.threshold.unit === 'percent' && pc.comparator === 'compare_rsi') {
@@ -4062,6 +3719,7 @@ function collectFormData() {
         concurrent_trades: document.querySelector('input[name="concurrentTrades"]:checked').value === 'y',
         avoid_pdt: document.querySelector('input[name="avoidPdt"]:checked').value === 'y',
         allow_synthetic: document.querySelector('input[name="allowSynthetic"]:checked').value === 'y',
+        expiry_close_time: document.querySelector('input[name="expiryCloseTime"]:checked')?.value || '16:15',
         starting_capital: startingCapital
     };
     
@@ -4566,31 +4224,22 @@ function applyOptionsConfig(rawConfig) {
     }
     if (legsArray && legsArray.length > 0) {
         legsArray.forEach((leg, index) => {
-            var legIdx = (leg.original_index != null) ? leg.original_index : index;
-            var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${legIdx}"]`);
+            var methodSelect = document.querySelector(`.leg-method-select[data-leg-index="${index}"]`);
             var method = leg.method || leg.config_type || '';
             if (methodSelect && method) {
                 methodSelect.value = method;
                 // handleLegMethodChange is synchronous (sets innerHTML), so params
                 // container is available immediately after dispatching change.
                 methodSelect.dispatchEvent(new Event('change'));
-                var paramsContainer = document.getElementById(`legParams${legIdx}`);
+                var paramsContainer = document.getElementById(`legParams${index}`);
                 if (paramsContainer) {
-                    // When leg.params exists, 'method' inside it is the delta sub-method
-                    // (closest/above/below/etc.), NOT the config_type — so don't exclude it.
                     var params = leg.params || leg;
-                    var excludeFromParams = leg.params
-                        ? ['index', 'config_type', 'name', 'type', 'position', 'original_index', 'params']
-                        : ['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'];
                     Object.keys(params).forEach(key => {
-                        if (excludeFromParams.indexOf(key) === -1) {
+                        if (['index', 'method', 'config_type', 'name', 'type', 'position', 'original_index', 'params'].indexOf(key) === -1) {
                             var input = paramsContainer.querySelector(`[data-param="${key}"]`);
                             if (input) input.value = params[key];
                         }
                     });
-                    // Fire change on delta-method-select so tolerance/range divs show correctly
-                    var dms = paramsContainer.querySelector('.delta-method-select');
-                    if (dms) dms.dispatchEvent(new Event('change'));
                 }
             }
         });
@@ -4679,9 +4328,6 @@ function applyOptionsConfig(rawConfig) {
     if (entryTypeRadio) {
         entryTypeRadio.checked = true;
         if (typeof updateOptionsEntryType === 'function') updateOptionsEntryType();
-        document.querySelectorAll('.bt-toggle-btn[data-radio="optionsEntryType"]').forEach(function(b) {
-            b.classList.toggle('on', b.dataset.val === entryType);
-        });
     }
 
     if (entryType === 'preset') {
@@ -4872,37 +4518,16 @@ function applyPriceConditions(conditions) {
                 if (document.getElementById(`leftMacdComponent${id}`)) document.getElementById(`leftMacdComponent${id}`).value = condition.left?.component || 'histogram';
             }
             
-            // Comparator first so updateRightSideVisibility can add cross operators
-            // before we attempt to set the operator value.
+            // Operator and comparator
+            if (document.getElementById(`operator${id}`)) document.getElementById(`operator${id}`).value = condition.operator || '>';
             if (document.getElementById(`comparator${id}`)) {
                 document.getElementById(`comparator${id}`).value = condition.comparator || 'value';
                 updateRightSideVisibility(id);
             }
-            // Explicitly ensure cross operators are present/absent before setting value.
-            // This is defensive: updateConditionFields+updateRightSideVisibility should
-            // already handle it, but we guarantee the correct state here.
-            (function() {
-                var _m = document.getElementById('metric' + id) ? document.getElementById('metric' + id).value : metricToSet;
-                var _c = condition.comparator || 'value';
-                var _needsCross = (_m === 'sma' || _m === 'ema' || _m === 'vwap') ||
-                    (_m === 'current_price' && (_c === 'compare_sma' || _c === 'compare_ema' || _c === 'compare_vwap')) ||
-                    (_m === 'macd' && (_c === 'zero_line' || _c === 'compare_macd_line' || _c === 'compare_signal'));
-                setCrossOperators('operator' + id, _needsCross);
-            })();
-            // Operator after — cross options are now present in the select
-            if (document.getElementById(`operator${id}`)) document.getElementById(`operator${id}`).value = condition.operator || '>';
-
-            // Left-side timeframe (shown for SMA/EMA/VWAP metrics)
-            if (document.getElementById(`leftTimeframe${id}`) && condition.left?.timeframe_minutes) {
-                document.getElementById(`leftTimeframe${id}`).value = String(condition.left.timeframe_minutes);
-            }
-
+            
             // Value or right side
             if (condition.comparator === 'value') {
-                if (condition.operator === '><') {
-                    if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value_low ?? 0;
-                    if (document.getElementById(`compareValueHigh${id}`)) document.getElementById(`compareValueHigh${id}`).value = condition.compare_value_high ?? 0;
-                } else if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value || 0;
+                if (document.getElementById(`compareValue${id}`)) document.getElementById(`compareValue${id}`).value = condition.compare_value || 0;
             } else if (condition.right) {
                 setTimeout(() => {
                     if (document.getElementById(`rightDay${id}`)) document.getElementById(`rightDay${id}`).value = condition.right?.day || '0';
@@ -4910,10 +4535,7 @@ function applyPriceConditions(conditions) {
                     if (document.getElementById(`rightMultiplier${id}`)) document.getElementById(`rightMultiplier${id}`).value = condition.right?.multiplier || 1;
                     if (document.getElementById(`rightSeriesType${id}`)) document.getElementById(`rightSeriesType${id}`).value = condition.right?.series_type || 'close';
                     if (document.getElementById(`rightWindow${id}`)) document.getElementById(`rightWindow${id}`).value = condition.right?.window || 14;
-                    // Right-side timeframe (shown for compare_sma/ema/vwap comparators)
-                    if (document.getElementById(`rightTimeframe${id}`) && condition.right?.timeframe_minutes) {
-                        document.getElementById(`rightTimeframe${id}`).value = String(condition.right.timeframe_minutes);
-                    }
+                    
                     // Threshold
                     if (condition.threshold) {
                         if (document.getElementById(`thresholdUnit${id}`)) document.getElementById(`thresholdUnit${id}`).value = condition.threshold?.unit || 'percent';
@@ -4923,8 +4545,6 @@ function applyPriceConditions(conditions) {
             }
         }, 50);
     });
-    // Ensure Clear All button reflects current state after conditions are restored
-    setTimeout(_updateClearAllConditionsBtn, 100);
 }
 
 

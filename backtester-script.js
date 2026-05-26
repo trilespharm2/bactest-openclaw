@@ -1907,6 +1907,23 @@ function initializeBacktesterPage() {
     setupFormControls();
     setupStrategySelection();
     
+    // Show/hide expiry close time section based on index vs stock symbol
+    var INDEX_SYMS = new Set(['SPX','SPXW','XSP','NDX','RUT']);
+    function updateExpiryCloseTimeVisibility() {
+        var sym = (document.getElementById('symbol') || {}).value || '';
+        var isIndex = INDEX_SYMS.has(sym.trim().toUpperCase());
+        var section = document.getElementById('expiryCloseTimeSection');
+        var group = document.getElementById('expiryCloseTimeGroup');
+        if (section) section.style.display = isIndex ? 'none' : '';
+        if (group) group.style.display = isIndex ? 'none' : '';
+    }
+    var symbolInputEl = document.getElementById('symbol');
+    if (symbolInputEl) {
+        symbolInputEl.addEventListener('input', updateExpiryCloseTimeVisibility);
+        symbolInputEl.addEventListener('change', updateExpiryCloseTimeVisibility);
+    }
+    updateExpiryCloseTimeVisibility();
+
     var ivCheckbox = document.getElementById('ivConditionEnabled');
     if (ivCheckbox) {
         ivCheckbox.addEventListener('change', function() {
@@ -3702,6 +3719,7 @@ function collectFormData() {
         concurrent_trades: document.querySelector('input[name="concurrentTrades"]:checked').value === 'y',
         avoid_pdt: document.querySelector('input[name="avoidPdt"]:checked').value === 'y',
         allow_synthetic: document.querySelector('input[name="allowSynthetic"]:checked').value === 'y',
+        expiry_close_time: document.querySelector('input[name="expiryCloseTime"]:checked')?.value || '16:15',
         starting_capital: startingCapital
     };
     
