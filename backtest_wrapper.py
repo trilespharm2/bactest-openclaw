@@ -34,7 +34,8 @@ def load_config_from_json(json_path):
         'allocation_value': web_config.get('allocation_value') or web_config.get('allocationValue', 10),
         # Net premium filter (optional)
         'net_premium_min': web_config.get('net_premium_min') or web_config.get('netPremiumMin'),
-        'net_premium_max': web_config.get('net_premium_max') or web_config.get('netPremiumMax')
+        'net_premium_max': web_config.get('net_premium_max') or web_config.get('netPremiumMax'),
+        'expiry_close_time': web_config.get('expiry_close_time') or web_config.get('expiryCloseTime', '16:15')
     }
     
     # Handle take profit
