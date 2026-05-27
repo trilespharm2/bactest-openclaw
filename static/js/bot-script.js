@@ -34,33 +34,7 @@ const NP_STRATEGIES = {
 
 // ── Init ───────────────────────────────────────────────────────────
 function initBotPage() {
-  _ensureStratLogStyles();
   botLoadConfig();
-}
-
-function _ensureStratLogStyles() {
-  if (document.getElementById('stratLogStyles')) return;
-  const css = `
-    .strat-item { display:flex; flex-direction:column; gap:0; }
-    .strat-item-body { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; }
-    .strat-last-log {
-      display:flex; align-items:center; gap:8px;
-      padding:7px 14px; border-top:1px solid #e2e8f0;
-      background:#f8fafc; color:#475569;
-      font-size:12px; line-height:1.4;
-    }
-    .strat-last-log i { color:#94a3b8; font-size:11px; }
-    .strat-last-log.warn { background:#fffbeb; color:#92400e; border-top-color:#fde68a; }
-    .strat-last-log.warn i { color:#d97706; }
-    .strat-last-log.error { background:#fef2f2; color:#991b1b; border-top-color:#fecaca; }
-    .strat-last-log.error i { color:#dc2626; }
-    .strat-last-time { font-weight:600; opacity:.85; flex-shrink:0; }
-    .strat-last-text { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  `;
-  const el = document.createElement('style');
-  el.id = 'stratLogStyles';
-  el.textContent = css;
-  document.head.appendChild(el);
 }
 
 // ── Config Load / Save ─────────────────────────────────────────────

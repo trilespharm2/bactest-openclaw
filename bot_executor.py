@@ -135,8 +135,7 @@ def _sanitize_strategy_tag(name, sid=None):
     return base[:256]
 
 
-def _get_positions(api_key, base_url, account_id):
-    """Return all open positions for the account."""
+def _get_positions(api_key, base_url, account_id, tag=''):
     data = _tradier(api_key, base_url, f'/accounts/{account_id}/positions')
     positions = []
     if data:
@@ -146,46 +145,10 @@ def _get_positions(api_key, base_url, account_id):
             if isinstance(raw, dict):
                 raw = [raw]
             positions = raw or []
+    if tag:
+        positions = [p for p in positions
+                     if tag.upper() in str(p.get('symbol', '')).upper()]
     return positions
-
-
-def _positions_for_tag(api_key, base_url, account_id, tag):
-    """Return open positions that came from orders labelled with *tag*.
-
-    Tags are user-defined labels (e.g. "hedge", "IC-1") stored as the
-    Tradier order `tag` field when the order is placed.  Because Tradier
-    does not echo that tag onto the resulting position, we cross-reference:
-
-      1. Fetch all account orders; keep those whose `tag` == tag and whose
-         status is filled or partially_filled.
-      2. Collect the exact option/equity symbols from those orders.
-      3. Return currently-open positions whose `symbol` matches.
-
-    If *tag* is empty, all positions are returned (no filter).
-    """
-    tag = (tag or '').strip()
-    if not tag:
-        return _get_positions(api_key, base_url, account_id)
-
-    all_orders = _get_all_orders(api_key, base_url, account_id)
-    tagged_syms = set()
-    for o in all_orders:
-        if str(o.get('tag', '') or '').strip().lower() != tag.lower():
-            continue
-        if o.get('status') not in ('filled', 'partially_filled'):
-            continue
-        opt = str(o.get('option_symbol', '') or '').upper()
-        eq  = str(o.get('symbol', '') or '').upper()
-        sym = opt if opt else eq
-        if sym:
-            tagged_syms.add(sym)
-
-    if not tagged_syms:
-        return []
-
-    all_pos = _get_positions(api_key, base_url, account_id)
-    return [p for p in all_pos
-            if str(p.get('symbol', '') or '').upper() in tagged_syms]
 
 
 def eval_condition(cfg, api_key, base_url, account_id):
@@ -194,7 +157,7 @@ def eval_condition(cfg, api_key, base_url, account_id):
     operator = cfg.get('operator', '<')
     value    = float(cfg.get('value', 1))
 
-    positions = _positions_for_tag(api_key, base_url, account_id, tag)
+    positions = _get_positions(api_key, base_url, account_id, tag)
 
     if ctype == 'position_count':
         return _compare(float(len(positions)), operator, value)
@@ -1101,31 +1064,47 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     _strat_tag   = (cfg.get('_strategy_tag') or '').strip()
     _strat_syms  = [s.upper() for s in (cfg.get('_strategy_symbols') or []) if s]
 
-    # Fetch positions once, reuse for both cap check and allocation check.
+    # Fetch positions (and orders for count check) once, reuse in closures.
+    # max_positions is scoped to THIS strategy:
+    #   - orders: filter to those tagged with this strategy
+    #   - positions: filter to underlyings traded by this strategy (Tradier
+    #     doesn't echo our tag onto resulting positions, so we approximate
+    #     strategy-ownership via underlying symbol).
     _cached_positions = None
     if _max_pos > 0 or _alloc > 0:
         _cached_positions = _get_positions(api_key, base_url, account_id)
 
+    def _pos_underlying(p):
+        sym = str(p.get('symbol', '') or '').upper()
+        # OCC: ROOT + YYMMDD + C/P + STRIKE(8) → take chars before the 6-digit date
+        import re as _re
+        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
+        return m.group(1) if m else sym
+
+    def _strategy_positions(positions):
+        if not _strat_syms:
+            return positions   # no symbols declared → fall back to all
+        return [p for p in positions if _pos_underlying(p) in _strat_syms]
+
+    def _strategy_orders(orders):
+        if not _strat_tag:
+            return orders
+        return [o for o in orders
+                if str(o.get('tag', '') or '').strip() == _strat_tag]
+
     if _max_pos > 0:
-        # Account-level cap: count every open position + every currently
-        # pending order on the entire Tradier account, regardless of which
-        # strategy placed them. Canceled/rejected/expired orders are excluded
-        # because _get_open_orders only returns open/pending/partially_filled.
+        # Cap = open positions + currently-pending/open orders.
+        # Canceled/rejected/expired orders do NOT count — the bot is free to
+        # retry after a cancellation.
         _cached_orders = _get_open_orders(api_key, base_url, account_id)
-        _pos_ct     = len(_cached_positions or [])
-        _ord_ct     = len(_cached_orders or [])
-        total_count = _pos_ct + _ord_ct
-        print(
-            f"[BOT:max_pos] (account-level) max={_max_pos} "
-            f"pos_ct={_pos_ct} ord_ct={_ord_ct} total={total_count}",
-            flush=True,
-        )
+        _strat_pos_ct  = len(_strategy_positions(_cached_positions))
+        _strat_ord_ct  = len(_strategy_orders(_cached_orders))
+        total_count    = _strat_pos_ct + _strat_ord_ct
         if total_count >= _max_pos:
-            print(f"[BOT:max_pos] CAP REACHED — blocking order", flush=True)
             return False, (
-                f"Max position cap reached: "
+                f"Max position cap reached for strategy: "
                 f"{total_count}/{_max_pos} "
-                f"({_pos_ct} open positions, {_ord_ct} pending orders)"
+                f"({_strat_pos_ct} open positions, {_strat_ord_ct} pending orders)"
             )
 
     # ── Fetch expiration ──────────────────────────────────────────────
@@ -1291,12 +1270,12 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return limit_price_min if is_credit_trade else limit_price_max
 
     def _place(order_data):
-        # Step-level user tag (e.g. "hedge", "IC-1") takes priority — this is
-        # the label the user set on the open_position step so they can later
-        # reference it in condition/close steps.  Falls back to the strategy
-        # tag, then to the options-strategy-type name as a last resort.
-        user_tag = (cfg.get('tag') or '').strip()
-        tag = user_tag or _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
+        # Tag every order with the user-defined STRATEGY identifier (not the
+        # options-strategy-type) so max_positions and other strategy-scoped
+        # checks can correctly identify which orders belong to this strategy.
+        # Falls back to the options-strategy-type when no strategy tag is set
+        # (e.g. legacy callers).
+        tag = _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
         order_data.setdefault('tag', (tag or 'strategy')[:256])
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
@@ -1558,19 +1537,16 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 
 
 def exec_close_position(cfg, api_key, base_url, account_id):
-    import re as _re
     tag       = cfg.get('tag', '').strip()
-    positions = _positions_for_tag(api_key, base_url, account_id, tag)
+    positions = _get_positions(api_key, base_url, account_id, tag)
     count     = 0
     for pos in positions:
-        sym = str(pos.get('symbol', '') or '')
+        sym = pos.get('symbol', '')
         qty = abs(int(pos.get('quantity', 0)))
         if qty == 0:
             continue
-        side = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
-        # Derive underlying from OCC format; fall back to first 1-6 chars for equity
-        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym.upper())
-        underlying = m.group(1) if m else sym
+        side       = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
+        underlying = sym[:3] if len(sym) > 15 else sym
         _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                  method='POST', data={
                      'class': 'option', 'symbol': underlying,
@@ -2110,10 +2086,8 @@ def execute_all_live_strategies(app):
                         if elapsed < poll_sec:
                             continue
 
-                    print(f"[BOT] Executing '{strat.name}' id={strat.id} "
-                          f"max_pos={strat.max_positions} user={user_id} poll={poll_sec}s",
-                          flush=True)
-                    log_lines = []
+                    logger.info(f"Executing '{strat.name}' (user={user_id}, "
+                                f"poll={poll_sec}s)")
                     try:
                         steps = json.loads(strat.steps or '[]')
                         fired, log_lines = execute_strategy(
@@ -2124,15 +2098,11 @@ def execute_all_live_strategies(app):
                                 'allocation':    strat.allocation,
                                 'max_positions': strat.max_positions,
                             }, app)
-                        summary = ' | '.join(log_lines)
-                        print(f"[BOT] '{strat.name}' fired={fired} | {summary}", flush=True)
+                        logger.info(f"  fired={fired} | {' | '.join(log_lines)}")
                     except Exception as e:
                         logger.error(f"Strategy '{strat.name}' execution error: {e}")
-                        print(f"[BOT] '{strat.name}' ERROR: {e}", flush=True)
-                        log_lines = [f"ERROR: {e}"]
 
                     strat.last_executed_at = now
-                    strat.last_log = ' | '.join(log_lines)[:4000]
                     try:
                         db.session.commit()
                     except Exception:
