@@ -43,26 +43,65 @@ def _save_tag_store(store):
         logger.warning(f"bot_tag_store: could not save: {e}")
 
 
-def _register_tag_symbols(account_id, tag, option_symbols):
-    """Record that *option_symbols* were opened under user tag *tag*."""
+def _register_tag_symbols(account_id, tag, option_symbols, order_id=None):
+    """Record that *option_symbols* were opened under user tag *tag*.
+
+    Store is keyed by order_id so we can later count TRADES (not legs).
+    Schema:  { "<account_id>:<tag>" : { "<order_id>": ["SYM1", "SYM2"] } }
+    """
     if not tag or not option_symbols:
         return
-    key = f"{account_id}:{tag}"
+    key   = f"{account_id}:{tag}"
+    oid   = str(order_id) if order_id else '_noId'
+    syms  = [str(s).upper() for s in option_symbols if s]
     with _tag_store_lock:
         store = _load_tag_store()
-        existing = set(store.get(key, []))
-        existing.update(str(s).upper() for s in option_symbols if s)
-        store[key] = sorted(existing)
+        entry = store.get(key, {})
+        # Migrate old flat-list format → dict
+        if isinstance(entry, list):
+            entry = {'_legacy': entry}
+        bucket = entry.get(oid, [])
+        for s in syms:
+            if s not in bucket:
+                bucket.append(s)
+        entry[oid] = bucket
+        store[key]  = entry
         _save_tag_store(store)
-    logger.info(f"bot_tag_store: registered tag '{tag}' → {sorted(existing)}")
+    logger.info(f"bot_tag_store: tag '{tag}' order {oid} → {syms}")
 
 
 def _lookup_tag_symbols(account_id, tag):
-    """Return the set of option symbols ever opened under user tag *tag*."""
+    """Return the flat set of ALL option symbols ever opened under *tag*."""
     key = f"{account_id}:{tag}"
     with _tag_store_lock:
         store = _load_tag_store()
-    return set(store.get(key, []))
+    entry = store.get(key, {})
+    if isinstance(entry, list):
+        return set(entry)
+    result = set()
+    for bucket in entry.values():
+        result.update(s.upper() for s in bucket if s)
+    return result
+
+
+def _count_active_tag_trades(account_id, tag, live_pos_syms):
+    """Count TRADES (distinct orders) whose legs are still in *live_pos_syms*.
+
+    This is what the condition step "position_count with tag X" should return:
+    1 trade = 1, regardless of how many legs that trade has.
+    """
+    key = f"{account_id}:{tag}"
+    with _tag_store_lock:
+        store = _load_tag_store()
+    entry = store.get(key, {})
+    if isinstance(entry, list):
+        # Old format — treat entire list as one trade if any sym is live
+        return int(bool(set(s.upper() for s in entry) & live_pos_syms))
+    active = 0
+    for bucket in entry.values():
+        if set(s.upper() for s in bucket) & live_pos_syms:
+            active += 1
+    return active
 
 TRADIER_LIVE_BASE  = 'https://api.tradier.com/v1'
 TRADIER_PAPER_BASE = 'https://sandbox.tradier.com/v1'
@@ -272,10 +311,30 @@ def eval_condition(cfg, api_key, base_url, account_id):
 
     if ctype == 'position_count':
         if tag:
-            matched, pending = _resolve_tag_positions(tag, api_key, base_url, account_id)
-            # Each filled order = 1 trade regardless of how many legs it created.
-            # Pending orders count as 1 each (order placed, not yet filled).
-            count = len(matched) + pending
+            # Count TRADES (distinct orders), not individual legs.
+            # A 2-leg spread = 1 trade, so "< 1" means "no open trades with
+            # this tag" — intuitive regardless of strategy leg count.
+            all_positions = _get_positions(api_key, base_url, account_id)
+            live_syms     = {str(p.get('symbol', '') or '').upper()
+                             for p in all_positions}
+            filled_trades = _count_active_tag_trades(account_id, tag, live_syms)
+
+            # Also count pending orders via Tradier tag field (more reliable
+            # on pending than on filled orders).
+            all_orders = _get_all_orders(api_key, base_url, account_id)
+            pending = sum(
+                1 for o in all_orders
+                if str(o.get('tag', '') or '').strip() == tag
+                and str(o.get('status', '') or '') in ('open', 'pending', 'partially_filled')
+            )
+
+            if filled_trades == 0 and not live_syms:
+                # No local store data AND no live positions — warn but proceed
+                logger.warning(
+                    f"eval_condition tag='{tag}': no trade records found. "
+                    f"Ensure the matching open_position step also has tag='{tag}' set."
+                )
+            count = filled_trades + pending
         else:
             count = len(_get_positions(api_key, base_url, account_id))
         return _compare(float(count), operator, value)
@@ -1469,21 +1528,23 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
         if result and (result.get('order') or {}).get('id'):
+            order_id = result['order']['id']
             # If this order carries a user-defined step tag, persist the
-            # option symbols NOW — we know them at placement time and cannot
-            # rely on Tradier to return the tag field on GET /orders later.
+            # option symbols NOW, keyed by order_id for accurate trade counting.
+            # We cannot rely on Tradier to return the tag field on GET /orders.
             if user_tag:
                 placed_syms = []
                 for k, v in order_data.items():
                     if 'option_symbol' in k and v:
                         placed_syms.append(str(v))
-                # Single-leg: 'option_symbol' key (no index)
+                # Single-leg orders use 'option_symbol' without index suffix
                 single_sym = order_data.get('option_symbol')
                 if single_sym and single_sym not in placed_syms:
                     placed_syms.append(str(single_sym))
                 if placed_syms:
-                    _register_tag_symbols(account_id, user_tag, placed_syms)
-            return True, f"Order {result['order']['id']} placed ({target_exp})"
+                    _register_tag_symbols(account_id, user_tag, placed_syms,
+                                          order_id=order_id)
+            return True, f"Order {order_id} placed ({target_exp})"
         return False, f"Order rejected: {err or result}"
 
     def _place_single(opt, side):

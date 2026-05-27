@@ -2236,6 +2236,20 @@ function sbConditionTypeChange() {
   const tagRow = document.getElementById('sbcCondTagRow');
   const posTypes = ['position_count','daily_opens','unrealized_pnl'];
   if (tagRow) tagRow.style.display = posTypes.includes(t) ? '' : 'none';
+  sbCondTagHintUpdate();
+}
+
+function sbCondTagHintUpdate() {
+  const tagEl  = document.getElementById('sbcCondTag');
+  const hint   = document.getElementById('sbcCondTagHint');
+  const echo   = document.getElementById('sbcCondTagEcho');
+  const typeEl = document.getElementById('sbcCondType');
+  if (!tagEl || !hint) return;
+  const val  = tagEl.value.trim();
+  const type = typeEl ? typeEl.value : 'position_count';
+  const relevant = ['position_count','daily_opens','unrealized_pnl','closed_today'].includes(type);
+  hint.style.display = (val && relevant) ? '' : 'none';
+  if (echo) echo.textContent = val;
 }
 
 // ── Open Position: strategy-driven field visibility ──────────────────
@@ -2919,8 +2933,16 @@ function sbStepConfigHTML(step) {
       </div>
       <!-- Tag filter (positions only) -->
       <div class="sb-form-row" id="sbcCondTagRow" style="${['open_orders','canceled_orders'].includes(ct)?'display:none':''}">
-        <div class="sb-form-label">Tag filter — leave blank to check all positions</div>
-        <input id="sbcCondTag" class="sb-form-input" placeholder="e.g. LC, IC-1" value="${_escHtml(c.tag||'')}">
+        <div class="sb-form-label">Tag filter <span style="color:#6b7280;font-weight:400">— leave blank to count all positions</span></div>
+        <input id="sbcCondTag" class="sb-form-input" placeholder="e.g. Bot, LC, IC-1" value="${_escHtml(c.tag||'')}"
+               oninput="sbCondTagHintUpdate()">
+      </div>
+      <!-- Tag match hint (shown when tag is set) -->
+      <div id="sbcCondTagHint" style="${c.tag ? '' : 'display:none'}padding:9px 12px;background:#fffbeb;border-radius:8px;border:1px solid #fcd34d;font-size:12px;color:#92400e;margin:-4px 0 4px;">
+        <i class="fas fa-exclamation-triangle" style="margin-right:6px;color:#f59e0b;"></i>
+        <strong>Important:</strong> For tag filtering to work, the <em>Open Position</em> step that places the trade
+        must have its <strong>Tag</strong> field set to the same value (<strong id="sbcCondTagEcho">${_escHtml(c.tag||'')}</strong>).
+        Without it, the bot cannot track which positions belong to this tag.
       </div>
       <!-- Operator -->
       <div class="sb-form-row">
@@ -2944,6 +2966,8 @@ function sbStepConfigHTML(step) {
         <i class="fas fa-code-branch" style="margin-right:6px;"></i>
         If this condition is <strong>true</strong>, the automation continues to the next step.
         If <strong>false</strong>, execution stops for this polling tick — no trade is placed.
+        When using a tag, the count reflects the number of <em>trades</em> (orders) with that tag still open,
+        not the number of individual option legs.
       </div>`;
   }
 
