@@ -1537,9 +1537,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 
 
 def exec_close_position(cfg, api_key, base_url, account_id):
-    tag       = cfg.get('tag', '').strip()
-    positions = _get_positions(api_key, base_url, account_id, tag)
-    count     = 0
+    tag        = cfg.get('tag', '').strip()
+    strat_tag  = (cfg.get('_strategy_tag') or '').strip()
+    positions  = _get_positions(api_key, base_url, account_id, tag)
+    count      = 0
     for pos in positions:
         sym = pos.get('symbol', '')
         qty = abs(int(pos.get('quantity', 0)))
@@ -1547,12 +1548,15 @@ def exec_close_position(cfg, api_key, base_url, account_id):
             continue
         side       = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
         underlying = sym[:3] if len(sym) > 15 else sym
+        order_data = {
+            'class': 'option', 'symbol': underlying,
+            'option_symbol': sym, 'side': side,
+            'quantity': str(qty), 'type': 'market', 'duration': 'day',
+        }
+        if strat_tag:
+            order_data['tag'] = strat_tag[:256]
         _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
-                 method='POST', data={
-                     'class': 'option', 'symbol': underlying,
-                     'option_symbol': sym, 'side': side,
-                     'quantity': str(qty), 'type': 'market', 'duration': 'day',
-                 })
+                 method='POST', data=order_data)
         count += 1
     return True, f"Close submitted for {count} position(s)"
 
@@ -1651,8 +1655,10 @@ def _exec_steps_branch(steps, ctx):
                 return False, log
 
         elif stype == 'close_position':
+            scfg_close = dict(scfg)
+            scfg_close['_strategy_tag'] = ctx.get('strategy_tag', '')
             success, msg = exec_close_position(
-                scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+                scfg_close, ctx['api_key'], ctx['base_url'], ctx['account_id'])
             log.append(f"[{n}] CLOSE_POSITION: {msg}")
 
         elif stype == 'notification':
@@ -1976,8 +1982,10 @@ def _exec_steps_test(steps, tctx):
                     'result': 'skipped', 'message': 'Position skipped — test mode.'
                 })
             else:
+                scfg_close = dict(scfg)
+                scfg_close['_strategy_tag'] = tctx.get('strategy_tag', '')
                 success, msg = exec_close_position(
-                    scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+                    scfg_close, tctx['api_key'], tctx['base_url'], tctx['account_id'])
                 tctx['results'].append({'type': 'close_position', 'label': label_str,
                                         'result': bool(success), 'message': msg})
 
