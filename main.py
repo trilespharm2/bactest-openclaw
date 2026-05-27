@@ -488,6 +488,22 @@ def ensure_database_schema():
                     logging.info(f"Added {col_name} column to users table")
                 except Exception:
                     db.session.rollback()
+
+        # bot_strategies column migrations
+        bot_col_defs = [
+            ("last_log", "TEXT"),
+        ]
+        for col_name, col_type in bot_col_defs:
+            try:
+                db.session.execute(text(f"SELECT {col_name} FROM bot_strategies LIMIT 1"))
+            except Exception:
+                db.session.rollback()
+                try:
+                    db.session.execute(text(f"ALTER TABLE bot_strategies ADD COLUMN {col_name} {col_type}"))
+                    db.session.commit()
+                    logging.info(f"Added {col_name} column to bot_strategies table")
+                except Exception:
+                    db.session.rollback()
     return True
 
 

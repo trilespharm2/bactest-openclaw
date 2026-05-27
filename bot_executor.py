@@ -1100,7 +1100,15 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         _strat_pos_ct  = len(_strategy_positions(_cached_positions))
         _strat_ord_ct  = len(_strategy_orders(_cached_orders))
         total_count    = _strat_pos_ct + _strat_ord_ct
+        _all_order_tags = [str(o.get('tag', '') or '') for o in _cached_orders]
+        print(
+            f"[BOT:max_pos] tag='{_strat_tag}' max={_max_pos} "
+            f"pos_ct={_strat_pos_ct} ord_ct={_strat_ord_ct} total={total_count} "
+            f"all_tags={_all_order_tags}",
+            flush=True,
+        )
         if total_count >= _max_pos:
+            print(f"[BOT:max_pos] CAP REACHED — blocking order", flush=True)
             return False, (
                 f"Max position cap reached for strategy: "
                 f"{total_count}/{_max_pos} "
@@ -2086,8 +2094,10 @@ def execute_all_live_strategies(app):
                         if elapsed < poll_sec:
                             continue
 
-                    logger.info(f"Executing '{strat.name}' (user={user_id}, "
-                                f"poll={poll_sec}s)")
+                    print(f"[BOT] Executing '{strat.name}' id={strat.id} "
+                          f"max_pos={strat.max_positions} user={user_id} poll={poll_sec}s",
+                          flush=True)
+                    log_lines = []
                     try:
                         steps = json.loads(strat.steps or '[]')
                         fired, log_lines = execute_strategy(
@@ -2098,11 +2108,15 @@ def execute_all_live_strategies(app):
                                 'allocation':    strat.allocation,
                                 'max_positions': strat.max_positions,
                             }, app)
-                        logger.info(f"  fired={fired} | {' | '.join(log_lines)}")
+                        summary = ' | '.join(log_lines)
+                        print(f"[BOT] '{strat.name}' fired={fired} | {summary}", flush=True)
                     except Exception as e:
                         logger.error(f"Strategy '{strat.name}' execution error: {e}")
+                        print(f"[BOT] '{strat.name}' ERROR: {e}", flush=True)
+                        log_lines = [f"ERROR: {e}"]
 
                     strat.last_executed_at = now
+                    strat.last_log = ' | '.join(log_lines)[:4000]
                     try:
                         db.session.commit()
                     except Exception:
