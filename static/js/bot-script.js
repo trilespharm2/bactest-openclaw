@@ -2733,8 +2733,10 @@ function sbStepConfigHTML(step) {
       <div class="sb-form-row" id="sbcStrikeFbRow" style="${showStrikeFb?'':'display:none'}">
         <div class="sb-form-label">Strike Selection Fallback</div>
         <select id="sbcStrikeFallback" class="sb-form-select">
-          <option value="closest" ${sf==='closest'?'selected':''}>Closest available strike (default)</option>
-          <option value="skip"    ${sf==='skip'   ?'selected':''}>Skip trade if exact strike unavailable</option>
+          <option value="closest"  ${sf==='closest' ?'selected':''}>Closest available strike (default)</option>
+          <option value="or_higher" ${sf==='or_higher'?'selected':''}>Or Higher — round up to next available strike</option>
+          <option value="or_lower"  ${sf==='or_lower' ?'selected':''}>Or Lower — round down to next available strike</option>
+          <option value="skip"     ${sf==='skip'    ?'selected':''}>Skip trade if exact strike unavailable</option>
         </select>
       </div>
 
