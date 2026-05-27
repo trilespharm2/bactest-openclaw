@@ -207,16 +207,44 @@ function enforceStockDayCandleRestriction(side, id) {
         ? parseInt((document.getElementById(side + '-day-custom-' + id) || {}).value) || 0
         : parseInt(dayVal) || 0;
 
-    var allTypes = ['open', 'high', 'low', 'close', 'vwap'];
-    if (candleType === 'day' && dayOffset === 0) {
+    // Detect VWAP context: either the LEFT metric is 'vwap', or the RIGHT
+    // side comparator is 'compare_vwap'.  In VWAP context expose the HLC/3
+    // typical-price option (matches simulated trading's rolling-VWAP
+    // source); otherwise keep the standard column set.
+    var _isVwapCtx = false;
+    if (side === 'left') {
+        var _metricEl = document.getElementById('metric-' + id);
+        _isVwapCtx = !!(_metricEl && _metricEl.value === 'vwap');
+    } else if (side === 'right') {
+        var _compEl = document.getElementById('comparator-' + id);
+        _isVwapCtx = !!(_compEl && _compEl.value === 'compare_vwap');
+    } else if (side === 'exit-left') {
+        var _xmEl = document.getElementById('exit-metric-' + id);
+        _isVwapCtx = !!(_xmEl && _xmEl.value === 'vwap');
+    } else if (side === 'exit-right') {
+        var _xcEl = document.getElementById('exit-comparator-' + id);
+        _isVwapCtx = !!(_xcEl && _xcEl.value === 'compare_vwap');
+    }
+    var allTypes = _isVwapCtx
+        ? ['hlc3', 'close', 'high', 'low', 'open']
+        : ['open', 'high', 'low', 'close', 'vwap'];
+    var _label = function (t) {
+        return t === 'hlc3' ? 'HLC/3 (typical)' : t.charAt(0).toUpperCase() + t.slice(1);
+    };
+    if (candleType === 'day' && dayOffset === 0 && !_isVwapCtx) {
         seriesEl.innerHTML = '<option value="open">Open</option>';
         seriesEl.value = 'open';
     } else {
         var prev = seriesEl.value;
-        if (seriesEl.options.length <= 1) {
-            seriesEl.innerHTML = allTypes.map(function(t) {
-                return '<option value="' + t + '"' + (t === prev ? ' selected' : '') + '>' + t.charAt(0).toUpperCase() + t.slice(1) + '</option>';
+        // In VWAP context: always repopulate so hlc3 is present and selected
+        // by default the first time the user enters this context.
+        var needsRepop = _isVwapCtx || seriesEl.options.length <= 1;
+        if (needsRepop) {
+            if (_isVwapCtx && allTypes.indexOf(prev) === -1) prev = 'hlc3';
+            seriesEl.innerHTML = allTypes.map(function (t) {
+                return '<option value="' + t + '"' + (t === prev ? ' selected' : '') + '>' + _label(t) + '</option>';
             }).join('');
+            seriesEl.value = prev;
         }
     }
 }
@@ -993,11 +1021,35 @@ function updateStockConditionFields(n) {
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'change_pct_window', 'roc_window']);
         setCrossOperators('operator-' + n, false);
     } else if (val === 'vwap') {
-        if (leftDayGroup) leftDayGroup.style.display = 'none';
+        // Rolling N-bar VWAP (harmonized with simulated trading).  Expose the
+        // same Window + Series + Timeframe fields as other indicators.
+        if (leftDayGroup) leftDayGroup.style.display = 'block';
         if (leftCandleGroup) leftCandleGroup.style.display = 'block';
         if (leftMultGroup) leftMultGroup.style.display = 'block';
-        if (leftWindowGroup) leftWindowGroup.style.display = 'none';
-        if (leftSeriesGroup) leftSeriesGroup.style.display = 'none';
+        if (leftWindowGroup) leftWindowGroup.style.display = 'block';
+        if (leftSeriesGroup) leftSeriesGroup.style.display = 'block';
+        if (leftWindowLabel) leftWindowLabel.textContent = 'Window';
+        if (leftSeriesLabel) leftSeriesLabel.textContent = 'Series Type';
+        // Default window 14 if unset / left at the generic default 20
+        var _wEl = document.getElementById('left-window-' + n);
+        if (_wEl && (!_wEl.value || _wEl.value === '20')) _wEl.value = '14';
+        // Populate series dropdown with hlc3 (default) for VWAP.  First-time
+        // entry into VWAP context forces hlc3 to match simulated trading.
+        var _sEl = document.getElementById('left-series-' + n);
+        if (_sEl) {
+            var _lhasHlc3 = false;
+            for (var _k = 0; _k < _sEl.options.length; _k++) {
+                if (_sEl.options[_k].value === 'hlc3') { _lhasHlc3 = true; break; }
+            }
+            var _prev = _lhasHlc3 ? (_sEl.value || 'hlc3') : 'hlc3';
+            var _opts = ['hlc3', 'close', 'high', 'low', 'open'];
+            if (_opts.indexOf(_prev) === -1) _prev = 'hlc3';
+            _sEl.innerHTML = _opts.map(function (t) {
+                var lbl = t === 'hlc3' ? 'HLC/3 (typical)' : t.charAt(0).toUpperCase() + t.slice(1);
+                return '<option value="' + t + '"' + (t === _prev ? ' selected' : '') + '>' + lbl + '</option>';
+            }).join('');
+            _sEl.value = _prev;
+        }
         updateStockComparatorOptions(n, ['value', 'compare_price', 'compare_sma', 'compare_ema']);
         setCrossOperators('operator-' + n, true);
     } else if (val === 'sma' || val === 'ema') {
@@ -1213,11 +1265,36 @@ function updateStockRightSide(n) {
         if (rightType === 'sma' || rightType === 'ema') {
             if (rightWindowGroup) rightWindowGroup.style.display = 'block';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
-        } else if (rightType === 'volume' || rightType === 'vwap') {
+        } else if (rightType === 'vwap') {
+            // Rolling N-bar VWAP comparator: expose window + series (hlc3 default)
+            if (rightWindowGroup) rightWindowGroup.style.display = 'block';
+            if (rightSeriesGroup) rightSeriesGroup.style.display = 'block';
+            var _rwEl = document.getElementById('right-window-' + n);
+            if (_rwEl && (!_rwEl.value || _rwEl.value === '20')) _rwEl.value = '14';
+            var _rsEl = document.getElementById('right-series-' + n);
+            if (_rsEl) {
+                // First-time entry: force hlc3 (matches simulated trading).
+                // Returning: preserve user choice when valid for VWAP.
+                var _hasHlc3 = false;
+                for (var _i = 0; _i < _rsEl.options.length; _i++) {
+                    if (_rsEl.options[_i].value === 'hlc3') { _hasHlc3 = true; break; }
+                }
+                var _rprev = _hasHlc3 ? (_rsEl.value || 'hlc3') : 'hlc3';
+                var _ropts = ['hlc3', 'close', 'high', 'low', 'open'];
+                if (_ropts.indexOf(_rprev) === -1) _rprev = 'hlc3';
+                _rsEl.innerHTML = _ropts.map(function (t) {
+                    var lbl = t === 'hlc3' ? 'HLC/3 (typical)' : t.charAt(0).toUpperCase() + t.slice(1);
+                    return '<option value="' + t + '"' + (t === _rprev ? ' selected' : '') + '>' + lbl + '</option>';
+                }).join('');
+                _rsEl.value = _rprev;
+            }
+            var rightDayGroup1 = document.getElementById('right-day-group-' + n);
+            if (rightDayGroup1) rightDayGroup1.style.display = '';
+        } else if (rightType === 'volume') {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'none';
             var rightDayGroup = document.getElementById('right-day-group-' + n);
-            if (rightDayGroup) rightDayGroup.style.display = rightType === 'vwap' ? 'none' : '';
+            if (rightDayGroup) rightDayGroup.style.display = '';
         } else {
             if (rightWindowGroup) rightWindowGroup.style.display = 'none';
             if (rightSeriesGroup) rightSeriesGroup.style.display = 'block';
@@ -1711,10 +1788,33 @@ function updateExitRightSide(n) {
         if (rightType === 'sma' || rightType === 'ema') {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = '';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
-        } else if (rightType === 'volume' || rightType === 'vwap') {
+        } else if (rightType === 'vwap') {
+            // Rolling N-bar VWAP comparator: expose window + series (hlc3 default)
+            el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = '';
+            el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = '';
+            el = document.getElementById('exit-right-day-group-' + n); if (el) el.style.display = '';
+            var _xwEl = document.getElementById('exit-right-window-' + n);
+            if (_xwEl && (!_xwEl.value || _xwEl.value === '20')) _xwEl.value = '14';
+            var _xsEl = document.getElementById('exit-right-series-' + n);
+            if (_xsEl) {
+                // First-time entry: force hlc3 (matches simulated trading).
+                var _xhasHlc3 = false;
+                for (var _j = 0; _j < _xsEl.options.length; _j++) {
+                    if (_xsEl.options[_j].value === 'hlc3') { _xhasHlc3 = true; break; }
+                }
+                var _xprev = _xhasHlc3 ? (_xsEl.value || 'hlc3') : 'hlc3';
+                var _xopts = ['hlc3', 'close', 'high', 'low', 'open'];
+                if (_xopts.indexOf(_xprev) === -1) _xprev = 'hlc3';
+                _xsEl.innerHTML = _xopts.map(function (t) {
+                    var lbl = t === 'hlc3' ? 'HLC/3 (typical)' : t.charAt(0).toUpperCase() + t.slice(1);
+                    return '<option value="' + t + '"' + (t === _xprev ? ' selected' : '') + '>' + lbl + '</option>';
+                }).join('');
+                _xsEl.value = _xprev;
+            }
+        } else if (rightType === 'volume') {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = 'none';
-            el = document.getElementById('exit-right-day-group-' + n); if (el) el.style.display = rightType === 'vwap' ? 'none' : '';
+            el = document.getElementById('exit-right-day-group-' + n); if (el) el.style.display = '';
         } else {
             el = document.getElementById('exit-right-window-group-' + n); if (el) el.style.display = 'none';
             el = document.getElementById('exit-right-series-group-' + n); if (el) el.style.display = '';

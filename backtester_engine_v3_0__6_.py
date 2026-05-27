@@ -894,8 +894,19 @@ class BacktesterEngine:
                 elif pt == 'open':
                     return float(df['open'].iloc[0])
                 elif pt == 'vwap':
+                    # Volume-weighted typical price within the bucket — matches
+                    # the rolling-VWAP formula used by the options backtester
+                    # and simulated trading: Σ((H+L+C)/3 × vol) / Σ(vol).
+                    if {'high', 'low', 'close', 'volume'}.issubset(df.columns):
+                        vol = df['volume'].astype(float)
+                        total_vol = float(vol.sum())
+                        if total_vol > 0:
+                            tp = (df['high'].astype(float)
+                                  + df['low'].astype(float)
+                                  + df['close'].astype(float)) / 3.0
+                            return float((tp * vol).sum() / total_vol)
                     if 'vwap' in df.columns and df['vwap'].notna().any():
-                        return float(df['vwap'].mean())
+                        return float(df['vwap'].iloc[-1])
                     return float(df['close'].iloc[-1])
                 else:
                     return float(df['close'].iloc[-1])
@@ -916,7 +927,7 @@ class BacktesterEngine:
         except Exception:
             return None
 
-    _INDICATOR_TYPES = {'sma', 'ema', 'rsi', 'macd'}
+    _INDICATOR_TYPES = {'sma', 'ema', 'rsi', 'macd', 'vwap'}
 
     def _get_volume(self, condition: Dict, side: str, grouped_data: Dict, dates: List,
                     current_date_index: int, current_candle=None) -> Optional[float]:
@@ -1027,6 +1038,100 @@ class BacktesterEngine:
             v = values[i]
             result[i] = alpha * v + (1.0 - alpha) * result[i - 1] if not pd.isna(v) else result[i - 1]
         return pd.Series(result, index=series.index, dtype=float)
+
+    def _build_vwap_frame(self, condition, side, grouped_data, dates,
+                          current_date_index, current_candle=None, cutoff_time_str=None):
+        """Return a DataFrame with high/low/close/volume (and open when
+        available) for rolling-VWAP computation, respecting the requested
+        candle type and multiplier.  Lookahead-safe for day_offset==0.
+        """
+        try:
+            day_offset  = condition.get(f'{side}_day', 0)
+            candle_type = condition.get(f'{side}_candle', 'min')
+            multiplier  = max(1, int(condition.get(f'{side}_multiplier', 1)))
+
+            target_idx = current_date_index + day_offset
+            end_idx    = min(target_idx + 1, len(dates))
+
+            per_day_rows = []   # for candle_type='day'
+            min_frames   = []   # for min / hr
+            cols_needed  = ['high', 'low', 'close', 'volume']
+
+            lookback_days = 60 if candle_type != 'day' else 200
+            for i in range(max(0, end_idx - lookback_days), end_idx):
+                d = dates[i]
+                if d not in grouped_data.groups:
+                    continue
+                day_data = grouped_data.get_group(d).copy()
+                if not set(cols_needed).issubset(day_data.columns):
+                    continue
+
+                # Lookahead protection on day=0
+                if day_offset == 0 and i == current_date_index:
+                    if current_candle is not None and 'timestamp' in day_data.columns:
+                        ts = current_candle.get('timestamp') if isinstance(current_candle, dict) \
+                             else (current_candle['timestamp'] if 'timestamp' in current_candle.index else None)
+                        if ts is not None:
+                            day_data = day_data[day_data['timestamp'] <= ts]
+                    elif cutoff_time_str is not None and 'timestamp' in day_data.columns:
+                        try:
+                            ch, cm = map(int, cutoff_time_str.split(':'))
+                            cutoff_mins = ch * 60 + cm
+                            def _dm(ts): return ts.hour * 60 + ts.minute if hasattr(ts, 'hour') else 9999
+                            day_data = day_data[day_data['timestamp'].apply(_dm) < cutoff_mins]
+                        except Exception:
+                            pass
+                    elif current_candle is None and cutoff_time_str is None:
+                        # No cutoff: skip today to avoid lookahead
+                        continue
+
+                if day_data.empty:
+                    continue
+
+                if candle_type == 'day':
+                    row = {
+                        'high':   float(day_data['high'].max()),
+                        'low':    float(day_data['low'].min()),
+                        'close':  float(day_data['close'].iloc[-1]),
+                        'volume': float(day_data['volume'].sum()),
+                    }
+                    if 'open' in day_data.columns:
+                        row['open'] = float(day_data['open'].iloc[0])
+                    per_day_rows.append(row)
+                else:
+                    keep = [c for c in ['high', 'low', 'close', 'volume', 'open'] if c in day_data.columns]
+                    min_frames.append(day_data[keep].copy())
+
+            if candle_type == 'day':
+                if len(per_day_rows) < 2:
+                    return None
+                return pd.DataFrame(per_day_rows)
+
+            if not min_frames:
+                return None
+            df = pd.concat(min_frames, ignore_index=True)
+
+            if candle_type == 'hr':
+                bars_per = 60 * multiplier
+            else:  # 'min'
+                bars_per = multiplier
+
+            if bars_per <= 1:
+                return df.reset_index(drop=True)
+
+            grp = df.groupby(df.index // bars_per)
+            agg_dict = {
+                'high':   grp['high'].max(),
+                'low':    grp['low'].min(),
+                'close':  grp['close'].last(),
+                'volume': grp['volume'].sum(),
+            }
+            if 'open' in df.columns:
+                agg_dict['open'] = grp['open'].first()
+            return pd.DataFrame(agg_dict).reset_index(drop=True)
+
+        except Exception:
+            return None
 
     def _build_indicator_series(self, condition, side, grouped_data, dates,
                                 current_date_index, current_candle=None, cutoff_time_str=None):
@@ -1141,6 +1246,35 @@ class BacktesterEngine:
                 rsi = 100 - (100 / (1 + rs))
                 val = rsi.iloc[-1]
                 return float(val) if not pd.isna(val) else None
+
+            elif ind_type == 'vwap':
+                # Rolling N-bar volume-weighted VWAP — matches simulated
+                # trading: Σ(tp × vol) / Σ(vol) over the last N bars at the
+                # chosen timeframe.  Default series 'hlc3' uses (H+L+C)/3;
+                # other series ('close','open','high','low') use that column.
+                window = int(condition.get(f'{side}_window', 14))
+                series_type = condition.get(f'{side}_series', 'hlc3')
+                bars = self._build_vwap_frame(
+                    condition, side, grouped_data, dates,
+                    current_date_index, current_candle,
+                    cutoff_time_str=cutoff_time_str,
+                )
+                if bars is None or len(bars) < window:
+                    return None
+                win = bars.iloc[-window:]
+                if 'volume' not in win.columns:
+                    return None
+                vol = win['volume'].astype(float)
+                total_vol = float(vol.sum())
+                if total_vol <= 0:
+                    return None
+                if series_type in ('open', 'high', 'low', 'close') and series_type in win.columns:
+                    tp = win[series_type].astype(float)
+                else:
+                    tp = (win['high'].astype(float)
+                          + win['low'].astype(float)
+                          + win['close'].astype(float)) / 3.0
+                return float((tp * vol).sum() / total_vol)
 
             elif ind_type == 'macd':
                 short_w = int(condition.get(f'{side}_macd_short', 12))
