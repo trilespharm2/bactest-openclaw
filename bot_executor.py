@@ -1086,11 +1086,40 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             return positions   # no symbols declared → fall back to all
         return [p for p in positions if _pos_underlying(p) in _strat_syms]
 
+    def _order_underlying(o):
+        """Underlying symbol for an order. For options orders Tradier returns
+        the underlying in `symbol` and the OCC in `option_symbol`; for multi-leg
+        orders the underlying is also in `symbol`."""
+        sym = str(o.get('symbol', '') or '').upper()
+        # If `symbol` is itself an OCC string, extract the root.
+        import re as _re
+        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
+        return m.group(1) if m else sym
+
     def _strategy_orders(orders):
-        if not _strat_tag:
+        # Per-strategy attribution rules:
+        #   - Tag matches THIS strategy exactly  → count it.
+        #   - Tag is non-empty but belongs to ANOTHER strategy → skip (do
+        #     not interfere with that strategy's cap).
+        #   - Tag is empty/missing AND the order's underlying is in this
+        #     strategy's declared symbol set → count it. This covers two
+        #     real-world cases that would otherwise silently bypass the cap:
+        #       (a) Tradier omits/strips `tag` on certain order endpoints,
+        #       (b) orders placed manually via the UI (no strategy tag).
+        if not _strat_tag and not _strat_syms:
             return orders
-        return [o for o in orders
-                if str(o.get('tag', '') or '').strip() == _strat_tag]
+        out = []
+        for o in orders:
+            otag = str(o.get('tag', '') or '').strip()
+            if otag:
+                if _strat_tag and otag == _strat_tag:
+                    out.append(o)
+                # else: belongs to another strategy → skip
+                continue
+            # Untagged order: attribute by underlying symbol scope.
+            if _strat_syms and _order_underlying(o) in _strat_syms:
+                out.append(o)
+        return out
 
     if _max_pos > 0:
         # Cap = open positions + currently-pending/open orders.
