@@ -1064,84 +1064,31 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     _strat_tag   = (cfg.get('_strategy_tag') or '').strip()
     _strat_syms  = [s.upper() for s in (cfg.get('_strategy_symbols') or []) if s]
 
-    # Fetch positions (and orders for count check) once, reuse in closures.
-    # max_positions is scoped to THIS strategy:
-    #   - orders: filter to those tagged with this strategy
-    #   - positions: filter to underlyings traded by this strategy (Tradier
-    #     doesn't echo our tag onto resulting positions, so we approximate
-    #     strategy-ownership via underlying symbol).
+    # Fetch positions once, reuse for both cap check and allocation check.
     _cached_positions = None
     if _max_pos > 0 or _alloc > 0:
         _cached_positions = _get_positions(api_key, base_url, account_id)
 
-    def _pos_underlying(p):
-        sym = str(p.get('symbol', '') or '').upper()
-        # OCC: ROOT + YYMMDD + C/P + STRIKE(8) → take chars before the 6-digit date
-        import re as _re
-        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
-        return m.group(1) if m else sym
-
-    def _strategy_positions(positions):
-        if not _strat_syms:
-            return positions   # no symbols declared → fall back to all
-        return [p for p in positions if _pos_underlying(p) in _strat_syms]
-
-    def _order_underlying(o):
-        """Underlying symbol for an order. For options orders Tradier returns
-        the underlying in `symbol` and the OCC in `option_symbol`; for multi-leg
-        orders the underlying is also in `symbol`."""
-        sym = str(o.get('symbol', '') or '').upper()
-        # If `symbol` is itself an OCC string, extract the root.
-        import re as _re
-        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
-        return m.group(1) if m else sym
-
-    def _strategy_orders(orders):
-        # Per-strategy attribution rules:
-        #   - Tag matches THIS strategy exactly  → count it.
-        #   - Tag is non-empty but belongs to ANOTHER strategy → skip (do
-        #     not interfere with that strategy's cap).
-        #   - Tag is empty/missing AND the order's underlying is in this
-        #     strategy's declared symbol set → count it. This covers two
-        #     real-world cases that would otherwise silently bypass the cap:
-        #       (a) Tradier omits/strips `tag` on certain order endpoints,
-        #       (b) orders placed manually via the UI (no strategy tag).
-        if not _strat_tag and not _strat_syms:
-            return orders
-        out = []
-        for o in orders:
-            otag = str(o.get('tag', '') or '').strip()
-            if otag:
-                if _strat_tag and otag == _strat_tag:
-                    out.append(o)
-                # else: belongs to another strategy → skip
-                continue
-            # Untagged order: attribute by underlying symbol scope.
-            if _strat_syms and _order_underlying(o) in _strat_syms:
-                out.append(o)
-        return out
-
     if _max_pos > 0:
-        # Cap = open positions + currently-pending/open orders.
-        # Canceled/rejected/expired orders do NOT count — the bot is free to
-        # retry after a cancellation.
+        # Account-level cap: count every open position + every currently
+        # pending order on the entire Tradier account, regardless of which
+        # strategy placed them. Canceled/rejected/expired orders are excluded
+        # because _get_open_orders only returns open/pending/partially_filled.
         _cached_orders = _get_open_orders(api_key, base_url, account_id)
-        _strat_pos_ct  = len(_strategy_positions(_cached_positions))
-        _strat_ord_ct  = len(_strategy_orders(_cached_orders))
-        total_count    = _strat_pos_ct + _strat_ord_ct
-        _all_order_tags = [str(o.get('tag', '') or '') for o in _cached_orders]
+        _pos_ct     = len(_cached_positions or [])
+        _ord_ct     = len(_cached_orders or [])
+        total_count = _pos_ct + _ord_ct
         print(
-            f"[BOT:max_pos] tag='{_strat_tag}' max={_max_pos} "
-            f"pos_ct={_strat_pos_ct} ord_ct={_strat_ord_ct} total={total_count} "
-            f"all_tags={_all_order_tags}",
+            f"[BOT:max_pos] (account-level) max={_max_pos} "
+            f"pos_ct={_pos_ct} ord_ct={_ord_ct} total={total_count}",
             flush=True,
         )
         if total_count >= _max_pos:
             print(f"[BOT:max_pos] CAP REACHED — blocking order", flush=True)
             return False, (
-                f"Max position cap reached for strategy: "
+                f"Max position cap reached: "
                 f"{total_count}/{_max_pos} "
-                f"({_strat_pos_ct} open positions, {_strat_ord_ct} pending orders)"
+                f"({_pos_ct} open positions, {_ord_ct} pending orders)"
             )
 
     # ── Fetch expiration ──────────────────────────────────────────────
