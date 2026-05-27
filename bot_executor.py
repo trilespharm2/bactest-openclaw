@@ -151,24 +151,83 @@ def _get_positions(api_key, base_url, account_id, tag=''):
     return positions
 
 
+def _resolve_tag_positions(tag, api_key, base_url, account_id):
+    """Return (matched_positions, pending_count) for a user-defined order tag.
+
+    When the bot opens a position it stamps the Tradier order with the
+    user-defined step tag (e.g. "ABC").  Tradier does NOT propagate that tag
+    onto the resulting position objects, so we resolve it in two steps:
+
+      1. Fetch ALL orders → filter to those whose tag == the requested tag.
+      2. From *filled* orders extract the option/equity symbols from each leg.
+      3. Fetch current positions → keep those whose symbol appears in the set.
+      4. Count *open/pending* orders with that tag separately (positions in
+         flight that haven't been filled yet still count toward the cap).
+
+    Returns (list[position], int) so callers can decide how to combine them.
+    """
+    all_orders = _get_all_orders(api_key, base_url, account_id)
+    tagged = [o for o in all_orders
+              if str(o.get('tag', '') or '').strip() == tag]
+
+    filled_syms  = set()
+    pending_count = 0
+    for o in tagged:
+        status = str(o.get('status', '') or '')
+        if status in ('open', 'pending', 'partially_filled'):
+            pending_count += 1
+        elif status == 'filled':
+            # Multileg orders carry legs; single orders carry option_symbol/symbol
+            legs = o.get('leg', [])
+            if isinstance(legs, dict):
+                legs = [legs]
+            if legs:
+                for leg in legs:
+                    sym = leg.get('option_symbol') or leg.get('symbol', '')
+                    if sym:
+                        filled_syms.add(str(sym).upper())
+            else:
+                sym = o.get('option_symbol') or o.get('symbol', '')
+                if sym:
+                    filled_syms.add(str(sym).upper())
+
+    all_positions = _get_positions(api_key, base_url, account_id)
+    matched = [p for p in all_positions
+               if str(p.get('symbol', '') or '').upper() in filled_syms]
+    return matched, pending_count
+
+
 def eval_condition(cfg, api_key, base_url, account_id):
     ctype    = cfg.get('conditionType', 'position_count')
     tag      = cfg.get('tag', '').strip()
     operator = cfg.get('operator', '<')
     value    = float(cfg.get('value', 1))
 
-    positions = _get_positions(api_key, base_url, account_id, tag)
-
     if ctype == 'position_count':
-        return _compare(float(len(positions)), operator, value)
+        if tag:
+            matched, pending = _resolve_tag_positions(tag, api_key, base_url, account_id)
+            # Each filled order = 1 trade regardless of how many legs it created.
+            # Pending orders count as 1 each (order placed, not yet filled).
+            count = len(matched) + pending
+        else:
+            count = len(_get_positions(api_key, base_url, account_id))
+        return _compare(float(count), operator, value)
 
     elif ctype == 'daily_opens':
+        if tag:
+            positions, _ = _resolve_tag_positions(tag, api_key, base_url, account_id)
+        else:
+            positions = _get_positions(api_key, base_url, account_id)
         today = _now_et().date().isoformat()
         count = sum(1 for p in positions
                     if str(p.get('date_acquired', '')).startswith(today))
         return _compare(float(count), operator, value)
 
     elif ctype == 'unrealized_pnl':
+        if tag:
+            positions, _ = _resolve_tag_positions(tag, api_key, base_url, account_id)
+        else:
+            positions = _get_positions(api_key, base_url, account_id)
         total = 0.0
         for pos in positions:
             sym  = pos.get('symbol', '')
@@ -1278,13 +1337,14 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return limit_price_min if is_credit_trade else limit_price_max
 
     def _place(order_data):
-        # Tag every order with the user-defined STRATEGY identifier (not the
-        # options-strategy-type) so max_positions and other strategy-scoped
-        # checks can correctly identify which orders belong to this strategy.
-        # Falls back to the options-strategy-type when no strategy tag is set
-        # (e.g. legacy callers).
-        tag = _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
-        order_data.setdefault('tag', (tag or 'strategy')[:256])
+        # Step-level user tag (e.g. "ABC") takes highest priority — it drives
+        # the condition-step position_count and close_position tag filter.
+        # Falls back to the strategy-level tag, then to the options strategy
+        # type name so every order always carries a meaningful identifier.
+        user_tag      = (cfg.get('tag') or '').strip()
+        effective_tag = (user_tag or _strat_tag or
+                         (strategy or '').strip().replace(' ', '-').replace('_', '-'))
+        order_data.setdefault('tag', (effective_tag or 'strategy')[:256])
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
         if result and (result.get('order') or {}).get('id'):
@@ -1547,25 +1607,27 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 def exec_close_position(cfg, api_key, base_url, account_id):
     import re as _re
 
-    symbol_filter = cfg.get('tag', '').strip()          # optional symbol substring filter
-    target        = cfg.get('target', 'all').strip()    # all | profitable | losers
-    strat_syms    = [s.upper() for s in (cfg.get('_strategy_symbols') or []) if s]
+    order_tag  = cfg.get('tag', '').strip()             # user-defined position tag (e.g. "ABC")
+    target     = cfg.get('target', 'all').strip()       # all | profitable | losers
+    strat_syms = [s.upper() for s in (cfg.get('_strategy_symbols') or []) if s]
 
     def _pos_root(sym):
         """Extract option root (underlying) from an OCC symbol, else return sym."""
         m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', str(sym).upper())
         return m.group(1) if m else str(sym).upper()
 
-    positions = _get_positions(api_key, base_url, account_id)
-
-    # Scope to this strategy's underlyings when available
-    if strat_syms:
-        positions = [p for p in positions if _pos_root(p.get('symbol', '')) in strat_syms]
-
-    # Optional user-defined symbol substring filter (e.g. "SPY", "AAPL")
-    if symbol_filter:
-        positions = [p for p in positions
-                     if symbol_filter.upper() in str(p.get('symbol', '')).upper()]
+    if order_tag:
+        # Resolve positions via order-tag tracking: look at all orders carrying
+        # this tag, extract their filled symbols, match against live positions.
+        # This is the correct way because Tradier does NOT copy order tags onto
+        # the resulting position records.
+        positions, _ = _resolve_tag_positions(order_tag, api_key, base_url, account_id)
+    else:
+        # No tag → close all positions scoped to this strategy's underlyings.
+        positions = _get_positions(api_key, base_url, account_id)
+        if strat_syms:
+            positions = [p for p in positions
+                         if _pos_root(p.get('symbol', '')) in strat_syms]
 
     # Target filter: profitable or losers only
     if target in ('profitable', 'losers'):
