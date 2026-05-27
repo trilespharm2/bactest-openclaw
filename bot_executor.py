@@ -5,11 +5,64 @@ Only fires during US market hours (Mon-Fri 09:25-16:05 ET).
 """
 import json
 import logging
+import os
+import threading
 import urllib.parse
 import requests
 from datetime import datetime, time as dtime
 
 logger = logging.getLogger(__name__)
+
+# ── Tag → option-symbols persistent store ───────────────────────────────────
+#
+# Tradier does NOT reliably return the `tag` field on GET /orders responses,
+# especially for multileg (combo) orders in the sandbox.  We therefore keep
+# our own local record: when the bot successfully places an order that carries
+# a user-defined step tag, we record which option symbols were in that order.
+#
+# The store is a JSON file so it survives server restarts.
+# Schema: { "<account_id>:<tag>" : ["SPYW260531P00520000", ...] }
+
+_TAG_STORE_PATH = os.path.join(os.path.dirname(__file__), 'bot_tag_map.json')
+_tag_store_lock = threading.Lock()
+
+
+def _load_tag_store():
+    try:
+        with open(_TAG_STORE_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_tag_store(store):
+    try:
+        with open(_TAG_STORE_PATH, 'w') as f:
+            json.dump(store, f)
+    except Exception as e:
+        logger.warning(f"bot_tag_store: could not save: {e}")
+
+
+def _register_tag_symbols(account_id, tag, option_symbols):
+    """Record that *option_symbols* were opened under user tag *tag*."""
+    if not tag or not option_symbols:
+        return
+    key = f"{account_id}:{tag}"
+    with _tag_store_lock:
+        store = _load_tag_store()
+        existing = set(store.get(key, []))
+        existing.update(str(s).upper() for s in option_symbols if s)
+        store[key] = sorted(existing)
+        _save_tag_store(store)
+    logger.info(f"bot_tag_store: registered tag '{tag}' → {sorted(existing)}")
+
+
+def _lookup_tag_symbols(account_id, tag):
+    """Return the set of option symbols ever opened under user tag *tag*."""
+    key = f"{account_id}:{tag}"
+    with _tag_store_lock:
+        store = _load_tag_store()
+    return set(store.get(key, []))
 
 TRADIER_LIVE_BASE  = 'https://api.tradier.com/v1'
 TRADIER_PAPER_BASE = 'https://sandbox.tradier.com/v1'
@@ -154,30 +207,38 @@ def _get_positions(api_key, base_url, account_id, tag=''):
 def _resolve_tag_positions(tag, api_key, base_url, account_id):
     """Return (matched_positions, pending_count) for a user-defined order tag.
 
-    When the bot opens a position it stamps the Tradier order with the
-    user-defined step tag (e.g. "ABC").  Tradier does NOT propagate that tag
-    onto the resulting position objects, so we resolve it in two steps:
+    Tradier does NOT reliably return the `tag` field on GET /orders (it is
+    often absent for multileg orders in sandbox).  We therefore use a two-
+    source approach:
 
-      1. Fetch ALL orders → filter to those whose tag == the requested tag.
-      2. From *filled* orders extract the option/equity symbols from each leg.
-      3. Fetch current positions → keep those whose symbol appears in the set.
-      4. Count *open/pending* orders with that tag separately (positions in
-         flight that haven't been filled yet still count toward the cap).
+      PRIMARY  — local JSON store written by _place() at order-placement time.
+                 This is always accurate because we know the option symbols
+                 before submitting the order.
+      FALLBACK — scan all Tradier orders for a matching tag field, then
+                 extract leg symbols.  Covers orders placed before the local
+                 store existed or on other systems.
+
+    Pending orders: scanned from GET /orders filtered by tag (Tradier does
+    include the tag on *open* orders more reliably than filled ones).
 
     Returns (list[position], int) so callers can decide how to combine them.
     """
-    all_orders = _get_all_orders(api_key, base_url, account_id)
-    tagged = [o for o in all_orders
-              if str(o.get('tag', '') or '').strip() == tag]
+    # ── Primary: local tag store ──────────────────────────────────────
+    filled_syms = _lookup_tag_symbols(account_id, tag)   # set of OCC symbols
 
-    filled_syms  = set()
+    # ── Fallback: scan Tradier order list for matching tag ────────────
+    all_orders = _get_all_orders(api_key, base_url, account_id)
     pending_count = 0
-    for o in tagged:
-        status = str(o.get('status', '') or '')
+    for o in all_orders:
+        o_tag    = str(o.get('tag', '') or '').strip()
+        status   = str(o.get('status', '') or '')
+        if o_tag != tag:
+            continue
         if status in ('open', 'pending', 'partially_filled'):
             pending_count += 1
-        elif status == 'filled':
-            # Multileg orders carry legs; single orders carry option_symbol/symbol
+        elif status == 'filled' and not filled_syms:
+            # Only use Tradier leg data when local store has nothing —
+            # local store is preferred because Tradier often omits the tag.
             legs = o.get('leg', [])
             if isinstance(legs, dict):
                 legs = [legs]
@@ -190,6 +251,12 @@ def _resolve_tag_positions(tag, api_key, base_url, account_id):
                 sym = o.get('option_symbol') or o.get('symbol', '')
                 if sym:
                     filled_syms.add(str(sym).upper())
+
+    if filled_syms:
+        logger.debug(f"resolve_tag '{tag}': filled_syms={filled_syms}, pending={pending_count}")
+    else:
+        logger.warning(f"resolve_tag '{tag}': no symbols found (local store empty, "
+                       f"Tradier tag absent) — 0 positions will be matched")
 
     all_positions = _get_positions(api_key, base_url, account_id)
     matched = [p for p in all_positions
@@ -1402,6 +1469,20 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
         if result and (result.get('order') or {}).get('id'):
+            # If this order carries a user-defined step tag, persist the
+            # option symbols NOW — we know them at placement time and cannot
+            # rely on Tradier to return the tag field on GET /orders later.
+            if user_tag:
+                placed_syms = []
+                for k, v in order_data.items():
+                    if 'option_symbol' in k and v:
+                        placed_syms.append(str(v))
+                # Single-leg: 'option_symbol' key (no index)
+                single_sym = order_data.get('option_symbol')
+                if single_sym and single_sym not in placed_syms:
+                    placed_syms.append(str(single_sym))
+                if placed_syms:
+                    _register_tag_symbols(account_id, user_tag, placed_syms)
             return True, f"Order {result['order']['id']} placed ({target_exp})"
         return False, f"Order rejected: {err or result}"
 
