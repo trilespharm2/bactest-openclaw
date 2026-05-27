@@ -1140,19 +1140,34 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
         return m.group(1) if m else sym
 
+    def _sym_matches_strat(sym):
+        """True if *sym* matches any declared strategy underlying.
+
+        Uses prefix matching so that SPX (declared) matches SPXW (option root
+        used by Tradier for SPX weeklies), and similar root variants.
+        Checks both directions: declared sym is a prefix of the order sym, or
+        the order sym is a prefix of the declared sym (handles cases where the
+        user typed the full root but the order carries the base ticker).
+        """
+        sym_up = str(sym or '').upper()
+        for s in _strat_syms:
+            if sym_up == s or sym_up.startswith(s) or s.startswith(sym_up):
+                return True
+        return False
+
     def _strategy_positions(positions):
         if not _strat_syms:
             return positions   # no symbols declared → fall back to all
-        return [p for p in positions if _pos_underlying(p) in _strat_syms]
+        return [p for p in positions if _sym_matches_strat(_pos_underlying(p))]
 
     def _strategy_orders(orders):
         # Primary: filter by underlying symbol (reliable — Tradier always
         # includes the symbol field; the tag field is sometimes absent in
         # sandbox responses and on orders placed before tagging was added).
+        # Use prefix matching to handle SPX→SPXW and similar root variants.
         if _strat_syms:
-            sym_matched = [o for o in orders
-                           if str(o.get('symbol', '') or '').upper() in _strat_syms]
-            return sym_matched
+            return [o for o in orders
+                    if _sym_matches_strat(str(o.get('symbol', '') or '').upper())]
         # Fallback when no symbols declared: try tag match, else all orders.
         if _strat_tag:
             return [o for o in orders
@@ -1160,18 +1175,57 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return orders
 
     if _max_pos > 0:
-        # Cap = open positions + currently-pending/open orders.
-        # Canceled/rejected/expired orders do NOT count — the bot is free to
-        # retry after a cancellation.
-        _cached_orders = _get_open_orders(api_key, base_url, account_id)
-        _strat_pos_ct  = len(_strategy_positions(_cached_positions))
-        _strat_ord_ct  = len(_strategy_orders(_cached_orders))
-        total_count    = _strat_pos_ct + _strat_ord_ct
+        # Count TRADES, not legs.
+        #
+        # Multi-leg strategies (spreads, condors) create multiple Tradier
+        # position records per order — e.g. a 2-leg spread opens 2 positions.
+        # Counting positions naively would block the 2nd trade after just 1.
+        #
+        # Correct model:
+        #   active_trades = (filled orders whose legs are still live positions)
+        #                 + (pending/open orders = trades in flight)
+        #
+        # A filled order is "still alive" if at least one of its leg option
+        # symbols is still present in the current positions list.
+        _live_pos_syms = {str(p.get('symbol', '') or '').upper()
+                          for p in (_cached_positions or [])}
+
+        _all_orders  = _get_all_orders(api_key, base_url, account_id)
+        _open_orders = _get_open_orders(api_key, base_url, account_id)
+
+        # Pending trades: open/pending orders scoped to this strategy
+        _pending = [o for o in _open_orders
+                    if _sym_matches_strat(str(o.get('symbol', '') or '').upper())]
+        _pending_ct = len(_pending)
+
+        # Active filled trades: each filled order counts as 1 trade if any
+        # of its legs still appear in the live positions list.
+        _active_filled = 0
+        for _o in _all_orders:
+            if str(_o.get('status', '') or '') != 'filled':
+                continue
+            if not _sym_matches_strat(str(_o.get('symbol', '') or '').upper()):
+                continue
+            _legs = _o.get('leg', [])
+            if isinstance(_legs, dict):
+                _legs = [_legs]
+            if _legs:
+                _leg_syms = {
+                    str(lg.get('option_symbol') or lg.get('symbol', '') or '').upper()
+                    for lg in _legs
+                }
+            else:
+                _s = str(_o.get('option_symbol') or _o.get('symbol', '') or '').upper()
+                _leg_syms = {_s} if _s else set()
+            if _leg_syms & _live_pos_syms:   # at least one leg still open
+                _active_filled += 1
+
+        total_count = _active_filled + _pending_ct
         if total_count >= _max_pos:
             return False, (
                 f"Max position cap reached for strategy: "
                 f"{total_count}/{_max_pos} "
-                f"({_strat_pos_ct} open positions, {_strat_ord_ct} pending orders)"
+                f"({_active_filled} active trades, {_pending_ct} pending orders)"
             )
 
     # ── Fetch expiration ──────────────────────────────────────────────
