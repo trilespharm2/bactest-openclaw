@@ -1093,46 +1093,19 @@ def exec_open_position(cfg, api_key, base_url, account_id):
                 if str(o.get('tag', '') or '').strip() == _strat_tag]
 
     if _max_pos > 0:
-        # Count BOTH currently-open orders AND today's terminal-state orders
-        # (canceled / rejected / expired) for this strategy so the bot can't
-        # retry-loop forever when Tradier (or the exchange) keeps canceling
-        # the order post-placement.  Filled orders aren't counted here — they
-        # become positions and are already counted via _strat_pos_ct.
-        _all_orders     = _get_all_orders(api_key, base_url, account_id)
-        _strat_all      = _strategy_orders(_all_orders)
-        _today_iso      = _now_et().date().isoformat()
-        _OPEN_STATES    = ('open', 'pending', 'partially_filled')
-        _TERMINAL_FAIL  = ('canceled', 'rejected', 'expired')
-        _open_orders    = [o for o in _strat_all
-                           if o.get('status') in _OPEN_STATES]
-        _today_failed   = [o for o in _strat_all
-                           if o.get('status') in _TERMINAL_FAIL
-                           and str(o.get('transaction_date',
-                                         o.get('create_date', ''))).startswith(_today_iso)]
-        _strat_pos_ct   = len(_strategy_positions(_cached_positions))
-        _strat_ord_ct   = len(_open_orders) + len(_today_failed)
-        total_count     = _strat_pos_ct + _strat_ord_ct
+        # Cap = open positions + currently-pending/open orders.
+        # Canceled/rejected/expired orders do NOT count — the bot is free to
+        # retry after a cancellation.
+        _cached_orders = _get_open_orders(api_key, base_url, account_id)
+        _strat_pos_ct  = len(_strategy_positions(_cached_positions))
+        _strat_ord_ct  = len(_strategy_orders(_cached_orders))
+        total_count    = _strat_pos_ct + _strat_ord_ct
         if total_count >= _max_pos:
-            # Surface the most-recent Tradier cancel/rejection reason so the
-            # user can see WHY the orders aren't filling.
-            _reason = ''
-            if _today_failed:
-                def _ts(o):
-                    return str(o.get('transaction_date', o.get('create_date', '')))
-                _recent = max(_today_failed, key=_ts)
-                _reason = (_recent.get('reason_description')
-                           or _recent.get('description')
-                           or _recent.get('status') or '').strip()
-            msg = (
+            return False, (
                 f"Max position cap reached for strategy: "
                 f"{total_count}/{_max_pos} "
-                f"({_strat_pos_ct} open positions, "
-                f"{len(_open_orders)} pending, "
-                f"{len(_today_failed)} canceled/rejected today)"
+                f"({_strat_pos_ct} open positions, {_strat_ord_ct} pending orders)"
             )
-            if _reason:
-                msg += f" — last cancel reason: {_reason}"
-            return False, msg
 
     # ── Fetch expiration ──────────────────────────────────────────────
     exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
