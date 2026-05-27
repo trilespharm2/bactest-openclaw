@@ -135,20 +135,8 @@ def _sanitize_strategy_tag(name, sid=None):
     return base[:256]
 
 
-def _pos_root(symbol):
-    """Return the underlying root for a position symbol.
-
-    Options use OCC format: ROOT + YYMMDD + C/P + 8-digit-strike.
-    Equities are just the ticker.  We return the ROOT in both cases so that
-    tag filtering compares "SPX" == "SPX", not "X" in "SPXW260527C...".
-    """
-    import re as _re
-    sym = str(symbol or '').upper().strip()
-    m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
-    return m.group(1) if m else sym
-
-
-def _get_positions(api_key, base_url, account_id, tag=''):
+def _get_positions(api_key, base_url, account_id):
+    """Return all open positions for the account."""
     data = _tradier(api_key, base_url, f'/accounts/{account_id}/positions')
     positions = []
     if data:
@@ -158,14 +146,46 @@ def _get_positions(api_key, base_url, account_id, tag=''):
             if isinstance(raw, dict):
                 raw = [raw]
             positions = raw or []
-    if tag:
-        # Exact underlying-root match (case-insensitive).
-        # Previously used substring match which caused "X" to wrongly match
-        # "SPXW", "SPX", "XOM", etc.
-        tag_up = tag.upper()
-        positions = [p for p in positions
-                     if _pos_root(p.get('symbol', '')) == tag_up]
     return positions
+
+
+def _positions_for_tag(api_key, base_url, account_id, tag):
+    """Return open positions that came from orders labelled with *tag*.
+
+    Tags are user-defined labels (e.g. "hedge", "IC-1") stored as the
+    Tradier order `tag` field when the order is placed.  Because Tradier
+    does not echo that tag onto the resulting position, we cross-reference:
+
+      1. Fetch all account orders; keep those whose `tag` == tag and whose
+         status is filled or partially_filled.
+      2. Collect the exact option/equity symbols from those orders.
+      3. Return currently-open positions whose `symbol` matches.
+
+    If *tag* is empty, all positions are returned (no filter).
+    """
+    tag = (tag or '').strip()
+    if not tag:
+        return _get_positions(api_key, base_url, account_id)
+
+    all_orders = _get_all_orders(api_key, base_url, account_id)
+    tagged_syms = set()
+    for o in all_orders:
+        if str(o.get('tag', '') or '').strip().lower() != tag.lower():
+            continue
+        if o.get('status') not in ('filled', 'partially_filled'):
+            continue
+        opt = str(o.get('option_symbol', '') or '').upper()
+        eq  = str(o.get('symbol', '') or '').upper()
+        sym = opt if opt else eq
+        if sym:
+            tagged_syms.add(sym)
+
+    if not tagged_syms:
+        return []
+
+    all_pos = _get_positions(api_key, base_url, account_id)
+    return [p for p in all_pos
+            if str(p.get('symbol', '') or '').upper() in tagged_syms]
 
 
 def eval_condition(cfg, api_key, base_url, account_id):
@@ -174,7 +194,7 @@ def eval_condition(cfg, api_key, base_url, account_id):
     operator = cfg.get('operator', '<')
     value    = float(cfg.get('value', 1))
 
-    positions = _get_positions(api_key, base_url, account_id, tag)
+    positions = _positions_for_tag(api_key, base_url, account_id, tag)
 
     if ctype == 'position_count':
         return _compare(float(len(positions)), operator, value)
@@ -1271,12 +1291,12 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return limit_price_min if is_credit_trade else limit_price_max
 
     def _place(order_data):
-        # Tag every order with the user-defined STRATEGY identifier (not the
-        # options-strategy-type) so max_positions and other strategy-scoped
-        # checks can correctly identify which orders belong to this strategy.
-        # Falls back to the options-strategy-type when no strategy tag is set
-        # (e.g. legacy callers).
-        tag = _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
+        # Step-level user tag (e.g. "hedge", "IC-1") takes priority — this is
+        # the label the user set on the open_position step so they can later
+        # reference it in condition/close steps.  Falls back to the strategy
+        # tag, then to the options-strategy-type name as a last resort.
+        user_tag = (cfg.get('tag') or '').strip()
+        tag = user_tag or _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
         order_data.setdefault('tag', (tag or 'strategy')[:256])
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
@@ -1538,16 +1558,19 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 
 
 def exec_close_position(cfg, api_key, base_url, account_id):
+    import re as _re
     tag       = cfg.get('tag', '').strip()
-    positions = _get_positions(api_key, base_url, account_id, tag)
+    positions = _positions_for_tag(api_key, base_url, account_id, tag)
     count     = 0
     for pos in positions:
-        sym = pos.get('symbol', '')
+        sym = str(pos.get('symbol', '') or '')
         qty = abs(int(pos.get('quantity', 0)))
         if qty == 0:
             continue
-        side       = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
-        underlying = sym[:3] if len(sym) > 15 else sym
+        side = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
+        # Derive underlying from OCC format; fall back to first 1-6 chars for equity
+        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym.upper())
+        underlying = m.group(1) if m else sym
         _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                  method='POST', data={
                      'class': 'option', 'symbol': underlying,
