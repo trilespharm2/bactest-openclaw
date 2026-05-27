@@ -8381,7 +8381,8 @@ def bot_test_strategy(sid):
     steps = _json.loads(strat.steps or '[]')
     results = execute_strategy_test(
         cfg,
-        {'steps': steps, 'allocation': strat.allocation, 'max_positions': strat.max_positions},
+        {'id': strat.id, 'name': strat.name, 'steps': steps,
+         'allocation': strat.allocation, 'max_positions': strat.max_positions},
         app,
         dry_run=dry_run,
     )

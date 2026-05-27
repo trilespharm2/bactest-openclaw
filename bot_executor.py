@@ -122,6 +122,19 @@ def _compare(val, op, threshold):
     return False
 
 
+def _sanitize_strategy_tag(name, sid=None):
+    """Build a Tradier-safe tag (alphanumeric + hyphens) identifying a strategy.
+
+    Includes the numeric strategy id when available so two strategies with the
+    same name still get distinct tags.  Max length 256 (Tradier limit).
+    """
+    import re
+    base = re.sub(r'[^A-Za-z0-9\-]+', '-', (name or 'strategy')).strip('-') or 'strategy'
+    if sid is not None:
+        base = f"{base}-{sid}"
+    return base[:256]
+
+
 def _get_positions(api_key, base_url, account_id, tag=''):
     data = _tradier(api_key, base_url, f'/accounts/{account_id}/positions')
     positions = []
@@ -280,11 +293,18 @@ def _ind_sma(closes, period):
 
 
 def _ind_ema(closes, period):
+    """Plain EMA — matches options backtester's pandas.ewm(span=N, adjust=False).
+
+    Initializes from the first close (no SMA seed) and applies the standard
+    smoothing alpha = 2/(N+1) for every subsequent bar.  This intentionally
+    mirrors the options engine so the same series produces the same value
+    across Bot / Stock / Options backtesters.
+    """
     if len(closes) < period:
         return None
     k = 2.0 / (period + 1)
-    ema = sum(closes[:period]) / period
-    for p in closes[period:]:
+    ema = float(closes[0])
+    for p in closes[1:]:
         ema = p * k + ema * (1 - k)
     return ema
 
@@ -321,32 +341,37 @@ def _ind_roc(closes, period=10):
 
 
 def _ind_macd(closes, short=12, long_=26, signal=9, component='histogram'):
-    """Compute MACD value.  component: 'macd_line' | 'signal_line' | 'histogram'."""
-    if len(closes) < long_ + signal:
+    """Compute MACD value.  component: 'macd_line' | 'signal_line' | 'histogram'.
+
+    Uses plain EMA (no SMA seed) on all three lines to match the options
+    backtester's pandas.ewm(span=N, adjust=False) behaviour.  The fast/slow
+    EMAs are initialized from closes[0]; the signal EMA is initialized from
+    the first MACD-line value.
+    """
+    # Plain EMA only requires >=1 bar to start, so match that minimum here
+    # rather than the SMA-seeded warmup of `long_ + signal`.  This keeps the
+    # bot consistent with the options/stock engines which use pandas
+    # ewm(adjust=False) and emit values as soon as there's enough series.
+    if len(closes) < max(2, signal):
         return None
     k_s   = 2.0 / (short  + 1)
     k_l   = 2.0 / (long_  + 1)
     k_sig = 2.0 / (signal + 1)
 
-    es = sum(closes[:short]) / short
-    el = sum(closes[:long_]) / long_
-    for c in closes[short:long_]:
-        es = c * k_s + es * (1 - k_s)
-
+    es = float(closes[0])
+    el = float(closes[0])
     macd_series = [es - el]
-    for c in closes[long_:]:
+    for c in closes[1:]:
         es = c * k_s + es * (1 - k_s)
         el = c * k_l + el * (1 - k_l)
         macd_series.append(es - el)
 
-    if len(macd_series) < signal:
-        return None
     macd_val = macd_series[-1]
     if component == 'macd_line':
         return macd_val
 
-    sig_ema = sum(macd_series[:signal]) / signal
-    for v in macd_series[signal:]:
+    sig_ema = macd_series[0]
+    for v in macd_series[1:]:
         sig_ema = v * k_sig + sig_ema * (1 - k_sig)
     if component == 'signal_line':
         return sig_ema
@@ -1018,21 +1043,48 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     call_width    = float(cfg.get('callWidth', 5))
 
     # ── Strategy-level limits ─────────────────────────────────────────
-    _alloc    = float(cfg.get('_allocation') or 0)
-    _max_pos  = int(cfg.get('_max_positions') or 0)
+    _alloc       = float(cfg.get('_allocation') or 0)
+    _max_pos     = int(cfg.get('_max_positions') or 0)
+    _strat_tag   = (cfg.get('_strategy_tag') or '').strip()
+    _strat_syms  = [s.upper() for s in (cfg.get('_strategy_symbols') or []) if s]
 
-    # Fetch positions (and orders for count check) once, reuse in closures
+    # Fetch positions (and orders for count check) once, reuse in closures.
+    # max_positions is scoped to THIS strategy:
+    #   - orders: filter to those tagged with this strategy
+    #   - positions: filter to underlyings traded by this strategy (Tradier
+    #     doesn't echo our tag onto resulting positions, so we approximate
+    #     strategy-ownership via underlying symbol).
     _cached_positions = None
     if _max_pos > 0 or _alloc > 0:
         _cached_positions = _get_positions(api_key, base_url, account_id)
 
+    def _pos_underlying(p):
+        sym = str(p.get('symbol', '') or '').upper()
+        # OCC: ROOT + YYMMDD + C/P + STRIKE(8) → take chars before the 6-digit date
+        import re as _re
+        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
+        return m.group(1) if m else sym
+
+    def _strategy_positions(positions):
+        if not _strat_syms:
+            return positions   # no symbols declared → fall back to all
+        return [p for p in positions if _pos_underlying(p) in _strat_syms]
+
+    def _strategy_orders(orders):
+        if not _strat_tag:
+            return orders
+        return [o for o in orders
+                if str(o.get('tag', '') or '').strip() == _strat_tag]
+
     if _max_pos > 0:
         _cached_orders = _get_open_orders(api_key, base_url, account_id)
-        total_count    = len(_cached_positions) + len(_cached_orders)
+        _strat_pos_ct  = len(_strategy_positions(_cached_positions))
+        _strat_ord_ct  = len(_strategy_orders(_cached_orders))
+        total_count    = _strat_pos_ct + _strat_ord_ct
         if total_count >= _max_pos:
             return False, (
-                f"Max position cap reached: {total_count}/{_max_pos}"
-                f" (open positions + orders)"
+                f"Max position cap reached for strategy: "
+                f"{total_count}/{_max_pos} (positions + orders for this strategy)"
             )
 
     # ── Fetch expiration ──────────────────────────────────────────────
@@ -1198,10 +1250,13 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return limit_price_min if is_credit_trade else limit_price_max
 
     def _place(order_data):
-        # Embed strategy name as Tradier tag for UI labelling
-        # Tradier tag: alphanumeric + hyphens only; store strategy name only
-        safe_tag = strategy.strip().replace(' ', '-').replace('_', '-')
-        order_data.setdefault('tag', safe_tag[:256])
+        # Tag every order with the user-defined STRATEGY identifier (not the
+        # options-strategy-type) so max_positions and other strategy-scoped
+        # checks can correctly identify which orders belong to this strategy.
+        # Falls back to the options-strategy-type when no strategy tag is set
+        # (e.g. legacy callers).
+        tag = _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
+        order_data.setdefault('tag', (tag or 'strategy')[:256])
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
         if result and (result.get('order') or {}).get('id'):
@@ -1556,8 +1611,10 @@ def _exec_steps_branch(steps, ctx):
 
         elif stype == 'open_position':
             scfg_limited = dict(scfg)
-            scfg_limited['_allocation']    = ctx['alloc']
-            scfg_limited['_max_positions'] = ctx['max_pos']
+            scfg_limited['_allocation']       = ctx['alloc']
+            scfg_limited['_max_positions']    = ctx['max_pos']
+            scfg_limited['_strategy_tag']     = ctx.get('strategy_tag', '')
+            scfg_limited['_strategy_symbols'] = ctx.get('strategy_symbols', [])
             success, msg = exec_open_position(
                 scfg_limited, ctx['api_key'], ctx['base_url'], ctx['account_id'])
             log.append(f"[{n}] OPEN_POSITION: {'✓' if success else '✗'} {msg}")
@@ -1617,10 +1674,26 @@ def execute_strategy(cfg, strategy_dict, app):
         'SPY'
     )
 
+    # Strategy identity — used to tag orders and to filter positions/orders
+    # so that max_positions is enforced at the STRATEGY level, not account-wide.
+    _strat_name = (strategy_dict.get('name') or '').strip()
+    _strat_id   = strategy_dict.get('id')
+    _strat_tag  = _sanitize_strategy_tag(_strat_name, _strat_id)
+
+    # Symbols this strategy trades — used to scope position counts since
+    # Tradier doesn't echo our order tag on resulting positions.
+    _strat_symbols = sorted({
+        (s.get('config', {}).get('symbol') or '').upper().strip()
+        for s in _all_steps(steps)
+        if s.get('type') == 'open_position'
+        and (s.get('config', {}).get('symbol') or '').strip()
+    })
+
     ctx = dict(api_key=api_key, base_url=base_url, account_id=account_id,
                log=[], n=0, alloc=_alloc, max_pos=_max_pos,
                primary_symbol=primary_symbol, app=app, user_id=cfg.user_id,
-               mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url)
+               mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url,
+               strategy_tag=_strat_tag, strategy_symbols=_strat_symbols)
     return _exec_steps_branch(steps, ctx)
 
 
@@ -1853,8 +1926,10 @@ def _exec_steps_test(steps, tctx):
                 })
             else:
                 scfg_limited = dict(scfg)
-                scfg_limited['_allocation']    = tctx['alloc']
-                scfg_limited['_max_positions'] = tctx['max_pos']
+                scfg_limited['_allocation']       = tctx['alloc']
+                scfg_limited['_max_positions']    = tctx['max_pos']
+                scfg_limited['_strategy_tag']     = tctx.get('strategy_tag', '')
+                scfg_limited['_strategy_symbols'] = tctx.get('strategy_symbols', [])
                 success, msg = exec_open_position(
                     scfg_limited, tctx['api_key'], tctx['base_url'], tctx['account_id'])
                 tctx['results'].append({
@@ -1932,10 +2007,20 @@ def execute_strategy_test(cfg, strategy_dict, app, dry_run=True):
         'SPY'
     )
 
+    _strat_tag = _sanitize_strategy_tag(strategy_dict.get('name') or '',
+                                        strategy_dict.get('id'))
+    _strat_symbols = sorted({
+        (s.get('config', {}).get('symbol') or '').upper().strip()
+        for s in _all_steps(steps)
+        if s.get('type') == 'open_position'
+        and (s.get('config', {}).get('symbol') or '').strip()
+    })
+
     tctx = dict(api_key=api_key, base_url=base_url, account_id=account_id,
                 results=[], stopped=False, alloc=_alloc, max_pos=_max_pos,
                 primary_symbol=primary_symbol, app=app, user_id=cfg.user_id,
-                dry_run=dry_run, mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url)
+                dry_run=dry_run, mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url,
+                strategy_tag=_strat_tag, strategy_symbols=_strat_symbols)
     _exec_steps_test(steps, tctx)
     return tctx['results']
 
@@ -1978,6 +2063,8 @@ def execute_all_live_strategies(app):
                         steps = json.loads(strat.steps or '[]')
                         fired, log_lines = execute_strategy(
                             cfg, {
+                                'id':            strat.id,
+                                'name':          strat.name,
                                 'steps':         steps,
                                 'allocation':    strat.allocation,
                                 'max_positions': strat.max_positions,

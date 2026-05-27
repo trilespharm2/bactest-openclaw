@@ -1147,14 +1147,14 @@ class BacktesterEngine:
                 long_w = int(condition.get(f'{side}_macd_long', 26))
                 signal_w = int(condition.get(f'{side}_macd_signal', 9))
                 component = condition.get(f'{side}_macd_component', 'histogram')
-                ema_short = self._sma_seeded_ema(series, short_w)
-                ema_long = self._sma_seeded_ema(series, long_w)
-                macd_line = ema_short - ema_long
-                macd_line = macd_line.dropna()
+                # Plain EMA (no SMA seed) to match the options backtester.
+                ema_short = series.ewm(span=short_w, adjust=False).mean()
+                ema_long  = series.ewm(span=long_w,  adjust=False).mean()
+                macd_line = (ema_short - ema_long).dropna()
                 if len(macd_line) < signal_w:
                     return None
-                signal_line = self._sma_seeded_ema(macd_line, signal_w)
-                histogram = macd_line - signal_line
+                signal_line = macd_line.ewm(span=signal_w, adjust=False).mean()
+                histogram   = macd_line - signal_line
                 if component == 'macd_line':
                     val = macd_line.iloc[-1]
                 elif component == 'signal':
