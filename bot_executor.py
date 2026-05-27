@@ -1280,12 +1280,17 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return False, f"Order rejected: {err or result}"
 
     def _place_single(opt, side):
-        """Place one plain option leg (class=option)."""
+        """Place one plain option leg (class=option).
+
+        Tradier single-leg orders accept type=market|limit|stop|stop_limit.
+        debit/credit are MULTILEG-only — map them to limit for singles.
+        """
+        is_limit_single = otype in ('limit', 'debit', 'credit')
         o = {
             'class': 'option', 'symbol': symbol,
             'option_symbol': opt['symbol'], 'side': side,
             'quantity': str(qty),
-            'type': 'market' if otype not in ('limit',) else 'limit',
+            'type': 'limit' if is_limit_single else 'market',
             'duration': 'day',
         }
         if o['type'] == 'limit':
@@ -1309,14 +1314,18 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         if not ok:
             return False, msg
         lp_sl = _limit_order_price(is_credit_sl)
+        # Tradier single-leg only accepts market|limit|stop|stop_limit.
+        # debit/credit are valid only for multileg, so collapse them to limit
+        # (with price = user-supplied debit/credit price, or mid as fallback).
+        is_limit_single = otype in ('limit', 'debit', 'credit')
         order = {
             'class': 'option', 'symbol': symbol,
             'option_symbol': opt['symbol'], 'side': side,
             'quantity': str(qty),
-            'type': otype if otype in ('market', 'limit') else 'market',
+            'type': 'limit' if is_limit_single else 'market',
             'duration': 'day',
         }
-        if otype == 'limit':
+        if is_limit_single:
             order['price'] = str(lp_sl) if lp_sl > 0 else str(net_sl)
         return _place(order)
 
