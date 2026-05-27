@@ -2990,43 +2990,26 @@ function stratItemHTML(s) {
   const stepsLabel = s.steps?.length ? `${s.steps.length} step${s.steps.length!==1?'s':''}` : 'No steps';
   const isLive  = s.is_live;
   const created = s.created_at ? new Date(s.created_at).toLocaleDateString() : '';
-  const lastRun = s.last_executed_at ? new Date(s.last_executed_at + (s.last_executed_at.endsWith('Z') ? '' : 'Z')).toLocaleTimeString() : null;
-  const lastLog = s.last_log || '';
-  const logClass = lastLog.toLowerCase().includes('cap reached') || lastLog.toLowerCase().includes('max position')
-    ? 'strat-last-log warn'
-    : lastLog.toLowerCase().includes('error')
-      ? 'strat-last-log error'
-      : 'strat-last-log';
-  const logSection = lastLog
-    ? `<div class="${logClass}" title="${_escHtml(lastLog)}">
-        <i class="fas fa-clock-rotate-left"></i>
-        ${lastRun ? `<span class="strat-last-time">${lastRun}</span>` : ''}
-        <span class="strat-last-text">${_escHtml(lastLog.length > 120 ? lastLog.slice(0, 120) + '…' : lastLog)}</span>
-       </div>`
-    : '';
   return `<div class="strat-item">
-    <div class="strat-item-body">
-      <div class="strat-item-left">
-        <div class="strat-item-icon"><i class="fas fa-robot"></i></div>
-        <div>
-          <div class="strat-item-name">${_escHtml(s.name)}</div>
-          <div class="strat-item-meta">${stepsLabel}${created ? ' · Created ' + created : ''}</div>
-        </div>
-      </div>
-      <div class="strat-item-actions">
-        <div class="strat-toggle-wrap">
-          <span class="strat-toggle-label ${isLive?'live':'off'}" id="stratLabel_${s.id}">${isLive?'Live':'Off'}</span>
-          <label class="strat-toggle">
-            <input type="checkbox" ${isLive?'checked':''} onchange="stratToggle(${s.id},this.checked)">
-            <span class="strat-toggle-slider"></span>
-          </label>
-        </div>
-        <button class="strat-test-btn" onclick="openTestModal(${s.id})" title="Run Test"><i class="fas fa-play"></i></button>
-        <button class="strat-edit-btn" onclick="stratBuilderOpen(${s.id})" title="Edit"><i class="fas fa-pen"></i></button>
-        <button class="strat-del-btn" onclick="stratDelete(${s.id})" title="Delete"><i class="fas fa-trash"></i></button>
+    <div class="strat-item-left">
+      <div class="strat-item-icon"><i class="fas fa-robot"></i></div>
+      <div>
+        <div class="strat-item-name">${_escHtml(s.name)}</div>
+        <div class="strat-item-meta">${stepsLabel}${created ? ' · Created ' + created : ''}</div>
       </div>
     </div>
-    ${logSection}
+    <div class="strat-item-actions">
+      <div class="strat-toggle-wrap">
+        <span class="strat-toggle-label ${isLive?'live':'off'}" id="stratLabel_${s.id}">${isLive?'Live':'Off'}</span>
+        <label class="strat-toggle">
+          <input type="checkbox" ${isLive?'checked':''} onchange="stratToggle(${s.id},this.checked)">
+          <span class="strat-toggle-slider"></span>
+        </label>
+      </div>
+      <button class="strat-test-btn" onclick="openTestModal(${s.id})" title="Run Test"><i class="fas fa-play"></i></button>
+      <button class="strat-edit-btn" onclick="stratBuilderOpen(${s.id})" title="Edit"><i class="fas fa-pen"></i></button>
+      <button class="strat-del-btn" onclick="stratDelete(${s.id})" title="Delete"><i class="fas fa-trash"></i></button>
+    </div>
   </div>`;
 }
 

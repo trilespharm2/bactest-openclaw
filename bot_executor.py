@@ -135,6 +135,19 @@ def _sanitize_strategy_tag(name, sid=None):
     return base[:256]
 
 
+def _pos_root(symbol):
+    """Return the underlying root for a position symbol.
+
+    Options use OCC format: ROOT + YYMMDD + C/P + 8-digit-strike.
+    Equities are just the ticker.  We return the ROOT in both cases so that
+    tag filtering compares "SPX" == "SPX", not "X" in "SPXW260527C...".
+    """
+    import re as _re
+    sym = str(symbol or '').upper().strip()
+    m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', sym)
+    return m.group(1) if m else sym
+
+
 def _get_positions(api_key, base_url, account_id, tag=''):
     data = _tradier(api_key, base_url, f'/accounts/{account_id}/positions')
     positions = []
@@ -146,8 +159,12 @@ def _get_positions(api_key, base_url, account_id, tag=''):
                 raw = [raw]
             positions = raw or []
     if tag:
+        # Exact underlying-root match (case-insensitive).
+        # Previously used substring match which caused "X" to wrongly match
+        # "SPXW", "SPX", "XOM", etc.
+        tag_up = tag.upper()
         positions = [p for p in positions
-                     if tag.upper() in str(p.get('symbol', '')).upper()]
+                     if _pos_root(p.get('symbol', '')) == tag_up]
     return positions
 
 
