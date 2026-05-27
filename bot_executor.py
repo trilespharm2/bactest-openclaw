@@ -119,34 +119,76 @@ def _encode_form(d):
 
 def _tradier(api_key, base_url, path, method='GET', params=None, data=None,
              _return_error=False):
-    """Thin Tradier REST wrapper.
+    """Thin Tradier REST wrapper with retry logic for transient errors.
 
     When *_return_error* is True the function returns ``(result, error_text)``
     so callers can inspect the raw error body on failure.  In normal mode it
     returns only *result* (``None`` on error) for backward-compatibility.
+
+    Retries up to 3 times on 502/503/504 or connection/timeout errors with
+    exponential back-off (1 s, 2 s) before giving up.
     """
+    import time as _time
     url     = f"{base_url}{path}"
     headers = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
-    try:
-        if method == 'GET':
-            r = requests.get(url, headers=headers, params=params or {}, timeout=10)
-        elif method == 'POST':
-            body = _encode_form(data) if isinstance(data, dict) else ''
-            post_headers = dict(headers)
-            post_headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            r = requests.post(url, headers=post_headers, data=body, timeout=10)
-        elif method == 'DELETE':
-            r = requests.delete(url, headers=headers, timeout=10)
-        else:
-            return (None, 'unknown method') if _return_error else None
-        if not r.ok:
-            logger.error(f"Tradier {method} {path}: HTTP {r.status_code} — {r.text[:600]}")
-            return (None, r.text) if _return_error else None
-        result = r.json()
-        return (result, None) if _return_error else result
-    except Exception as e:
-        logger.error(f"Tradier {method} {path}: {e}")
-        return (None, str(e)) if _return_error else None
+    _TRANSIENT = {502, 503, 504}
+    max_tries = 3
+
+    for attempt in range(1, max_tries + 1):
+        try:
+            if method == 'GET':
+                r = requests.get(url, headers=headers, params=params or {}, timeout=15)
+            elif method == 'POST':
+                body = _encode_form(data) if isinstance(data, dict) else ''
+                post_headers = dict(headers)
+                post_headers['Content-Type'] = 'application/x-www-form-urlencoded'
+                r = requests.post(url, headers=post_headers, data=body, timeout=15)
+            elif method == 'DELETE':
+                r = requests.delete(url, headers=headers, timeout=15)
+            else:
+                return (None, 'unknown method') if _return_error else None
+
+            if r.status_code in _TRANSIENT and attempt < max_tries:
+                logger.warning(
+                    f"Tradier {method} {path}: HTTP {r.status_code} "
+                    f"(attempt {attempt}/{max_tries}) — retrying in {attempt}s"
+                )
+                _time.sleep(attempt)
+                continue
+
+            if not r.ok:
+                logger.error(f"Tradier {method} {path}: HTTP {r.status_code} — {r.text[:600]}")
+                return (None, r.text) if _return_error else None
+
+            # Guard against non-JSON bodies (e.g. HTML maintenance page)
+            try:
+                result = r.json()
+            except ValueError:
+                logger.error(
+                    f"Tradier {method} {path}: non-JSON body "
+                    f"(HTTP {r.status_code}): {r.text[:300]}"
+                )
+                err_msg = f"Tradier returned non-JSON (HTTP {r.status_code})"
+                return (None, err_msg) if _return_error else None
+
+            return (result, None) if _return_error else result
+
+        except (requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError) as e:
+            if attempt < max_tries:
+                logger.warning(
+                    f"Tradier {method} {path}: {type(e).__name__} "
+                    f"(attempt {attempt}/{max_tries}) — retrying in {attempt}s"
+                )
+                _time.sleep(attempt)
+            else:
+                logger.error(f"Tradier {method} {path}: {e}")
+                return (None, str(e)) if _return_error else None
+        except Exception as e:
+            logger.error(f"Tradier {method} {path}: {e}")
+            return (None, str(e)) if _return_error else None
+
+    return (None, 'max retries exceeded') if _return_error else None
 
 
 # ── ET time helpers ──────────────────────────────────────────────────────────
@@ -1830,6 +1872,14 @@ def exec_close_position(cfg, api_key, base_url, account_id):
         m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', str(sym).upper())
         return m.group(1) if m else str(sym).upper()
 
+    def _root_matches_strat(root):
+        """Prefix-aware check: 'SPXW' matches declared strat sym 'SPX', etc."""
+        r = root.upper()
+        for s in strat_syms:
+            if r == s or r.startswith(s) or s.startswith(r):
+                return True
+        return False
+
     if order_tag:
         # Resolve positions via order-tag tracking: look at all orders carrying
         # this tag, extract their filled symbols, match against live positions.
@@ -1838,10 +1888,13 @@ def exec_close_position(cfg, api_key, base_url, account_id):
         positions, _ = _resolve_tag_positions(order_tag, api_key, base_url, account_id)
     else:
         # No tag → close all positions scoped to this strategy's underlyings.
+        # Use prefix matching so that a strategy configured for "SPX" also
+        # matches SPXW positions (Tradier uses SPXW as the option root for
+        # SPX weeklies/dailies).
         positions = _get_positions(api_key, base_url, account_id)
         if strat_syms:
             positions = [p for p in positions
-                         if _pos_root(p.get('symbol', '')) in strat_syms]
+                         if _root_matches_strat(_pos_root(p.get('symbol', '')))]
 
     # Target filter: profitable or losers only
     if target in ('profitable', 'losers'):

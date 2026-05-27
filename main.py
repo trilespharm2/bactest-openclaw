@@ -8415,7 +8415,12 @@ def bot_toggle_strategy_live(sid):
 
 
 def _tradier_proxy(path, method='GET', params=None, body=None):
-    """Helper: call Tradier API using the current user's stored credentials."""
+    """Helper: call Tradier API using the current user's stored credentials.
+
+    Retries up to 3 times on 502/503/504 or timeout/connection errors with
+    exponential back-off (1 s, 2 s) before surfacing the error to the client.
+    """
+    import time as _time
     from models import BotConfig, decrypt_value
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if not cfg:
@@ -8438,38 +8443,71 @@ def _tradier_proxy(path, method='GET', params=None, body=None):
     }
     url = f'{base_url}/{path.lstrip("/")}'
 
-    # Server-side debug logging (key prefix only — never log full key)
     key_hint = f'{api_key[:6]}…{api_key[-4:]}' if len(api_key) > 10 else '(short?)'
     app.logger.info('[Tradier] %s %s  key=%s  key_len=%d', method, url, key_hint, len(api_key))
 
-    try:
-        if method == 'GET':
-            resp = requests.get(url, headers=headers, params=params, timeout=15)
-        elif method == 'DELETE':
-            resp = requests.delete(url, headers=headers, timeout=15)
-        else:
-            headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            # body may be a pre-encoded string (preserves literal brackets) or a plain dict
-            resp = requests.post(url, headers=headers,
-                                 data=body if isinstance(body, str) else body,
-                                 timeout=15)
+    _TRANSIENT = {502, 503, 504}
+    max_tries  = 3
 
-        app.logger.info('[Tradier] response HTTP %d  body_len=%d  content_type=%s',
-                        resp.status_code, len(resp.text), resp.headers.get('Content-Type', ''))
-
-        # 204 No Content or genuinely empty body (e.g. no positions/orders)
-        if not resp.text or not resp.text.strip():
-            return jsonify({}), 200
+    for attempt in range(1, max_tries + 1):
         try:
-            return jsonify(resp.json()), resp.status_code
-        except ValueError:
-            # Tradier returned HTML (auth failure, maintenance page, etc.)
-            app.logger.warning('[Tradier] non-JSON body (HTTP %d): %s', resp.status_code, resp.text[:500])
-            snippet = resp.text[:300].replace('<', '&lt;')
-            return jsonify({'error': f'Tradier returned non-JSON (HTTP {resp.status_code})', 'detail': snippet}), resp.status_code
-    except Exception as e:
-        app.logger.error('[Tradier] request exception: %s', e)
-        return jsonify({'error': str(e)}), 502
+            if method == 'GET':
+                resp = requests.get(url, headers=headers, params=params, timeout=15)
+            elif method == 'DELETE':
+                resp = requests.delete(url, headers=headers, timeout=15)
+            else:
+                req_headers = dict(headers)
+                req_headers['Content-Type'] = 'application/x-www-form-urlencoded'
+                resp = requests.post(url, headers=req_headers,
+                                     data=body if isinstance(body, str) else body,
+                                     timeout=15)
+
+            app.logger.info('[Tradier] response HTTP %d  body_len=%d  content_type=%s',
+                            resp.status_code, len(resp.text),
+                            resp.headers.get('Content-Type', ''))
+
+            # Retry on transient gateway errors (read-only methods only;
+            # don't retry POSTs to avoid double-submitting orders)
+            if resp.status_code in _TRANSIENT and attempt < max_tries and method != 'POST':
+                app.logger.warning(
+                    '[Tradier] HTTP %d (attempt %d/%d) — retrying in %ds',
+                    resp.status_code, attempt, max_tries, attempt)
+                _time.sleep(attempt)
+                continue
+
+            # 204 No Content or genuinely empty body
+            if not resp.text or not resp.text.strip():
+                return jsonify({}), 200
+
+            try:
+                return jsonify(resp.json()), resp.status_code
+            except ValueError:
+                app.logger.warning('[Tradier] non-JSON body (HTTP %d): %s',
+                                   resp.status_code, resp.text[:500])
+                if resp.status_code in _TRANSIENT and attempt < max_tries and method != 'POST':
+                    _time.sleep(attempt)
+                    continue
+                snippet = resp.text[:300].replace('<', '&lt;')
+                return jsonify({
+                    'error': f'Tradier returned non-JSON (HTTP {resp.status_code})',
+                    'detail': snippet,
+                }), resp.status_code
+
+        except (requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError) as e:
+            if attempt < max_tries:
+                app.logger.warning('[Tradier] %s (attempt %d/%d) — retrying in %ds',
+                                   type(e).__name__, attempt, max_tries, attempt)
+                _time.sleep(attempt)
+            else:
+                app.logger.error('[Tradier] request failed after %d attempts: %s',
+                                 max_tries, e)
+                return jsonify({'error': str(e)}), 504
+        except Exception as e:
+            app.logger.error('[Tradier] request exception: %s', e)
+            return jsonify({'error': str(e)}), 502
+
+    return jsonify({'error': 'Tradier unavailable after retries — please try again'}), 504
 
 
 @app.route('/api/bot/tradier/diagnose', methods=['GET'])
