@@ -2186,7 +2186,9 @@ function sbSyncMetricForm() {
   const noIntv   = ['change_pct'].includes(m);
   _show('sbcDayRow',       !noBarCtx);
   _show('sbcIntervalRow',  !noBarCtx && !noIntv && day === 0);
-  _show('sbcSeriesRow',     m === 'price');
+  // Series type (open/high/low/close) applies to Price AND to any indicator
+  // that derives a single input column from the bars.
+  _show('sbcSeriesRow',    ['price','sma','ema','rsi','macd','roc'].includes(m));
   _show('sbcPeriodRow',    ['sma','ema','rsi','roc'].includes(m));
   _show('sbcMacdShortRow', m === 'macd');
   _show('sbcMacdLongRow',  m === 'macd');
@@ -2206,7 +2208,8 @@ function sbSyncMetricForm() {
   _show('sbcRightDayRow',        showRight && rightIsPrice);
   _show('sbcRightIntervalRow',   showRight && rightIsPrice);
   _show('sbcRightSeriesRow',     showRight && rightIsPrice);
-  _show('sbcRightPeriodRow',     showRight && rightIsIndic);
+  // VWAP is now a rolling N-bar indicator too — expose the Period field.
+  _show('sbcRightPeriodRow',     showRight && (rightIsIndic || rightIsVwap));
   _show('sbcThresholdRow',       showRight && !isCross);
   _show('sbcRightLookbackRow',   showRight && !rightIsVwap);
 }
@@ -2436,18 +2439,19 @@ function sbStepConfigHTML(step) {
     const noIntv   = ['change_pct'].includes(m);
     const showDay  = !noBarCtx;
     const showIntv = !noBarCtx && !noIntv && day === 0;
-    const showSer  = m === 'price';
+    const showSer  = ['price','sma','ema','rsi','macd','roc'].includes(m);
     const showP    = ['sma','ema','rsi','roc'].includes(m);
     const showMacd = m === 'macd';
     const showOpts = ['iv_rank','delta','theta'].includes(m);
 
     const showRight     = safeCt !== 'value';
     const rightIsPrice  = safeCt === 'compare_price';
+    const rightIsVwap   = safeCt === 'compare_vwap';
     const rightIsIndic  = ['compare_sma','compare_ema','compare_rsi'].includes(safeCt);
     const showRightDay  = showRight && rightIsPrice;
     const showRightIntv = showRight && rightIsPrice;
     const showRightSer  = showRight && rightIsPrice;
-    const showRightPer  = showRight && rightIsIndic;
+    const showRightPer  = showRight && (rightIsIndic || rightIsVwap);
 
     const andM     = c.andMetric || 'rsi';
     const andEn    = c.andEnabled || false;

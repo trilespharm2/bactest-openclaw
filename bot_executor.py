@@ -404,11 +404,14 @@ def _compute_bar_metric(metric, period, bars, day=0, series='close',
     if not closes:
         return None
 
+    # Series-aware input column for any indicator that takes a single price
+    # series.  Defaults to close when the requested series is unavailable.
+    ser_map  = {'open': _col('open'), 'high': _col('high'),
+                'low':  _col('low'),  'close': closes}
+    inp = ser_map.get(series) or closes
+
     if metric == 'price':
-        ser_map = {'open': _col('open'), 'high': _col('high'),
-                   'low': _col('low'),   'close': closes}
-        col = ser_map.get(series, closes)
-        return col[-1] if col else None
+        return inp[-1] if inp else None
     if metric == 'volume':
         vols = _col('volume')
         return vols[-1] if vols else None
@@ -420,15 +423,15 @@ def _compute_bar_metric(metric, period, bars, day=0, series='close',
     if metric == 'change_pct':
         return (closes[-1] - closes[-2]) / closes[-2] * 100 if len(closes) >= 2 else None
     if metric == 'roc':
-        return _ind_roc(closes, period)
+        return _ind_roc(inp, period)
     if metric == 'sma':
-        return _ind_sma(closes, period)
+        return _ind_sma(inp, period)
     if metric == 'ema':
-        return _ind_ema(closes, period)
+        return _ind_ema(inp, period)
     if metric == 'rsi':
-        return _ind_rsi(closes, period)
+        return _ind_rsi(inp, period)
     if metric == 'macd':
-        return _ind_macd(closes, macd_short, macd_long, macd_signal, macd_comp)
+        return _ind_macd(inp, macd_short, macd_long, macd_signal, macd_comp)
     return None
 
 
@@ -704,24 +707,37 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                       + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
 
         elif ctype == 'compare_vwap':
-            ibars = _fetch_intraday_bars(symbol, '1min', api_key, base_url)
-            if not ibars:
-                return None, 'Could not fetch intraday bars for VWAP'
-            total_vol = sum(float(b.get('volume', 0) or 0) for b in ibars)
+            # Rolling N-bar volume-weighted VWAP — harmonized with the options
+            # backtester and simulated trading.  Uses the user's chosen
+            # timeframe (intv) when intraday, falls back to daily bars
+            # otherwise.  Period defaults to 20 when not specified.
+            vwap_period = max(1, int(cfg.get('rightPeriod', 20) or 20))
+            if intv != 'day':
+                vbars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                if not vbars:
+                    return None, f'Could not fetch intraday bars ({intv}) for VWAP'
+            else:
+                vbars = bars if bars else _fetch_daily_history(symbol, api_key, base_url, bars=max(vwap_period * 3, 100))
+                if not vbars:
+                    return None, 'Could not fetch daily bars for VWAP'
+            if len(vbars) < vwap_period:
+                return None, f'Not enough bars for VWAP({vwap_period}) — have {len(vbars)}'
+            window = vbars[-vwap_period:]
+            total_vol = sum(float(b.get('volume', 0) or 0) for b in window)
             if total_vol <= 0:
                 return None, 'Zero volume — cannot compute VWAP'
             tpv = sum(
                 (float(b.get('high', 0)) + float(b.get('low', 0)) + float(b.get('close', 0))) / 3
                 * float(b.get('volume', 0) or 0)
-                for b in ibars
+                for b in window
             )
             raw_rhs = tpv / total_vol
             rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
-            rhs_name = 'VWAP'
+            rhs_name = f'VWAP({vwap_period})'
             ok = _compare(lhs, operator, rhs)
             sym = _op_sym(operator)
             detail = (f"{lhs_name} = {_fmt(lhs)}, {'✓' if ok else '✗'} {sym} "
-                      f"VWAP = {_fmt(raw_rhs)}"
+                      f"{rhs_name} = {_fmt(raw_rhs)}"
                       + (f" (adj → {_fmt(rhs)})" if rhs != raw_rhs else ''))
 
         elif ctype in ('compare_sma', 'compare_ema', 'compare_rsi'):
