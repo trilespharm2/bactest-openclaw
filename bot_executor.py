@@ -157,32 +157,12 @@ def eval_condition(cfg, api_key, base_url, account_id):
     operator = cfg.get('operator', '<')
     value    = float(cfg.get('value', 1))
 
-    if ctype == 'position_count':
-        if tag:
-            # Tradier doesn't echo order tags onto position objects, so we
-            # count net open positions via order history: entry orders that are
-            # open/filled minus filled close orders carrying the same user tag.
-            all_ords    = _get_all_orders(api_key, base_url, account_id)
-            ENTRY_SIDES = {'buy_to_open', 'sell_to_open'}
-            CLOSE_SIDES = {'sell_to_close', 'buy_to_close'}
-            ACTIVE      = {'open', 'pending', 'partially_filled', 'filled'}
-            net = 0
-            for o in all_ords:
-                if str(o.get('tag', '') or '').strip() != tag:
-                    continue
-                side   = o.get('side', '')
-                status = o.get('status', '')
-                if side in ENTRY_SIDES and status in ACTIVE:
-                    net += 1
-                elif side in CLOSE_SIDES and status == 'filled':
-                    net -= 1
-            return _compare(float(max(0, net)), operator, value)
-        positions = _get_positions(api_key, base_url, account_id)
-        return _compare(float(len(positions)), operator, value)
-
     positions = _get_positions(api_key, base_url, account_id, tag)
 
-    if ctype == 'daily_opens':
+    if ctype == 'position_count':
+        return _compare(float(len(positions)), operator, value)
+
+    elif ctype == 'daily_opens':
         today = _now_et().date().isoformat()
         count = sum(1 for p in positions
                     if str(p.get('date_acquired', '')).startswith(today))
@@ -1107,16 +1087,10 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return [p for p in positions if _pos_underlying(p) in _strat_syms]
 
     def _strategy_orders(orders):
-        # Only count ENTRY-side orders (never close orders) scoped to this
-        # strategy's underlyings.  Tag-based filtering is no longer used here
-        # because entry orders now carry the user's position label tag (not the
-        # internal strategy tag), so we scope by symbol instead.
-        ENTRY_SIDES = ('buy_to_open', 'sell_to_open', 'buy', 'sell_short')
-        entry_ords = [o for o in orders if o.get('side', '') in ENTRY_SIDES]
-        if not _strat_syms:
-            return entry_ords
-        return [o for o in entry_ords
-                if (o.get('symbol', '') or '').upper() in _strat_syms]
+        if not _strat_tag:
+            return orders
+        return [o for o in orders
+                if str(o.get('tag', '') or '').strip() == _strat_tag]
 
     if _max_pos > 0:
         # Cap = open positions + currently-pending/open orders.
@@ -1296,12 +1270,12 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return limit_price_min if is_credit_trade else limit_price_max
 
     def _place(order_data):
-        # Tag entry orders with the user's position label when provided so that
-        # eval_condition's position_count can filter by it.  Fall back to the
-        # strategy tag (or options-strategy-type) for legacy callers without a
-        # user-defined label.
-        user_tag = (cfg.get('tag') or '').strip()
-        tag = user_tag or _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
+        # Tag every order with the user-defined STRATEGY identifier (not the
+        # options-strategy-type) so max_positions and other strategy-scoped
+        # checks can correctly identify which orders belong to this strategy.
+        # Falls back to the options-strategy-type when no strategy tag is set
+        # (e.g. legacy callers).
+        tag = _strat_tag or (strategy or '').strip().replace(' ', '-').replace('_', '-')
         order_data.setdefault('tag', (tag or 'strategy')[:256])
         result, err = _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
                                method='POST', data=order_data, _return_error=True)
@@ -1573,17 +1547,12 @@ def exec_close_position(cfg, api_key, base_url, account_id):
             continue
         side       = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
         underlying = sym[:3] if len(sym) > 15 else sym
-        order_data = {
-            'class': 'option', 'symbol': underlying,
-            'option_symbol': sym, 'side': side,
-            'quantity': str(qty), 'type': 'market', 'duration': 'day',
-        }
-        # Tag the close order with the user's position label so that
-        # eval_condition can correctly net it out of the position count.
-        if tag:
-            order_data['tag'] = tag[:256]
         _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
-                 method='POST', data=order_data)
+                 method='POST', data={
+                     'class': 'option', 'symbol': underlying,
+                     'option_symbol': sym, 'side': side,
+                     'quantity': str(qty), 'type': 'market', 'duration': 'day',
+                 })
         count += 1
     return True, f"Close submitted for {count} position(s)"
 
