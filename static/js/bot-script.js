@@ -2863,8 +2863,8 @@ function sbStepConfigHTML(step) {
         </select>
       </div>
       <div class="sb-form-row">
-        <div class="sb-form-label">Position with Tag — leave blank to match all</div>
-        <input id="sbcCloseTag" class="sb-form-input" placeholder="e.g. IC-1, hedge" value="${_escHtml(c.tag||'')}">
+        <div class="sb-form-label">Symbol Filter — leave blank to match all strategy positions</div>
+        <input id="sbcCloseTag" class="sb-form-input" placeholder="e.g. SPY, AAPL (optional)" value="${_escHtml(c.tag||'')}">
       </div>`;
   }
 

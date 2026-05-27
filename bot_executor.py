@@ -1087,10 +1087,18 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return [p for p in positions if _pos_underlying(p) in _strat_syms]
 
     def _strategy_orders(orders):
-        if not _strat_tag:
-            return orders
-        return [o for o in orders
-                if str(o.get('tag', '') or '').strip() == _strat_tag]
+        # Primary: filter by underlying symbol (reliable — Tradier always
+        # includes the symbol field; the tag field is sometimes absent in
+        # sandbox responses and on orders placed before tagging was added).
+        if _strat_syms:
+            sym_matched = [o for o in orders
+                           if str(o.get('symbol', '') or '').upper() in _strat_syms]
+            return sym_matched
+        # Fallback when no symbols declared: try tag match, else all orders.
+        if _strat_tag:
+            return [o for o in orders
+                    if str(o.get('tag', '') or '').strip() == _strat_tag]
+        return orders
 
     if _max_pos > 0:
         # Cap = open positions + currently-pending/open orders.
@@ -1537,22 +1545,71 @@ def exec_open_position(cfg, api_key, base_url, account_id):
 
 
 def exec_close_position(cfg, api_key, base_url, account_id):
-    tag       = cfg.get('tag', '').strip()
-    positions = _get_positions(api_key, base_url, account_id, tag)
-    count     = 0
+    import re as _re
+
+    symbol_filter = cfg.get('tag', '').strip()          # optional symbol substring filter
+    target        = cfg.get('target', 'all').strip()    # all | profitable | losers
+    strat_syms    = [s.upper() for s in (cfg.get('_strategy_symbols') or []) if s]
+
+    def _pos_root(sym):
+        """Extract option root (underlying) from an OCC symbol, else return sym."""
+        m = _re.match(r'^([A-Z]+)\d{6}[CP]\d{8}$', str(sym).upper())
+        return m.group(1) if m else str(sym).upper()
+
+    positions = _get_positions(api_key, base_url, account_id)
+
+    # Scope to this strategy's underlyings when available
+    if strat_syms:
+        positions = [p for p in positions if _pos_root(p.get('symbol', '')) in strat_syms]
+
+    # Optional user-defined symbol substring filter (e.g. "SPY", "AAPL")
+    if symbol_filter:
+        positions = [p for p in positions
+                     if symbol_filter.upper() in str(p.get('symbol', '')).upper()]
+
+    # Target filter: profitable or losers only
+    if target in ('profitable', 'losers'):
+        kept = []
+        for pos in positions:
+            sym  = pos.get('symbol', '')
+            qty  = float(pos.get('quantity', 0))
+            cost = float(pos.get('cost_basis', 0))
+            q    = _tradier(api_key, base_url, '/markets/quotes',
+                            params={'symbols': sym, 'greeks': 'false'})
+            last = float(((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+            is_opt = bool(_re.match(r'^[A-Z]+\d{6}[CP]\d{8}$', sym.upper()))
+            mult   = 100 if is_opt else 1
+            curr_val = last * abs(qty) * mult
+            # Long position: profit = current value - what was paid
+            # Short position: profit = credit received - current cost to close
+            pnl = (curr_val - cost) if qty > 0 else (abs(cost) - curr_val)
+            if (target == 'profitable' and pnl > 0) or (target == 'losers' and pnl <= 0):
+                kept.append(pos)
+        positions = kept
+
+    count = 0
     for pos in positions:
         sym = pos.get('symbol', '')
         qty = abs(int(pos.get('quantity', 0)))
         if qty == 0:
             continue
-        side       = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
-        underlying = sym[:3] if len(sym) > 15 else sym
-        _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
-                 method='POST', data={
-                     'class': 'option', 'symbol': underlying,
-                     'option_symbol': sym, 'side': side,
-                     'quantity': str(qty), 'type': 'market', 'duration': 'day',
-                 })
+        side   = 'sell_to_close' if int(pos.get('quantity', 0)) > 0 else 'buy_to_close'
+        is_opt = bool(_re.match(r'^[A-Z]+\d{6}[CP]\d{8}$', sym.upper()))
+        if is_opt:
+            _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
+                     method='POST', data={
+                         'class': 'option', 'symbol': _pos_root(sym),
+                         'option_symbol': sym, 'side': side,
+                         'quantity': str(qty), 'type': 'market', 'duration': 'day',
+                     })
+        else:
+            equity_side = 'sell' if side == 'sell_to_close' else 'buy'
+            _tradier(api_key, base_url, f'/accounts/{account_id}/orders',
+                     method='POST', data={
+                         'class': 'equity', 'symbol': sym,
+                         'side': equity_side,
+                         'quantity': str(qty), 'type': 'market', 'duration': 'day',
+                     })
         count += 1
     return True, f"Close submitted for {count} position(s)"
 
@@ -1651,8 +1708,11 @@ def _exec_steps_branch(steps, ctx):
                 return False, log
 
         elif stype == 'close_position':
+            scfg_close = dict(scfg)
+            scfg_close['_strategy_tag']     = ctx.get('strategy_tag', '')
+            scfg_close['_strategy_symbols'] = ctx.get('strategy_symbols', [])
             success, msg = exec_close_position(
-                scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+                scfg_close, ctx['api_key'], ctx['base_url'], ctx['account_id'])
             log.append(f"[{n}] CLOSE_POSITION: {msg}")
 
         elif stype == 'notification':
@@ -1976,8 +2036,11 @@ def _exec_steps_test(steps, tctx):
                     'result': 'skipped', 'message': 'Position skipped — test mode.'
                 })
             else:
+                scfg_close = dict(scfg)
+                scfg_close['_strategy_tag']     = tctx.get('strategy_tag', '')
+                scfg_close['_strategy_symbols'] = tctx.get('strategy_symbols', [])
                 success, msg = exec_close_position(
-                    scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+                    scfg_close, tctx['api_key'], tctx['base_url'], tctx['account_id'])
                 tctx['results'].append({'type': 'close_position', 'label': label_str,
                                         'result': bool(success), 'message': msg})
 
