@@ -2182,10 +2182,15 @@ function sbSyncMetricForm() {
 
   const ct       = compSel?.value || 'value';
 
-  const noBarCtx = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
-  const noIntv   = ['change_pct'].includes(m);
+  const noBarCtx  = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
+  const noIntv    = ['change_pct'].includes(m);
+  const op        = document.getElementById('sbcOperator')?.value || '>';
+  const isCrossOp = op === 'crosses_above' || op === 'crosses_below';
   _show('sbcDayRow',       !noBarCtx);
-  _show('sbcIntervalRow',  !noBarCtx && !noIntv && day === 0);
+  // Always expose Candle Type for cross operators — the backend needs the
+  // interval to fetch bars for cross detection even when the metric is a
+  // live quote (current_price).
+  _show('sbcIntervalRow',  (!noBarCtx || isCrossOp) && !noIntv && day === 0);
   // Series type (open/high/low/close) applies to Price AND to any indicator
   // that derives a single input column from the bars.
   _show('sbcSeriesRow',    ['price','sma','ema','rsi','macd','roc'].includes(m));
@@ -2197,8 +2202,6 @@ function sbSyncMetricForm() {
   _show('sbcOptTypeRow',   ['iv_rank','delta','theta'].includes(m));
   _show('sbcOptDteRow',    ['iv_rank','delta','theta'].includes(m));
 
-  const op             = document.getElementById('sbcOperator')?.value || '>';
-  const isCross        = op === 'crosses_above' || op === 'crosses_below';
   const showRight      = ct !== 'value';
   const rightIsPrice   = ct === 'compare_price';
   const rightIsVwap    = ct === 'compare_vwap';
@@ -2210,7 +2213,7 @@ function sbSyncMetricForm() {
   _show('sbcRightSeriesRow',     showRight && rightIsPrice);
   // VWAP is now a rolling N-bar indicator too — expose the Period field.
   _show('sbcRightPeriodRow',     showRight && (rightIsIndic || rightIsVwap));
-  _show('sbcThresholdRow',       showRight && !isCross);
+  _show('sbcThresholdRow',       showRight && !isCrossOp);
   _show('sbcRightLookbackRow',   showRight && !rightIsVwap);
 }
 function sbMetricChange()      { sbSyncMetricForm(); }
@@ -2437,8 +2440,12 @@ function sbStepConfigHTML(step) {
 
     const noBarCtx = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
     const noIntv   = ['change_pct'].includes(m);
+    const isCrossOp = op === 'crosses_above' || op === 'crosses_below';
     const showDay  = !noBarCtx;
-    const showIntv = !noBarCtx && !noIntv && day === 0;
+    // Always expose Candle Type for cross operators — the backend needs the
+    // interval to fetch bars for cross detection even when the metric is a
+    // live quote (current_price).
+    const showIntv = (!noBarCtx || isCrossOp) && !noIntv && day === 0;
     const showSer  = ['price','sma','ema','rsi','macd','roc'].includes(m);
     const showP    = ['sma','ema','rsi','roc'].includes(m);
     const showMacd = m === 'macd';
