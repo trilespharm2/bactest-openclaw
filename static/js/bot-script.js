@@ -3299,11 +3299,17 @@ function renderAutomationLog(data, dry_run) {
     const msgCls   = step.result === 'skipped' ? 'skipped-msg' : '';
     const msgIcon  = step.result === 'skipped' ? '<i class="fas fa-info-circle" style="color:#ea580c;"></i> ' : '';
 
+    const noteHtml = step.note
+      ? `<div style="margin-top:6px;padding:8px 10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:11px;color:#92400e;line-height:1.45;">
+           <i class="fas fa-exclamation-triangle" style="color:#f59e0b;margin-right:5px;"></i>${_escHtml(step.note)}
+         </div>`
+      : '';
     flowHtml += `
       <div class="test-step-box ${cls}" style="position:relative;padding-right:44px;">
         ${_stepBadge(step.result)}
         <div class="test-step-label"><i class="${icon}" style="margin-right:6px;opacity:.6;font-size:12px;"></i>${_escHtml(step.label || step.type)}</div>
         ${step.message ? `<div class="test-step-msg ${msgCls}">${msgIcon}${_escHtml(step.message)}</div>` : ''}
+        ${noteHtml}
       </div>`;
 
     if (i < steps.length - 1) {

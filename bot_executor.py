@@ -328,13 +328,20 @@ def eval_condition(cfg, api_key, base_url, account_id):
                 and str(o.get('status', '') or '') in ('open', 'pending', 'partially_filled')
             )
 
-            if filled_trades == 0 and not live_syms:
-                # No local store data AND no live positions — warn but proceed
-                logger.warning(
-                    f"eval_condition tag='{tag}': no trade records found. "
-                    f"Ensure the matching open_position step also has tag='{tag}' set."
-                )
             count = filled_trades + pending
+            logger.info(
+                f"eval_condition pos_count tag='{tag}': "
+                f"store_trades={filled_trades}, pending_orders={pending}, "
+                f"total_count={count}, live_positions={len(all_positions)}, "
+                f"result=({count} {operator} {value}) → {_compare(float(count), operator, value)}"
+            )
+            if filled_trades == 0 and pending == 0 and len(all_positions) > 0:
+                logger.warning(
+                    f"eval_condition tag='{tag}': {len(all_positions)} live position(s) found "
+                    f"but none are tracked under tag '{tag}'. "
+                    f"If positions were opened before tag tracking was enabled, "
+                    f"they won't be counted — close them and re-open via the bot."
+                )
         else:
             count = len(_get_positions(api_key, base_url, account_id))
         return _compare(float(count), operator, value)
@@ -1544,7 +1551,18 @@ def exec_open_position(cfg, api_key, base_url, account_id):
                 if placed_syms:
                     _register_tag_symbols(account_id, user_tag, placed_syms,
                                           order_id=order_id)
+                    logger.info(
+                        f"_place: tag='{user_tag}' order={order_id} "
+                        f"→ stored {len(placed_syms)} symbol(s) in bot_tag_map"
+                    )
+                else:
+                    logger.warning(
+                        f"_place: tag='{user_tag}' order={order_id} "
+                        f"but no option_symbol keys found in order_data — "
+                        f"tag will not be trackable by condition/close steps"
+                    )
             return True, f"Order {order_id} placed ({target_exp})"
+        logger.warning(f"_place: order rejected — err={err!r} result={result!r}")
         return False, f"Order rejected: {err or result}"
 
     def _place_single(opt, side):
@@ -1928,7 +1946,9 @@ def _exec_steps_branch(steps, ctx):
 
         elif stype == 'condition':
             ok = eval_condition(scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'])
-            log.append(f"[{n}] CONDITION ({scfg.get('conditionType')} "
+            _c_tag = scfg.get('tag', '').strip()
+            _c_tag_str = f" tag='{_c_tag}'" if _c_tag else ''
+            log.append(f"[{n}] CONDITION ({scfg.get('conditionType')}{_c_tag_str} "
                        f"{scfg.get('operator')} {scfg.get('value')}): "
                        f"{'✓ YES' if ok else '✗ NO'}")
             if has_branch:
@@ -2081,11 +2101,51 @@ def _exec_steps_test(steps, tctx):
 
         elif stype == 'condition':
             ok = eval_condition(scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+            _ct   = scfg.get('conditionType', 'position_count')
+            _ctag = scfg.get('tag', '').strip()
+            _cop  = scfg.get('operator', '<')
+            _cval = scfg.get('value', 1)
+            _ctag_str = f" (tag '{_ctag}')" if _ctag else ''
+            _ctype_labels = {
+                'position_count': 'Open positions',
+                'daily_opens':    'Positions today',
+                'unrealized_pnl': 'Unrealized P&L',
+                'open_orders':    'Open orders',
+                'canceled_orders':'Canceled orders today',
+                'closed_today':   'Closed today',
+            }
+            _cname = _ctype_labels.get(_ct, _ct)
+            cond_detail = (f"{_cname}{_ctag_str} {_cop} {_cval} — "
+                           f"{'condition met ✓ proceeding' if ok else 'condition not met ✗ stopping'}")
+            # When running in preview (dry-run) mode with a tag-based condition
+            # that passes, warn the user that the count may be zero simply
+            # because no live positions have been opened under this tag yet.
+            # Prevent-changes mode skips open_position, so the store is never
+            # written and the condition will always pass in preview.
+            _cond_note = None
+            if ok and _ctag and tctx.get('dry_run'):
+                # Check whether any positions have already been tracked for
+                # this tag.  _count_active_tag_trades and _get_positions are
+                # defined at module level — no import needed.
+                _live = {str(p.get('symbol', '') or '').upper()
+                         for p in _get_positions(tctx['api_key'], tctx['base_url'],
+                                                  tctx['account_id'])}
+                _tc   = _count_active_tag_trades(tctx['account_id'], _ctag, _live)
+                if _tc == 0:
+                    _cond_note = (
+                        f"Preview note: tag '{_ctag}' count is 0 — no live positions "
+                        f"have been opened under this tag yet, so this condition always "
+                        f"passes in preview mode. "
+                        f"To fix: uncheck 'Prevent changes' and run once so the bot "
+                        f"places a real position; after that, previews will show the "
+                        f"correct count and the condition will block correctly."
+                    )
             tctx['results'].append({
                 'type': 'condition',
-                'label': slabel or f"Condition: {scfg.get('conditionType')}",
+                'label': slabel or f"Condition: {_cname}{_ctag_str}",
                 'result': bool(ok),
-                'message': 'Condition met' if ok else 'Condition not met',
+                'message': cond_detail,
+                'note':    _cond_note,
                 'branch': 'yes' if ok else 'no' if has_branch else None,
             })
             if has_branch:
