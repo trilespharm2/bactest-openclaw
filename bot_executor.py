@@ -1458,7 +1458,26 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         return min(options, key=lambda o: abs(float(o.get('strike', 0)) - underlying)) if options else None
 
     def _by_strike(options, target):
+        """Closest available strike to *target* (mathematically nearest)."""
         return min(options, key=lambda o: abs(float(o.get('strike', 0)) - target)) if options else None
+
+    def _by_strike_or_higher(options, target):
+        """Lowest available strike that is at or above *target*.
+        Falls back to closest in the chain if no strike >= target exists."""
+        candidates = [o for o in options if float(o.get('strike', 0)) >= target]
+        if candidates:
+            return min(candidates, key=lambda o: float(o.get('strike', 0)))
+        logger.warning(f"or_higher fallback: no strike >= {target:.2f} in chain; using closest")
+        return _by_strike(options, target)
+
+    def _by_strike_or_lower(options, target):
+        """Highest available strike that is at or below *target*.
+        Falls back to closest in the chain if no strike <= target exists."""
+        candidates = [o for o in options if float(o.get('strike', 0)) <= target]
+        if candidates:
+            return max(candidates, key=lambda o: float(o.get('strike', 0)))
+        logger.warning(f"or_lower fallback: no strike <= {target:.2f} in chain; using closest")
+        return _by_strike(options, target)
 
     def _by_delta(options, target_abs):
         return min(options, key=lambda o: abs(abs(float((o.get('greeks') or {}).get('delta', 0) or 0)) - target_abs)) if options else None
@@ -1473,43 +1492,77 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         # auto: derive from the option type of the first option in the pool
         return (options[0].get('option_type', 'put') if options else 'put') == 'call'
 
-    def _pick_with_fallback(options, target):
-        opt = _by_strike(options, target)
-        if strike_fallback == 'skip' and opt:
-            found = float(opt.get('strike', 0))
-            # Skip if closest strike is more than $2 or 0.5% away from target
-            tolerance = max(2.0, abs(target) * 0.005)
-            if abs(found - target) > tolerance:
-                return None
-        return opt
+    def _apply_fallback(options, target):
+        """Route to the correct strike selection function based on *strike_fallback*.
+
+        or_higher  → lowest strike  >= target (round up to next available)
+        or_lower   → highest strike <= target (round down to next available)
+        skip       → nearest strike, but abort (return None) if it is more
+                     than $2 / 0.5% away from the target
+        closest    → mathematically nearest strike in the chain (default)
+        """
+        if strike_fallback == 'or_higher':
+            return _by_strike_or_higher(options, target)
+        if strike_fallback == 'or_lower':
+            return _by_strike_or_lower(options, target)
+        if strike_fallback == 'skip':
+            opt = _by_strike(options, target)
+            if opt:
+                found = float(opt.get('strike', 0))
+                # Skip trade if closest strike is more than $2 or 0.5% away
+                tolerance = max(2.0, abs(target) * 0.005)
+                if abs(found - target) > tolerance:
+                    logger.info(
+                        f"skip fallback: closest strike {found} is "
+                        f"{abs(found - target):.2f} from target {target:.2f} "
+                        f"(tolerance {tolerance:.2f}) — aborting trade"
+                    )
+                    return None
+            return opt
+        # 'closest' — mathematically nearest strike in chain
+        return _by_strike(options, target)
+
+    # Preserve old name for any callers still using it inside this function scope
+    _pick_with_fallback = _apply_fallback
 
     def _pick(options):
         try:
             if strike_method == 'delta' and strike_value:
                 return _by_delta(options, abs(float(strike_value)))
             if strike_method in ('strike', 'fixed_strike') and strike_value:
-                return _pick_with_fallback(options, float(strike_value))
+                return _apply_fallback(options, float(strike_value))
             if strike_method == 'dollar_underlying' and strike_value:
                 dist  = float(strike_value)
                 above = _resolve_dir(options, strike_direction)
                 target = underlying + dist if above else underlying - dist
-                return _pick_with_fallback(options, target)
+                return _apply_fallback(options, target)
             if strike_method == 'pct_underlying' and strike_value:
                 pct   = float(strike_value) / 100
                 above = _resolve_dir(options, strike_direction)
                 target = underlying * (1 + pct) if above else underlying * (1 - pct)
-                return _pick_with_fallback(options, target)
+                return _apply_fallback(options, target)
             if strike_method in ('dollar_leg', 'pct_leg') and strike_value:
-                # Leg-relative not meaningful for Leg 1 — fall through to ATM
+                # Leg-relative not meaningful for Leg 1 — fall through
                 pass
+            else:
+                logger.warning(f"_pick: unrecognised strike_method '{strike_method}'")
         except Exception as e:
             logger.warning(f"_pick({strike_method}): {e}")
+        # Exception / unrecognised method path
         if strike_fallback == 'skip':
             return None
+        # or_higher / or_lower / closest all fall back to ATM on error since
+        # we may not know the intended target at this point
         return _atm(options)
 
     def _pick_leg2(options, leg1_opt, default_below=True):
-        """Select Leg 2 strike using the configured l2_method/l2_value/l2_dir."""
+        """Select Leg 2 strike using the configured l2_method/l2_value/l2_dir.
+
+        All target-based methods route through _apply_fallback so that the
+        or_higher / or_lower / skip / closest setting is honoured for Leg 2
+        in exactly the same way as Leg 1.  Delta and ATM are directional by
+        nature and do not use the rounding fallback.
+        """
         l1s = float(leg1_opt.get('strike', 0)) if leg1_opt else 0
         default_target = l1s - spread_width if default_below else l1s + spread_width
         try:
@@ -1520,23 +1573,23 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             elif l2_method == 'dollar_underlying':
                 dist = float(l2_value or spread_width)
                 t = underlying - dist if l2_dir == 'below' else underlying + dist
-                return _by_strike(options, t)
+                return _apply_fallback(options, t)
             elif l2_method == 'pct_underlying':
                 pct = float(l2_value or 5) / 100
                 t = underlying * (1 - pct) if l2_dir == 'below' else underlying * (1 + pct)
-                return _by_strike(options, t)
+                return _apply_fallback(options, t)
             elif l2_method == 'dollar_leg1':
                 dist = float(l2_value or spread_width)
                 t = l1s - dist if l2_dir == 'below' else l1s + dist
-                return _by_strike(options, t)
+                return _apply_fallback(options, t)
             elif l2_method == 'pct_leg1':
                 pct = float(l2_value or 5) / 100
                 t = l1s * (1 - pct) if l2_dir == 'below' else l1s * (1 + pct)
-                return _by_strike(options, t)
+                return _apply_fallback(options, t)
             elif l2_method == 'fixed_strike':
-                return _by_strike(options, float(l2_value or 0))
+                return _apply_fallback(options, float(l2_value or 0))
             else:  # spread_width (default)
-                return _by_strike(options, default_target)
+                return _apply_fallback(options, default_target)
         except Exception as e:
             logger.warning(f"_pick_leg2({l2_method}): {e}")
             return _by_strike(options, default_target)
