@@ -999,63 +999,127 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
             elif metric == 'rsi':
                 window = params.get('window', 14)
                 raw_series_type = params.get('series_type', 'close')
-                # Polygon RSI only supports: close, open, high, low — map anything else to 'close'
-                _rsi_valid_series = {'close', 'open', 'high', 'low'}
-                series_type = raw_series_type if raw_series_type in _rsi_valid_series else 'close'
+                _valid_series = {'close', 'open', 'high', 'low'}
+                series_type = raw_series_type if raw_series_type in _valid_series else 'close'
                 if series_type != raw_series_type:
-                    print(f"[Prefetch] RSI: series_type '{raw_series_type}' not supported by Polygon — using 'close'", flush=True)
+                    print(f"[Prefetch] RSI: series_type '{raw_series_type}' not recognised — using 'close'", flush=True)
                 timespan = params.get('candle_type', 'day')
                 ind_multiplier = int(params.get('multiplier', 1) or 1)
+                field_map = {'open': 'o', 'high': 'h', 'low': 'l', 'close': 'c'}
+                field = field_map.get(series_type, 'c')
 
-                url = f"https://api.polygon.io/v1/indicators/rsi/{underlying_sym}"
-                base_params = {
-                    'apiKey': api_key,
-                    'timespan': timespan,
-                    'adjusted': 'true',
-                    'window': window,
-                    'series_type': series_type,
-                    'timestamp.gte': start_ts,
-                    'timestamp.lte': end_ts,
-                    'limit': 5000,
-                    'order': 'asc'
-                }
-                if ind_multiplier > 1:
-                    base_params['multiplier'] = ind_multiplier
-
-                print(f"[Prefetch] Fetching RSI: window={window}, timespan={timespan}, series={series_type}...", flush=True)
+                def _compute_rsi_series(closes, period):
+                    """Wilder's smoothed RSI — identical formula to bot_executor._ind_rsi.
+                    Returns one RSI value per bar; None for bars before the seed window."""
+                    n = len(closes)
+                    if n < period + 1:
+                        return [None] * n
+                    diffs  = [closes[i] - closes[i - 1] for i in range(1, n)]
+                    gains  = [max(d, 0.0)  for d in diffs]
+                    losses = [max(-d, 0.0) for d in diffs]
+                    result = [None] * n
+                    avg_g = sum(gains[:period])  / period
+                    avg_l = sum(losses[:period]) / period
+                    result[period] = 100.0 if avg_l == 0 else 100 - 100 / (1 + avg_g / avg_l)
+                    for i in range(period, n - 1):
+                        avg_g = (avg_g * (period - 1) + gains[i])  / period
+                        avg_l = (avg_l * (period - 1) + losses[i]) / period
+                        result[i + 1] = 100.0 if avg_l == 0 else 100 - 100 / (1 + avg_g / avg_l)
+                    return result
 
                 indicator_data = {}
-                _next_url = url
-                _next_params = base_params
-                _rsi_page = 0
-                while _next_url:
-                    response = requests.get(_next_url, params=_next_params)
-                    if response.status_code == 200:
-                        data = response.json()
-                        values = data.get('results', {}).get('values', [])
-                        for v in values:
-                            _ts = v.get('timestamp')
-                            if _ts is None:
-                                continue
-                            # Filter out Polygon's after-hours ghost values (repeated post-close RSI).
-                            # Only keep timestamps that fall within regular market hours (9:30–16:00 ET).
-                            _dt = datetime.fromtimestamp(_ts / 1000, tz=pytz.UTC).astimezone(eastern)
-                            _hm = _dt.hour * 60 + _dt.minute
-                            if 9 * 60 + 30 <= _hm <= 16 * 60:
-                                indicator_data[_ts] = v.get('value')
-                        _rsi_page += 1
-                        _next_cursor = data.get('next_url')
-                        if _next_cursor and values:
-                            _next_url = _next_cursor
-                            _next_params = {'apiKey': api_key}
+                print(f"[Prefetch] RSI (self-computed, Wilder's): window={window}, timespan={timespan}, series={series_type}, multiplier={ind_multiplier}", flush=True)
+
+                if timespan == 'day':
+                    # Fetch daily bars with enough warmup for Wilder's to converge
+                    # (window × 3 bars; double the calendar days to clear weekends/holidays)
+                    warmup_cal = max(window * 3 * 2, 90)
+                    rsi_start_str = (start_date - timedelta(days=warmup_cal)).strftime("%Y-%m-%d")
+                    url_day = (f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}"
+                               f"/range/{ind_multiplier}/day/{rsi_start_str}/{end_str}")
+                    print(f"[Prefetch] RSI(day): fetching from {rsi_start_str} (warmup ≥{window * 3} bars)...", flush=True)
+                    _resp = requests.get(url_day, params={'apiKey': api_key, 'limit': 50000,
+                                                          'adjusted': 'true', 'order': 'asc'})
+                    if _resp.status_code == 200:
+                        _day_bars = _resp.json().get('results', [])
+                        _valid = [(b.get('t'), b.get(field)) for b in _day_bars
+                                  if b.get('t') is not None and b.get(field) is not None]
+                        if _valid:
+                            _ts_list, _cl_list = zip(*_valid)
+                            _rsi_vals = _compute_rsi_series(list(_cl_list), window)
+                            for _ts, _val in zip(_ts_list, _rsi_vals):
+                                if _val is not None and int(_ts) >= start_ts:
+                                    indicator_data[int(_ts)] = _val
+                            print(f"[Prefetch] RSI(day): computed {len(indicator_data)} values "
+                                  f"from {len(_cl_list)} bars ({len(_cl_list) - len(indicator_data)} warmup discarded)", flush=True)
                         else:
-                            _next_url = None
-                        print(f"[Prefetch] RSI page {_rsi_page}: +{len(values)} values (total {len(indicator_data)})", flush=True)
+                            print(f"[Prefetch] RSI(day): no valid bars returned", flush=True)
                     else:
-                        print(f"[Prefetch] RSI error: {response.status_code} - {response.text[:200]}", flush=True)
-                        _next_url = None
+                        print(f"[Prefetch] RSI(day) error: {_resp.status_code} — {_resp.text[:200]}", flush=True)
+
+                else:
+                    # Intraday RSI — reuse shared 1-min raw bars when available
+                    _raw_bars = indicators.get('_1min_raw', [])
+                    if not _raw_bars:
+                        warmup_days = max((window // 390 + 2) * 3, 10)
+                        _intra_start_str = (start_date - timedelta(days=warmup_days)).strftime("%Y-%m-%d")
+                        _url_1m = (f"https://api.polygon.io/v2/aggs/ticker/{underlying_sym}"
+                                   f"/range/1/minute/{_intra_start_str}/{end_str}")
+                        print(f"[Prefetch] RSI(intraday): fetching 1-min bars from {_intra_start_str}...", flush=True)
+                        _raw_bars = []
+                        _nu, _np = _url_1m, {'apiKey': api_key, 'limit': 50000, 'adjusted': 'true', 'order': 'asc'}
+                        while _nu:
+                            _r = requests.get(_nu, params=_np)
+                            if _r.status_code != 200:
+                                print(f"[Prefetch] RSI 1-min error: {_r.status_code}", flush=True)
+                                break
+                            _d = _r.json()
+                            _batch = _d.get('results', [])
+                            _raw_bars.extend(_batch)
+                            _nu = _d.get('next_url')
+                            _np = {'apiKey': api_key}
+                            if not _batch:
+                                break
+                        print(f"[Prefetch] RSI(intraday): fetched {len(_raw_bars)} 1-min bars", flush=True)
+
+                    if _raw_bars:
+                        if ind_multiplier <= 1:
+                            _valid = [(b.get('t'), b.get(field)) for b in _raw_bars
+                                      if b.get('t') is not None and b.get(field) is not None]
+                            if _valid:
+                                _ts_list, _cl_list = zip(*_valid)
+                                _rsi_vals = _compute_rsi_series(list(_cl_list), window)
+                                for _ts, _val in zip(_ts_list, _rsi_vals):
+                                    if _val is not None and int(_ts) >= start_ts:
+                                        _dt = datetime.fromtimestamp(int(_ts) / 1000, tz=pytz.UTC).astimezone(eastern)
+                                        _hm = _dt.hour * 60 + _dt.minute
+                                        if 9 * 60 + 30 <= _hm <= 16 * 60:
+                                            indicator_data[int(_ts)] = _val
+                        else:
+                            _df = pd.DataFrame(_raw_bars)
+                            if not _df.empty and 'c' in _df.columns:
+                                _df['_ts'] = pd.to_datetime(_df['t'], unit='ms', utc=True)
+                                _df = _df.set_index('_ts').sort_index()
+                                _agg = {k: v for k, v in
+                                        {'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}.items()
+                                        if k in _df.columns}
+                                _rs = _df.resample(f'{ind_multiplier}min').agg(_agg).dropna(subset=['c'])
+                                _ts_list = [int(ts.timestamp() * 1000) for ts in _rs.index]
+                                _cl_list = (_rs[field] if field in _rs.columns else _rs['c']).tolist()
+                                _rsi_vals = _compute_rsi_series(_cl_list, window)
+                                for _ts, _val in zip(_ts_list, _rsi_vals):
+                                    if _val is not None and int(_ts) >= start_ts:
+                                        _dt = datetime.fromtimestamp(int(_ts) / 1000, tz=pytz.UTC).astimezone(eastern)
+                                        _hm = _dt.hour * 60 + _dt.minute
+                                        if 9 * 60 + 30 <= _hm <= 16 * 60:
+                                            indicator_data[int(_ts)] = _val
+                        print(f"[Prefetch] RSI(intraday, tf={ind_multiplier}min, window={window}): "
+                              f"computed {len(indicator_data)} market-hours values", flush=True)
+                    else:
+                        print(f"[Prefetch] RSI: no bar data available — skipping", flush=True)
+
                 indicators['rsi'] = indicator_data
-                print(f"[Prefetch] RSI complete: {len(indicator_data)} market-hours values ({_rsi_page} page(s))", flush=True)
+                print(f"[Prefetch] RSI complete: {len(indicator_data)} values", flush=True)
             
             elif metric == 'macd':
                 short_window = params.get('short_window', 12)
