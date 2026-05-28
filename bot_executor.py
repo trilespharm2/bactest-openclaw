@@ -1548,19 +1548,11 @@ def exec_open_position(cfg, api_key, base_url, account_id):
                 logger.warning(f"_pick: unrecognised strike_method '{strike_method}'")
         except Exception as e:
             logger.warning(f"_pick({strike_method}): {e}")
-        # Exception / unrecognised method path — target is unknown at this point.
-        # Only 'closest' rescues to ATM (best-effort, no directional constraint).
-        # 'or_higher', 'or_lower', and 'skip' all abort: we cannot satisfy a
-        # directional or tolerance constraint without knowing the intended target.
-        if strike_fallback == 'closest':
-            logger.warning(
-                f"_pick({strike_method}): falling back to ATM "
-                f"(strike={underlying:.2f}) due to error or unrecognised method"
-            )
-            return _atm(options)
+        # Exception / unrecognised method path — target is unknown.
+        # Abort in all cases: no fallback mode should open at an arbitrary strike.
         logger.warning(
-            f"_pick({strike_method}): aborting trade — cannot resolve target "
-            f"for fallback='{strike_fallback}'"
+            f"_pick({strike_method}): aborting trade — could not resolve target "
+            f"(fallback='{strike_fallback}'). Check strike method configuration."
         )
         return None
 
