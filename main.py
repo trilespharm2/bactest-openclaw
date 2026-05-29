@@ -8749,20 +8749,14 @@ def bot_tradier_bars():
     start_s = request.args.get('start', '')
     end_s   = request.args.get('end', '')
 
-    # Index symbol mapping used only when hitting the live Tradier API
-    _INDEX_MAP = {
-        'SPX': '$SPX.X', 'SPXW': '$SPXW.X',
-        'RUT': '$RUT.X', 'NDX':  '$NDX.X',
-        'VIX': '$VIX.X', 'DJI':  '$DJI',
-    }
-
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if not cfg:
         return jsonify({'error': 'No bot configuration found'}), 400
 
     # ── Determine base URL + API key (mirrors _tradier_proxy logic) ──
-    # Primary: use live-quotes key (api.tradier.com) when available — gives
-    # real market data even in paper-trading mode.
+    # NOTE: the timesales endpoint uses plain symbols (SPX, NDX, etc.) —
+    # NOT the $SPX.X / $NDX.X format used by the quotes endpoint.
+    # So we never apply _INDEX_MAP here; pass the symbol exactly as typed.
     live_quotes_key = None
     if cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
         live_quotes_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip() or None
@@ -8770,15 +8764,14 @@ def bot_tradier_bars():
     if live_quotes_key:
         base_url = 'https://api.tradier.com/v1'
         api_key  = live_quotes_key
-        tradier_symbol = _INDEX_MAP.get(symbol, symbol)   # map SPX → $SPX.X
     elif cfg.mode == 'paper':
         base_url = 'https://sandbox.tradier.com/v1'
         api_key  = (decrypt_value(cfg.paper_api_key_enc) or '').strip() or None
-        tradier_symbol = symbol     # sandbox doesn't understand $SPX.X — use plain ticker
     else:
         base_url = 'https://api.tradier.com/v1'
         api_key  = (decrypt_value(cfg.live_api_key_enc) or '').strip() or None
-        tradier_symbol = _INDEX_MAP.get(symbol, symbol)
+
+    tradier_symbol = symbol   # plain symbol for timesales (no $SPX.X mapping)
 
     if not api_key:
         return jsonify({'error': 'API key not configured'}), 400
