@@ -3330,59 +3330,78 @@ function renderAutomationLog(data, dry_run) {
 
 
 // ══════════════════════════════════════════════════════════════════
-//   BOT LIVE CHART ENGINE
+//   BOT LIVE CHART ENGINE  (mirrors Simulated Trading chart UX/UI)
 // ══════════════════════════════════════════════════════════════════
 
 // ── State ─────────────────────────────────────────────────────────
-let _bc = null;   // initialised by botChartInit()
+let _bc = null;
 
-const _BC_IND_DEFS = [
-  { id:'sma9',   type:'sma', period:9,  color:'#f59e0b', label:'SMA 9'  },
-  { id:'sma20',  type:'sma', period:20, color:'#1b55e2', label:'SMA 20' },
-  { id:'sma50',  type:'sma', period:50, color:'#a855f7', label:'SMA 50' },
-  { id:'ema9',   type:'ema', period:9,  color:'#f97316', label:'EMA 9'  },
-  { id:'ema20',  type:'ema', period:20, color:'#0ea5e9', label:'EMA 20' },
-  { id:'vwap',   type:'vwap',period:0,  color:'#10b981', label:'VWAP'   },
-  { id:'rsi14',  type:'rsi', period:14, color:'#ec4899', label:'RSI 14 (sub-pane)' },
-];
+// (old static indicator defs removed — now using dynamic add/remove system)
+
+// ── Timeframe map ──────────────────────────────────────────────────
+const BC_TF_MINUTES = { '1min':1, '5min':5, '15min':15, '30min':30, '60min':60 };
 
 // ── Initialise ─────────────────────────────────────────────────────
 function botChartInit() {
   if (_bc) return;
   _bc = {
-    chart: null, candleSeries: null, volSeries: null,
-    rsiChart: null, rsiSeries: null,
+    // chart instances
+    lwChart: null, candleSeries: null, volSeries: null,
+    rsiChart: null,  rsiSeries: null,
+    macdChart: null, macdHistSeries: null, macdLineSeries: null, macdSignalSeries: null,
+    tsSyncing: false,
+    // data
     symbol: 'SPX', tf: '1min',
-    minuteBars: [],    // raw 1-min bars from server (never re-aggregated from network)
-    displayBars: [],   // aggregated bars for current TF, each has .sec (unix seconds)
-    activeInds: {},    // id → LW line/area series
-    showMarkers: false,
-    replayIdx: null,   // null = live view; number = bar index in replay mode
+    minuteBarsCache: [],      // all raw 1-min bars from Tradier
+    currentMinuteIndex: 0,   // how many minute bars are "visible" (replay position)
+    allBars: [],              // aggregated for current TF (full data)
+    displayBars: [],          // aggregated for current TF up to currentMinuteIndex
+    // indicator state
+    indicators: [], indicatorNextId: 1,
+    // flags
+    showMarkers: false, markers: [],
+    userHasDragged: false,
     isPlaying: false, playTimer: null,
-    rtTimer: null,    isRealtime: false,
+    rtTimer: null, isRealtime: false,
   };
+
+  // Wire up timeframe buttons
+  document.querySelectorAll('#botChartCard .sim-tf-btn').forEach(btn => {
+    btn.addEventListener('click', () => bcSwitchTf(btn.dataset.tf));
+  });
+
+  // Wire up nav buttons
+  document.getElementById('bcPrevBar')?.addEventListener('click', bcShowPreviousBar);
+  document.getElementById('bcNextBar')?.addEventListener('click', bcShowNextBar);
+  document.getElementById('bcPlayPauseBtn')?.addEventListener('click', bcToggleAutoplay);
+
+  // Speed change restarts autoplay timer
+  document.getElementById('bcAutoplaySpeed')?.addEventListener('change', () => {
+    if (_bc && _bc.isPlaying) { bcStopAutoplay(); bcStartAutoplay(); }
+  });
+
+  // Close indicator dropdown on outside click
+  document.addEventListener('click', e => {
+    const dd  = document.getElementById('bcIndicatorDropdown');
+    const btn = document.getElementById('bcIndicatorBtn');
+    if (dd && !dd.contains(e.target) && btn && !btn.contains(e.target))
+      dd.style.display = 'none';
+  });
+  document.getElementById('bcIndicatorBtn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const dd = document.getElementById('bcIndicatorDropdown');
+    if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  });
 
   const card = document.getElementById('botChartCard');
   if (card) card.style.display = 'block';
 
-  _bcRenderIndDropdown();
-
-  // Close indicator dropdown when clicking elsewhere
-  document.addEventListener('click', function _bcDocClick(e) {
-    const dd = document.getElementById('bcIndDropdown');
-    const btn= document.getElementById('bcIndBtn');
-    if (dd && !dd.contains(e.target) && btn && !btn.contains(e.target)) {
-      dd.style.display = 'none';
-    }
-  }, { capture: false });
-
-  // Default load after 200ms
-  setTimeout(() => { if (_bc && !_bc.minuteBars.length) bcLoad(); }, 200);
+  // Default load after 200 ms
+  setTimeout(() => { if (_bc && !_bc.minuteBarsCache.length) bcLoad(); }, 200);
 }
 
 // ── ET datetime string → Unix seconds ─────────────────────────────
 // Tradier returns "YYYY-MM-DD HH:MM:SS" in US/Eastern.
-// Rough but correct for market hours: EDT (UTC-4) Mar-Nov, EST (UTC-5) otherwise.
 function _bcEtToSec(dtStr) {
   if (!dtStr) return 0;
   const [date, time] = dtStr.split(' ');
@@ -3392,35 +3411,42 @@ function _bcEtToSec(dtStr) {
   return Math.floor(new Date(`${date}T${time}${offset}`).getTime() / 1000);
 }
 
+// ── Parse ET "YYYY-MM-DD HH:MM" → Unix ms ─────────────────────────
+function _bcEtToMs(dateStr, timeStr) {
+  const mo = parseInt(dateStr.split('-')[1], 10);
+  const offset = (mo >= 3 && mo <= 11) ? '-04:00' : '-05:00';
+  return new Date(`${dateStr}T${timeStr}:00${offset}`).getTime();
+}
+
 // ── Aggregate minute bars → target TF ─────────────────────────────
-function _bcAggregate(minuteBars, tf) {
-  const mins = tf === '5min' ? 5 : tf === '15min' ? 15 : 1;
-  if (mins === 1) {
-    return minuteBars.map(b => ({ ...b, sec: _bcEtToSec(b.time) }));
-  }
+function _bcAggregateBars(minuteBars, tf) {
+  const mins = BC_TF_MINUTES[tf] || 1;
+  if (mins === 1) return minuteBars.map(b => ({ ...b, timestamp: _bcEtToSec(b.time) * 1000 }));
   const bucketMs = mins * 60 * 1000;
   const result = [];
   let bucket = null, bucketKey = null;
   for (const b of minuteBars) {
-    const ms = _bcEtToSec(b.time) * 1000;
+    const ms  = _bcEtToSec(b.time) * 1000;
     const key = Math.floor(ms / bucketMs) * bucketMs;
     if (key !== bucketKey) {
       if (bucket) result.push(bucket);
       bucketKey = key;
-      bucket = {
-        sec: Math.floor(key / 1000), time: b.time,
-        open: b.open, high: b.high, low: b.low, close: b.close,
-        volume: b.volume, vwap: b.vwap,
-      };
+      bucket = { timestamp: key, time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume };
     } else {
       bucket.high   = Math.max(bucket.high, b.high);
       bucket.low    = Math.min(bucket.low,  b.low);
       bucket.close  = b.close;
-      bucket.volume += b.volume;
+      bucket.volume = (bucket.volume || 0) + (b.volume || 0);
     }
   }
   if (bucket) result.push(bucket);
   return result;
+}
+
+function _bcRebuildBars() {
+  const tf = _bc.tf;
+  _bc.allBars     = _bcAggregateBars(_bc.minuteBarsCache, tf);
+  _bc.displayBars = _bcAggregateBars(_bc.minuteBarsCache.slice(0, _bc.currentMinuteIndex), tf);
 }
 
 // ── Fetch and render chart ─────────────────────────────────────────
@@ -3430,7 +3456,7 @@ async function bcLoad() {
   const days = parseInt(document.getElementById('bcDaysBack')?.value || '5', 10);
   _bc.symbol = sym;
 
-  _bcShowLoading(`<i class="fas fa-spinner fa-spin" style="font-size:22px;"></i><span>Loading ${sym}…</span>`);
+  bcShowLoader(`<i class="fas fa-spinner fa-spin" style="font-size:22px;"></i><span>Loading ${sym}…</span>`);
 
   try {
     const resp = await fetch(`/api/bot/tradier/bars?symbol=${encodeURIComponent(sym)}&days=${days}`);
@@ -3438,291 +3464,735 @@ async function bcLoad() {
     if (!resp.ok) throw new Error(data.error || 'API error');
     if (!data.bars || !data.bars.length) throw new Error(`No data for ${sym} (market may be closed)`);
 
-    _bc.minuteBars = data.bars;
-    _bc.replayIdx  = null;
-    _bcBuildDisplay();
-    _bcCreate();
-    _bcSetData(null);
-    if (_bc.showMarkers) _bcApplyMarkers();
-    document.getElementById('bcSymInput').value = sym;
-    document.getElementById('bcOhlcSym').textContent = sym;
-    _bcShowLoading(null);
+    _bc.minuteBarsCache    = data.bars;
+    _bc.currentMinuteIndex = data.bars.length; // start at "live" (end)
+    _bc.userHasDragged     = false;
+    _bcRebuildBars();
+    bcCreateLWChart();
+    bcUpdateChartData();
+    if (_bc.showMarkers) bcApplyMarkers();
+    bcShowLoader(null);
+    bcUpdateNavButtons();
+    bcUpdateSymbolDisplay();
   } catch(e) {
-    _bcShowLoading(`<i class="fas fa-exclamation-circle" style="font-size:22px;color:#ef4444;"></i><span>${e.message}</span>`);
+    bcShowLoader(`<i class="fas fa-exclamation-circle" style="font-size:22px;color:#f23645;"></i><span>${e.message}</span>`);
   }
 }
 
-function _bcShowLoading(html) {
-  const ld = document.getElementById('bcLoading');
-  const cc = document.getElementById('bcChartContainer');
-  const rc = document.getElementById('bcRsiContainer');
+function bcShowLoader(html) {
+  const loader = document.getElementById('bcChartLoader');
+  const main   = document.getElementById('bcLWChartContainer');
+  if (!loader) return;
   if (!html) {
-    if (ld) { ld.style.display = 'none'; ld.innerHTML = ''; }
-    if (cc) cc.style.display = 'block';
+    loader.style.display = 'none';
+    if (main) main.style.minHeight = '0';
   } else {
-    if (ld) { ld.innerHTML = html; ld.style.display = 'flex'; }
-    if (cc) cc.style.display = 'none';
-    if (rc) rc.style.display = 'none';
+    loader.innerHTML = html;
+    loader.style.display = 'flex';
   }
 }
 
-function _bcBuildDisplay() {
-  _bc.displayBars = _bcAggregate(_bc.minuteBars, _bc.tf);
-}
+// ── Create / destroy main LightweightCharts instance ──────────────
+function bcCreateLWChart() {
+  bcDestroyLWChart();
+  const container = document.getElementById('bcLWChartContainer');
+  if (!container || typeof LightweightCharts === 'undefined') return;
 
-// ── Create / destroy LightweightCharts ────────────────────────────
-function _bcCreate() {
-  if (typeof LightweightCharts === 'undefined') return;
-  _bcDestroy();
-
-  const cc = document.getElementById('bcChartContainer');
-  if (!cc) return;
-
-  _bc.chart = LightweightCharts.createChart(cc, {
-    layout:     { background: { color: '#fff' }, textColor: '#6c757d', fontSize: 11 },
-    grid:       { vertLines: { color: '#f3f4f6' }, horzLines: { color: '#f3f4f6' } },
-    crosshair:  { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: '#e8ebf0', autoScale: true },
-    timeScale:  {
-      borderColor: '#e8ebf0',
-      timeVisible: true,
-      secondsVisible: false,
-      rightOffset: 5,
-      fixLeftEdge: false,
+  _bc.lwChart = LightweightCharts.createChart(container, {
+    layout: {
+      background: { type: 'solid', color: '#ffffff' },
+      textColor: '#191919',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: 12
     },
-    handleScroll: { mouseWheel: true, pressedMouseMove: true },
-    handleScale:  { mouseWheel: true, pinch: true },
+    grid: { vertLines: { color: '#e1e3eb' }, horzLines: { color: '#e1e3eb' } },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: '#9598a1', width: 1, style: 3, labelBackgroundColor: '#2962ff' },
+      horzLine: { color: '#9598a1', width: 1, style: 3, labelBackgroundColor: '#2962ff' }
+    },
+    rightPriceScale: { borderColor: '#d1d4dc', scaleMargins: { top: 0.1, bottom: 0.2 } },
+    timeScale: {
+      borderColor: '#d1d4dc', timeVisible: true, secondsVisible: false,
+      rightOffset: 5, barSpacing: 6, minBarSpacing: 2
+    },
+    handleScroll: { vertTouchDrag: false },
+    handleScale: { axisPressedMouseMove: true }
   });
 
-  _bc.candleSeries = _bc.chart.addCandlestickSeries({
-    upColor: '#22c55e', downColor: '#ef4444',
-    borderUpColor: '#22c55e', borderDownColor: '#ef4444',
-    wickUpColor: '#22c55e',   wickDownColor: '#ef4444',
-    priceLineVisible: true,
+  _bc.candleSeries = _bc.lwChart.addCandlestickSeries({
+    upColor: '#089981', downColor: '#f23645',
+    borderUpColor: '#089981', borderDownColor: '#f23645',
+    wickUpColor: '#089981', wickDownColor: '#f23645'
   });
 
-  // volume pane (histogram on price scale with reduced scale factor)
-  _bc.volSeries = _bc.chart.addHistogramSeries({
-    color: '#93c5fd',
+  _bc.volSeries = _bc.lwChart.addHistogramSeries({
+    color: '#089981',
     priceFormat: { type: 'volume' },
-    priceScaleId: 'vol',
-    scaleMargins: { top: 0.82, bottom: 0 },
+    priceScaleId: '',
+    scaleMargins: { top: 0.85, bottom: 0 }
   });
 
-  // Crosshair subscription for OHLCV bar
-  _bc.chart.subscribeCrosshairMove(param => {
-    if (!param.point || !_bc.displayBars.length) return;
-    const b = param.seriesData?.get(_bc.candleSeries);
-    if (!b) return;
-    const ts = param.time;
-    const bar = _bc.displayBars.find(x => x.sec === ts) || {};
-    _bcUpdateOhlcBar(bar.open, bar.high, bar.low, b.close, bar.volume, ts);
+  // Crosshair → OHLCV bar update
+  _bc.lwChart.subscribeCrosshairMove(param => {
+    if (!param || !param.time || !param.seriesData) return;
+    const d = param.seriesData.get(_bc.candleSeries);
+    if (d) {
+      bcUpdateOHLCDisplayForBar({
+        open: d.open, high: d.high, low: d.low, close: d.close,
+        volume: param.seriesData.get(_bc.volSeries)?.value || 0,
+        timestamp: param.time * 1000
+      });
+    }
   });
 
-  // ResizeObserver
-  _bc._ro = new ResizeObserver(() => {
-    const w = cc.clientWidth, h = cc.clientHeight;
-    if (w && h && _bc.chart) _bc.chart.resize(w, h);
+  // Time-scale sync with sub-panes
+  _bc.lwChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (_bc.lwChart && _bc.lwChart._userScrolling) _bc.userHasDragged = true;
+    if (!_bc.tsSyncing && range) {
+      _bc.tsSyncing = true;
+      try {
+        if (_bc.rsiChart)  _bc.rsiChart.timeScale().setVisibleLogicalRange(range);
+        if (_bc.macdChart) _bc.macdChart.timeScale().setVisibleLogicalRange(range);
+      } finally { _bc.tsSyncing = false; }
+    }
   });
-  _bc._ro.observe(cc);
+
+  function onDown() { if (_bc.lwChart) _bc.lwChart._userScrolling = true; }
+  function onUp()   { if (_bc.lwChart) _bc.lwChart._userScrolling = false; }
+  function onWheel(){ _bc.userHasDragged = true; }
+  container.addEventListener('mousedown', onDown);
+  container.addEventListener('mouseup', onUp);
+  container.addEventListener('touchstart', onDown);
+  container.addEventListener('touchend', onUp);
+  container.addEventListener('wheel', onWheel, { passive: true });
+
+  const ro = new ResizeObserver(entries => {
+    if (!_bc.lwChart) return;
+    const { width, height } = entries[0].contentRect;
+    _bc.lwChart.applyOptions({ width, height });
+  });
+  ro.observe(container);
+  _bc._cleanup = { container, onDown, onUp, onWheel, ro };
 }
 
-function _bcDestroy() {
-  if (_bc._ro) { try { _bc._ro.disconnect(); } catch(_) {} _bc._ro = null; }
-  if (_bc.rsiChart) { try { _bc.rsiChart.remove(); } catch(_) {} _bc.rsiChart = null; _bc.rsiSeries = null; }
-  if (_bc.chart) { try { _bc.chart.remove(); } catch(_) {} _bc.chart = null; }
-  _bc.candleSeries = null; _bc.volSeries = null; _bc.activeInds = {};
-  const rc = document.getElementById('bcRsiContainer');
-  if (rc) rc.style.display = 'none';
+function bcDestroyLWChart() {
+  if (_bc._cleanup) {
+    const c = _bc._cleanup;
+    c.container.removeEventListener('mousedown', c.onDown);
+    c.container.removeEventListener('mouseup', c.onUp);
+    c.container.removeEventListener('touchstart', c.onDown);
+    c.container.removeEventListener('touchend', c.onUp);
+    c.container.removeEventListener('wheel', c.onWheel);
+    c.ro.disconnect();
+    _bc._cleanup = null;
+  }
+  if (_bc.lwChart) {
+    _bc.indicators.forEach(ind => { ind.series = null; });
+    _bc.indicators = [];
+    _bc.indicatorNextId = 1;
+    bcDestroyRSIPane();
+    bcDestroyMACDPane();
+    try { _bc.lwChart.remove(); } catch(_) {}
+    _bc.lwChart = null;
+    _bc.candleSeries = null;
+    _bc.volSeries = null;
+  }
+  bcRefreshIndicatorsList();
 }
 
-// ── Set chart data (optionally slice for replay) ───────────────────
-function _bcSetData(upToIdx) {
-  if (!_bc.chart || !_bc.candleSeries) return;
+// ── Set chart data ─────────────────────────────────────────────────
+function bcUpdateChartData() {
+  if (!_bc.lwChart || !_bc.candleSeries) return;
   const bars = _bc.displayBars;
-  const end  = upToIdx !== null && upToIdx !== undefined ? upToIdx + 1 : bars.length;
-  const slice = bars.slice(0, end);
+  if (!bars.length) return;
 
-  _bc.candleSeries.setData(slice.map(b => ({
-    time: b.sec, open: b.open, high: b.high, low: b.low, close: b.close,
-  })));
-  if (_bc.volSeries) {
-    _bc.volSeries.setData(slice.map(b => ({
-      time: b.sec, value: b.volume,
-      color: b.close >= b.open ? 'rgba(34,197,94,.35)' : 'rgba(239,68,68,.35)',
-    })));
+  const seen = new Set();
+  const candleData = [], volData = [];
+  for (const b of bars) {
+    const t = Math.floor(b.timestamp / 1000);
+    if (seen.has(t)) continue;
+    seen.add(t);
+    candleData.push({ time: t, open: b.open, high: b.high, low: b.low, close: b.close });
+    volData.push({ time: t, value: b.volume || 0, color: b.close >= b.open ? 'rgba(8,153,129,0.4)' : 'rgba(242,54,69,0.4)' });
   }
+  _bc.candleSeries.setData(candleData);
+  _bc.volSeries.setData(volData);
+  bcUpdateAllIndicators();
+  bcUpdateOHLCDisplay();
+  bcUpdateSymbolDisplay();
 
-  _bcUpdateAllInds(slice);
-
-  // Update OHLCV bar with last visible bar
-  if (slice.length) {
-    const last = slice[slice.length - 1];
-    _bcUpdateOhlcBar(last.open, last.high, last.low, last.close, last.volume, last.sec);
-  }
-
-  // Fit or scroll
-  if (upToIdx === null || upToIdx === undefined) {
-    _bc.chart.timeScale().fitContent();
-  } else {
-    if (slice.length) _bc.chart.timeScale().scrollToPosition(3, false);
+  const isLive = _bc.currentMinuteIndex >= _bc.minuteBarsCache.length;
+  if (isLive && !_bc.userHasDragged) {
+    _bc.lwChart.timeScale().scrollToPosition(5, false);
   }
 }
 
 // ── Timeframe switch ───────────────────────────────────────────────
-function bcSetTf(tf) {
-  if (!_bc) return;
+function bcSwitchTf(tf) {
+  if (!_bc || !BC_TF_MINUTES[tf]) return;
   _bc.tf = tf;
-  document.querySelectorAll('.bc-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
-  if (!_bc.minuteBars.length) return;
-  _bc.replayIdx = null;
-  _bcBuildDisplay();
-  _bc.activeInds = {};
-  _bcRenderIndDropdown();
-  _bcCreate();
-  _bcSetData(null);
-  document.getElementById('bcOhlcSym').textContent = _bc.symbol;
+  document.querySelectorAll('#botChartCard .sim-tf-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tf === tf)
+  );
+  if (!_bc.minuteBarsCache.length) return;
+  _bcRebuildBars();
+  bcCreateLWChart();
+  bcUpdateChartData();
+  if (_bc.showMarkers) bcApplyMarkers();
+  bcUpdateNavButtons();
 }
 
-// ── Replay ─────────────────────────────────────────────────────────
-function bcReplayNext() {
-  if (!_bc || !_bc.displayBars.length) return;
-  _bcStopPlay();
-  const max = _bc.displayBars.length - 1;
-  _bc.replayIdx = _bc.replayIdx === null ? max : Math.min(max, _bc.replayIdx + 1);
-  _bcApplyReplay();
-}
-
-function bcReplayPrev() {
-  if (!_bc || !_bc.displayBars.length) return;
-  _bcStopPlay();
-  const cur = _bc.replayIdx === null ? _bc.displayBars.length - 1 : _bc.replayIdx;
-  _bc.replayIdx = Math.max(0, cur - 1);
-  _bcApplyReplay();
-}
-
-function bcTogglePlay() {
-  if (!_bc) return;
-  if (_bc.isPlaying) { _bcStopPlay(); return; }
-  // Start from beginning if already at end or in live view
-  if (_bc.replayIdx === null || _bc.replayIdx >= _bc.displayBars.length - 1) {
-    _bc.replayIdx = 0;
+// ── Navigation ─────────────────────────────────────────────────────
+function bcShowNextBar() {
+  bcStopAutoplay();
+  const skip = parseInt(document.getElementById('bcAutoplayInterval')?.value) || 1;
+  if (_bc.currentMinuteIndex < _bc.minuteBarsCache.length) {
+    _bc.currentMinuteIndex = Math.min(_bc.minuteBarsCache.length, _bc.currentMinuteIndex + skip);
+    _bcRebuildBars();
+    bcUpdateChartData();
+    bcUpdateNavButtons();
+    if (!_bc.userHasDragged) _bc.lwChart?.timeScale().scrollToPosition(5, false);
   }
+}
+
+function bcShowPreviousBar() {
+  bcStopAutoplay();
+  const skip = parseInt(document.getElementById('bcAutoplayInterval')?.value) || 1;
+  if (_bc.currentMinuteIndex > 0) {
+    _bc.currentMinuteIndex = Math.max(0, _bc.currentMinuteIndex - skip);
+    _bcRebuildBars();
+    bcUpdateChartData();
+    bcUpdateNavButtons();
+  }
+}
+
+function bcToggleAutoplay() {
+  if (_bc.isPlaying) bcStopAutoplay(); else bcStartAutoplay();
+}
+
+function bcStartAutoplay() {
+  if (_bc.isPlaying) return;
+  if (_bc.currentMinuteIndex >= _bc.minuteBarsCache.length) return;
   _bc.isPlaying = true;
-  _bcUpdatePlayBtn(true);
-  const speed = parseInt(document.getElementById('bcSpeed')?.value || '300', 10);
+  const icon = document.getElementById('bcPlayIcon');
+  if (icon) icon.className = 'fas fa-pause';
+  const speed = parseInt(document.getElementById('bcAutoplaySpeed')?.value) || 3000;
   _bc.playTimer = setInterval(() => {
-    if (!_bc.displayBars.length) { _bcStopPlay(); return; }
-    const max = _bc.displayBars.length - 1;
-    _bc.replayIdx = Math.min(max, (_bc.replayIdx || 0) + 1);
-    _bcApplyReplay();
-    if (_bc.replayIdx >= max) _bcStopPlay();
+    const skip = parseInt(document.getElementById('bcAutoplayInterval')?.value) || 1;
+    if (_bc.currentMinuteIndex >= _bc.minuteBarsCache.length) { bcStopAutoplay(); return; }
+    _bc.currentMinuteIndex = Math.min(_bc.minuteBarsCache.length, _bc.currentMinuteIndex + skip);
+    _bcRebuildBars();
+    bcUpdateChartData();
+    bcUpdateNavButtons();
+    if (!_bc.userHasDragged) _bc.lwChart?.timeScale().scrollToPosition(5, false);
+    if (_bc.currentMinuteIndex >= _bc.minuteBarsCache.length) bcStopAutoplay();
   }, speed);
 }
 
-function _bcStopPlay() {
-  if (!_bc) return;
+function bcStopAutoplay() {
   _bc.isPlaying = false;
   if (_bc.playTimer) { clearInterval(_bc.playTimer); _bc.playTimer = null; }
-  _bcUpdatePlayBtn(false);
-}
-
-function _bcUpdatePlayBtn(playing) {
   const icon = document.getElementById('bcPlayIcon');
-  if (icon) icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
-  const btn = document.getElementById('bcPlayBtn');
-  if (btn) btn.classList.toggle('active', playing);
+  if (icon) icon.className = 'fas fa-play';
 }
 
-function bcReplaySeek(val) {
-  if (!_bc) return;
-  _bcStopPlay();
-  _bc.replayIdx = Math.max(0, Math.min(_bc.displayBars.length - 1, parseInt(val, 10) - 1));
-  _bcApplyReplay();
+function bcResetView() {
+  if (!_bc || !_bc.lwChart) return;
+  _bc.userHasDragged = false;
+  _bc.lwChart.timeScale().scrollToPosition(5, true);
 }
 
-function bcExitReplay() {
-  if (!_bc) return;
-  _bcStopPlay();
-  _bc.replayIdx = null;
-  document.getElementById('bcReplayBar').style.display = 'none';
-  _bcSetData(null);
-}
+function bcUpdateNavButtons() {
+  const prevBtn = document.getElementById('bcPrevBar');
+  const nextBtn = document.getElementById('bcNextBar');
+  if (prevBtn) prevBtn.disabled = (_bc.currentMinuteIndex <= 0);
+  if (nextBtn) nextBtn.disabled = (_bc.currentMinuteIndex >= _bc.minuteBarsCache.length);
 
-function _bcApplyReplay() {
-  if (!_bc || _bc.replayIdx === null) return;
-  const total = _bc.displayBars.length;
-  const idx   = _bc.replayIdx;
-  _bcSetData(idx);
+  // Bar visibility info
+  const barInfo = document.getElementById('bcBarVisibilityInfo');
+  if (barInfo && _bc.allBars.length) {
+    const hidden = _bc.allBars.length - _bc.displayBars.length;
+    barInfo.textContent = `${_bc.displayBars.length} bars | +${hidden}`;
+  }
 
-  // Show replay bar
-  const rb = document.getElementById('bcReplayBar');
-  if (rb) rb.style.display = 'flex';
-  const ri = document.getElementById('bcReplayInfo');
-  if (ri) ri.textContent = `Bar ${idx + 1} / ${total}`;
-  const sl = document.getElementById('bcReplaySlider');
-  if (sl) { sl.max = total; sl.value = idx + 1; }
-
-  // Show current bar datetime
-  const bar = _bc.displayBars[idx];
-  if (bar) {
-    const d = new Date(bar.sec * 1000);
-    const dtStr = d.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-    const ts = document.getElementById('bcOhlcTs');
-    if (ts) ts.textContent = dtStr + ' ET';
+  // Current time display
+  const timeEl = document.getElementById('bcCurrentTimeDisplay');
+  const gotoDate = document.getElementById('bcGotoDate');
+  if (_bc.currentMinuteIndex > 0 && _bc.minuteBarsCache.length) {
+    const bar = _bc.minuteBarsCache[_bc.currentMinuteIndex - 1];
+    if (bar) {
+      const sec  = _bcEtToSec(bar.time);
+      const d    = new Date(sec * 1000);
+      const hh   = d.getUTCHours().toString().padStart(2,'0');
+      const mm   = d.getUTCMinutes().toString().padStart(2,'0');
+      // Convert sec to ET for display (approximate)
+      const etD  = new Date((sec + (new Date().getTimezoneOffset() * 60)) * 1000);
+      if (timeEl) timeEl.textContent = bar.time.split(' ')[1]?.slice(0,5) || '';
+      if (gotoDate && !gotoDate.matches(':focus')) {
+        const parts = (bar.time || '').split(' ')[0]?.split('-') || [];
+        if (parts.length === 3) gotoDate.value = `${parts[1]}/${parts[2]}/${parts[0]}`;
+      }
+    }
   }
 }
 
 // ── Go to date/time ────────────────────────────────────────────────
 function bcGoTo() {
-  if (!_bc || !_bc.chart) return;
-  const inp = document.getElementById('bcGotoInput');
-  if (!inp || !inp.value) return;
-  // datetime-local gives "YYYY-MM-DDTHH:MM" in local time
-  const dt = new Date(inp.value);
-  if (isNaN(dt)) return;
-  const sec = Math.floor(dt.getTime() / 1000);
-  // Find nearest bar
-  const bars = _bc.displayBars;
-  let best = null, bestDiff = Infinity;
-  for (let i = 0; i < bars.length; i++) {
-    const diff = Math.abs(bars[i].sec - sec);
-    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  if (!_bc || !_bc.minuteBarsCache.length) return;
+  const gotoDateVal = document.getElementById('bcGotoDate')?.value.trim();
+  const gotoTimeVal = document.getElementById('bcGotoTime')?.value.trim();
+
+  let targetDateStr, targetTime = '09:30';
+
+  if (gotoDateVal) {
+    const parts = gotoDateVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!parts) { alert('Please enter date as MM/DD/YYYY'); return; }
+    targetDateStr = `${parts[3]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+  } else if (_bc.currentMinuteIndex > 0) {
+    const bar = _bc.minuteBarsCache[_bc.currentMinuteIndex - 1];
+    targetDateStr = (bar.time || '').split(' ')[0];
+  } else { alert('Please enter a date'); return; }
+
+  if (gotoTimeVal) {
+    const tp = gotoTimeVal.match(/^(\d{1,2}):(\d{2})$/);
+    if (!tp) { alert('Please enter time as HH:MM'); return; }
+    targetTime = `${tp[1].padStart(2,'0')}:${tp[2]}`;
   }
-  if (best === null) return;
-  // In replay mode: set replay to that bar
-  if (_bc.replayIdx !== null) {
-    _bc.replayIdx = best;
-    _bcApplyReplay();
-  } else {
-    _bc.chart.timeScale().scrollToPosition(0, false);
-    try { _bc.chart.timeScale().scrollToRealTime(); } catch(_) {}
-    _bc.chart.timeScale().setVisibleLogicalRange({ from: best - 30, to: best + 30 });
+
+  const targetMs = _bcEtToMs(targetDateStr, targetTime);
+  let targetIdx  = -1;
+  for (let i = 0; i < _bc.minuteBarsCache.length; i++) {
+    if (_bcEtToSec(_bc.minuteBarsCache[i].time) * 1000 >= targetMs) { targetIdx = i + 1; break; }
+  }
+  if (targetIdx === -1) targetIdx = _bc.minuteBarsCache.length;
+
+  _bc.currentMinuteIndex = targetIdx;
+  _bcRebuildBars();
+  bcUpdateChartData();
+  bcUpdateNavButtons();
+  _bc.userHasDragged = false;
+  _bc.lwChart?.timeScale().scrollToPosition(5, false);
+}
+
+// ── OHLCV display ──────────────────────────────────────────────────
+function bcUpdateOHLCDisplay() {
+  if (!_bc.displayBars.length) return;
+  bcUpdateOHLCDisplayForBar(_bc.displayBars[_bc.displayBars.length - 1]);
+}
+
+function bcUpdateOHLCDisplayForBar(bar) {
+  if (!bar) return;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('bcOHLC_O', bar.open?.toFixed(2) ?? '-');
+  set('bcOHLC_H', bar.high?.toFixed(2) ?? '-');
+  set('bcOHLC_L', bar.low?.toFixed(2)  ?? '-');
+  set('bcOHLC_C', bar.close?.toFixed(2) ?? '-');
+  const vol = bar.volume || 0;
+  set('bcOHLC_V', vol >= 1e6 ? (vol/1e6).toFixed(2)+'M' : vol >= 1e3 ? (vol/1e3).toFixed(0)+'K' : String(vol));
+}
+
+function bcUpdateSymbolDisplay() {
+  const symEl    = document.getElementById('bcChartSymbolDisplay');
+  const priceEl  = document.getElementById('bcChartPriceDisplay');
+  const changeEl = document.getElementById('bcChartChangeDisplay');
+  if (symEl) symEl.textContent = _bc.symbol;
+  if (_bc.displayBars.length && priceEl && changeEl) {
+    const first = _bc.displayBars[0];
+    const last  = _bc.displayBars[_bc.displayBars.length - 1];
+    const diff  = last.close - first.open;
+    const pct   = (diff / first.open * 100);
+    priceEl.textContent = `$${last.close.toFixed(2)}`;
+    const isPos = diff >= 0;
+    changeEl.innerHTML = `<span style="color:${isPos ? '#089981' : '#f23645'}">${isPos?'+':''}${diff.toFixed(2)} (${isPos?'+':''}${pct.toFixed(2)}%)</span>`;
   }
 }
 
-// ── Real-time ──────────────────────────────────────────────────────
+// ── Sub-chart factory (RSI / MACD panes) ──────────────────────────
+function _bcMakeSubChart(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container || typeof LightweightCharts === 'undefined') return null;
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background: { type: 'solid', color: '#f8f9fd' }, textColor: '#6a6d78', fontSize: 10 },
+    grid: { vertLines: { color: '#e8eaf0' }, horzLines: { color: '#e8eaf0' } },
+    rightPriceScale: { borderColor: '#d1d4dc', scaleMargins: { top: 0.08, bottom: 0.08 } },
+    timeScale: { borderColor: '#d1d4dc', timeVisible: false, secondsVisible: false, visible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    handleScroll: { vertTouchDrag: false }
+  });
+  chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (_bc.tsSyncing || !range || !_bc.lwChart) return;
+    _bc.tsSyncing = true;
+    try {
+      _bc.lwChart.timeScale().setVisibleLogicalRange(range);
+      if (_bc.rsiChart  && _bc.rsiChart  !== chart) _bc.rsiChart.timeScale().setVisibleLogicalRange(range);
+      if (_bc.macdChart && _bc.macdChart !== chart) _bc.macdChart.timeScale().setVisibleLogicalRange(range);
+    } finally { _bc.tsSyncing = false; }
+  });
+  const ro = new ResizeObserver(entries => {
+    const { width, height } = entries[0].contentRect;
+    try { chart.applyOptions({ width, height }); } catch(_) {}
+  });
+  ro.observe(container);
+  chart._ro = ro;
+  return chart;
+}
+
+// ── RSI pane ──────────────────────────────────────────────────────
+function bcCreateRSIPane(ind) {
+  const pane = document.getElementById('bcRSIPanelContainer');
+  if (!pane) return;
+  pane.style.display = 'block';
+  _bc.rsiChart = _bcMakeSubChart('bcRSIChartInner');
+  if (!_bc.rsiChart) return;
+  _bc.rsiSeries = _bc.rsiChart.addLineSeries({
+    color: ind.color || '#7c3aed', lineWidth: 2,
+    priceLineVisible: false, lastValueVisible: true, title: ind.label || 'RSI'
+  });
+  _bc.rsiSeries.createPriceLine({ price: 70, color: '#f23645', lineWidth: 1, lineStyle: 2, axisLabelVisible: true  });
+  _bc.rsiSeries.createPriceLine({ price: 50, color: '#9598a1', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
+  _bc.rsiSeries.createPriceLine({ price: 30, color: '#089981', lineWidth: 1, lineStyle: 2, axisLabelVisible: true  });
+  _bc.rsiSeries.setData(bcDedupe(bcComputeRSI(_bc.displayBars, ind.period)));
+  if (_bc.lwChart) {
+    try { const r = _bc.lwChart.timeScale().getVisibleLogicalRange(); if (r) _bc.rsiChart.timeScale().setVisibleLogicalRange(r); } catch(_) {}
+  }
+}
+
+function bcDestroyRSIPane() {
+  if (_bc.rsiChart) {
+    try { if (_bc.rsiChart._ro) _bc.rsiChart._ro.disconnect(); } catch(_) {}
+    try { _bc.rsiChart.remove(); } catch(_) {}
+    _bc.rsiChart = null; _bc.rsiSeries = null;
+  }
+  const pane = document.getElementById('bcRSIPanelContainer');
+  if (pane) pane.style.display = 'none';
+}
+
+// ── MACD pane ─────────────────────────────────────────────────────
+function bcCreateMACDPane(ind) {
+  const pane = document.getElementById('bcMACDPanelContainer');
+  if (!pane) return;
+  pane.style.display = 'block';
+  _bc.macdChart = _bcMakeSubChart('bcMACDChartInner');
+  if (!_bc.macdChart) return;
+  const sp = ind.shortPeriod || 12, lp = ind.longPeriod || 26, sig = ind.signalPeriod || 9;
+  const { macdLine, signalLine, histogram } = bcComputeMACD(_bc.displayBars, sp, lp, sig);
+  _bc.macdHistSeries = _bc.macdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
+  _bc.macdHistSeries.setData(bcDedupe(histogram));
+  _bc.macdLineSeries = _bc.macdChart.addLineSeries({ color: '#2962ff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'MACD' });
+  _bc.macdLineSeries.setData(bcDedupe(macdLine));
+  _bc.macdLineSeries.createPriceLine({ price: 0, color: '#9598a1', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
+  _bc.macdSignalSeries = _bc.macdChart.addLineSeries({ color: '#ff6d00', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'Signal' });
+  _bc.macdSignalSeries.setData(bcDedupe(signalLine));
+  if (_bc.lwChart) {
+    try { const r = _bc.lwChart.timeScale().getVisibleLogicalRange(); if (r) _bc.macdChart.timeScale().setVisibleLogicalRange(r); } catch(_) {}
+  }
+}
+
+function bcDestroyMACDPane() {
+  if (_bc.macdChart) {
+    try { if (_bc.macdChart._ro) _bc.macdChart._ro.disconnect(); } catch(_) {}
+    try { _bc.macdChart.remove(); } catch(_) {}
+    _bc.macdChart = null; _bc.macdHistSeries = null; _bc.macdLineSeries = null; _bc.macdSignalSeries = null;
+  }
+  const pane = document.getElementById('bcMACDPanelContainer');
+  if (pane) pane.style.display = 'none';
+}
+
+// ── Indicator add / remove / refresh ──────────────────────────────
+function bcOnIndTypeChange() {
+  const type = document.getElementById('bcIndicatorType')?.value;
+  const pg   = document.getElementById('bcIndPeriodGroup');
+  const mg   = document.getElementById('bcMACDGroup');
+  const lwg  = document.getElementById('bcIndLineWidthGroup');
+  const cg   = document.getElementById('bcIndColorGroup');
+  const pi   = document.getElementById('bcIndPeriod');
+  const ci   = document.getElementById('bcIndColor');
+  if (type === 'macd') {
+    if (pg)  pg.style.display  = 'none';
+    if (mg)  mg.style.display  = 'block';
+    if (lwg) lwg.style.display = 'none';
+    if (cg)  cg.style.display  = 'none';
+  } else if (type === 'rsi') {
+    if (pg)  pg.style.display  = 'block';
+    if (mg)  mg.style.display  = 'none';
+    if (lwg) lwg.style.display = 'none';
+    if (cg)  cg.style.display  = 'block';
+    if (pi)  pi.value = '14';
+    if (ci)  ci.value = '#7c3aed';
+  } else {
+    if (pg)  pg.style.display  = 'block';
+    if (mg)  mg.style.display  = 'none';
+    if (lwg) lwg.style.display = 'block';
+    if (cg)  cg.style.display  = 'block';
+    if (type === 'vwap' && pi) pi.value = '14';
+    if (ci && (type === 'sma' || type === 'ema' || type === 'vwap')) ci.value = '#2962ff';
+  }
+}
+
+function bcAddIndicator(config) {
+  if (!_bc.lwChart) { alert('Load chart data first.'); return; }
+  const type = config ? config.type : document.getElementById('bcIndicatorType')?.value;
+
+  if (type === 'rsi') {
+    if (_bc.indicators.some(i => i.type === 'rsi')) { alert('RSI is already on the chart.'); return; }
+    const period = config ? (config.period || 14) : (parseInt(document.getElementById('bcIndPeriod')?.value) || 14);
+    const color  = config ? (config.color || '#7c3aed') : (document.getElementById('bcIndColor')?.value || '#7c3aed');
+    if (period < 2 || period > 500) { alert('Period must be 2–500.'); return; }
+    const ind = { id: _bc.indicatorNextId++, type: 'rsi', period, color, label: `RSI(${period})`, series: null };
+    _bc.indicators.push(ind);
+    bcCreateRSIPane(ind);
+    bcRefreshIndicatorsList();
+    return;
+  }
+
+  if (type === 'macd') {
+    if (_bc.indicators.some(i => i.type === 'macd')) { alert('MACD is already on the chart.'); return; }
+    const sp  = config ? (config.shortPeriod  || 12) : (parseInt(document.getElementById('bcMACDShort')?.value)  || 12);
+    const lp  = config ? (config.longPeriod   || 26) : (parseInt(document.getElementById('bcMACDLong')?.value)   || 26);
+    const sig = config ? (config.signalPeriod || 9)  : (parseInt(document.getElementById('bcMACDSignal')?.value) || 9);
+    const ind = { id: _bc.indicatorNextId++, type: 'macd', period: 0, color: '#2962ff', label: `MACD(${sp},${lp},${sig})`, series: null, shortPeriod: sp, longPeriod: lp, signalPeriod: sig };
+    _bc.indicators.push(ind);
+    bcCreateMACDPane(ind);
+    bcRefreshIndicatorsList();
+    return;
+  }
+
+  const period    = config ? config.period    : (parseInt(document.getElementById('bcIndPeriod')?.value) || 20);
+  const color     = config ? config.color     : (document.getElementById('bcIndColor')?.value || '#2962ff');
+  const lineWidth = config ? (config.lineWidth || 2) : (parseInt(document.getElementById('bcIndLineWidth')?.value) || 2);
+
+  if ((type === 'sma' || type === 'ema') && (period < 2 || period > 500)) {
+    alert('Period must be 2–500.'); return;
+  }
+
+  const label = type === 'vwap' ? `VWAP(${period})` : `${type.toUpperCase()}(${period})`;
+  const series = _bc.lwChart.addLineSeries({
+    color, lineWidth, priceLineVisible: false, lastValueVisible: true,
+    crosshairMarkerVisible: false, title: label
+  });
+  const ind = { id: _bc.indicatorNextId++, type, period, color, lineWidth, label, series };
+  _bc.indicators.push(ind);
+
+  let data = [];
+  if (type === 'sma')       data = bcComputeSMA(_bc.displayBars, period);
+  else if (type === 'ema')  data = bcComputeEMA(_bc.displayBars, period);
+  else if (type === 'vwap') data = bcComputeVWAP(_bc.displayBars, period);
+  series.setData(bcDedupe(data));
+  bcRefreshIndicatorsList();
+}
+
+function bcRemoveIndicator(id) {
+  const idx = _bc.indicators.findIndex(i => i.id === id);
+  if (idx === -1) return;
+  const ind = _bc.indicators[idx];
+  if (ind.type === 'rsi')       bcDestroyRSIPane();
+  else if (ind.type === 'macd') bcDestroyMACDPane();
+  else if (ind.series && _bc.lwChart) { try { _bc.lwChart.removeSeries(ind.series); } catch(_) {} }
+  _bc.indicators.splice(idx, 1);
+  bcRefreshIndicatorsList();
+}
+
+function bcClearAllIndicators() {
+  while (_bc.indicators.length) {
+    const ind = _bc.indicators.pop();
+    if (ind.type === 'rsi')       bcDestroyRSIPane();
+    else if (ind.type === 'macd') bcDestroyMACDPane();
+    else if (ind.series && _bc.lwChart) { try { _bc.lwChart.removeSeries(ind.series); } catch(_) {} }
+  }
+  bcRefreshIndicatorsList();
+}
+
+function bcRefreshIndicatorsList() {
+  const container = document.getElementById('bcActiveIndicators');
+  const list      = document.getElementById('bcActiveIndicatorsList');
+  const badge     = document.getElementById('bcIndicatorCount');
+  if (!container || !list) return;
+
+  if (!_bc || !_bc.indicators.length) {
+    container.style.display = 'none';
+    if (badge) badge.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  if (badge) { badge.style.display = 'inline-block'; badge.textContent = _bc.indicators.length; }
+
+  let html = '';
+  for (const ind of _bc.indicators) {
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f3fa;">';
+    html += '<div style="display:flex;align-items:center;gap:6px;">';
+    if (ind.type === 'macd') {
+      html += '<span style="display:inline-flex;gap:2px;align-items:center;">'
+            + '<span style="width:5px;height:12px;border-radius:2px;background:#2962ff;display:inline-block;"></span>'
+            + '<span style="width:5px;height:12px;border-radius:2px;background:#ff6d00;display:inline-block;"></span>'
+            + '<span style="width:5px;height:12px;border-radius:2px;background:#089981;display:inline-block;"></span>'
+            + '</span>';
+    } else {
+      html += `<span style="width:12px;height:12px;border-radius:50%;background:${ind.color};display:inline-block;"></span>`;
+    }
+    html += `<span style="font-size:12px;color:#191919;">${ind.label}</span>`;
+    html += '</div>';
+    html += `<button type="button" onclick="bcRemoveIndicator(${ind.id})" style="background:none;border:none;color:#f23645;cursor:pointer;font-size:13px;padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>`;
+    html += '</div>';
+  }
+  html += '<button type="button" onclick="bcClearAllIndicators()" style="width:100%;margin-top:6px;padding:4px;background:#f8f9fd;border:1px solid #e0e3eb;border-radius:4px;font-size:11px;color:#6a6d78;cursor:pointer;">Clear All</button>';
+  list.innerHTML = html;
+}
+
+function bcUpdateAllIndicators() {
+  if (!_bc.lwChart || !_bc.displayBars.length) return;
+  for (const ind of _bc.indicators) {
+    try {
+      if (ind.type === 'sma' && ind.series)
+        ind.series.setData(bcDedupe(bcComputeSMA(_bc.displayBars, ind.period)));
+      else if (ind.type === 'ema' && ind.series)
+        ind.series.setData(bcDedupe(bcComputeEMA(_bc.displayBars, ind.period)));
+      else if (ind.type === 'vwap' && ind.series)
+        ind.series.setData(bcDedupe(bcComputeVWAP(_bc.displayBars, ind.period)));
+      else if (ind.type === 'rsi' && _bc.rsiSeries)
+        _bc.rsiSeries.setData(bcDedupe(bcComputeRSI(_bc.displayBars, ind.period)));
+      else if (ind.type === 'macd' && _bc.macdHistSeries) {
+        const { macdLine, signalLine, histogram } = bcComputeMACD(_bc.displayBars, ind.shortPeriod || 12, ind.longPeriod || 26, ind.signalPeriod || 9);
+        _bc.macdHistSeries.setData(bcDedupe(histogram));
+        if (_bc.macdLineSeries)   _bc.macdLineSeries.setData(bcDedupe(macdLine));
+        if (_bc.macdSignalSeries) _bc.macdSignalSeries.setData(bcDedupe(signalLine));
+      }
+    } catch(e) { console.warn('Indicator error', ind.label, e); }
+  }
+}
+
+// ── Indicator compute functions ────────────────────────────────────
+function bcDedupe(data) {
+  const seen = new Set(); const result = [];
+  for (const d of data) { if (!seen.has(d.time)) { seen.add(d.time); result.push(d); } }
+  return result;
+}
+
+function bcComputeSMA(bars, period) {
+  const result = [];
+  for (let i = period - 1; i < bars.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += bars[j].close;
+    result.push({ time: Math.floor(bars[i].timestamp / 1000), value: sum / period });
+  }
+  return result;
+}
+
+function bcComputeEMA(bars, period) {
+  const result = [];
+  if (bars.length < period) return result;
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += bars[i].close;
+  let ema = sum / period;
+  result.push({ time: Math.floor(bars[period - 1].timestamp / 1000), value: ema });
+  const k = 2 / (period + 1);
+  for (let i = period; i < bars.length; i++) {
+    ema = bars[i].close * k + ema * (1 - k);
+    result.push({ time: Math.floor(bars[i].timestamp / 1000), value: ema });
+  }
+  return result;
+}
+
+function bcComputeVWAP(bars, period) {
+  period = period || 14;
+  const result = [];
+  for (let i = 0; i < bars.length; i++) {
+    const start = Math.max(0, i - period + 1);
+    let cumVol = 0, cumTP = 0;
+    for (let j = start; j <= i; j++) {
+      const b = bars[j];
+      const tp = (b.high + b.low + b.close) / 3;
+      const v  = b.volume || 0;
+      cumTP += tp * v; cumVol += v;
+    }
+    if (cumVol > 0) result.push({ time: Math.floor(bars[i].timestamp / 1000), value: cumTP / cumVol });
+  }
+  return result;
+}
+
+function bcComputeRSI(bars, period) {
+  const result = [];
+  if (bars.length < period + 1) return result;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = bars[i].close - bars[i-1].close;
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let avgGain = gains / period, avgLoss = losses / period;
+  result.push({ time: Math.floor(bars[period].timestamp / 1000), value: avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss) });
+  for (let i = period + 1; i < bars.length; i++) {
+    const d = bars[i].close - bars[i-1].close;
+    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
+    result.push({ time: Math.floor(bars[i].timestamp / 1000), value: avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss) });
+  }
+  return result;
+}
+
+function _bcEMAArray(bars, period) {
+  if (bars.length < period) return [];
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += bars[i].close;
+  const k = 2 / (period + 1);
+  let ema = sum / period;
+  const result = [{ idx: period - 1, time: Math.floor(bars[period - 1].timestamp / 1000), value: ema }];
+  for (let i = period; i < bars.length; i++) {
+    ema = bars[i].close * k + ema * (1 - k);
+    result.push({ idx: i, time: Math.floor(bars[i].timestamp / 1000), value: ema });
+  }
+  return result;
+}
+
+function bcComputeMACD(bars, shortPeriod, longPeriod, signalPeriod) {
+  const shortEma = _bcEMAArray(bars, shortPeriod);
+  const longEma  = _bcEMAArray(bars, longPeriod);
+  const shortMap = {};
+  for (const d of shortEma) shortMap[d.idx] = d.value;
+  const macdLine = [];
+  for (const d of longEma) {
+    const sv = shortMap[d.idx];
+    if (sv !== undefined) macdLine.push({ time: d.time, value: sv - d.value });
+  }
+  const signalLine = [];
+  if (macdLine.length >= signalPeriod) {
+    let sum = 0;
+    for (let i = 0; i < signalPeriod; i++) sum += macdLine[i].value;
+    let sig = sum / signalPeriod;
+    signalLine.push({ time: macdLine[signalPeriod - 1].time, value: sig });
+    const k = 2 / (signalPeriod + 1);
+    for (let i = signalPeriod; i < macdLine.length; i++) {
+      sig = macdLine[i].value * k + sig * (1 - k);
+      signalLine.push({ time: macdLine[i].time, value: sig });
+    }
+  }
+  const histogram = [];
+  const offset = macdLine.length - signalLine.length;
+  for (let i = 0; i < signalLine.length; i++) {
+    const diff = macdLine[offset + i].value - signalLine[i].value;
+    histogram.push({ time: signalLine[i].time, value: diff, color: diff >= 0 ? 'rgba(8,153,129,0.85)' : 'rgba(242,54,69,0.85)' });
+  }
+  return { macdLine: macdLine.map(d => ({ time: d.time, value: d.value })), signalLine, histogram };
+}
+
+// ── Real-time polling ──────────────────────────────────────────────
 function bcToggleRealtime() {
   if (!_bc) return;
-  if (_bc.isRealtime) {
-    _bcStopRt();
-  } else {
-    _bcStartRt();
-  }
+  if (_bc.isRealtime) bcStopRt(); else bcStartRt();
 }
 
-function _bcStartRt() {
+function bcStartRt() {
   if (!_bc) return;
   _bc.isRealtime = true;
   const btn = document.getElementById('bcRtBtn');
   const dot = document.getElementById('bcLiveDot');
   if (btn) btn.classList.add('active');
   if (dot) dot.style.display = 'block';
-  _bcPollRt();
-  _bc.rtTimer = setInterval(_bcPollRt, 60000);
+  bcPollRt();
+  _bc.rtTimer = setInterval(bcPollRt, 60000);
 }
 
-function _bcStopRt() {
+function bcStopRt() {
   if (!_bc) return;
   _bc.isRealtime = false;
   if (_bc.rtTimer) { clearInterval(_bc.rtTimer); _bc.rtTimer = null; }
@@ -3732,298 +4202,77 @@ function _bcStopRt() {
   if (dot) dot.style.display = 'none';
 }
 
-async function _bcPollRt() {
-  if (!_bc || !_bc.symbol || _bc.replayIdx !== null) return;
+async function bcPollRt() {
+  if (!_bc || !_bc.symbol || _bc.currentMinuteIndex < _bc.minuteBarsCache.length) return;
   try {
     const resp = await fetch(`/api/bot/tradier/bars?symbol=${encodeURIComponent(_bc.symbol)}&days=1`);
     const data = await resp.json();
     if (!resp.ok || !data.bars?.length) return;
-
-    // Merge new bars into minuteBars (only append, don't duplicate)
-    const existingSet = new Set(_bc.minuteBars.map(b => b.time));
-    let added = 0;
+    const existingSet = new Set(_bc.minuteBarsCache.map(b => b.time));
+    let changed = false;
     for (const nb of data.bars) {
-      if (!existingSet.has(nb.time)) { _bc.minuteBars.push(nb); added++; }
-      else {
-        // Update last bar in place (real-time tick update)
-        const idx = _bc.minuteBars.findIndex(b => b.time === nb.time);
-        if (idx !== -1) _bc.minuteBars[idx] = nb;
+      if (!existingSet.has(nb.time)) {
+        _bc.minuteBarsCache.push(nb);
+        _bc.currentMinuteIndex++;
+        changed = true;
+      } else {
+        const idx = _bc.minuteBarsCache.findIndex(b => b.time === nb.time);
+        if (idx !== -1) { _bc.minuteBarsCache[idx] = nb; changed = true; }
       }
     }
-
-    _bcBuildDisplay();
-    if (_bc.replayIdx === null) {
-      _bcSetData(null);
-      if (_bc.showMarkers) _bcApplyMarkers();
+    if (changed) {
+      _bcRebuildBars();
+      bcUpdateChartData();
+      bcUpdateNavButtons();
+      if (_bc.showMarkers) bcApplyMarkers();
     }
   } catch(_) {}
 }
 
-// ── Reset view ─────────────────────────────────────────────────────
-function bcResetView() {
-  if (!_bc || !_bc.chart) return;
-  _bc.chart.timeScale().fitContent();
-}
-
-// ── OHLCV info bar ─────────────────────────────────────────────────
-function _bcUpdateOhlcBar(o, h, l, c, v, sec) {
-  const fmt = n => n !== undefined && n !== null ? parseFloat(n).toFixed(2) : '—';
-  const fmtV = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : String(n||0);
-  const clr = c >= o ? '#22c55e' : '#ef4444';
-  const setH = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-  setH('bcOhlcO', `<b>O</b> <span style="color:#495057">${fmt(o)}</span>`);
-  setH('bcOhlcH', `<b>H</b> <span style="color:#22c55e">${fmt(h)}</span>`);
-  setH('bcOhlcL', `<b>L</b> <span style="color:#ef4444">${fmt(l)}</span>`);
-  setH('bcOhlcC', `<b>C</b> <span style="color:${clr};font-weight:700;">${fmt(c)}</span>`);
-  setH('bcOhlcV', `<b>V</b> <span style="color:#6c757d">${fmtV(v)}</span>`);
-  if (sec) {
-    const d = new Date(sec * 1000);
-    const ts = d.toLocaleString('en-US', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
-    setH('bcOhlcTs', ts + ' ET');
-  }
-}
-
-// ══ INDICATORS ═══════════════════════════════════════════════════
-// Compute functions
-function _bcSMA(values, period) {
-  const out = new Array(values.length).fill(null);
-  for (let i = period - 1; i < values.length; i++) {
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) sum += values[j];
-    out[i] = sum / period;
-  }
-  return out;
-}
-
-function _bcEMA(values, period) {
-  const out = new Array(values.length).fill(null);
-  const k = 2 / (period + 1);
-  let prev = null;
-  for (let i = 0; i < values.length; i++) {
-    if (prev === null) {
-      // seed from first SMA
-      if (i < period - 1) continue;
-      let sum = 0;
-      for (let j = i - period + 1; j <= i; j++) sum += values[j];
-      prev = sum / period;
-      out[i] = prev;
-    } else {
-      prev = values[i] * k + prev * (1 - k);
-      out[i] = prev;
-    }
-  }
-  return out;
-}
-
-function _bcRSI(values, period) {
-  const out = new Array(values.length).fill(null);
-  if (values.length <= period) return out;
-  let gainAvg = 0, lossAvg = 0;
-  for (let i = 1; i <= period; i++) {
-    const d = values[i] - values[i - 1];
-    if (d > 0) gainAvg += d; else lossAvg -= d;
-  }
-  gainAvg /= period; lossAvg /= period;
-  out[period] = lossAvg === 0 ? 100 : 100 - 100 / (1 + gainAvg / lossAvg);
-  for (let i = period + 1; i < values.length; i++) {
-    const d = values[i] - values[i - 1];
-    const g = d > 0 ? d : 0, lo = d < 0 ? -d : 0;
-    gainAvg = (gainAvg * (period - 1) + g) / period;
-    lossAvg = (lossAvg * (period - 1) + lo) / period;
-    out[i] = lossAvg === 0 ? 100 : 100 - 100 / (1 + gainAvg / lossAvg);
-  }
-  return out;
-}
-
-function _bcVWAP(bars) {
-  // Daily-reset VWAP (resets when date changes)
-  const out = new Array(bars.length).fill(null);
-  let cumTV = 0, cumV = 0, prevDate = null;
-  for (let i = 0; i < bars.length; i++) {
-    const b = bars[i];
-    const date = b.time ? b.time.split(' ')[0] : null;
-    if (date !== prevDate) { cumTV = 0; cumV = 0; prevDate = date; }
-    const typical = (b.high + b.low + b.close) / 3;
-    cumTV += typical * b.volume;
-    cumV  += b.volume;
-    out[i] = cumV > 0 ? cumTV / cumV : null;
-  }
-  return out;
-}
-
-function _bcUpdateAllInds(bars) {
-  if (!_bc || !_bc.chart) return;
-  const closes = bars.map(b => b.close);
-  const ticks  = bars.map(b => b.sec);
-
-  for (const def of _BC_IND_DEFS) {
-    const series = _bc.activeInds[def.id];
-    if (!series) continue;
-
-    let values;
-    if (def.type === 'sma')  values = _bcSMA(closes, def.period);
-    else if (def.type === 'ema') values = _bcEMA(closes, def.period);
-    else if (def.type === 'vwap') values = _bcVWAP(bars);
-    else if (def.type === 'rsi') {
-      values = _bcRSI(closes, def.period);
-      // RSI in its own sub-pane
-      if (_bc.rsiSeries) {
-        _bc.rsiSeries.setData(
-          values.map((v, i) => v !== null ? { time: ticks[i], value: v } : null).filter(Boolean)
-        );
-      }
-      continue;
-    } else continue;
-
-    series.setData(values.map((v, i) => v !== null ? { time: ticks[i], value: v } : null).filter(Boolean));
-  }
-}
-
-function _bcRenderIndDropdown() {
-  const dd = document.getElementById('bcIndDropdown');
-  if (!dd) return;
-  dd.innerHTML = _BC_IND_DEFS.map(def => {
-    const on  = _bc && !!_bc.activeInds[def.id];
-    const chk = `<div class="bc-ind-check ${on ? 'on' : ''}"><i class="fas fa-check"></i></div>`;
-    const dot = `<div style="width:10px;height:10px;border-radius:50%;background:${def.color};flex-shrink:0;"></div>`;
-    const sep = def.id === 'vwap' ? '<div class="bc-ind-sep"></div>' : '';
-    return `${sep}<div class="bc-ind-row" onclick="_bcToggleInd('${def.id}')">
-      ${chk}${dot}
-      <span>${def.label}</span>
-    </div>`;
-  }).join('');
-}
-
-function bcToggleIndDropdown(e) {
-  e.stopPropagation();
-  const dd = document.getElementById('bcIndDropdown');
-  if (!dd) return;
-  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
-}
-
-function _bcToggleInd(id) {
-  if (!_bc || !_bc.chart) return;
-  const def = _BC_IND_DEFS.find(d => d.id === id);
-  if (!def) return;
-
-  if (_bc.activeInds[id]) {
-    // Remove
-    if (def.type === 'rsi') {
-      if (_bc.rsiChart) { try { _bc.rsiChart.remove(); } catch(_) {} _bc.rsiChart = null; _bc.rsiSeries = null; }
-      const rc = document.getElementById('bcRsiContainer');
-      if (rc) rc.style.display = 'none';
-    } else {
-      try { _bc.chart.removeSeries(_bc.activeInds[id]); } catch(_) {}
-    }
-    delete _bc.activeInds[id];
-  } else {
-    // Add
-    if (def.type === 'rsi') {
-      const rc = document.getElementById('bcRsiContainer');
-      if (rc) rc.style.display = 'block';
-      _bc.rsiChart = LightweightCharts.createChart(rc, {
-        layout:     { background: { color: '#fff' }, textColor: '#6c757d', fontSize: 10 },
-        grid:       { vertLines: { color: '#f3f4f6' }, horzLines: { color: '#f3f4f6' } },
-        crosshair:  { mode: LightweightCharts.CrosshairMode.Normal },
-        rightPriceScale: { borderColor: '#e8ebf0', scaleMargins: { top: 0.1, bottom: 0.1 } },
-        timeScale:  { borderColor: '#e8ebf0', timeVisible: true, secondsVisible: false },
-      });
-      _bc.rsiSeries = _bc.rsiChart.addLineSeries({ color: def.color, lineWidth: 1.5, title: 'RSI 14' });
-      // Overbought / oversold lines
-      const obSeries = _bc.rsiChart.addLineSeries({ color: '#fca5a5', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-      const osSeries = _bc.rsiChart.addLineSeries({ color: '#86efac', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-      const ticks = _bc.displayBars.map(b => b.sec);
-      if (ticks.length) {
-        obSeries.setData(ticks.map(t => ({ time: t, value: 70 })));
-        osSeries.setData(ticks.map(t => ({ time: t, value: 30 })));
-      }
-      _bc.activeInds[id] = _bc.rsiSeries;
-
-      const resizeRsi = () => {
-        const w = rc.clientWidth, h = rc.clientHeight;
-        if (w && h && _bc.rsiChart) _bc.rsiChart.resize(w, h);
-      };
-      const ro = new ResizeObserver(resizeRsi);
-      ro.observe(rc);
-    } else {
-      const ser = _bc.chart.addLineSeries({
-        color: def.color, lineWidth: 1.5,
-        title: def.label,
-        priceLineVisible: false,
-        lastValueVisible: true,
-      });
-      _bc.activeInds[id] = ser;
-    }
-    // Populate with current data
-    _bcUpdateAllInds(_bc.displayBars.slice(0, _bc.replayIdx !== null ? _bc.replayIdx + 1 : _bc.displayBars.length));
-  }
-
-  _bcRenderIndDropdown();
-}
-
-// ══ STRATEGY MARKERS ══════════════════════════════════════════════
-
+// ── Strategy markers ───────────────────────────────────────────────
 async function bcToggleMarkers() {
   if (!_bc) return;
   _bc.showMarkers = !_bc.showMarkers;
   const btn = document.getElementById('bcMarkersBtn');
   if (btn) btn.classList.toggle('active', _bc.showMarkers);
-  if (_bc.showMarkers) {
-    await _bcLoadMarkers();
-  } else {
-    if (_bc.candleSeries) { try { _bc.candleSeries.setMarkers([]); } catch(_) {} }
-    _bc._markers = [];
-  }
+  if (_bc.showMarkers) await bcLoadMarkers();
+  else { if (_bc.candleSeries) { try { _bc.candleSeries.setMarkers([]); } catch(_) {} } _bc.markers = []; }
 }
 
-async function _bcLoadMarkers() {
+async function bcLoadMarkers() {
   if (!_bc || !_bc.candleSeries || !_bc.displayBars.length) return;
   try {
     const resp = await fetch('/api/bot/tradier/orders');
     const data = await resp.json();
     const raw  = data?.orders?.order;
-    if (!raw) { _bc._markers = []; _bcApplyMarkers(); return; }
+    if (!raw) { _bc.markers = []; bcApplyMarkers(); return; }
     const orders = Array.isArray(raw) ? raw : [raw];
-
     const markers = [];
     for (const o of orders) {
       const dt = o.create_date;
       if (!dt) continue;
-      // create_date looks like "2026-05-28T15:55:00"
-      const ms  = new Date(dt).getTime();
-      const sec = Math.floor(ms / 1000);
-      // Find nearest bar on the chart
+      const sec = Math.floor(new Date(dt).getTime() / 1000);
       let best = null, bestDiff = Infinity;
       for (const b of _bc.displayBars) {
-        const diff = Math.abs(b.sec - sec);
+        const diff = Math.abs(Math.floor(b.timestamp / 1000) - sec);
         if (diff < bestDiff) { bestDiff = diff; best = b; }
       }
-      if (!best || bestDiff > 300) continue; // >5min gap → skip
-
-      const isBuy  = (o.side || '').includes('buy');
-      const tag    = o.tag ? String(o.tag) : '';
-      const lbl    = tag || (o.class === 'multileg' ? 'ML' : o.class === 'option' ? 'OPT' : 'EQ');
+      if (!best || bestDiff > 300) continue;
+      const isBuy = (o.side || '').includes('buy');
+      const tag   = o.tag ? String(o.tag) : '';
+      const lbl   = tag || (o.class === 'multileg' ? 'ML' : o.class === 'option' ? 'OPT' : 'EQ');
       const status = o.status || '';
-      const color  = status === 'filled' ? (isBuy ? '#1b55e2' : '#ef4444')
-                   : status === 'canceled' ? '#9098a9' : '#f59e0b';
-      markers.push({
-        time:     best.sec,
-        position: isBuy ? 'belowBar' : 'aboveBar',
-        color,
-        shape:    isBuy ? 'arrowUp' : 'arrowDown',
-        text:     lbl,
-        size:     1,
-      });
+      const color  = status === 'filled' ? (isBuy ? '#1b55e2' : '#f23645') : status === 'canceled' ? '#9098a9' : '#f59e0b';
+      markers.push({ time: Math.floor(best.timestamp / 1000), position: isBuy ? 'belowBar' : 'aboveBar', color, shape: isBuy ? 'arrowUp' : 'arrowDown', text: lbl, size: 1 });
     }
-    // LW Charts requires markers sorted by time
     markers.sort((a, b) => a.time - b.time);
-    _bc._markers = markers;
-    _bcApplyMarkers();
+    _bc.markers = markers;
+    bcApplyMarkers();
   } catch(_) {}
 }
 
-function _bcApplyMarkers() {
+function bcApplyMarkers() {
   if (!_bc || !_bc.candleSeries) return;
-  try { _bc.candleSeries.setMarkers(_bc._markers || []); } catch(_) {}
+  try { _bc.candleSeries.setMarkers(_bc.markers || []); } catch(_) {}
 }
 
