@@ -8728,8 +8728,14 @@ def bot_tradier_option_chains():
 def bot_tradier_bars():
     """Fetch 1-min OHLCV bars from Tradier timesales for the bot live chart.
 
+    URL / key selection mirrors _tradier_proxy:
+      paper mode  → sandbox.tradier.com  +  paper_api_key_enc
+                    (if paper_live_api_key_enc is also set, prefer api.tradier.com
+                     with the live-quotes key so real market data is available)
+      live  mode  → api.tradier.com      +  live_api_key_enc
+
     Query params:
-      symbol  - ticker (SPX → $SPX.X, etc.)
+      symbol  - ticker (SPX → $SPX.X for the live API, left as-is for sandbox)
       days    - calendar days of history (default 5, max 30)
       start   - YYYY-MM-DD override for start date
       end     - YYYY-MM-DD override for end date
@@ -8743,23 +8749,37 @@ def bot_tradier_bars():
     start_s = request.args.get('start', '')
     end_s   = request.args.get('end', '')
 
+    # Index symbol mapping used only when hitting the live Tradier API
     _INDEX_MAP = {
         'SPX': '$SPX.X', 'SPXW': '$SPXW.X',
         'RUT': '$RUT.X', 'NDX':  '$NDX.X',
         'VIX': '$VIX.X', 'DJI':  '$DJI',
     }
-    tradier_symbol = _INDEX_MAP.get(symbol, symbol)
 
     cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
     if not cfg:
         return jsonify({'error': 'No bot configuration found'}), 400
 
-    api_key = None
+    # ── Determine base URL + API key (mirrors _tradier_proxy logic) ──
+    # Primary: use live-quotes key (api.tradier.com) when available — gives
+    # real market data even in paper-trading mode.
+    live_quotes_key = None
     if cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
-        api_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip() or None
-    if not api_key:
-        enc = cfg.paper_api_key_enc if cfg.mode == 'paper' else cfg.live_api_key_enc
-        api_key = (decrypt_value(enc) or '').strip() or None
+        live_quotes_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip() or None
+
+    if live_quotes_key:
+        base_url = 'https://api.tradier.com/v1'
+        api_key  = live_quotes_key
+        tradier_symbol = _INDEX_MAP.get(symbol, symbol)   # map SPX → $SPX.X
+    elif cfg.mode == 'paper':
+        base_url = 'https://sandbox.tradier.com/v1'
+        api_key  = (decrypt_value(cfg.paper_api_key_enc) or '').strip() or None
+        tradier_symbol = symbol     # sandbox doesn't understand $SPX.X — use plain ticker
+    else:
+        base_url = 'https://api.tradier.com/v1'
+        api_key  = (decrypt_value(cfg.live_api_key_enc) or '').strip() or None
+        tradier_symbol = _INDEX_MAP.get(symbol, symbol)
+
     if not api_key:
         return jsonify({'error': 'API key not configured'}), 400
 
@@ -8778,26 +8798,32 @@ def bot_tradier_bars():
     else:
         start_dt = end_dt - timedelta(days=days)
 
+    params = {
+        'symbol':   tradier_symbol,
+        'interval': '1min',
+        'start':    start_dt.strftime('%Y-%m-%d %H:%M'),
+        'end':      now_utc.strftime('%Y-%m-%d %H:%M'),
+    }
+    # session_filter supported on live API only; omit for sandbox
+    if 'api.tradier.com' in base_url:
+        params['session_filter'] = 'open'
+
+    url = f'{base_url}/markets/timesales'
+    app.logger.info('[BotChart] timesales %s sym=%s start=%s', url, tradier_symbol, params['start'])
+
     try:
-        r = requests.get(
-            'https://api.tradier.com/v1/markets/timesales',
-            headers=headers,
-            params={
-                'symbol':         tradier_symbol,
-                'interval':       '1min',
-                'start':          start_dt.strftime('%Y-%m-%d 00:00'),
-                'end':            end_dt.strftime('%Y-%m-%d 23:59'),
-                'session_filter': 'open',
-            },
-            timeout=30,
-        )
+        r = requests.get(url, headers=headers, params=params, timeout=30)
     except Exception as e:
         return jsonify({'error': f'Tradier request failed: {e}'}), 502
 
     if r.status_code != 200:
-        try:    err_body = r.json()
-        except: err_body = {}
-        return jsonify({'error': f'Tradier HTTP {r.status_code}', **err_body}), 502
+        try:
+            err_body = r.json()
+        except Exception:
+            err_body = {'detail': r.text[:300]}
+        app.logger.warning('[BotChart] timesales HTTP %d for %s: %s', r.status_code, tradier_symbol, err_body)
+        msg = err_body.get('fault', {}).get('faultstring') or err_body.get('error') or f'HTTP {r.status_code}'
+        return jsonify({'error': f'Tradier {msg}', 'detail': str(err_body)}), 502
 
     raw   = r.json().get('series') or {}
     items = raw.get('data', [])
@@ -8819,6 +8845,7 @@ def bot_tradier_bars():
         except Exception:
             continue
 
+    app.logger.info('[BotChart] returning %d bars for %s', len(bars), tradier_symbol)
     return jsonify({'bars': bars, 'symbol': symbol, 'count': len(bars)})
 
 
