@@ -271,6 +271,35 @@
 .sb-day-btn{padding:5px 11px;border:1.5px solid #dee2e6;border-radius:20px;background:#fff;color:#6c757d;font-size:12px;font-weight:600;cursor:pointer;transition:all .18s;line-height:1.4}
 .sb-day-btn.active{background:#1b55e2;border-color:#1b55e2;color:#fff}
 .sb-day-btn:hover:not(.active){background:#f0f4ff;border-color:#93aee0;color:#1b55e2}
+
+/* ── Bot Live Chart ──────────────────────────────────── */
+.bc-toolbar{display:flex;align-items:center;gap:6px;padding:9px 14px;border-bottom:1px solid #eef0f3;flex-wrap:wrap;background:#fafbfc}
+.bc-tf-btn{padding:4px 10px;border:1.5px solid #dee2e6;border-radius:6px;background:#fff;font-size:12px;font-weight:600;color:#6c757d;cursor:pointer;transition:all .15s;line-height:1.4}
+.bc-tf-btn.active{border-color:#1b55e2;color:#1b55e2;background:#eff6ff}
+.bc-tf-btn:hover:not(.active){border-color:#93aee0;color:#1b55e2;background:#f5f9ff}
+.bc-ctrl-btn{width:28px;height:28px;border:1.5px solid #dee2e6;border-radius:6px;background:#fff;color:#495057;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;transition:all .15s;flex-shrink:0;padding:0}
+.bc-ctrl-btn:hover{border-color:#1b55e2;color:#1b55e2;background:#eff6ff}
+.bc-ctrl-btn.active{background:#1b55e2;border-color:#1b55e2;color:#fff}
+.bc-sep{width:1px;height:22px;background:#eef0f3;flex-shrink:0}
+.bc-ind-wrap{position:relative;display:inline-flex}
+.bc-ind-dropdown{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e8ebf0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:300;min-width:210px;padding:6px 0}
+.bc-ind-row{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;font-size:12px;color:#333;transition:background .12s;user-select:none}
+.bc-ind-row:hover{background:#f5f7ff}
+.bc-ind-check{width:14px;height:14px;border-radius:3px;border:1.5px solid #c5cdd8;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:9px}
+.bc-ind-check.on{background:#1b55e2;border-color:#1b55e2;color:#fff}
+.bc-ind-sep{height:1px;background:#eef0f3;margin:4px 0}
+.bc-ohlc-bar{padding:5px 16px;font-size:11.5px;font-family:monospace;color:#6c757d;border-bottom:1px solid #f0f2f7;min-height:26px;display:flex;align-items:center;gap:10px;background:#fff;flex-wrap:wrap}
+.bc-ohlc-val{white-space:nowrap}
+.bc-ohlc-val b{font-weight:700}
+#bcChartContainer{width:100%;height:375px}
+#bcRsiContainer{width:100%;height:110px;border-top:2px solid #f0f2f7}
+.bc-loading{display:flex;align-items:center;justify-content:center;height:375px;color:#9098a9;font-size:13px;gap:10px;flex-direction:column}
+.bc-replay-bar{padding:7px 16px;background:#eff6ff;border-top:1px solid #c7d9f5;display:flex;align-items:center;gap:10px;font-size:12px;color:#1b55e2}
+.bc-replay-bar input[type=range]{flex:1;accent-color:#1b55e2}
+.bc-live-dot{width:7px;height:7px;background:#10b981;border-radius:50%;animation:bcPulse 1.4s ease-in-out infinite;flex-shrink:0}
+@keyframes bcPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.85)}}
+.bc-sym-input{padding:5px 9px;border:1.5px solid #dee2e6;border-radius:8px;font-size:13px;font-weight:700;color:#1a1a2e;width:76px;outline:none;text-transform:uppercase;background:#fff}
+.bc-sym-input:focus{border-color:#1b55e2;box-shadow:0 0 0 2px rgba(27,85,226,.12)}
 </style>
 
 <div class="container-fluid py-3" id="botPageRoot">
@@ -626,6 +655,117 @@
 
             </div><!-- /bot-card-body -->
         </div><!-- /bot-card -->
+
+        <!-- ══ LIVE CHART ══════════════════════════════════════════ -->
+        <div class="bot-card" id="botChartCard" style="display:none;">
+
+            <div class="bot-card-header">
+                <h5><i class="fas fa-chart-candlestick" style="color:#1b55e2;"></i>Live Chart</h5>
+                <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+                    <div id="bcLiveDot" class="bc-live-dot" style="display:none;" title="Real-time auto-refresh"></div>
+                    <input id="bcSymInput" type="text" class="bc-sym-input" placeholder="SPX" maxlength="12"
+                           oninput="this.value=this.value.toUpperCase()"
+                           onkeydown="if(event.key==='Enter')bcLoad()">
+                    <button class="bot-refresh-btn" onclick="bcLoad()" title="Load chart">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- toolbar -->
+            <div class="bc-toolbar">
+                <!-- timeframe -->
+                <div style="display:flex;gap:3px;">
+                    <button class="bc-tf-btn active" data-tf="1min"  onclick="bcSetTf('1min')">1m</button>
+                    <button class="bc-tf-btn"        data-tf="5min"  onclick="bcSetTf('5min')">5m</button>
+                    <button class="bc-tf-btn"        data-tf="15min" onclick="bcSetTf('15min')">15m</button>
+                </div>
+                <div class="bc-sep"></div>
+                <!-- history depth -->
+                <select id="bcDaysBack" class="np-select" style="font-size:12px;padding:5px 8px;min-width:90px;" onchange="bcLoad()">
+                    <option value="1">Today</option>
+                    <option value="3">3 Days</option>
+                    <option value="5" selected>5 Days</option>
+                    <option value="10">10 Days</option>
+                    <option value="20">20 Days</option>
+                </select>
+                <div class="bc-sep"></div>
+                <!-- go-to datetime -->
+                <input type="datetime-local" id="bcGotoInput" class="np-select"
+                       style="font-size:12px;padding:4px 8px;min-width:0;width:auto;" title="Go to date/time">
+                <button class="bc-ctrl-btn" onclick="bcGoTo()" title="Scroll to date/time">
+                    <i class="fas fa-crosshairs"></i>
+                </button>
+                <div class="bc-sep"></div>
+                <!-- indicators -->
+                <div class="bc-ind-wrap">
+                    <button class="bc-ctrl-btn" id="bcIndBtn" onclick="bcToggleIndDropdown(event)" title="Indicators">
+                        <i class="fas fa-layer-group"></i>
+                    </button>
+                    <div class="bc-ind-dropdown" id="bcIndDropdown" style="display:none;"></div>
+                </div>
+                <!-- strategy markers -->
+                <button class="bc-ctrl-btn" id="bcMarkersBtn" onclick="bcToggleMarkers()" title="Strategy order markers">
+                    <i class="fas fa-flag"></i>
+                </button>
+                <div class="bc-sep"></div>
+                <!-- replay controls -->
+                <button class="bc-ctrl-btn" onclick="bcReplayPrev()" title="Previous bar">
+                    <i class="fas fa-step-backward"></i>
+                </button>
+                <button class="bc-ctrl-btn" id="bcPlayBtn" onclick="bcTogglePlay()" title="Replay play/pause">
+                    <i class="fas fa-play" id="bcPlayIcon"></i>
+                </button>
+                <button class="bc-ctrl-btn" onclick="bcReplayNext()" title="Next bar">
+                    <i class="fas fa-step-forward"></i>
+                </button>
+                <select id="bcSpeed" class="np-select" style="font-size:12px;padding:4px 6px;min-width:70px;" title="Replay speed">
+                    <option value="800">Slow</option>
+                    <option value="300" selected>Normal</option>
+                    <option value="100">Fast</option>
+                    <option value="30">X-Fast</option>
+                </select>
+                <div class="bc-sep"></div>
+                <!-- realtime + reset -->
+                <button class="bc-ctrl-btn" id="bcRtBtn" onclick="bcToggleRealtime()" title="Toggle live auto-refresh">
+                    <i class="fas fa-satellite-dish"></i>
+                </button>
+                <button class="bc-ctrl-btn" onclick="bcResetView()" title="Fit all data">
+                    <i class="fas fa-expand-arrows-alt"></i>
+                </button>
+            </div>
+
+            <!-- OHLCV info row -->
+            <div class="bc-ohlc-bar" id="bcOhlcBar">
+                <span class="bc-ohlc-val" id="bcOhlcSym" style="font-family:inherit;font-weight:700;color:#1a1a2e;"></span>
+                <span class="bc-ohlc-val" id="bcOhlcO"></span>
+                <span class="bc-ohlc-val" id="bcOhlcH"></span>
+                <span class="bc-ohlc-val" id="bcOhlcL"></span>
+                <span class="bc-ohlc-val" id="bcOhlcC"></span>
+                <span class="bc-ohlc-val" id="bcOhlcV"></span>
+                <span class="bc-ohlc-val" id="bcOhlcTs" style="color:#9098a9;margin-left:auto;font-size:11px;"></span>
+            </div>
+
+            <!-- chart area -->
+            <div id="bcLoading" class="bc-loading">
+                <i class="fas fa-chart-area" style="font-size:28px;opacity:.25;"></i>
+                <span>Enter a symbol above and click <i class="fas fa-search"></i> to load</span>
+            </div>
+            <div id="bcChartContainer" style="display:none;"></div>
+            <div id="bcRsiContainer"   style="display:none;"></div>
+
+            <!-- replay position bar -->
+            <div class="bc-replay-bar" id="bcReplayBar" style="display:none;">
+                <i class="fas fa-film"></i>
+                <span id="bcReplayInfo" style="white-space:nowrap;min-width:110px;">Bar 0 / 0</span>
+                <input type="range" id="bcReplaySlider" min="1" value="1"
+                       oninput="bcReplaySeek(parseInt(this.value))">
+                <button class="bc-ctrl-btn" onclick="bcExitReplay()" style="white-space:nowrap;width:auto;padding:0 8px;" title="Exit replay">
+                    <i class="fas fa-times"></i> Live
+                </button>
+            </div>
+
+        </div><!-- /bot-chart-card -->
 
     </div><!-- /botDashboardView -->
 </div><!-- /botPageRoot -->

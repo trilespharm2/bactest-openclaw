@@ -249,7 +249,7 @@ function _fmtK(n) {
 }
 
 // ── Load All Dashboard Data ────────────────────────────────────────
-function botLoadAll() { botLoadBalances(); botLoadPositions(); botLoadOrders(); strategiesRender(); }
+function botLoadAll() { botLoadBalances(); botLoadPositions(); botLoadOrders(); strategiesRender(); botChartInit(); }
 
 // ── Account Balance ────────────────────────────────────────────────
 async function botLoadBalances() {
@@ -3327,3 +3327,703 @@ function renderAutomationLog(data, dry_run) {
 
   document.getElementById('testLogBody').innerHTML = flowHtml;
 }
+
+
+// ══════════════════════════════════════════════════════════════════
+//   BOT LIVE CHART ENGINE
+// ══════════════════════════════════════════════════════════════════
+
+// ── State ─────────────────────────────────────────────────────────
+let _bc = null;   // initialised by botChartInit()
+
+const _BC_IND_DEFS = [
+  { id:'sma9',   type:'sma', period:9,  color:'#f59e0b', label:'SMA 9'  },
+  { id:'sma20',  type:'sma', period:20, color:'#1b55e2', label:'SMA 20' },
+  { id:'sma50',  type:'sma', period:50, color:'#a855f7', label:'SMA 50' },
+  { id:'ema9',   type:'ema', period:9,  color:'#f97316', label:'EMA 9'  },
+  { id:'ema20',  type:'ema', period:20, color:'#0ea5e9', label:'EMA 20' },
+  { id:'vwap',   type:'vwap',period:0,  color:'#10b981', label:'VWAP'   },
+  { id:'rsi14',  type:'rsi', period:14, color:'#ec4899', label:'RSI 14 (sub-pane)' },
+];
+
+// ── Initialise ─────────────────────────────────────────────────────
+function botChartInit() {
+  if (_bc) return;
+  _bc = {
+    chart: null, candleSeries: null, volSeries: null,
+    rsiChart: null, rsiSeries: null,
+    symbol: 'SPX', tf: '1min',
+    minuteBars: [],    // raw 1-min bars from server (never re-aggregated from network)
+    displayBars: [],   // aggregated bars for current TF, each has .sec (unix seconds)
+    activeInds: {},    // id → LW line/area series
+    showMarkers: false,
+    replayIdx: null,   // null = live view; number = bar index in replay mode
+    isPlaying: false, playTimer: null,
+    rtTimer: null,    isRealtime: false,
+  };
+
+  const card = document.getElementById('botChartCard');
+  if (card) card.style.display = 'block';
+
+  _bcRenderIndDropdown();
+
+  // Close indicator dropdown when clicking elsewhere
+  document.addEventListener('click', function _bcDocClick(e) {
+    const dd = document.getElementById('bcIndDropdown');
+    const btn= document.getElementById('bcIndBtn');
+    if (dd && !dd.contains(e.target) && btn && !btn.contains(e.target)) {
+      dd.style.display = 'none';
+    }
+  }, { capture: false });
+
+  // Default load after 200ms
+  setTimeout(() => { if (_bc && !_bc.minuteBars.length) bcLoad(); }, 200);
+}
+
+// ── ET datetime string → Unix seconds ─────────────────────────────
+// Tradier returns "YYYY-MM-DD HH:MM:SS" in US/Eastern.
+// Rough but correct for market hours: EDT (UTC-4) Mar-Nov, EST (UTC-5) otherwise.
+function _bcEtToSec(dtStr) {
+  if (!dtStr) return 0;
+  const [date, time] = dtStr.split(' ');
+  if (!date || !time) return 0;
+  const mo = parseInt(date.split('-')[1], 10);
+  const offset = (mo >= 3 && mo <= 11) ? '-04:00' : '-05:00';
+  return Math.floor(new Date(`${date}T${time}${offset}`).getTime() / 1000);
+}
+
+// ── Aggregate minute bars → target TF ─────────────────────────────
+function _bcAggregate(minuteBars, tf) {
+  const mins = tf === '5min' ? 5 : tf === '15min' ? 15 : 1;
+  if (mins === 1) {
+    return minuteBars.map(b => ({ ...b, sec: _bcEtToSec(b.time) }));
+  }
+  const bucketMs = mins * 60 * 1000;
+  const result = [];
+  let bucket = null, bucketKey = null;
+  for (const b of minuteBars) {
+    const ms = _bcEtToSec(b.time) * 1000;
+    const key = Math.floor(ms / bucketMs) * bucketMs;
+    if (key !== bucketKey) {
+      if (bucket) result.push(bucket);
+      bucketKey = key;
+      bucket = {
+        sec: Math.floor(key / 1000), time: b.time,
+        open: b.open, high: b.high, low: b.low, close: b.close,
+        volume: b.volume, vwap: b.vwap,
+      };
+    } else {
+      bucket.high   = Math.max(bucket.high, b.high);
+      bucket.low    = Math.min(bucket.low,  b.low);
+      bucket.close  = b.close;
+      bucket.volume += b.volume;
+    }
+  }
+  if (bucket) result.push(bucket);
+  return result;
+}
+
+// ── Fetch and render chart ─────────────────────────────────────────
+async function bcLoad() {
+  if (!_bc) return;
+  const sym  = (document.getElementById('bcSymInput')?.value || '').trim().toUpperCase() || _bc.symbol;
+  const days = parseInt(document.getElementById('bcDaysBack')?.value || '5', 10);
+  _bc.symbol = sym;
+
+  _bcShowLoading(`<i class="fas fa-spinner fa-spin" style="font-size:22px;"></i><span>Loading ${sym}…</span>`);
+
+  try {
+    const resp = await fetch(`/api/bot/tradier/bars?symbol=${encodeURIComponent(sym)}&days=${days}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'API error');
+    if (!data.bars || !data.bars.length) throw new Error(`No data for ${sym} (market may be closed)`);
+
+    _bc.minuteBars = data.bars;
+    _bc.replayIdx  = null;
+    _bcBuildDisplay();
+    _bcCreate();
+    _bcSetData(null);
+    if (_bc.showMarkers) _bcApplyMarkers();
+    document.getElementById('bcSymInput').value = sym;
+    document.getElementById('bcOhlcSym').textContent = sym;
+    _bcShowLoading(null);
+  } catch(e) {
+    _bcShowLoading(`<i class="fas fa-exclamation-circle" style="font-size:22px;color:#ef4444;"></i><span>${e.message}</span>`);
+  }
+}
+
+function _bcShowLoading(html) {
+  const ld = document.getElementById('bcLoading');
+  const cc = document.getElementById('bcChartContainer');
+  const rc = document.getElementById('bcRsiContainer');
+  if (!html) {
+    if (ld) { ld.style.display = 'none'; ld.innerHTML = ''; }
+    if (cc) cc.style.display = 'block';
+  } else {
+    if (ld) { ld.innerHTML = html; ld.style.display = 'flex'; }
+    if (cc) cc.style.display = 'none';
+    if (rc) rc.style.display = 'none';
+  }
+}
+
+function _bcBuildDisplay() {
+  _bc.displayBars = _bcAggregate(_bc.minuteBars, _bc.tf);
+}
+
+// ── Create / destroy LightweightCharts ────────────────────────────
+function _bcCreate() {
+  if (typeof LightweightCharts === 'undefined') return;
+  _bcDestroy();
+
+  const cc = document.getElementById('bcChartContainer');
+  if (!cc) return;
+
+  _bc.chart = LightweightCharts.createChart(cc, {
+    layout:     { background: { color: '#fff' }, textColor: '#6c757d', fontSize: 11 },
+    grid:       { vertLines: { color: '#f3f4f6' }, horzLines: { color: '#f3f4f6' } },
+    crosshair:  { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#e8ebf0', autoScale: true },
+    timeScale:  {
+      borderColor: '#e8ebf0',
+      timeVisible: true,
+      secondsVisible: false,
+      rightOffset: 5,
+      fixLeftEdge: false,
+    },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true },
+    handleScale:  { mouseWheel: true, pinch: true },
+  });
+
+  _bc.candleSeries = _bc.chart.addCandlestickSeries({
+    upColor: '#22c55e', downColor: '#ef4444',
+    borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+    wickUpColor: '#22c55e',   wickDownColor: '#ef4444',
+    priceLineVisible: true,
+  });
+
+  // volume pane (histogram on price scale with reduced scale factor)
+  _bc.volSeries = _bc.chart.addHistogramSeries({
+    color: '#93c5fd',
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'vol',
+    scaleMargins: { top: 0.82, bottom: 0 },
+  });
+
+  // Crosshair subscription for OHLCV bar
+  _bc.chart.subscribeCrosshairMove(param => {
+    if (!param.point || !_bc.displayBars.length) return;
+    const b = param.seriesData?.get(_bc.candleSeries);
+    if (!b) return;
+    const ts = param.time;
+    const bar = _bc.displayBars.find(x => x.sec === ts) || {};
+    _bcUpdateOhlcBar(bar.open, bar.high, bar.low, b.close, bar.volume, ts);
+  });
+
+  // ResizeObserver
+  _bc._ro = new ResizeObserver(() => {
+    const w = cc.clientWidth, h = cc.clientHeight;
+    if (w && h && _bc.chart) _bc.chart.resize(w, h);
+  });
+  _bc._ro.observe(cc);
+}
+
+function _bcDestroy() {
+  if (_bc._ro) { try { _bc._ro.disconnect(); } catch(_) {} _bc._ro = null; }
+  if (_bc.rsiChart) { try { _bc.rsiChart.remove(); } catch(_) {} _bc.rsiChart = null; _bc.rsiSeries = null; }
+  if (_bc.chart) { try { _bc.chart.remove(); } catch(_) {} _bc.chart = null; }
+  _bc.candleSeries = null; _bc.volSeries = null; _bc.activeInds = {};
+  const rc = document.getElementById('bcRsiContainer');
+  if (rc) rc.style.display = 'none';
+}
+
+// ── Set chart data (optionally slice for replay) ───────────────────
+function _bcSetData(upToIdx) {
+  if (!_bc.chart || !_bc.candleSeries) return;
+  const bars = _bc.displayBars;
+  const end  = upToIdx !== null && upToIdx !== undefined ? upToIdx + 1 : bars.length;
+  const slice = bars.slice(0, end);
+
+  _bc.candleSeries.setData(slice.map(b => ({
+    time: b.sec, open: b.open, high: b.high, low: b.low, close: b.close,
+  })));
+  if (_bc.volSeries) {
+    _bc.volSeries.setData(slice.map(b => ({
+      time: b.sec, value: b.volume,
+      color: b.close >= b.open ? 'rgba(34,197,94,.35)' : 'rgba(239,68,68,.35)',
+    })));
+  }
+
+  _bcUpdateAllInds(slice);
+
+  // Update OHLCV bar with last visible bar
+  if (slice.length) {
+    const last = slice[slice.length - 1];
+    _bcUpdateOhlcBar(last.open, last.high, last.low, last.close, last.volume, last.sec);
+  }
+
+  // Fit or scroll
+  if (upToIdx === null || upToIdx === undefined) {
+    _bc.chart.timeScale().fitContent();
+  } else {
+    if (slice.length) _bc.chart.timeScale().scrollToPosition(3, false);
+  }
+}
+
+// ── Timeframe switch ───────────────────────────────────────────────
+function bcSetTf(tf) {
+  if (!_bc) return;
+  _bc.tf = tf;
+  document.querySelectorAll('.bc-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
+  if (!_bc.minuteBars.length) return;
+  _bc.replayIdx = null;
+  _bcBuildDisplay();
+  _bc.activeInds = {};
+  _bcRenderIndDropdown();
+  _bcCreate();
+  _bcSetData(null);
+  document.getElementById('bcOhlcSym').textContent = _bc.symbol;
+}
+
+// ── Replay ─────────────────────────────────────────────────────────
+function bcReplayNext() {
+  if (!_bc || !_bc.displayBars.length) return;
+  _bcStopPlay();
+  const max = _bc.displayBars.length - 1;
+  _bc.replayIdx = _bc.replayIdx === null ? max : Math.min(max, _bc.replayIdx + 1);
+  _bcApplyReplay();
+}
+
+function bcReplayPrev() {
+  if (!_bc || !_bc.displayBars.length) return;
+  _bcStopPlay();
+  const cur = _bc.replayIdx === null ? _bc.displayBars.length - 1 : _bc.replayIdx;
+  _bc.replayIdx = Math.max(0, cur - 1);
+  _bcApplyReplay();
+}
+
+function bcTogglePlay() {
+  if (!_bc) return;
+  if (_bc.isPlaying) { _bcStopPlay(); return; }
+  // Start from beginning if already at end or in live view
+  if (_bc.replayIdx === null || _bc.replayIdx >= _bc.displayBars.length - 1) {
+    _bc.replayIdx = 0;
+  }
+  _bc.isPlaying = true;
+  _bcUpdatePlayBtn(true);
+  const speed = parseInt(document.getElementById('bcSpeed')?.value || '300', 10);
+  _bc.playTimer = setInterval(() => {
+    if (!_bc.displayBars.length) { _bcStopPlay(); return; }
+    const max = _bc.displayBars.length - 1;
+    _bc.replayIdx = Math.min(max, (_bc.replayIdx || 0) + 1);
+    _bcApplyReplay();
+    if (_bc.replayIdx >= max) _bcStopPlay();
+  }, speed);
+}
+
+function _bcStopPlay() {
+  if (!_bc) return;
+  _bc.isPlaying = false;
+  if (_bc.playTimer) { clearInterval(_bc.playTimer); _bc.playTimer = null; }
+  _bcUpdatePlayBtn(false);
+}
+
+function _bcUpdatePlayBtn(playing) {
+  const icon = document.getElementById('bcPlayIcon');
+  if (icon) icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
+  const btn = document.getElementById('bcPlayBtn');
+  if (btn) btn.classList.toggle('active', playing);
+}
+
+function bcReplaySeek(val) {
+  if (!_bc) return;
+  _bcStopPlay();
+  _bc.replayIdx = Math.max(0, Math.min(_bc.displayBars.length - 1, parseInt(val, 10) - 1));
+  _bcApplyReplay();
+}
+
+function bcExitReplay() {
+  if (!_bc) return;
+  _bcStopPlay();
+  _bc.replayIdx = null;
+  document.getElementById('bcReplayBar').style.display = 'none';
+  _bcSetData(null);
+}
+
+function _bcApplyReplay() {
+  if (!_bc || _bc.replayIdx === null) return;
+  const total = _bc.displayBars.length;
+  const idx   = _bc.replayIdx;
+  _bcSetData(idx);
+
+  // Show replay bar
+  const rb = document.getElementById('bcReplayBar');
+  if (rb) rb.style.display = 'flex';
+  const ri = document.getElementById('bcReplayInfo');
+  if (ri) ri.textContent = `Bar ${idx + 1} / ${total}`;
+  const sl = document.getElementById('bcReplaySlider');
+  if (sl) { sl.max = total; sl.value = idx + 1; }
+
+  // Show current bar datetime
+  const bar = _bc.displayBars[idx];
+  if (bar) {
+    const d = new Date(bar.sec * 1000);
+    const dtStr = d.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    const ts = document.getElementById('bcOhlcTs');
+    if (ts) ts.textContent = dtStr + ' ET';
+  }
+}
+
+// ── Go to date/time ────────────────────────────────────────────────
+function bcGoTo() {
+  if (!_bc || !_bc.chart) return;
+  const inp = document.getElementById('bcGotoInput');
+  if (!inp || !inp.value) return;
+  // datetime-local gives "YYYY-MM-DDTHH:MM" in local time
+  const dt = new Date(inp.value);
+  if (isNaN(dt)) return;
+  const sec = Math.floor(dt.getTime() / 1000);
+  // Find nearest bar
+  const bars = _bc.displayBars;
+  let best = null, bestDiff = Infinity;
+  for (let i = 0; i < bars.length; i++) {
+    const diff = Math.abs(bars[i].sec - sec);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  if (best === null) return;
+  // In replay mode: set replay to that bar
+  if (_bc.replayIdx !== null) {
+    _bc.replayIdx = best;
+    _bcApplyReplay();
+  } else {
+    _bc.chart.timeScale().scrollToPosition(0, false);
+    try { _bc.chart.timeScale().scrollToRealTime(); } catch(_) {}
+    _bc.chart.timeScale().setVisibleLogicalRange({ from: best - 30, to: best + 30 });
+  }
+}
+
+// ── Real-time ──────────────────────────────────────────────────────
+function bcToggleRealtime() {
+  if (!_bc) return;
+  if (_bc.isRealtime) {
+    _bcStopRt();
+  } else {
+    _bcStartRt();
+  }
+}
+
+function _bcStartRt() {
+  if (!_bc) return;
+  _bc.isRealtime = true;
+  const btn = document.getElementById('bcRtBtn');
+  const dot = document.getElementById('bcLiveDot');
+  if (btn) btn.classList.add('active');
+  if (dot) dot.style.display = 'block';
+  _bcPollRt();
+  _bc.rtTimer = setInterval(_bcPollRt, 60000);
+}
+
+function _bcStopRt() {
+  if (!_bc) return;
+  _bc.isRealtime = false;
+  if (_bc.rtTimer) { clearInterval(_bc.rtTimer); _bc.rtTimer = null; }
+  const btn = document.getElementById('bcRtBtn');
+  const dot = document.getElementById('bcLiveDot');
+  if (btn) btn.classList.remove('active');
+  if (dot) dot.style.display = 'none';
+}
+
+async function _bcPollRt() {
+  if (!_bc || !_bc.symbol || _bc.replayIdx !== null) return;
+  try {
+    const resp = await fetch(`/api/bot/tradier/bars?symbol=${encodeURIComponent(_bc.symbol)}&days=1`);
+    const data = await resp.json();
+    if (!resp.ok || !data.bars?.length) return;
+
+    // Merge new bars into minuteBars (only append, don't duplicate)
+    const existingSet = new Set(_bc.minuteBars.map(b => b.time));
+    let added = 0;
+    for (const nb of data.bars) {
+      if (!existingSet.has(nb.time)) { _bc.minuteBars.push(nb); added++; }
+      else {
+        // Update last bar in place (real-time tick update)
+        const idx = _bc.minuteBars.findIndex(b => b.time === nb.time);
+        if (idx !== -1) _bc.minuteBars[idx] = nb;
+      }
+    }
+
+    _bcBuildDisplay();
+    if (_bc.replayIdx === null) {
+      _bcSetData(null);
+      if (_bc.showMarkers) _bcApplyMarkers();
+    }
+  } catch(_) {}
+}
+
+// ── Reset view ─────────────────────────────────────────────────────
+function bcResetView() {
+  if (!_bc || !_bc.chart) return;
+  _bc.chart.timeScale().fitContent();
+}
+
+// ── OHLCV info bar ─────────────────────────────────────────────────
+function _bcUpdateOhlcBar(o, h, l, c, v, sec) {
+  const fmt = n => n !== undefined && n !== null ? parseFloat(n).toFixed(2) : '—';
+  const fmtV = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : String(n||0);
+  const clr = c >= o ? '#22c55e' : '#ef4444';
+  const setH = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  setH('bcOhlcO', `<b>O</b> <span style="color:#495057">${fmt(o)}</span>`);
+  setH('bcOhlcH', `<b>H</b> <span style="color:#22c55e">${fmt(h)}</span>`);
+  setH('bcOhlcL', `<b>L</b> <span style="color:#ef4444">${fmt(l)}</span>`);
+  setH('bcOhlcC', `<b>C</b> <span style="color:${clr};font-weight:700;">${fmt(c)}</span>`);
+  setH('bcOhlcV', `<b>V</b> <span style="color:#6c757d">${fmtV(v)}</span>`);
+  if (sec) {
+    const d = new Date(sec * 1000);
+    const ts = d.toLocaleString('en-US', { timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
+    setH('bcOhlcTs', ts + ' ET');
+  }
+}
+
+// ══ INDICATORS ═══════════════════════════════════════════════════
+// Compute functions
+function _bcSMA(values, period) {
+  const out = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    out[i] = sum / period;
+  }
+  return out;
+}
+
+function _bcEMA(values, period) {
+  const out = new Array(values.length).fill(null);
+  const k = 2 / (period + 1);
+  let prev = null;
+  for (let i = 0; i < values.length; i++) {
+    if (prev === null) {
+      // seed from first SMA
+      if (i < period - 1) continue;
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += values[j];
+      prev = sum / period;
+      out[i] = prev;
+    } else {
+      prev = values[i] * k + prev * (1 - k);
+      out[i] = prev;
+    }
+  }
+  return out;
+}
+
+function _bcRSI(values, period) {
+  const out = new Array(values.length).fill(null);
+  if (values.length <= period) return out;
+  let gainAvg = 0, lossAvg = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = values[i] - values[i - 1];
+    if (d > 0) gainAvg += d; else lossAvg -= d;
+  }
+  gainAvg /= period; lossAvg /= period;
+  out[period] = lossAvg === 0 ? 100 : 100 - 100 / (1 + gainAvg / lossAvg);
+  for (let i = period + 1; i < values.length; i++) {
+    const d = values[i] - values[i - 1];
+    const g = d > 0 ? d : 0, lo = d < 0 ? -d : 0;
+    gainAvg = (gainAvg * (period - 1) + g) / period;
+    lossAvg = (lossAvg * (period - 1) + lo) / period;
+    out[i] = lossAvg === 0 ? 100 : 100 - 100 / (1 + gainAvg / lossAvg);
+  }
+  return out;
+}
+
+function _bcVWAP(bars) {
+  // Daily-reset VWAP (resets when date changes)
+  const out = new Array(bars.length).fill(null);
+  let cumTV = 0, cumV = 0, prevDate = null;
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const date = b.time ? b.time.split(' ')[0] : null;
+    if (date !== prevDate) { cumTV = 0; cumV = 0; prevDate = date; }
+    const typical = (b.high + b.low + b.close) / 3;
+    cumTV += typical * b.volume;
+    cumV  += b.volume;
+    out[i] = cumV > 0 ? cumTV / cumV : null;
+  }
+  return out;
+}
+
+function _bcUpdateAllInds(bars) {
+  if (!_bc || !_bc.chart) return;
+  const closes = bars.map(b => b.close);
+  const ticks  = bars.map(b => b.sec);
+
+  for (const def of _BC_IND_DEFS) {
+    const series = _bc.activeInds[def.id];
+    if (!series) continue;
+
+    let values;
+    if (def.type === 'sma')  values = _bcSMA(closes, def.period);
+    else if (def.type === 'ema') values = _bcEMA(closes, def.period);
+    else if (def.type === 'vwap') values = _bcVWAP(bars);
+    else if (def.type === 'rsi') {
+      values = _bcRSI(closes, def.period);
+      // RSI in its own sub-pane
+      if (_bc.rsiSeries) {
+        _bc.rsiSeries.setData(
+          values.map((v, i) => v !== null ? { time: ticks[i], value: v } : null).filter(Boolean)
+        );
+      }
+      continue;
+    } else continue;
+
+    series.setData(values.map((v, i) => v !== null ? { time: ticks[i], value: v } : null).filter(Boolean));
+  }
+}
+
+function _bcRenderIndDropdown() {
+  const dd = document.getElementById('bcIndDropdown');
+  if (!dd) return;
+  dd.innerHTML = _BC_IND_DEFS.map(def => {
+    const on  = _bc && !!_bc.activeInds[def.id];
+    const chk = `<div class="bc-ind-check ${on ? 'on' : ''}"><i class="fas fa-check"></i></div>`;
+    const dot = `<div style="width:10px;height:10px;border-radius:50%;background:${def.color};flex-shrink:0;"></div>`;
+    const sep = def.id === 'vwap' ? '<div class="bc-ind-sep"></div>' : '';
+    return `${sep}<div class="bc-ind-row" onclick="_bcToggleInd('${def.id}')">
+      ${chk}${dot}
+      <span>${def.label}</span>
+    </div>`;
+  }).join('');
+}
+
+function bcToggleIndDropdown(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('bcIndDropdown');
+  if (!dd) return;
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function _bcToggleInd(id) {
+  if (!_bc || !_bc.chart) return;
+  const def = _BC_IND_DEFS.find(d => d.id === id);
+  if (!def) return;
+
+  if (_bc.activeInds[id]) {
+    // Remove
+    if (def.type === 'rsi') {
+      if (_bc.rsiChart) { try { _bc.rsiChart.remove(); } catch(_) {} _bc.rsiChart = null; _bc.rsiSeries = null; }
+      const rc = document.getElementById('bcRsiContainer');
+      if (rc) rc.style.display = 'none';
+    } else {
+      try { _bc.chart.removeSeries(_bc.activeInds[id]); } catch(_) {}
+    }
+    delete _bc.activeInds[id];
+  } else {
+    // Add
+    if (def.type === 'rsi') {
+      const rc = document.getElementById('bcRsiContainer');
+      if (rc) rc.style.display = 'block';
+      _bc.rsiChart = LightweightCharts.createChart(rc, {
+        layout:     { background: { color: '#fff' }, textColor: '#6c757d', fontSize: 10 },
+        grid:       { vertLines: { color: '#f3f4f6' }, horzLines: { color: '#f3f4f6' } },
+        crosshair:  { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: '#e8ebf0', scaleMargins: { top: 0.1, bottom: 0.1 } },
+        timeScale:  { borderColor: '#e8ebf0', timeVisible: true, secondsVisible: false },
+      });
+      _bc.rsiSeries = _bc.rsiChart.addLineSeries({ color: def.color, lineWidth: 1.5, title: 'RSI 14' });
+      // Overbought / oversold lines
+      const obSeries = _bc.rsiChart.addLineSeries({ color: '#fca5a5', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+      const osSeries = _bc.rsiChart.addLineSeries({ color: '#86efac', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+      const ticks = _bc.displayBars.map(b => b.sec);
+      if (ticks.length) {
+        obSeries.setData(ticks.map(t => ({ time: t, value: 70 })));
+        osSeries.setData(ticks.map(t => ({ time: t, value: 30 })));
+      }
+      _bc.activeInds[id] = _bc.rsiSeries;
+
+      const resizeRsi = () => {
+        const w = rc.clientWidth, h = rc.clientHeight;
+        if (w && h && _bc.rsiChart) _bc.rsiChart.resize(w, h);
+      };
+      const ro = new ResizeObserver(resizeRsi);
+      ro.observe(rc);
+    } else {
+      const ser = _bc.chart.addLineSeries({
+        color: def.color, lineWidth: 1.5,
+        title: def.label,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
+      _bc.activeInds[id] = ser;
+    }
+    // Populate with current data
+    _bcUpdateAllInds(_bc.displayBars.slice(0, _bc.replayIdx !== null ? _bc.replayIdx + 1 : _bc.displayBars.length));
+  }
+
+  _bcRenderIndDropdown();
+}
+
+// ══ STRATEGY MARKERS ══════════════════════════════════════════════
+
+async function bcToggleMarkers() {
+  if (!_bc) return;
+  _bc.showMarkers = !_bc.showMarkers;
+  const btn = document.getElementById('bcMarkersBtn');
+  if (btn) btn.classList.toggle('active', _bc.showMarkers);
+  if (_bc.showMarkers) {
+    await _bcLoadMarkers();
+  } else {
+    if (_bc.candleSeries) { try { _bc.candleSeries.setMarkers([]); } catch(_) {} }
+    _bc._markers = [];
+  }
+}
+
+async function _bcLoadMarkers() {
+  if (!_bc || !_bc.candleSeries || !_bc.displayBars.length) return;
+  try {
+    const resp = await fetch('/api/bot/tradier/orders');
+    const data = await resp.json();
+    const raw  = data?.orders?.order;
+    if (!raw) { _bc._markers = []; _bcApplyMarkers(); return; }
+    const orders = Array.isArray(raw) ? raw : [raw];
+
+    const markers = [];
+    for (const o of orders) {
+      const dt = o.create_date;
+      if (!dt) continue;
+      // create_date looks like "2026-05-28T15:55:00"
+      const ms  = new Date(dt).getTime();
+      const sec = Math.floor(ms / 1000);
+      // Find nearest bar on the chart
+      let best = null, bestDiff = Infinity;
+      for (const b of _bc.displayBars) {
+        const diff = Math.abs(b.sec - sec);
+        if (diff < bestDiff) { bestDiff = diff; best = b; }
+      }
+      if (!best || bestDiff > 300) continue; // >5min gap → skip
+
+      const isBuy  = (o.side || '').includes('buy');
+      const tag    = o.tag ? String(o.tag) : '';
+      const lbl    = tag || (o.class === 'multileg' ? 'ML' : o.class === 'option' ? 'OPT' : 'EQ');
+      const status = o.status || '';
+      const color  = status === 'filled' ? (isBuy ? '#1b55e2' : '#ef4444')
+                   : status === 'canceled' ? '#9098a9' : '#f59e0b';
+      markers.push({
+        time:     best.sec,
+        position: isBuy ? 'belowBar' : 'aboveBar',
+        color,
+        shape:    isBuy ? 'arrowUp' : 'arrowDown',
+        text:     lbl,
+        size:     1,
+      });
+    }
+    // LW Charts requires markers sorted by time
+    markers.sort((a, b) => a.time - b.time);
+    _bc._markers = markers;
+    _bcApplyMarkers();
+  } catch(_) {}
+}
+
+function _bcApplyMarkers() {
+  if (!_bc || !_bc.candleSeries) return;
+  try { _bc.candleSeries.setMarkers(_bc._markers || []); } catch(_) {}
+}
+

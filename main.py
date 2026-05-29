@@ -8723,6 +8723,105 @@ def bot_tradier_option_chains():
     return _tradier_proxy('/markets/options/chains', params={'symbol': symbol, 'expiration': expiration, 'greeks': 'true'})
 
 
+@app.route('/api/bot/tradier/bars', methods=['GET'])
+@login_required
+def bot_tradier_bars():
+    """Fetch 1-min OHLCV bars from Tradier timesales for the bot live chart.
+
+    Query params:
+      symbol  - ticker (SPX → $SPX.X, etc.)
+      days    - calendar days of history (default 5, max 30)
+      start   - YYYY-MM-DD override for start date
+      end     - YYYY-MM-DD override for end date
+    Always fetches 1-min bars; aggregation to higher timeframes is done client-side.
+    """
+    from models import BotConfig, decrypt_value
+    from datetime import datetime, timedelta
+
+    symbol  = request.args.get('symbol', 'SPX').upper().strip()
+    days    = max(1, min(30, int(request.args.get('days', 5))))
+    start_s = request.args.get('start', '')
+    end_s   = request.args.get('end', '')
+
+    _INDEX_MAP = {
+        'SPX': '$SPX.X', 'SPXW': '$SPXW.X',
+        'RUT': '$RUT.X', 'NDX':  '$NDX.X',
+        'VIX': '$VIX.X', 'DJI':  '$DJI',
+    }
+    tradier_symbol = _INDEX_MAP.get(symbol, symbol)
+
+    cfg = BotConfig.query.filter_by(user_id=current_user.id).first()
+    if not cfg:
+        return jsonify({'error': 'No bot configuration found'}), 400
+
+    api_key = None
+    if cfg.mode == 'paper' and cfg.paper_live_api_key_enc:
+        api_key = (decrypt_value(cfg.paper_live_api_key_enc) or '').strip() or None
+    if not api_key:
+        enc = cfg.paper_api_key_enc if cfg.mode == 'paper' else cfg.live_api_key_enc
+        api_key = (decrypt_value(enc) or '').strip() or None
+    if not api_key:
+        return jsonify({'error': 'API key not configured'}), 400
+
+    headers = {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
+
+    now_utc = datetime.utcnow()
+    if end_s:
+        try:    end_dt = datetime.strptime(end_s,   '%Y-%m-%d')
+        except: end_dt = now_utc
+    else:
+        end_dt = now_utc
+
+    if start_s:
+        try:    start_dt = datetime.strptime(start_s, '%Y-%m-%d')
+        except: start_dt = end_dt - timedelta(days=days)
+    else:
+        start_dt = end_dt - timedelta(days=days)
+
+    try:
+        r = requests.get(
+            'https://api.tradier.com/v1/markets/timesales',
+            headers=headers,
+            params={
+                'symbol':         tradier_symbol,
+                'interval':       '1min',
+                'start':          start_dt.strftime('%Y-%m-%d 00:00'),
+                'end':            end_dt.strftime('%Y-%m-%d 23:59'),
+                'session_filter': 'open',
+            },
+            timeout=30,
+        )
+    except Exception as e:
+        return jsonify({'error': f'Tradier request failed: {e}'}), 502
+
+    if r.status_code != 200:
+        try:    err_body = r.json()
+        except: err_body = {}
+        return jsonify({'error': f'Tradier HTTP {r.status_code}', **err_body}), 502
+
+    raw   = r.json().get('series') or {}
+    items = raw.get('data', [])
+    if isinstance(items, dict):
+        items = [items]
+
+    bars = []
+    for item in (items or []):
+        try:
+            bars.append({
+                'time':   item.get('time', ''),
+                'open':   float(item.get('open',   0)),
+                'high':   float(item.get('high',   0)),
+                'low':    float(item.get('low',    0)),
+                'close':  float(item.get('close',  0)),
+                'volume': int(float(item.get('volume', 0))),
+                'vwap':   float(item.get('vwap', item.get('close', 0))),
+            })
+        except Exception:
+            continue
+
+    return jsonify({'bars': bars, 'symbol': symbol, 'count': len(bars)})
+
+
 @app.route('/api/bot/tradier/indicators', methods=['GET'])
 @login_required
 def bot_tradier_indicators():
