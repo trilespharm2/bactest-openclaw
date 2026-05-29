@@ -4636,10 +4636,10 @@ def run_stocks_backtest_v3():
                 'error': 'Stocks V3 backtester not available. Missing stock_backtester_v3_wrapper.py'
             }), 503
         
-        # Initialize wrapper if needed
-        global stocks_v3_wrapper
-        if stocks_v3_wrapper is None:
-            stocks_v3_wrapper = StockBacktesterV3Wrapper(api_key, output_dir='stock_backtest_v3_results')
+        # Always create a fresh wrapper so the correct API key is used.
+        # A global cached wrapper risks reusing a stale or 'dummy_key' instance
+        # that was created by the results-retrieval endpoint.
+        stocks_v3_wrapper = StockBacktesterV3Wrapper(api_key, output_dir='stock_backtest_v3_results')
         
         print(f"\n{'='*60}")
         print(f"STOCKS BACKTEST V3.0 REQUEST RECEIVED")
@@ -4759,10 +4759,8 @@ def start_stocks_backtest_v3_async():
         # Track this backtest
         running_stock_backtests[unique_id] = {'status': 'running', 'error': None, 'process': None, 'user_id': user_id}
         
-        # Initialize wrapper
-        global stocks_v3_wrapper
-        if stocks_v3_wrapper is None:
-            stocks_v3_wrapper = StockBacktesterV3Wrapper(api_key, output_dir='stock_backtest_v3_results')
+        # Always create a fresh wrapper with the real API key for this run.
+        stocks_v3_wrapper = StockBacktesterV3Wrapper(api_key, output_dir='stock_backtest_v3_results')
         
         # Run backtest in background thread
         def run_async():
@@ -4934,15 +4932,14 @@ def get_stocks_backtest_v3_results(backtest_id):
                 'error': 'Stocks V3 backtester not available'
             }), 503
         
-        # Initialize wrapper if needed (with dummy API key since we're just reading files)
-        global stocks_v3_wrapper
-        if stocks_v3_wrapper is None:
-            print("Initializing wrapper for results retrieval...")
-            stocks_v3_wrapper = StockBacktesterV3Wrapper('dummy_key', output_dir='stock_backtest_v3_results')
+        # Results reading doesn't need a valid API key — create a local-only instance
+        # so we never poison the global with 'dummy_key'.
+        print("Initializing wrapper for results retrieval...")
+        _results_wrapper = StockBacktesterV3Wrapper('_readonly', output_dir='stock_backtest_v3_results')
         
         # Get results (doesn't need API key - just reads local files)
         print("Calling wrapper.get_results()...")
-        results = stocks_v3_wrapper.get_results(backtest_id)
+        results = _results_wrapper.get_results(backtest_id)
         
         print(f"Results retrieved. Keys: {list(results.keys())}")
         print(f"Has stats? {'stats' in results}")
