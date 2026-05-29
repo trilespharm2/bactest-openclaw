@@ -2445,7 +2445,7 @@ class BacktesterEngine:
                                     round(float(r['high']),  2),
                                     round(float(r['low']),   2),
                                     round(float(r['close']), 2),
-                                    int(r['volume'] if 'volume' in r.index and r['volume'] == r['volume'] else 0)])
+                                    int(r['volume'] if 'volume' in r.index and r['volume'] is not None and r['volume'] == r['volume'] else 0)])
                 return out
 
             day_entry = {
