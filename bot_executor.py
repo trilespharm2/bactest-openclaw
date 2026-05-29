@@ -889,10 +889,13 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 if prev_lhs_val is None:
                     return None, f'Could not get previous bar {lhs_name}'
                 prev_rhs = rhs
+                # Convention matches the backtester:
+                #   crosses_above: prev strictly below → curr at or above (prev < rhs, curr >= rhs)
+                #   crosses_below: prev strictly above → curr at or below (prev > rhs, curr <= rhs)
                 if operator == 'crosses_above':
-                    ok = (prev_lhs_val <= prev_rhs) and (lhs > rhs)
+                    ok = (prev_lhs_val < prev_rhs) and (lhs >= rhs)
                 else:
-                    ok = (prev_lhs_val >= prev_rhs) and (lhs < rhs)
+                    ok = (prev_lhs_val > prev_rhs) and (lhs <= rhs)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
@@ -1036,10 +1039,13 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     prev_lhs_val = _cbm(bars[:-1], d=0) if bars and len(bars) > 1 else None
                 if prev_lhs_val is None:
                     return None, f'Could not get previous {lhs_name} for cross detection'
+                # Convention matches the backtester:
+                #   crosses_above: prev strictly below indicator → curr at or above (prev < rhs, curr >= rhs)
+                #   crosses_below: prev strictly above indicator → curr at or below (prev > rhs, curr <= rhs)
                 if operator == 'crosses_above':
-                    ok = (prev_lhs_val <= prev_rhs_raw) and (lhs > raw_rhs)
+                    ok = (prev_lhs_val < prev_rhs_raw) and (lhs >= raw_rhs)
                 else:
-                    ok = (prev_lhs_val >= prev_rhs_raw) and (lhs < raw_rhs)
+                    ok = (prev_lhs_val > prev_rhs_raw) and (lhs <= raw_rhs)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
