@@ -3400,9 +3400,14 @@ function botChartInit() {
   setTimeout(() => { if (_bc && !_bc.minuteBarsCache.length) bcLoad(); }, 200);
 }
 
-// ── ET datetime string → Unix seconds ─────────────────────────────
+// ── ET datetime string → Unix seconds (naive/wall-clock) ──────────
 // Tradier returns either "YYYY-MM-DDTHH:MM:SS" (ISO) or
-// "YYYY-MM-DD HH:MM:SS" (space-sep).  Normalise to space before parsing.
+// "YYYY-MM-DD HH:MM:SS" (space-sep), both in US/Eastern time.
+//
+// We intentionally treat the ET timestamp AS IF it were UTC by appending "Z".
+// This is the standard "naive time" trick for trading charts: LightweightCharts
+// then labels the X-axis with the actual ET wall-clock time (09:30, 16:00, etc.)
+// instead of converting to the viewer's browser timezone or displaying UTC+0.
 function _bcEtToSec(dtStr) {
   if (!dtStr) return 0;
   const norm = dtStr.replace('T', ' ');
@@ -3411,9 +3416,8 @@ function _bcEtToSec(dtStr) {
   const date = norm.slice(0, spaceIdx);
   const time = norm.slice(spaceIdx + 1);
   if (!date || !time) return 0;
-  const mo = parseInt(date.split('-')[1], 10);
-  const offset = (mo >= 3 && mo <= 11) ? '-04:00' : '-05:00';
-  return Math.floor(new Date(`${date}T${time}${offset}`).getTime() / 1000);
+  // Append Z so Date() treats it as UTC → LightweightCharts shows ET labels
+  return Math.floor(new Date(`${date}T${time}Z`).getTime() / 1000);
 }
 
 // ── Normalise a Tradier time string to "YYYY-MM-DD HH:MM:SS" ──────
@@ -3421,11 +3425,10 @@ function _bcNormTime(dtStr) {
   return dtStr ? dtStr.replace('T', ' ') : '';
 }
 
-// ── Parse ET "YYYY-MM-DD HH:MM" → Unix ms ─────────────────────────
+// ── Parse ET "YYYY-MM-DD HH:MM" → Unix ms (same naive convention) ─
 function _bcEtToMs(dateStr, timeStr) {
-  const mo = parseInt(dateStr.split('-')[1], 10);
-  const offset = (mo >= 3 && mo <= 11) ? '-04:00' : '-05:00';
-  return new Date(`${dateStr}T${timeStr}:00${offset}`).getTime();
+  // Append Z to match the naive convention used by _bcEtToSec
+  return new Date(`${dateStr}T${timeStr}:00Z`).getTime();
 }
 
 // ── Aggregate minute bars → target TF ─────────────────────────────

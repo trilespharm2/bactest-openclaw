@@ -1013,9 +1013,25 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     return None, f'Could not compute previous {right_metric.upper()}({right_period})'
                 # Previous LHS value
                 if metric == 'current_price':
-                    # Last completed intraday bar's close (rhs_bars already holds
-                    # intraday history when intv != 'day')
-                    prev_lhs_val = float(rhs_bars[-1].get('close', 0) or 0) if rhs_bars else None
+                    # Use the SECOND-TO-LAST bar as "previous completed bar".
+                    # rhs_bars[-1] may be the currently-forming period (incomplete),
+                    # so using it as "prev" can cause spurious cross signals.
+                    # rhs_bars[-2] is guaranteed to be a fully-closed bar.
+                    if rhs_bars and len(rhs_bars) >= 2:
+                        prev_lhs_val = float(rhs_bars[-2].get('close', 0) or 0)
+                    elif rhs_bars:
+                        prev_lhs_val = float(rhs_bars[-1].get('close', 0) or 0)
+                    else:
+                        prev_lhs_val = None
+                    # Also recompute prev_rhs_raw using all bars up to and including
+                    # the penultimate bar (i.e. rhs_bars[:-1]) so that prev_lhs and
+                    # prev_rhs are both anchored to the same last-completed period.
+                    prev_rhs_slice = rhs_bars[:-1] if len(rhs_bars) > 1 else rhs_bars
+                    prev_rhs_raw = _compute_bar_metric(right_metric, right_period,
+                                                       prev_rhs_slice, day=0,
+                                                       series='close')
+                    if prev_rhs_raw is None:
+                        return None, f'Could not recompute previous {right_metric.upper()}({right_period})'
                 else:
                     prev_lhs_val = _cbm(bars[:-1], d=0) if bars and len(bars) > 1 else None
                 if prev_lhs_val is None:
@@ -1027,8 +1043,8 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
-                          f"Prev: {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
-                          f"Curr: {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)}")
+                          f"Prev (bar -2): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
+                          f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)}")
             else:
                 rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
                 ok = _compare(lhs, operator, rhs)
