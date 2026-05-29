@@ -75,6 +75,23 @@ def _cp_compare_py(lhs: float, op: str, rhs: float) -> bool:
     return False
 
 
+# Polygon.io requires index tickers to be prefixed with "I:" (e.g. I:SPX, I:NDX).
+# Regular stocks/ETFs pass through unchanged.
+_INDEX_SYMBOLS = {
+    'SPX', 'NDX', 'RUT', 'DJI', 'VIX', 'COMP', 'NYA', 'XAX',
+    'MID', 'SML', 'OEX', 'XEO', 'SPXW',
+}
+
+def _polygon_ticker(symbol: str) -> str:
+    """Return the Polygon.io-formatted ticker for *symbol*.
+    Index symbols (SPX, NDX, VIX …) are prefixed with 'I:'.
+    All other symbols are returned as-is (uppercase)."""
+    sym = symbol.strip().upper()
+    if sym in _INDEX_SYMBOLS or sym.startswith('I:'):
+        return f'I:{sym}' if not sym.startswith('I:') else sym
+    return sym
+
+
 class BacktesterEngine:
     def __init__(self, api_key: str):
         """Initialize the backtester with Polygon.io API key"""
@@ -658,6 +675,7 @@ class BacktesterEngine:
                    multiplier: int = 1, timespan: str = "minute") -> pd.DataFrame:
         """Fetch data and convert to US/Eastern timezone. Uses SPY cache for SPY 1-min data."""
         print(f"Fetching data for {symbol} from {start_date} to {end_date}...")
+        poly_sym = _polygon_ticker(symbol)  # e.g. SPX → I:SPX
 
         # ── SPY 1-min cache shortcut ──────────────────────────────────────────
         if symbol.upper() == 'SPY' and timespan == 'minute' and multiplier == 1:
@@ -699,7 +717,7 @@ class BacktesterEngine:
                         try:
                             tail_aggs = []
                             for a in self.client.list_aggs(
-                                symbol, multiplier, timespan, tail_start, end_date,
+                                poly_sym, multiplier, timespan, tail_start, end_date,
                                 adjusted=True, sort="asc", limit=50000,
                             ):
                                 tail_aggs.append(a)
@@ -728,13 +746,13 @@ class BacktesterEngine:
         try:
             aggs = []
             for a in self.client.list_aggs(
-                symbol, multiplier, timespan, start_date, end_date,
+                poly_sym, multiplier, timespan, start_date, end_date,
                 adjusted=True, sort="asc", limit=50000,
             ):
                 aggs.append(a)
             
             if not aggs:
-                print(f"No data found for {symbol}")
+                print(f"No data found for {symbol} (Polygon ticker: {poly_sym})")
                 return pd.DataFrame()
             
             df = pd.DataFrame([{
