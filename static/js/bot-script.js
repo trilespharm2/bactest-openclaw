@@ -3401,14 +3401,24 @@ function botChartInit() {
 }
 
 // ── ET datetime string → Unix seconds ─────────────────────────────
-// Tradier returns "YYYY-MM-DD HH:MM:SS" in US/Eastern.
+// Tradier returns either "YYYY-MM-DDTHH:MM:SS" (ISO) or
+// "YYYY-MM-DD HH:MM:SS" (space-sep).  Normalise to space before parsing.
 function _bcEtToSec(dtStr) {
   if (!dtStr) return 0;
-  const [date, time] = dtStr.split(' ');
+  const norm = dtStr.replace('T', ' ');
+  const spaceIdx = norm.indexOf(' ');
+  if (spaceIdx === -1) return 0;
+  const date = norm.slice(0, spaceIdx);
+  const time = norm.slice(spaceIdx + 1);
   if (!date || !time) return 0;
   const mo = parseInt(date.split('-')[1], 10);
   const offset = (mo >= 3 && mo <= 11) ? '-04:00' : '-05:00';
   return Math.floor(new Date(`${date}T${time}${offset}`).getTime() / 1000);
+}
+
+// ── Normalise a Tradier time string to "YYYY-MM-DD HH:MM:SS" ──────
+function _bcNormTime(dtStr) {
+  return dtStr ? dtStr.replace('T', ' ') : '';
 }
 
 // ── Parse ET "YYYY-MM-DD HH:MM" → Unix ms ─────────────────────────
@@ -3719,20 +3729,20 @@ function bcUpdateNavButtons() {
   // Current time display
   const timeEl = document.getElementById('bcCurrentTimeDisplay');
   const gotoDate = document.getElementById('bcGotoDate');
+  const gotoTime = document.getElementById('bcGotoTime');
   if (_bc.currentMinuteIndex > 0 && _bc.minuteBarsCache.length) {
     const bar = _bc.minuteBarsCache[_bc.currentMinuteIndex - 1];
     if (bar) {
-      const sec  = _bcEtToSec(bar.time);
-      const d    = new Date(sec * 1000);
-      const hh   = d.getUTCHours().toString().padStart(2,'0');
-      const mm   = d.getUTCMinutes().toString().padStart(2,'0');
-      // Convert sec to ET for display (approximate)
-      const etD  = new Date((sec + (new Date().getTimezoneOffset() * 60)) * 1000);
-      if (timeEl) timeEl.textContent = bar.time.split(' ')[1]?.slice(0,5) || '';
+      const norm  = _bcNormTime(bar.time);  // "YYYY-MM-DD HH:MM:SS"
+      const parts = norm.split(' ');
+      const datePart = parts[0] || '';      // "YYYY-MM-DD"
+      const timePart = (parts[1] || '').slice(0, 5); // "HH:MM"
+      if (timeEl) timeEl.textContent = timePart;
       if (gotoDate && !gotoDate.matches(':focus')) {
-        const parts = (bar.time || '').split(' ')[0]?.split('-') || [];
-        if (parts.length === 3) gotoDate.value = `${parts[1]}/${parts[2]}/${parts[0]}`;
+        const dp = datePart.split('-');
+        if (dp.length === 3) gotoDate.value = `${dp[1]}/${dp[2]}/${dp[0]}`;
       }
+      if (gotoTime && !gotoTime.matches(':focus')) gotoTime.value = timePart;
     }
   }
 }
@@ -3751,7 +3761,7 @@ function bcGoTo() {
     targetDateStr = `${parts[3]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
   } else if (_bc.currentMinuteIndex > 0) {
     const bar = _bc.minuteBarsCache[_bc.currentMinuteIndex - 1];
-    targetDateStr = (bar.time || '').split(' ')[0];
+    targetDateStr = _bcNormTime(bar.time || '').split(' ')[0];
   } else { alert('Please enter a date'); return; }
 
   if (gotoTimeVal) {
