@@ -2729,23 +2729,25 @@ def round_strike_with_direction(target: float, increment: int,
         return math.ceil(target / increment) * increment
     
     else:  # "closest" (default)
-        # Round to nearest increment
-        # If exactly in middle, use direction as tiebreaker
         lower = (target // increment) * increment
         upper = lower + increment
-        
+
+        # When a direction is set, only consider strikes on the correct side.
+        # "below" → the strike must be at or below the target (floor).
+        # "above" → the strike must be at or above the target (ceil).
+        # This prevents, e.g., direction="below" from returning a strike
+        # that is numerically closer but sits above the underlying price.
+        if direction == "below":
+            return lower
+        if direction == "above":
+            return upper
+
+        # No directional constraint — pick nearest; tiebreak to lower.
         diff_lower = abs(target - lower)
         diff_upper = abs(target - upper)
-        
-        # If exactly in middle, use direction preference
-        if diff_lower == diff_upper:
-            if direction == "below":
-                return lower
-            else:
-                return upper
-        
-        # Otherwise, use nearest
-        return round(target / increment) * increment
+        if diff_lower <= diff_upper:
+            return lower
+        return upper
 
 
 def round_to_nearest_strike(price: float, increment: int = 5, underlying: str = None) -> float:
