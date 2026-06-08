@@ -583,7 +583,7 @@ async function loadPageContent(pageName) {
                 
                 if (pageName === 'stockBacktester') {
                     fileName = 'stock-backtester';
-                    scriptName = 'stock-backtester-script.js?v=2';
+                    scriptName = 'stock-backtester-script.js?v=3';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';

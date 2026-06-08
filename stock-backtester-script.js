@@ -2471,6 +2471,10 @@ function applyStockConfig(config) {
         document.getElementById('allowConsecutive').checked = config.allow_consecutive_trades || false;
     }
 
+    // Sync all toggle button visual states (including consecutive) after
+    // setting checkbox values, so buttons reflect the loaded template.
+    syncStockUI();
+
     console.log('Stock config applied from Use Template');
 }
 
