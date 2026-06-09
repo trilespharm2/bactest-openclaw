@@ -2416,6 +2416,17 @@ class BacktesterEngine:
                 _progress_path = None
         _progress_total = len(dates)
 
+        # Short-circuit flag: if none of TP / SL / exit-signal-conditions / max_days
+        # are configured, no position can ever exit intraday.  Skipping the 390-candle
+        # scan per position per day turns the concurrent-positions exit scan from
+        # O(N_positions × N_candles) → O(1), which matters enormously when many
+        # positions accumulate without closing (e.g. allow_consecutive + no TP/SL).
+        _has_tp         = bool(self.config.get('take_profit_value', 0))
+        _has_sl         = bool(self.config.get('stop_loss_value', 0))
+        _has_exit_conds = bool(self.config.get('exit_cond_type', ''))
+        _has_max_days   = bool(self.config.get('max_days', 0) or (self.config.get('exit_time', '') or '').strip())
+        _needs_candle_scan = _has_tp or _has_sl or _has_exit_conds or _has_max_days
+
         for i, current_date in enumerate(dates):
             if _progress_path:
                 try:
@@ -2534,6 +2545,10 @@ class BacktesterEngine:
                 for _pos in list(positions):
                     if _pos is not _primary:
                         _pos['days_in_trade'] += 1
+                    # Fast-path: nothing configured that can trigger an intraday exit,
+                    # so skip the 390-candle scan entirely for this position.
+                    if not _needs_candle_scan:
+                        continue
                     _max_days_cfg = self.config.get('max_days', 0) or 0
                     _exit_time_str = (self.config.get('exit_time', '') or '').strip()
                     if _exit_time_str:
