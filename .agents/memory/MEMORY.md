@@ -1,0 +1,2 @@
+- [SPX win-rate vs reward/risk frontier](spx-winrate-vs-rr-frontier.md) — >75% WR AND >2:1 avg W/L is impossible for mechanical TP/SL; they're locked by WR≈1/(1+R).
+- [Backtest sweep harness](backtest-sweep-harness.md) — fetch data once, reuse df (no copy), suppress stdout, run foreground/chunked (background procs get killed on bash return).
