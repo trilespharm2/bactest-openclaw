@@ -15,3 +15,11 @@ For any strategy whose exits are fixed barriers (take-profit at +a%, stop-loss a
 - **Clean TP/SL pair at R≈2:** TP 2% / SL 1% → R~2.0, ~41% WR.
 
 **Bottom line for future "find a >75% WR AND >2:1 RR" requests:** it is not achievable with mechanical TP/SL on a long equity index. Report the frontier and let the user pick which axis matters most, rather than chasing an impossible point.
+
+## Day-trade variant (max_days=0 + empty exit_time → forced EOD close)
+Same wall, even tighter. SPX intraday long day-trades (2024-2026, 274 trades) never reach 75% WR with mechanical rules — the forced end-of-day close adds losing days that no entry edge (dip, gap, change-from-open) removes:
+- **With TP>SL** (stop is the nearer barrier, hit more often): max WR ~56% (e.g. TP 2% / SL 1.5%). R>2 only with a tiny ~0.25% stop, which crashes WR to ~33%.
+- **With TP<SL** (only zone WR climbs): caps at ~66% WR but R drops to ~0.4-0.7.
+- Returns are near break-even (single-digit % over 2 yrs, 1-share sizing) — no real intraday edge.
+
+**How to apply:** if a user constrains to day-trades AND TP>SL AND high WR, explain it's structurally impossible (nearer barrier = stop) and that day-trade WR caps ~66% regardless. The engine labels the forced EOD close as exit_reason `max_days`.
