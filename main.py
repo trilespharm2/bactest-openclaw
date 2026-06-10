@@ -601,6 +601,7 @@ def cleanup_orphaned_backtests():
     (e.g. by a restart or crash). Mark them as failed so the UI doesn't show
     them as permanently pending.
     """
+    import glob
     with app.app_context():
         try:
             result = db.session.execute(
@@ -612,6 +613,28 @@ def cleanup_orphaned_backtests():
         except Exception as e:
             db.session.rollback()
             print(f"  Warning: could not clean up orphaned backtests: {e}")
+
+        # Also fix any JSON result files stuck in 'running' state
+        fixed = 0
+        for pattern in ['stock_backtest_v3_results/*.json', 'backtest_results/*.json']:
+            for fpath in glob.glob(pattern):
+                if '.meta.' in fpath:
+                    continue
+                try:
+                    with open(fpath) as f:
+                        data = json.load(f)
+                    if data.get('status') == 'running':
+                        data['status'] = 'error'
+                        data['error'] = 'Backtest process was interrupted (app restart)'
+                        if 'trades' not in data:
+                            data['trades'] = []
+                        with open(fpath, 'w') as f:
+                            json.dump(data, f)
+                        fixed += 1
+                except Exception:
+                    pass
+        if fixed:
+            print(f"  ⚠ Fixed {fixed} orphaned backtest JSON file(s) stuck in running state")
 
 
 ensure_database_schema()
