@@ -1,3 +1,4 @@
 - [SPX win-rate vs reward/risk frontier](spx-winrate-vs-rr-frontier.md) — >75% WR AND >2:1 avg W/L is impossible for mechanical TP/SL; they're locked by WR≈1/(1+R).
 - [Backtest sweep harness](backtest-sweep-harness.md) — fetch data once, reuse df (no copy), suppress stdout, run foreground/chunked (background procs get killed on bash return).
+- [Stock engine indicator perf](stock-engine-indicator-perf.md) — stock engine recomputed rolling indicators per-bar (O(n²)); fixed with per-day causal cache mirroring options engine, exact parity.
 - [Stock backtest resilience](stock-backtest-resilience.md) — stock backtests must run as detached subprocess; status = disk metadata + PID liveness, never in-memory; don't blind-fail running rows on startup.

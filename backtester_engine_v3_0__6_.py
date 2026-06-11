@@ -1228,8 +1228,137 @@ class BacktesterEngine:
                                       current_candle=current_candle,
                                       cutoff_time_str=cutoff_time_str)
 
+    def _indicator_signature(self, condition, side):
+        """Stable key capturing every parameter that affects an indicator value."""
+        return (
+            condition.get(f'{side}_type'),
+            int(condition.get(f'{side}_day', 0) or 0),
+            condition.get(f'{side}_candle', 'min'),
+            condition.get(f'{side}_window'),
+            condition.get(f'{side}_multiplier'),
+            condition.get(f'{side}_series'),
+            condition.get(f'{side}_macd_short'),
+            condition.get(f'{side}_macd_long'),
+            condition.get(f'{side}_macd_signal'),
+            condition.get(f'{side}_macd_component'),
+        )
+
+    def _build_perbar_min_indicator(self, condition, side, grouped_data, dates,
+                                    current_date_index, ind_type):
+        """Pre-compute a time-varying minute indicator for the WHOLE current day at once.
+
+        Returns a dict {timestamp -> value} covering every bar of the current day.
+
+        Why this is identical to the per-bar path: the per-bar code builds the
+        series [up to 60 prior days] + [today up to the current bar] and runs a
+        trailing/causal rolling (SMA) or ewm (EMA/RSI), then takes the last value.
+        Because those operations are causal (value at bar B depends only on bars
+        <= B), computing them once over [60 prior days] + [ALL of today] yields
+        the exact same value at each bar B — we just read it positionally.
+        Only used for sma/ema/rsi with day_offset==0 and candle=='min' (the hot
+        path); everything else falls through to the unchanged raw computation.
+        """
+        try:
+            series_type = condition.get(f'{side}_series', 'close')
+            end_idx = min(current_date_index + 1, len(dates))
+            frames = []
+            for i in range(max(0, end_idx - 60), end_idx):
+                d = dates[i]
+                if d in grouped_data.groups:
+                    frames.append(grouped_data.get_group(d))
+            if not frames:
+                return None
+            combined = pd.concat(frames)
+            col = series_type if series_type in combined.columns else 'close'
+            series = combined[col]
+            if series is None or len(series) < 2:
+                return None  # mirror _compute_indicator_raw's short-series guard
+
+            today = grouped_data.get_group(dates[current_date_index])
+            n_today = len(today)
+            if n_today == 0:
+                return None
+
+            if ind_type == 'sma':
+                window = int(condition.get(f'{side}_window', 20))
+                rolled = series.rolling(window=window, min_periods=window).mean()
+            elif ind_type == 'ema':
+                window = int(condition.get(f'{side}_window', 20))
+                rolled = series.ewm(span=window, adjust=False).mean()
+            elif ind_type == 'rsi':
+                window = int(condition.get(f'{side}_window', 14))
+                delta = series.diff()
+                gain = delta.clip(lower=0)
+                loss = (-delta.clip(upper=0))
+                avg_gain = gain.ewm(alpha=1.0 / window, adjust=False, min_periods=window).mean()
+                avg_loss = loss.ewm(alpha=1.0 / window, adjust=False, min_periods=window).mean()
+                rs = avg_gain / avg_loss.replace(0, float('nan'))
+                rolled = 100 - (100 / (1 + rs))
+            else:
+                return None
+
+            today_vals = rolled.iloc[-n_today:]
+            out = {}
+            for ts, v in zip(today['timestamp'], today_vals):
+                out[ts] = (float(v) if v is not None and not pd.isna(v) else None)
+            return out
+        except Exception:
+            return None
+
     def _compute_indicator(self, condition, side, grouped_data, dates, current_date_index,
                            current_candle=None, cutoff_time_str=None):
+        """Cached front-end for indicator computation.
+
+        Two fast paths (both produce values identical to the raw computation):
+          • day_offset != 0  → value is constant for the whole day, so memoize it
+            once per (date_index, signature).
+          • day_offset == 0, candle == 'min', sma/ema/rsi → pre-compute the whole
+            day's per-bar series once and look up by timestamp.
+        Anything else (hourly, daily-with-live-bar, macd, vwap, cutoff/prereq
+        calls) falls through to the unchanged raw path.
+        """
+        cache_root = getattr(self, '_ind_cache', None)
+        if cache_root is not None and cutoff_time_str is None:
+            ind_type = condition.get(f'{side}_type')
+            day_offset = int(condition.get(f'{side}_day', 0) or 0)
+            candle_type = condition.get(f'{side}_candle', 'min')
+
+            if day_offset != 0:
+                ck = (current_date_index, self._indicator_signature(condition, side))
+                const_cache = cache_root['const']
+                if ck in const_cache:
+                    return const_cache[ck]
+                val = self._compute_indicator_raw(
+                    condition, side, grouped_data, dates, current_date_index,
+                    current_candle, cutoff_time_str)
+                const_cache[ck] = val
+                return val
+
+            if (candle_type == 'min' and current_candle is not None
+                    and ind_type in ('sma', 'ema', 'rsi')):
+                try:
+                    ts = current_candle.get('timestamp') if hasattr(current_candle, 'get') \
+                        else current_candle['timestamp']
+                except Exception:
+                    ts = None
+                if ts is not None:
+                    ck = (current_date_index, self._indicator_signature(condition, side))
+                    perbar = cache_root['perbar']
+                    if ck not in perbar:
+                        # Build once per day. Store even a None result so a failed
+                        # build is not retried on every bar of the day.
+                        perbar[ck] = self._build_perbar_min_indicator(
+                            condition, side, grouped_data, dates, current_date_index, ind_type)
+                    day_map = perbar[ck]
+                    if day_map is not None and ts in day_map:
+                        return day_map[ts]
+
+        return self._compute_indicator_raw(
+            condition, side, grouped_data, dates, current_date_index,
+            current_candle, cutoff_time_str)
+
+    def _compute_indicator_raw(self, condition, side, grouped_data, dates, current_date_index,
+                               current_candle=None, cutoff_time_str=None):
         """Compute an indicator value for a given side (left/right) of a condition.
 
         Respects left_candle / right_candle: 'min' uses 1-minute bars (original
@@ -2393,6 +2522,12 @@ class BacktesterEngine:
         df['date'] = df['timestamp'].dt.date
         grouped = df.groupby('date')
         dates = sorted(df['date'].unique())
+
+        # Per-symbol indicator caches (huge speedup): avoids recomputing rolling
+        # indicators from scratch on every minute bar. 'const' holds prior-day
+        # references (constant within a day); 'perbar' holds the current day's
+        # per-bar minute series and is cleared at the start of each day.
+        self._ind_cache = {'const': {}, 'perbar': {}}
         
         start_date = datetime.strptime(self.config['start_date'], '%Y-%m-%d').date()
         end_date = datetime.strptime(self.config['end_date'], '%Y-%m-%d').date()
@@ -2438,7 +2573,10 @@ class BacktesterEngine:
                 continue
             if current_date > end_date and not positions:
                 continue
-            
+
+            # New day → drop the previous day's per-bar indicator series.
+            self._ind_cache['perbar'].clear()
+
             current_data = grouped.get_group(current_date)
             prev_date = dates[i-1]
             prev_data = grouped.get_group(prev_date)
