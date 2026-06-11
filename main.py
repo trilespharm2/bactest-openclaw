@@ -12,6 +12,7 @@ import requests
 import os
 from datetime import datetime, timedelta
 import json
+import sys
 import subprocess
 import tempfile
 import csv
@@ -595,19 +596,182 @@ def initialize_app_runtime(enable_scheduler=False):
     }
 
 
+STOCK_RESULTS_DIR = 'stock_backtest_v3_results'
+
+
+def _stock_metadata_path(backtest_id):
+    return os.path.join(STOCK_RESULTS_DIR, f'{backtest_id}.json')
+
+
+def _stock_pid_path(backtest_id):
+    return os.path.join(STOCK_RESULTS_DIR, f'pid_{backtest_id}.json')
+
+
+def _write_stock_pid(backtest_id, pid, user_id=None):
+    try:
+        os.makedirs(STOCK_RESULTS_DIR, exist_ok=True)
+        with open(_stock_pid_path(backtest_id), 'w') as f:
+            json.dump({'pid': pid, 'user_id': user_id}, f)
+    except Exception:
+        pass
+
+
+def _read_stock_pid(backtest_id):
+    try:
+        with open(_stock_pid_path(backtest_id), 'r') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _remove_stock_pid(backtest_id):
+    try:
+        p = _stock_pid_path(backtest_id)
+        if os.path.exists(p):
+            os.remove(p)
+    except Exception:
+        pass
+
+
+def _pid_alive(pid):
+    """Return True if a process with this PID is currently alive."""
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _read_stock_metadata_status(backtest_id):
+    """Return the 'status' field written in the metadata file, or None."""
+    path = _stock_metadata_path(backtest_id)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        return data.get('status')
+    except Exception:
+        return None
+
+
+def _resolve_stock_backtest_status(backtest_id):
+    """
+    Determine the true status of a stock backtest from durable on-disk state
+    (the metadata file) plus whether its detached process is still alive.
+    Returns 'running', 'completed', 'failed', 'cancelled', or None if unknown.
+    """
+    file_status = _read_stock_metadata_status(backtest_id)
+    if file_status in ('success', 'completed'):
+        return 'completed'
+    if file_status in ('error', 'failed'):
+        return 'failed'
+    if file_status == 'cancelled':
+        return 'cancelled'
+
+    # file_status is 'running' or unknown: trust "running" only if the detached
+    # process is still alive.
+    pidinfo = _read_stock_pid(backtest_id)
+    pid = pidinfo.get('pid') if pidinfo else None
+    if _pid_alive(pid):
+        return 'running'
+    if file_status == 'running':
+        # Metadata says running but no live process => it was killed.
+        return 'failed'
+    return None
+
+
+def _reconcile_stock_backtest(backtest_id):
+    """
+    Sync the DB row for a stock backtest with the durable on-disk status and
+    clean up sidecars for finished jobs. Returns the resolved status or None.
+    Safe to call from request handlers (runtime only).
+    """
+    status = _resolve_stock_backtest_status(backtest_id)
+    if status is None or status == 'running':
+        return status
+
+    db_status = {'completed': 'completed', 'cancelled': 'cancelled'}.get(status, 'failed')
+    try:
+        record = BacktestResult.query.get(backtest_id)
+        if record and record.status != db_status:
+            record.status = db_status
+            if db_status == 'completed':
+                if not record.completed_at:
+                    record.completed_at = datetime.utcnow()
+                try:
+                    data = _load_backtest_summary(_stock_metadata_path(backtest_id))
+                    summary = (data or {}).get('summary') or (data or {}).get('metadata') or {}
+                    record.total_pnl = summary.get('total_pnl')
+                    record.total_return = summary.get('total_return')
+                    record.win_rate = summary.get('win_rate')
+                    record.total_trades = summary.get('total_trades')
+                except Exception:
+                    pass
+            db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+    try:
+        if backtest_id in running_stock_backtests:
+            running_stock_backtests[backtest_id]['status'] = db_status
+    except Exception:
+        pass
+    _remove_stock_pid(backtest_id)
+    return status
+
+
 def cleanup_orphaned_backtests():
     """
-    Any backtest left in 'running' status when the app starts was killed mid-run
-    (e.g. by a restart or crash). Mark them as failed so the UI doesn't show
-    them as permanently pending.
+    On startup, reconcile backtests left in 'running' status.
+
+    Stock backtests run as *detached* subprocesses that can survive a worker
+    restart, so only mark a running stock backtest as failed if its process is
+    genuinely gone (or it already finished while we were down). Options
+    backtests are tied to the worker, so a leftover 'running' options row means
+    its process was killed.
     """
     with app.app_context():
         try:
-            result = db.session.execute(
-                text("UPDATE backtest_results SET status='error' WHERE status='running'")
-            )
-            if result.rowcount:
-                print(f"  ⚠ Marked {result.rowcount} orphaned backtest(s) as failed (process was killed)")
+            running_rows = BacktestResult.query.filter_by(status='running').all()
+            failed = 0
+            for record in running_rows:
+                if (record.backtest_type or 'options') == 'stocks':
+                    status = _resolve_stock_backtest_status(record.id)
+                    if status == 'running':
+                        continue  # detached process still alive — leave it running
+                    if status == 'completed':
+                        record.status = 'completed'
+                        if not record.completed_at:
+                            record.completed_at = datetime.utcnow()
+                        try:
+                            data = _load_backtest_summary(_stock_metadata_path(record.id))
+                            summary = (data or {}).get('summary') or (data or {}).get('metadata') or {}
+                            record.total_pnl = summary.get('total_pnl')
+                            record.total_return = summary.get('total_return')
+                            record.win_rate = summary.get('win_rate')
+                            record.total_trades = summary.get('total_trades')
+                        except Exception:
+                            pass
+                        _remove_stock_pid(record.id)
+                        continue
+                    if status == 'cancelled':
+                        record.status = 'cancelled'
+                        _remove_stock_pid(record.id)
+                        continue
+                    record.status = 'failed'
+                    _remove_stock_pid(record.id)
+                    failed += 1
+                else:
+                    record.status = 'error'
+                    failed += 1
+            if failed:
+                print(f"  ⚠ Marked {failed} orphaned backtest(s) as failed (process was killed)")
             db.session.commit()
         except Exception as e:
             db.session.rollback()
@@ -3389,9 +3553,18 @@ def start_backtest_async():
         for bid, binfo in running_backtests.items():
             if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
                 return jsonify({'error': 'You already have a backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
-        for bid, binfo in running_stock_backtests.items():
-            if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
-                return jsonify({'error': 'You already have a stock backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+        # Stock jobs are detached: judge by disk + PID liveness (survives worker
+        # restarts), and reconcile any stale 'running' DB rows along the way.
+        try:
+            db_running_stocks = BacktestResult.query.filter_by(
+                user_id=user_id, backtest_type='stocks', status='running'
+            ).all()
+            for record in db_running_stocks:
+                if _resolve_stock_backtest_status(record.id) == 'running':
+                    return jsonify({'error': 'You already have a stock backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+                _reconcile_stock_backtest(record.id)
+        except Exception:
+            pass
         
         print("\n" + "="*60)
         print("ASYNC BACKTEST STARTED")
@@ -3701,15 +3874,29 @@ def cancel_backtest(backtest_id):
         
         return jsonify({'status': 'cancelled', 'message': 'Backtest cancelled'})
     
-    # Check stock backtests
-    if backtest_id in running_stock_backtests:
-        bt = running_stock_backtests[backtest_id]
-        if bt.get('user_id') != user_id:
+    # Check stock backtests. These run as detached subprocesses, so the job may
+    # not be in *this* worker's memory (different worker, or after a restart).
+    # Fall back to the PID sidecar + DB record so cancel always works.
+    bt = running_stock_backtests.get(backtest_id)
+    record = None
+    try:
+        record = BacktestResult.query.get(backtest_id)
+    except Exception:
+        record = None
+
+    is_stock_job = (bt is not None) or (record is not None and (record.backtest_type or '') == 'stocks')
+    if is_stock_job:
+        # Authorization: prefer the DB record's owner, fall back to in-memory.
+        owner = record.user_id if record else (bt.get('user_id') if bt else None)
+        if owner is not None and owner != user_id:
             return jsonify({'error': 'Not authorized to cancel this backtest'}), 403
-        if bt.get('status') != 'running':
+
+        # Only cancellable while genuinely running.
+        if _resolve_stock_backtest_status(backtest_id) != 'running':
             return jsonify({'error': 'Backtest is not running'}), 400
-        
-        proc = bt.get('process')
+
+        # 1) Try the in-memory process handle (fast path, same worker).
+        proc = bt.get('process') if bt else None
         if proc and proc.poll() is None:
             try:
                 proc.terminate()
@@ -3719,30 +3906,55 @@ def cancel_backtest(backtest_id):
                     proc.kill()
                 except Exception:
                     pass
-        
-        bt['status'] = 'cancelled'
-        bt['error'] = 'Cancelled by user'
-        
+
+        # 2) Fall back to killing the whole detached process group by PID.
+        pidinfo = _read_stock_pid(backtest_id)
+        pid = pidinfo.get('pid') if pidinfo else None
+        if _pid_alive(pid):
+            for sig in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(os.getpgid(int(pid)), sig)
+                except Exception:
+                    try:
+                        os.kill(int(pid), sig)
+                    except Exception:
+                        pass
+                if not _pid_alive(pid):
+                    break
+
+        if bt:
+            bt['status'] = 'cancelled'
+            bt['error'] = 'Cancelled by user'
+
         metadata_path = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
-        if os.path.exists(metadata_path):
-            try:
+        try:
+            metadata = {}
+            if os.path.exists(metadata_path):
                 with open(metadata_path, 'r') as f:
                     metadata = json.load(f)
-                metadata['status'] = 'cancelled'
-                metadata['error'] = 'Cancelled by user'
-                with open(metadata_path, 'w') as f:
-                    json.dump(metadata, f, indent=2)
-            except:
-                pass
-        
+            metadata['status'] = 'cancelled'
+            metadata['error'] = 'Cancelled by user'
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2, default=str)
+        except Exception:
+            pass
+
         try:
-            record = BacktestResult.query.get(backtest_id)
             if record:
                 record.status = 'cancelled'
                 db.session.commit()
-        except:
+        except Exception:
+            db.session.rollback()
+
+        _remove_stock_pid(backtest_id)
+        # Remove the progress file so the row stops showing a progress bar.
+        try:
+            _pp = os.path.join('backtest_results', f'progress_{backtest_id}.json')
+            if os.path.exists(_pp):
+                os.remove(_pp)
+        except Exception:
             pass
-        
+
         return jsonify({'status': 'cancelled', 'message': 'Stock backtest cancelled'})
     
     return jsonify({'error': 'Backtest not found or not running'}), 404
@@ -3758,20 +3970,32 @@ def check_running_backtests():
     for bid, binfo in running_backtests.items():
         if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
             running.append({'backtest_id': bid, 'type': 'options'})
-    
-    for bid, binfo in running_stock_backtests.items():
-        if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
-            running.append({'backtest_id': bid, 'type': 'stocks'})
-    
-    # Also check database for running backtests (in case of server restart)
-    if not running:
-        try:
-            db_running = BacktestResult.query.filter_by(user_id=user_id, status='running').all()
-            for record in db_running:
+
+    # Stock backtests run as detached processes: ask disk + PID liveness, not
+    # just this worker's memory, so a reopened page reconnects to a live job.
+    seen = set()
+    try:
+        db_running = BacktestResult.query.filter_by(user_id=user_id, status='running').all()
+        for record in db_running:
+            if (record.backtest_type or 'options') == 'stocks':
+                if _resolve_stock_backtest_status(record.id) == 'running':
+                    running.append({'backtest_id': record.id, 'type': 'stocks'})
+                    seen.add(record.id)
+                else:
+                    # No longer actually running — reconcile the DB row.
+                    _reconcile_stock_backtest(record.id)
+            else:
                 running.append({'backtest_id': record.id, 'type': record.backtest_type or 'options'})
-        except:
-            pass
-    
+    except Exception:
+        pass
+
+    # Catch any in-memory stock jobs whose DB row wasn't picked up above.
+    for bid, binfo in running_stock_backtests.items():
+        if bid in seen:
+            continue
+        if binfo.get('user_id') == user_id and _resolve_stock_backtest_status(bid) == 'running':
+            running.append({'backtest_id': bid, 'type': 'stocks'})
+
     return jsonify({
         'has_running': len(running) > 0,
         'running_backtests': running
@@ -4713,9 +4937,18 @@ def start_stocks_backtest_v3_async():
         for bid, binfo in running_backtests.items():
             if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
                 return jsonify({'error': 'You already have an options backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
-        for bid, binfo in running_stock_backtests.items():
-            if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
-                return jsonify({'error': 'You already have a stock backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+        # Stock jobs are detached: judge by disk + PID liveness (across workers /
+        # restarts), and reconcile any stale 'running' DB rows along the way.
+        try:
+            db_running = BacktestResult.query.filter_by(
+                user_id=user_id, backtest_type='stocks', status='running'
+            ).all()
+            for record in db_running:
+                if _resolve_stock_backtest_status(record.id) == 'running':
+                    return jsonify({'error': 'You already have a stock backtest running. Please wait for it to complete or cancel it before starting a new one.'}), 429
+                _reconcile_stock_backtest(record.id)
+        except Exception:
+            pass
         
         print(f"\n{'='*60}")
         print(f"STOCK BACKTEST V3.0 - STARTING ASYNC")
@@ -4756,113 +4989,51 @@ def start_stocks_backtest_v3_async():
         db.session.add(backtest_record)
         db.session.commit()
         
-        # Track this backtest
-        running_stock_backtests[unique_id] = {'status': 'running', 'error': None, 'process': None, 'user_id': user_id}
-        
-        # Always create a fresh wrapper with the real API key for this run.
-        stocks_v3_wrapper = StockBacktesterV3Wrapper(api_key, output_dir='stock_backtest_v3_results')
-        
-        # Run backtest in background thread
-        def run_async():
+        # Launch the backtest as a *detached* subprocess so it survives a worker
+        # restart / request timeout / page close. The runner writes its own
+        # results + final status to disk, which is the durable source of truth.
+        config_path = os.path.join(output_dir, f'config_{unique_id}.json')
+        with open(config_path, 'w') as f:
+            json.dump(config, f, default=str)
+
+        child_env = os.environ.copy()
+        child_env['CURRENT_BACKTEST_ID'] = unique_id
+        if api_key:
+            child_env['POLYGON_API_KEY'] = api_key
+
+        try:
+            process = subprocess.Popen(
+                [sys.executable, 'stock_backtest_runner.py',
+                 '--config', config_path, '--id', unique_id],
+                env=child_env,
+                start_new_session=True,  # detach from the gunicorn worker's process group
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as launch_err:
+            # Could not start the detached process — fail cleanly.
             try:
-                print(f"\n{'='*60}")
-                print(f"STOCK BACKTEST V3.0 - RUNNING IN BACKGROUND")
-                print(f"Backtest ID: {unique_id}")
-                print(f"{'='*60}\n")
+                record = BacktestResult.query.get(unique_id)
+                if record:
+                    record.status = 'failed'
+                    db.session.commit()
+            except Exception:
+                db.session.rollback()
+            return jsonify({'error': f'Could not start backtest: {launch_err}'}), 500
 
-                # Expose backtest ID to engine so it can write a progress file
-                # that the listing API exposes for the frontend progress bar.
-                os.environ['CURRENT_BACKTEST_ID'] = unique_id
-                # Run the backtest with a specific ID
-                result = stocks_v3_wrapper.run_backtest_with_id(config, unique_id)
-                
-                if result.get('status') == 'error':
-                    running_stock_backtests[unique_id] = {'status': 'error', 'error': result.get('error', 'Unknown error')}
-                    # Update database record with error
-                    with app.app_context():
-                        try:
-                            record = BacktestResult.query.get(unique_id)
-                            if record:
-                                record.status = 'failed'
-                                db.session.commit()
-                        except:
-                            pass
-                else:
-                    running_stock_backtests[unique_id] = {'status': 'completed', 'error': None}
-                    # Update database record with completed status
-                    with app.app_context():
-                        try:
-                            record = BacktestResult.query.get(unique_id)
-                            if record:
-                                record.status = 'completed'
-                                record.completed_at = datetime.utcnow()
-                                # Try to get summary from result
-                                summary = result.get('summary', {})
-                                record.total_pnl = summary.get('total_pnl')
-                                record.total_return = summary.get('total_return')
-                                record.win_rate = summary.get('win_rate')
-                                record.total_trades = summary.get('total_trades')
-                                db.session.commit()
-                        except Exception as db_err:
-                            print(f"Error updating stock backtest database record: {db_err}")
-                
-                # Write sidecar so future list loads skip the full JSON
-                try:
-                    _fp = os.path.join(output_dir, f'{unique_id}.json')
-                    _summary_data = _load_backtest_summary(_fp)
-                    if _summary_data is not None:
-                        _write_sidecar(_fp, _summary_data)
-                except Exception:
-                    pass
+        # Persist the PID so other workers / restarts can check liveness, and
+        # keep an in-memory handle for fast same-worker cancellation.
+        _write_stock_pid(unique_id, process.pid, user_id=user_id)
+        running_stock_backtests[unique_id] = {
+            'status': 'running', 'error': None, 'process': process,
+            'pid': process.pid, 'user_id': user_id,
+        }
 
-                # Remove progress file so the row no longer shows a progress bar
-                try:
-                    _pp = os.path.join('backtest_results', f'progress_{unique_id}.json')
-                    if os.path.exists(_pp):
-                        os.remove(_pp)
-                except Exception:
-                    pass
+        print(f"\n{'='*60}")
+        print(f"STOCK BACKTEST V3.0 - LAUNCHED (detached subprocess)")
+        print(f"Backtest ID: {unique_id}  PID: {process.pid}")
+        print(f"{'='*60}\n")
 
-                print(f"\n{'='*60}")
-                print(f"STOCK BACKTEST COMPLETE: {unique_id}")
-                print(f"Status: {running_stock_backtests[unique_id]['status']}")
-                print(f"{'='*60}\n")
-                
-            except Exception as e:
-                print(f"Async stock backtest error: {e}")
-                import traceback
-                traceback.print_exc()
-                running_stock_backtests[unique_id] = {'status': 'error', 'error': str(e)}
-                try:
-                    _pp = os.path.join('backtest_results', f'progress_{unique_id}.json')
-                    if os.path.exists(_pp):
-                        os.remove(_pp)
-                except Exception:
-                    pass
-                
-                # Update metadata with error
-                try:
-                    with open(metadata_path, 'r') as f:
-                        metadata = json.load(f)
-                    metadata['status'] = 'error'
-                    metadata['error'] = str(e)
-                    with open(metadata_path, 'w') as f:
-                        json.dump(metadata, f, indent=2)
-                except:
-                    pass
-                # Update database record with error status
-                with app.app_context():
-                    try:
-                        record = BacktestResult.query.get(unique_id)
-                        if record:
-                            record.status = 'failed'
-                            db.session.commit()
-                    except:
-                        pass
-        
-        thread = threading.Thread(target=run_async)
-        thread.start()
-        
         return jsonify({
             'backtest_id': unique_id,
             'status': 'running',
@@ -4879,34 +5050,51 @@ def start_stocks_backtest_v3_async():
 
 @app.route('/api/stocks-backtest-v3/status/<backtest_id>', methods=['GET'])
 def get_stocks_backtest_v3_status(backtest_id):
-    """Get status of a running stock backtest"""
-    # First check in-memory status (authoritative for actively running backtests)
-    if backtest_id in running_stock_backtests:
-        return jsonify(running_stock_backtests[backtest_id])
+    """Get status of a stock backtest.
 
-    # Check the sidecar (fast) then fall back to full file
-    metadata_path = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
-    sidecar_path  = _sidecar_path(metadata_path)
-    metadata = None
-    for path in (sidecar_path, metadata_path):
-        if os.path.exists(path):
+    Status is derived from durable on-disk state (the metadata file) plus
+    whether the detached runner process is still alive — NOT from whether this
+    particular worker happens to be holding it in memory. This is what lets a
+    backtest survive a page close or a server restart.
+    """
+    resolved = _resolve_stock_backtest_status(backtest_id)
+
+    if resolved == 'running':
+        # Surface progress if the engine has written a progress file.
+        progress = None
+        progress_path = os.path.join('backtest_results', f'progress_{backtest_id}.json')
+        if os.path.exists(progress_path):
             try:
-                with open(path, 'r') as f:
-                    metadata = json.load(f)
-                break
+                with open(progress_path, 'r') as pf:
+                    progress = json.load(pf)
             except Exception:
-                continue
+                progress = None
+        return jsonify({'status': 'running', 'error': None, 'progress': progress})
 
-    if metadata is not None:
-        file_status = metadata.get('status', 'completed')
-        # If the file still says "running" but there is no active in-memory entry,
-        # the process was killed / server restarted — treat it as failed.
-        if file_status == 'running':
-            file_status = 'failed'
-        return jsonify({
-            'status': file_status,
-            'error': metadata.get('error')
-        })
+    if resolved in ('completed', 'failed', 'cancelled'):
+        # Bring the DB row in line with disk and clean up sidecars.
+        _reconcile_stock_backtest(backtest_id)
+        error = None
+        if resolved != 'completed':
+            error = _read_stock_metadata_status(backtest_id)
+            try:
+                with open(_stock_metadata_path(backtest_id), 'r') as f:
+                    error = json.load(f).get('error')
+            except Exception:
+                pass
+        return jsonify({'status': resolved, 'error': error})
+
+    # resolved is None: nothing on disk. Fall back to the DB row if we have one.
+    try:
+        record = BacktestResult.query.get(backtest_id)
+        if record:
+            status = record.status or 'completed'
+            if status == 'running':
+                # DB says running but there's no file and no live process.
+                status = 'failed'
+            return jsonify({'status': status, 'error': None})
+    except Exception:
+        pass
 
     return jsonify({'status': 'not_found', 'error': 'Backtest not found'}), 404
 
@@ -4977,6 +5165,11 @@ def list_stocks_backtests_v3():
         for record in records:
             backtest_id = record.id
             filepath = os.path.join(output_dir, f'{backtest_id}.json')
+
+            # Detached stock jobs persist their final state to disk; bring the DB
+            # row in line so finished jobs don't keep showing as "running".
+            if record.status == 'running':
+                _reconcile_stock_backtest(backtest_id)
 
             if os.path.exists(filepath):
                 data = _load_backtest_summary(filepath)
