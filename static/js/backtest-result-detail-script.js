@@ -1242,9 +1242,24 @@ var _stkDtCurrentStored   = null;
 var _stkDtRawAllBars      = [];
 var _stkDtRawDayBars      = [];
 
-function openStkDayChart(dayIdx) {
+async function openStkDayChart(dayIdx) {
     var day = _stkDetailState.dtDays[dayIdx];
-    if (!day || !day.bars || day.bars.length === 0) return;
+    if (!day) return;
+
+    // Bars are stripped from the bulk decision log payload to keep it small —
+    // fetch this single day's intraday bars on demand the first time it's opened.
+    if ((!day.bars || day.bars.length === 0) && day.has_bars && _stkDetailState.id) {
+        try {
+            var barResp = await authFetch('/api/files/decision-log/' + _stkDetailState.id + '/day/' + dayIdx);
+            if (barResp.ok) {
+                var barData = await barResp.json();
+                day.bars = barData.bars || [];
+                day.seed_bars = barData.seed_bars || [];
+                if (barData.seed_date) day.seed_date = barData.seed_date;
+            }
+        } catch (e) { console.warn('Could not load day bars:', e); }
+    }
+    if (!day.bars || day.bars.length === 0) return;
 
     var entryEvts = (day.events || []).filter(function(e) { return (e.type === 'entry' || e.type === 're_entry') && e.time; });
     var exitEvts  = (day.events || []).filter(function(e) { return e.type === 'exit' && e.time; });
@@ -1841,7 +1856,7 @@ function _renderStkDtPage(config) {
         });
         flowHtml += '</div>';
 
-        var chartBtn = (day.bars && day.bars.length > 0)
+        var chartBtn = (day.has_bars || (day.bars && day.bars.length > 0))
             ? '<button class="day-chart-btn" onclick="event.stopPropagation();openStkDayChart(' + i + ')" title="View price chart"><i class="fas fa-chart-area"></i> View Chart</button>'
             : '';
         html += '<div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden;">' +

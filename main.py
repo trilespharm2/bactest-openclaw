@@ -4358,30 +4358,97 @@ def get_metadata(backtest_id):
         return jsonify({'error': str(e)}), 500
 
 
+def _strip_decision_log_bars(decision_log):
+    """Remove heavy intraday bar arrays from a decision log so the bulk payload
+    stays small enough for the browser to parse.  Per-day bars are fetched
+    on demand via get_decision_log_day().  A 'has_bars' flag is left behind so
+    the frontend knows a chart is available."""
+    if not isinstance(decision_log, list):
+        return decision_log
+    slim = []
+    for entry in decision_log:
+        if not isinstance(entry, dict):
+            slim.append(entry)
+            continue
+        e = dict(entry)
+        has_bars = bool(e.get('bars'))
+        e.pop('bars', None)
+        e.pop('seed_bars', None)
+        e['has_bars'] = has_bars
+        slim.append(e)
+    return slim
+
+
+def _compact_json_response(payload):
+    """Return a compact (non pretty-printed) JSON response.  Flask pretty-prints
+    by default in debug mode, which can nearly double the size of large payloads
+    and push them past response-size limits."""
+    return app.response_class(
+        json.dumps(payload, separators=(',', ':')),
+        mimetype='application/json',
+    )
+
+
+def _load_decision_log(backtest_id):
+    """Load a backtest's decision log from whichever storage location applies."""
+    filepath = os.path.join('backtest_results', f'decision_log_{backtest_id}.json')
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+            return json.load(f)
+
+    # Stock V3 backtests embed the decision_log inside the main result file
+    v3_filepath = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
+    if os.path.exists(v3_filepath):
+        with open(v3_filepath, 'r') as f:
+            data = json.load(f)
+        return data.get('decision_log', [])
+
+    return None
+
+
 @app.route('/api/files/decision-log/<backtest_id>', methods=['GET'])
 @login_required
 def get_decision_log(backtest_id):
-    """Serve the decision log JSON for a backtest (ownership verified)"""
+    """Serve the decision log JSON for a backtest (ownership verified).
+
+    Heavy per-day intraday bar arrays are stripped from this bulk response —
+    they can total 30MB+ and crash the browser's JSON parser.  Charts fetch the
+    bars for a single day on demand via /api/files/decision-log/<id>/day/<idx>.
+    """
     try:
         record = BacktestResult.query.get(backtest_id)
         if not record or record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
 
-        # Options / legacy backtests store decision logs as a separate file
-        filepath = os.path.join('backtest_results', f'decision_log_{backtest_id}.json')
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                decision_log = json.load(f)
-            return jsonify(decision_log)
+        decision_log = _load_decision_log(backtest_id)
+        if decision_log is None:
+            return jsonify([])
 
-        # Stock V3 backtests embed the decision_log inside the main result file
-        v3_filepath = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
-        if os.path.exists(v3_filepath):
-            with open(v3_filepath, 'r') as f:
-                data = json.load(f)
-            return jsonify(data.get('decision_log', []))
+        return _compact_json_response(_strip_decision_log_bars(decision_log))
 
-        return jsonify([])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/files/decision-log/<backtest_id>/day/<int:day_index>', methods=['GET'])
+@login_required
+def get_decision_log_day(backtest_id, day_index):
+    """Serve the intraday bars for a single decision-log day (ownership verified)."""
+    try:
+        record = BacktestResult.query.get(backtest_id)
+        if not record or record.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        decision_log = _load_decision_log(backtest_id)
+        if decision_log is None or day_index < 0 or day_index >= len(decision_log):
+            return jsonify({'error': 'Not found'}), 404
+
+        entry = decision_log[day_index]
+        return _compact_json_response({
+            'bars': entry.get('bars', []),
+            'seed_bars': entry.get('seed_bars', []),
+            'seed_date': entry.get('seed_date'),
+        })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
