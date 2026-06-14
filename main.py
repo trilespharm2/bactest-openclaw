@@ -4367,14 +4367,21 @@ def get_decision_log(backtest_id):
         if not record or record.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized'}), 403
 
+        # Options / legacy backtests store decision logs as a separate file
         filepath = os.path.join('backtest_results', f'decision_log_{backtest_id}.json')
-        if not os.path.exists(filepath):
-            return jsonify([])
+        if os.path.exists(filepath):
+            with open(filepath, 'r') as f:
+                decision_log = json.load(f)
+            return jsonify(decision_log)
 
-        with open(filepath, 'r') as f:
-            decision_log = json.load(f)
+        # Stock V3 backtests embed the decision_log inside the main result file
+        v3_filepath = os.path.join('stock_backtest_v3_results', f'{backtest_id}.json')
+        if os.path.exists(v3_filepath):
+            with open(v3_filepath, 'r') as f:
+                data = json.load(f)
+            return jsonify(data.get('decision_log', []))
 
-        return jsonify(decision_log)
+        return jsonify([])
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -5134,6 +5141,12 @@ def get_stocks_backtest_v3_results(backtest_id):
         print(f"Stats keys: {list(results.get('stats', {}).keys()) if 'stats' in results else 'N/A'}")
         print(f"{'='*60}\n")
         
+        # Strip the decision_log from the main payload — it can be 30MB+ for
+        # long backtests and will crash the browser's JSON parser.  The frontend
+        # already fetches it separately via /api/files/decision-log/<id> when
+        # the field is absent.
+        results.pop('decision_log', None)
+
         return jsonify(results)
     
     except FileNotFoundError as e:
