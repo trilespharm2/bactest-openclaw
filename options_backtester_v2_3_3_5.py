@@ -705,6 +705,7 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
     metrics_config = {}
     needs_day_price = False
     needs_minute_price = False
+    needs_price_open = False  # asymmetric "Current Price" cross: prev bar uses OPEN
     
     def _sma_ema_key(m, params):
         """Build composite cache key for SMA/EMA: sma_w14_t5 etc."""
@@ -716,6 +717,11 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
         metric = condition.get('metric', 'price')
         left_params = condition.get('left', {})
         left_candle_type = left_params.get('candle_type', 'minute')
+
+        # "Current Price" cross conditions need a parallel OPEN-price series so
+        # the previous bar can be evaluated on its open (asymmetric cross).
+        if left_params.get('current_price') and condition.get('operator', '>') in ('cross_up', 'cross_down', 'cross_either'):
+            needs_price_open = True
         
         if metric == 'price':
             if left_candle_type in ['day', 'week', 'month', 'quarter', 'year']:
@@ -831,6 +837,20 @@ def prefetch_all_indicators_for_range(config: Dict, start_date: datetime, end_da
                                 _none_count += 1
                             price_data[int(ts)] = val
                     indicators['price'] = price_data
+                    # Parallel OPEN series for asymmetric "Current Price" crosses —
+                    # the previous bar is read from this while the current bar keeps
+                    # using its VWAP (the current price).
+                    if needs_price_open:
+                        open_data = {}
+                        for bar in raw_bars:
+                            ts = bar.get('t')
+                            if ts is not None:
+                                ov = bar.get('o')
+                                if ov is None:
+                                    ov = bar.get('c')
+                                open_data[int(ts)] = ov
+                        indicators['price_open'] = open_data
+                        print(f"[Prefetch] PRICE_OPEN (asymmetric current-price cross): {len(open_data)} bars", flush=True)
                     _sample_keys = sorted(price_data.keys())[:3]
                     _sample_vals = [price_data[k] for k in _sample_keys]
                     print(f"[Prefetch] PRICE (from _1min_raw): {len(price_data)} bars, "
@@ -1796,7 +1816,14 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         print(f"  [cross] WARN: prev_left=None for key={_lkey} prev_ts={_prev_left_ts} "
                               f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
                 elif metric == 'price':
-                    _price_cache = indicators_cache.get('price', {})
+                    # Asymmetric "Current Price" cross: the previous bar is read
+                    # from the OPEN series while the current bar keeps using its
+                    # VWAP (the current price). Falls back to the VWAP price cache
+                    # if the open series is unavailable.
+                    if left_params.get('current_price') and indicators_cache.get('price_open'):
+                        _price_cache = indicators_cache.get('price_open', {})
+                    else:
+                        _price_cache = indicators_cache.get('price', {})
                     prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
                     if prev_left is None and not indicators_cache.get('_price_cache_diag_done'):
                         _pkeys = sorted(_price_cache.keys())

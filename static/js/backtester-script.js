@@ -503,7 +503,8 @@ function collectOptExitConditions() {
                 day: metric === 'current_price' ? '0' : ((document.getElementById('optExitLeftDay' + id) || {}).value || '0'),
                 candle_type: (metric === 'current_price' || metric === 'vwap') ? 'minute' : ((document.getElementById('optExitLeftCandleType' + id) || {}).value || 'minute'),
                 multiplier: (metric === 'current_price' || metric === 'vwap') ? 1 : (parseInt((document.getElementById('optExitLeftMultiplier' + id) || {}).value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close')
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : ((document.getElementById('optExitLeftSeriesType' + id) || {}).value || 'close'),
+                current_price: metric === 'current_price'
             },
             operator: (document.getElementById('optExitOperator' + id) || {}).value || '>',
             comparator: comparator
@@ -1695,7 +1696,8 @@ function collectPriceConditions() {
                 day: metric === 'current_price' ? '0' : (document.getElementById(`leftDay${id}`)?.value || '0'),
                 candle_type: metric === 'current_price' ? 'minute' : (document.getElementById(`leftCandleType${id}`)?.value || 'minute'),
                 multiplier: metric === 'current_price' ? 1 : (parseInt(document.getElementById(`leftMultiplier${id}`)?.value) || 1),
-                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close')
+                series_type: metric === 'current_price' ? 'vwap' : metric === 'vwap' ? 'vwap' : (document.getElementById(`leftSeriesType${id}`)?.value || 'close'),
+                current_price: metric === 'current_price'
             },
             operator: document.getElementById(`operator${id}`)?.value,
             comparator: comparator
