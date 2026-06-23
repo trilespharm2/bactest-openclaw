@@ -1816,17 +1816,25 @@ class BacktesterEngine:
                 if prev_candle is None:
                     return False  # Can't detect a cross on the first candle of the day
 
-                # Compute previous left value
-                if left_type in self._INDICATOR_TYPES:
+                # Compute previous left value.
+                # Asymmetric cross for "Current Price": the previous bar is
+                # evaluated on its OPEN while the current bar keeps using the
+                # close. This makes Cross Up mean "prior bar opened below the
+                # comparator and the current price is now above it."
+                prev_left_type = left_type
+                if condition.get('metric') == 'current_price':
+                    prev_left_type = 'open'
+
+                if prev_left_type in self._INDICATOR_TYPES:
                     prev_left = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, prev_candle)
-                elif left_type == 'volume':
+                elif prev_left_type == 'volume':
                     prev_left = self._get_volume(condition, 'left', grouped_data, dates, current_date_index, prev_candle)
                 else:
                     # handles vwap, price columns, etc. — pass prev_candle as the "current" bar
                     prev_left = self.get_candle_value(
                         grouped_data, dates, current_date_index,
                         condition.get('left_day', 0), condition.get('left_candle', 'min'),
-                        condition.get('left_multiplier', 1), left_type,
+                        condition.get('left_multiplier', 1), prev_left_type,
                         current_candle=prev_candle
                     )
 
