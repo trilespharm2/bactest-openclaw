@@ -583,12 +583,26 @@ function _strikeSummary(parsedLegs) {
 
 /** Render a single order as a collapsible card */
 function _fmtOrderDateTime(iso) {
-  // Tradier timestamps look like "2026-06-24T14:30:05.123Z" or with an offset.
-  // Show "YYYY-MM-DD HH:MM:SS" exactly as reported (no timezone conversion).
+  // Tradier reports order times in UTC (e.g. "2026-06-24T15:24:40.000Z").
+  // Convert to US market time (Eastern) so fills read in the same zone the
+  // market trades in. Intl handles EST/EDT automatically.
   if (!iso) return '';
-  const [d, t] = String(iso).split('T');
-  if (!t) return d;
-  return `${d} ${t.slice(0, 8)}`;
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) {
+    // Unparseable — show as reported.
+    const [d, t] = String(iso).split('T');
+    return t ? `${d} ${t.slice(0, 8)}` : d;
+  }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(dt);
+  const p = {};
+  for (const { type, value } of parts) p[type] = value;
+  const hh = p.hour === '24' ? '00' : p.hour;
+  return `${p.year}-${p.month}-${p.day} ${hh}:${p.minute}:${p.second} ET`;
 }
 
 function _renderOrderCard(o) {
