@@ -14,4 +14,6 @@ For the OPTIONS backtester ("Current Price" metric, i.e. `left.current_price=tru
 
 **Entry fill:** the underlying reference price at entry is the entry bar's VWAP (`entry_bar['vw']`, fallback close), not the bar open — so the fill matches the price the signal is measured on.
 
-**How to apply:** This evaluator is shared by entry AND exit conditions, so both get breach-bar semantics for Current Price crosses. The stock engine is separate and not affected by this change.
+**How to apply:** This evaluator is shared by entry AND exit conditions, so both get breach-bar semantics for Current Price crosses. The stock engine is separate and not affected.
+
+**Live bot parity:** `bot_executor.py` (`eval_metric_verbose`) mirrors the same breach-bar rule for live `current_price` crosses, in two blocks — `value` (cross vs fixed threshold) and `compare_sma/ema/rsi`. For `current_price` it uses the currently-forming bar's OPEN (`rhs_bars[-1]['open']`, or a freshly fetched bar in the value block) vs the CURRENT comparator, and the live `last` quote must land on the other side. Indicator-LHS crosses still use previous-completed-bar semantics. `compare_price`/`compare_vwap` have no cross handling at all (fall through to `_compare`).

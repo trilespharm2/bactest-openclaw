@@ -885,7 +885,19 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 return None, f"Invalid threshold value '{cv}'"
 
             if is_cross:
-                prev_lhs_val, bars = _prev_lhs()
+                if metric == 'current_price':
+                    # Within-bar breach (matches the options backtester): compare
+                    # THIS currently-forming bar's OPEN against the threshold; the
+                    # live price must land on the other side.  Fires on the exact
+                    # bar where price breaks the level, not the bar after.
+                    _ob = (_fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=2)
+                           if intv != 'day'
+                           else _fetch_daily_history(symbol, _mkey, _murl, bars=2))
+                    prev_lhs_val = float(_ob[-1].get('open', 0) or 0) if _ob else None
+                    _prev_lbl = 'bar open'
+                else:
+                    prev_lhs_val, bars = _prev_lhs()
+                    _prev_lbl = 'bar 2 (prev)'
                 if prev_lhs_val is None:
                     return None, f'Could not get previous bar {lhs_name}'
                 prev_rhs = rhs
@@ -899,7 +911,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
-                          f"Bar 2 (prev): {lhs_name} = {_fmt(prev_lhs_val)}, "
+                          f"{_prev_lbl.capitalize()}: {lhs_name} = {_fmt(prev_lhs_val)}, "
                           f"threshold = {rhs_name}; "
                           f"Bar 1 (curr): {lhs_name} = {_fmt(lhs)}")
             else:
@@ -1016,27 +1028,20 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     return None, f'Could not compute previous {right_metric.upper()}({right_period})'
                 # Previous LHS value
                 if metric == 'current_price':
-                    # Use the SECOND-TO-LAST bar as "previous completed bar".
-                    # rhs_bars[-1] may be the currently-forming period (incomplete),
-                    # so using it as "prev" can cause spurious cross signals.
-                    # rhs_bars[-2] is guaranteed to be a fully-closed bar.
-                    if rhs_bars and len(rhs_bars) >= 2:
-                        prev_lhs_val = float(rhs_bars[-2].get('close', 0) or 0)
-                    elif rhs_bars:
-                        prev_lhs_val = float(rhs_bars[-1].get('close', 0) or 0)
+                    # Within-bar breach (matches the options backtester): the
+                    # "from below / from above" reference is THIS currently-forming
+                    # bar's OPEN compared against the CURRENT comparator, and the
+                    # live price must land on the other side.  This fires on the
+                    # exact bar where price breaks the line, not the bar after.
+                    if rhs_bars:
+                        prev_lhs_val = float(rhs_bars[-1].get('open', 0) or 0)
                     else:
                         prev_lhs_val = None
-                    # Also recompute prev_rhs_raw using all bars up to and including
-                    # the penultimate bar (i.e. rhs_bars[:-1]) so that prev_lhs and
-                    # prev_rhs are both anchored to the same last-completed period.
-                    prev_rhs_slice = rhs_bars[:-1] if len(rhs_bars) > 1 else rhs_bars
-                    prev_rhs_raw = _compute_bar_metric(right_metric, right_period,
-                                                       prev_rhs_slice, day=0,
-                                                       series='close')
-                    if prev_rhs_raw is None:
-                        return None, f'Could not recompute previous {right_metric.upper()}({right_period})'
+                    prev_rhs_raw = raw_rhs
+                    _prev_lbl = 'bar open'
                 else:
                     prev_lhs_val = _cbm(bars[:-1], d=0) if bars and len(bars) > 1 else None
+                    _prev_lbl = 'bar -2'
                 if prev_lhs_val is None:
                     return None, f'Could not get previous {lhs_name} for cross detection'
                 # Convention matches the backtester:
@@ -1049,7 +1054,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
-                          f"Prev (bar -2): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
+                          f"Prev ({_prev_lbl}): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
                           f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)}")
             else:
                 rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
