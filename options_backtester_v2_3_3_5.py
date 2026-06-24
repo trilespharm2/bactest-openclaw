@@ -1806,6 +1806,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     # price: use the bar's own multiplier so we look exactly one bar back
                     _ltf_mins = int(left_params.get('multiplier', 1))
                 _prev_left_ts = bar_timestamp - _ltf_mins * 60000
+                _within_bar_cross = False
 
                 # Previous left value
                 if metric in ('sma', 'ema', 'vwap'):
@@ -1816,15 +1817,20 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         print(f"  [cross] WARN: prev_left=None for key={_lkey} prev_ts={_prev_left_ts} "
                               f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
                 elif metric == 'price':
-                    # Asymmetric "Current Price" cross: the previous bar is read
-                    # from the OPEN series while the current bar keeps using its
-                    # VWAP (the current price). Falls back to the VWAP price cache
-                    # if the open series is unavailable.
+                    # Within-bar breach "Current Price" cross: compare THIS bar's
+                    # OPEN against THIS bar's comparator (prev_right is overridden to
+                    # the current comparator below) while the current bar keeps using
+                    # its VWAP (the current price). This fires on the bar that actually
+                    # breaches the line — the first instance — instead of the bar after.
+                    # Falls back to the previous-bar VWAP cache when the open series is
+                    # unavailable.
                     if left_params.get('current_price') and indicators_cache.get('price_open'):
+                        _within_bar_cross = True
                         _price_cache = indicators_cache.get('price_open', {})
+                        prev_left = find_closest_indicator_value(_price_cache, bar_timestamp)
                     else:
                         _price_cache = indicators_cache.get('price', {})
-                    prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
+                        prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
                     if prev_left is None and not indicators_cache.get('_price_cache_diag_done'):
                         _pkeys = sorted(_price_cache.keys())
                         _pkey_sample = _pkeys[:3] + _pkeys[-3:] if len(_pkeys) >= 6 else _pkeys
@@ -1868,13 +1874,18 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     _rw = int(right_params.get('window', 14))
                     _rkey = f'{right_metric}_w{_rw}_t{_rtf_mins}'
                     prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_right_ts)
-                    if prev_right is None:
+                    if prev_right is None and not _within_bar_cross:
                         print(f"  [cross] WARN: prev_right=None for key={_rkey} prev_ts={_prev_right_ts} "
                               f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
                 elif right_metric == 'price':
                     prev_right = find_closest_indicator_value(indicators_cache.get('price', {}), _prev_right_ts)
                 else:
                     prev_right = None
+
+                # Within-bar breach: the "from below/above" reference is THIS bar's
+                # open compared to THIS bar's comparator, so use the current comparator.
+                if _within_bar_cross:
+                    prev_right = right_value
 
                 if prev_left is not None and prev_right is not None:
                     _cross_up   = prev_left < prev_right and left_value >= right_value
@@ -5182,7 +5193,10 @@ def run_backtest(config: Dict, client: RESTClient):
                 decision_log.append(day_entry)
                 continue
             
-            underlying_price = entry_bar['open']
+            # Use the entry bar's VWAP as the underlying reference so it matches the
+            # "Current Price" the entry signal is measured on (falls back to close).
+            _entry_vw = entry_bar.get('vw')
+            underlying_price = _entry_vw if _entry_vw is not None else entry_bar['close']
             entry_time = entry_bar['time']
             entry_timestamp = entry_bar['timestamp']
             exp_date = exp_map[date_str]

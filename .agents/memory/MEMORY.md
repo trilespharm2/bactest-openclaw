@@ -2,3 +2,4 @@
 - [Backtest sweep harness](backtest-sweep-harness.md) — fetch data once, reuse df (no copy), suppress stdout, run foreground/chunked (background procs get killed on bash return).
 - [Stock engine indicator perf](stock-engine-indicator-perf.md) — stock engine recomputed rolling indicators per-bar (O(n²)); fixed with per-day causal cache mirroring options engine, exact parity.
 - [Stock backtest resilience](stock-backtest-resilience.md) — stock backtests must run as detached subprocess; status = disk metadata + PID liveness, never in-memory; don't blind-fail running rows on startup.
+- [Options Current Price cross semantics](options-currentprice-cross-semantics.md) — cross_up/down fires on the breach bar itself (this bar's open vs this bar's comparator + current VWAP), not the bar after; entry fills on VWAP.
