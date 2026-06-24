@@ -9,7 +9,7 @@ import os
 import threading
 import urllib.parse
 import requests
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -517,6 +517,30 @@ def _fetch_intraday_bars(symbol, interval, api_key, base_url,
             })
         except Exception:
             pass
+    return bars
+
+
+def _drop_forming_bar(bars, interval):
+    """Return `bars` with any in-progress (currently-forming) trailing bar removed.
+
+    Intraday indicator crosses must mirror the chart, which only plots FINISHED
+    candles.  Tradier's timesales may append a partial bar for the current
+    minute/bucket; including it would distort the moving average and, depending
+    on the exact second the scheduler ticks, shift which bar counts as the
+    "previous" candle.  We drop the trailing bar only when its start time falls
+    inside the still-open interval bucket for "now" (so a just-closed bar is
+    kept and a partial one is dropped — making "previous candle" deterministic).
+    """
+    if not bars:
+        return bars
+    secs = {'1min': 60, '5min': 300, '15min': 900}.get(interval, 60)
+    try:
+        last_t = datetime.fromisoformat(str(bars[-1].get('time', '')))
+    except Exception:
+        return bars
+    now_et = _now_et().replace(tzinfo=None)
+    if last_t <= now_et < (last_t + timedelta(seconds=secs)):
+        return bars[:-1]
     return bars
 
 
@@ -1057,21 +1081,31 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 _pb_open = None   # prev-bar open (prev-bar gate, current_price only)
                 _pb_cmp  = None   # comparator at the previous bar
                 if metric == 'current_price':
-                    # Within-bar breach (matches the options backtester): the
-                    # "from below / from above" reference is THIS currently-forming
-                    # bar's OPEN compared against the CURRENT comparator, and the
-                    # live price must land on the other side.  This fires on the
-                    # exact bar where price breaks the line, not the bar after.
-                    prev_lhs_val = _bar_open(rhs_bars[-1]) if rhs_bars else None
-                    # Prev-bar gate: also require the PREVIOUS bar's open on the
-                    # correct side of the comparator at that previous bar.  The
-                    # previous-bar comparator was already computed above as
-                    # prev_rhs_raw (lookback-aligned) — capture it before overwrite.
-                    _pb_cmp = prev_rhs_raw
-                    if len(rhs_bars) >= 2:
-                        _pb_open = _bar_open(rhs_bars[-2])
+                    # CHART-ALIGNED cross: anchor the moving average and the
+                    # "previous candle" to FINISHED candles only.  Drop any
+                    # in-progress bar so (a) the average matches what the chart
+                    # draws (no partial bar mixed in) and (b) scheduler timing
+                    # can't shift which candle counts as "previous".  The live
+                    # price (lhs) stays the value that crosses the line, so
+                    # entries remain intra-bar (no waiting for the candle close).
+                    completed = _drop_forming_bar(rhs_bars, intv)
+                    c_slice = (completed[:len(completed) - right_lookback]
+                               if right_lookback > 0 else completed)
+                    if not c_slice:
+                        return None, f'Not enough finished bars for {right_metric.upper()} cross detection'
+                    _cmp = _compute_bar_metric(right_metric, right_period, c_slice,
+                                               day=0, series='close')
+                    if _cmp is None:
+                        return None, f'Could not compute {right_metric.upper()}({right_period})'
+                    # Comparator = the MA through the last FINISHED candle — the
+                    # same value the chart plots — used for both the prev-candle
+                    # gate and the live-price cross.
+                    raw_rhs = _cmp
+                    _pb_cmp = _cmp
+                    prev_lhs_val = _bar_open(c_slice[-1])   # last finished candle's OPEN
+                    _pb_open = prev_lhs_val
                     prev_rhs_raw = raw_rhs
-                    _prev_lbl = 'bar open'
+                    _prev_lbl = 'prev candle open'
                 else:
                     prev_lhs_val = _cbm(bars[:-1], d=0) if bars and len(bars) > 1 else None
                     _prev_lbl = 'bar -2'
