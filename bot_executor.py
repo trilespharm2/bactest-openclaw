@@ -868,6 +868,16 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
         else:
             return _cbm(bars, d=day - 1), bars
 
+    def _bar_open(b):
+        """A bar's open as a positive float, or None if missing/invalid.
+        Used by the prev-bar cross gate so missing data fails the gate (no fire)
+        instead of silently coercing to 0."""
+        try:
+            v = float((b or {}).get('open'))
+            return v if v > 0 else None
+        except (TypeError, ValueError):
+            return None
+
     # ── Compute RHS & evaluate ────────────────────────────────────────────────
     thresh_unit  = cfg.get('thresholdUnit', 'percent')
     thresh_value = cfg.get('thresholdValue', '')
@@ -885,6 +895,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 return None, f"Invalid threshold value '{cv}'"
 
             if is_cross:
+                _pb_open = None   # prev-bar open (prev-bar gate, current_price only)
                 if metric == 'current_price':
                     # Within-bar breach (matches the options backtester): compare
                     # THIS currently-forming bar's OPEN against the threshold; the
@@ -892,8 +903,12 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     # bar where price breaks the level, not the bar after.
                     _ob = (_fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=2)
                            if intv != 'day'
-                           else _fetch_daily_history(symbol, _mkey, _murl, bars=2))
-                    prev_lhs_val = float(_ob[-1].get('open', 0) or 0) if _ob else None
+                           else _fetch_daily_history(symbol, _mkey, _murl, bars=3))
+                    prev_lhs_val = _bar_open(_ob[-1]) if _ob else None
+                    # Prev-bar gate: also require the PREVIOUS bar's open below/above
+                    # the threshold.
+                    if _ob and len(_ob) >= 2:
+                        _pb_open = _bar_open(_ob[-2])
                     _prev_lbl = 'bar open'
                 else:
                     prev_lhs_val, bars = _prev_lhs()
@@ -906,8 +921,12 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 #   crosses_below: prev strictly above → curr at or below (prev > rhs, curr <= rhs)
                 if operator == 'crosses_above':
                     ok = (prev_lhs_val < prev_rhs) and (lhs >= rhs)
+                    if metric == 'current_price':
+                        ok = ok and (_pb_open is not None and _pb_open < rhs)
                 else:
                     ok = (prev_lhs_val > prev_rhs) and (lhs <= rhs)
+                    if metric == 'current_price':
+                        ok = ok and (_pb_open is not None and _pb_open > rhs)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
@@ -1027,16 +1046,22 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 if prev_rhs_raw is None:
                     return None, f'Could not compute previous {right_metric.upper()}({right_period})'
                 # Previous LHS value
+                _pb_open = None   # prev-bar open (prev-bar gate, current_price only)
+                _pb_cmp  = None   # comparator at the previous bar
                 if metric == 'current_price':
                     # Within-bar breach (matches the options backtester): the
                     # "from below / from above" reference is THIS currently-forming
                     # bar's OPEN compared against the CURRENT comparator, and the
                     # live price must land on the other side.  This fires on the
                     # exact bar where price breaks the line, not the bar after.
-                    if rhs_bars:
-                        prev_lhs_val = float(rhs_bars[-1].get('open', 0) or 0)
-                    else:
-                        prev_lhs_val = None
+                    prev_lhs_val = _bar_open(rhs_bars[-1]) if rhs_bars else None
+                    # Prev-bar gate: also require the PREVIOUS bar's open on the
+                    # correct side of the comparator at that previous bar.  The
+                    # previous-bar comparator was already computed above as
+                    # prev_rhs_raw (lookback-aligned) — capture it before overwrite.
+                    _pb_cmp = prev_rhs_raw
+                    if len(rhs_bars) >= 2:
+                        _pb_open = _bar_open(rhs_bars[-2])
                     prev_rhs_raw = raw_rhs
                     _prev_lbl = 'bar open'
                 else:
@@ -1049,8 +1074,12 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 #   crosses_below: prev strictly above indicator → curr at or below (prev > rhs, curr <= rhs)
                 if operator == 'crosses_above':
                     ok = (prev_lhs_val < prev_rhs_raw) and (lhs >= raw_rhs)
+                    if metric == 'current_price':
+                        ok = ok and (_pb_open is not None and _pb_cmp is not None and _pb_open < _pb_cmp)
                 else:
                     ok = (prev_lhs_val > prev_rhs_raw) and (lhs <= raw_rhs)
+                    if metric == 'current_price':
+                        ok = ok and (_pb_open is not None and _pb_cmp is not None and _pb_open > _pb_cmp)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "

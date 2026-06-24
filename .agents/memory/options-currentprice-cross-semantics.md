@@ -5,8 +5,9 @@ description: How the options engine times cross_up/cross_down for the "Current P
 
 For the OPTIONS backtester ("Current Price" metric, i.e. `left.current_price=true`), a `cross_up`/`cross_down` fires on the **breach bar itself**, not the bar after:
 
-- `cross_up` = THIS bar's OPEN below the comparator AND THIS bar's current price (VWAP, falls back to close) at/above the comparator.
-- `cross_down` = mirror (open above, VWAP at/below).
+- `cross_up` = PREVIOUS bar's OPEN below the comparator AND THIS bar's OPEN below the comparator AND THIS bar's current price (VWAP, falls back to close) at/above the comparator.
+- `cross_down` = mirror (prev open above, this open above, VWAP at/below).
+- The previous-bar-open gate fails closed: if the previous bar's open or comparator is unavailable, the cross does NOT fire.
 - Implemented via a `_within_bar_cross` flag in `evaluate_price_conditions_with_cache`: `prev_left` reads the `price_open` cache at the **current** `bar_timestamp` (not the previous bar), and `prev_right` is overridden to the current comparator (`right_value`).
 - Requires the `price_open` cache; if absent it falls back to the older lagged semantics (previous bar's open/VWAP).
 

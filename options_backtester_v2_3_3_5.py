@@ -1807,6 +1807,8 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     _ltf_mins = int(left_params.get('multiplier', 1))
                 _prev_left_ts = bar_timestamp - _ltf_mins * 60000
                 _within_bar_cross = False
+                _prev_bar_open = None
+                _prev_bar_comparator = None
 
                 # Previous left value
                 if metric in ('sma', 'ema', 'vwap'):
@@ -1828,6 +1830,8 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         _within_bar_cross = True
                         _price_cache = indicators_cache.get('price_open', {})
                         prev_left = find_closest_indicator_value(_price_cache, bar_timestamp)
+                        # Also grab the PREVIOUS bar's open for the prev-bar gate.
+                        _prev_bar_open = find_closest_indicator_value(_price_cache, _prev_left_ts)
                     else:
                         _price_cache = indicators_cache.get('price', {})
                         prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
@@ -1884,12 +1888,25 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
 
                 # Within-bar breach: the "from below/above" reference is THIS bar's
                 # open compared to THIS bar's comparator, so use the current comparator.
+                # Capture the previous bar's comparator first (for the prev-bar gate).
                 if _within_bar_cross:
+                    _prev_bar_comparator = prev_right
                     prev_right = right_value
 
                 if prev_left is not None and prev_right is not None:
                     _cross_up   = prev_left < prev_right and left_value >= right_value
                     _cross_down = prev_left > prev_right and left_value <= right_value
+                    # Prev-bar gate: for the within-bar "Current Price" cross, also
+                    # require the PREVIOUS bar's open on the same side of its comparator
+                    # (below for cross_up, above for cross_down). If the previous bar's
+                    # data is unavailable we cannot confirm it, so the cross does not fire.
+                    if _within_bar_cross:
+                        _pb_below = (_prev_bar_open is not None and _prev_bar_comparator is not None
+                                     and _prev_bar_open < _prev_bar_comparator)
+                        _pb_above = (_prev_bar_open is not None and _prev_bar_comparator is not None
+                                     and _prev_bar_open > _prev_bar_comparator)
+                        _cross_up   = _cross_up   and _pb_below
+                        _cross_down = _cross_down and _pb_above
                     if operator == 'cross_up':
                         met = _cross_up
                     elif operator == 'cross_down':
