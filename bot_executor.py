@@ -795,9 +795,13 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
         if v is None: return 'N/A'
         try:
             f = float(v)
-            return f'{f:.4g}' if abs(f) < 10000 else f'{f:.0f}'
         except Exception:
             return str(v)
+        # Prices/indicators: keep 2 decimals so borderline cross checks are
+        # readable (e.g. 7415.24 vs 7419.90). Large counts (volume) → no decimals.
+        if abs(f) >= 100000:
+            return f'{f:,.0f}'
+        return f'{f:.2f}'
 
     def _mn(m, p=None):
         _p = p or period
