@@ -1894,19 +1894,22 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     prev_right = right_value
 
                 if prev_left is not None and prev_right is not None:
-                    _cross_up   = prev_left < prev_right and left_value >= right_value
-                    _cross_down = prev_left > prev_right and left_value <= right_value
-                    # Prev-bar gate: for the within-bar "Current Price" cross, also
-                    # require the PREVIOUS bar's open on the same side of its comparator
-                    # (below for cross_up, above for cross_down). If the previous bar's
-                    # data is unavailable we cannot confirm it, so the cross does not fire.
                     if _within_bar_cross:
+                        # Within-bar "Current Price" cross: the direction is gated by
+                        # the PREVIOUS bar's open being on the right side of its
+                        # comparator (below for cross_up, above for cross_down) plus
+                        # the current price crossing the line. The current bar's open
+                        # need NOT be on either side. If the previous bar's data is
+                        # unavailable we cannot confirm the gate, so it does not fire.
                         _pb_below = (_prev_bar_open is not None and _prev_bar_comparator is not None
                                      and _prev_bar_open < _prev_bar_comparator)
                         _pb_above = (_prev_bar_open is not None and _prev_bar_comparator is not None
                                      and _prev_bar_open > _prev_bar_comparator)
-                        _cross_up   = _cross_up   and _pb_below
-                        _cross_down = _cross_down and _pb_above
+                        _cross_up   = _pb_below and left_value >= right_value
+                        _cross_down = _pb_above and left_value <= right_value
+                    else:
+                        _cross_up   = prev_left < prev_right and left_value >= right_value
+                        _cross_down = prev_left > prev_right and left_value <= right_value
                     if operator == 'cross_up':
                         met = _cross_up
                     elif operator == 'cross_down':

@@ -920,13 +920,17 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 #   crosses_above: prev strictly below → curr at or above (prev < rhs, curr >= rhs)
                 #   crosses_below: prev strictly above → curr at or below (prev > rhs, curr <= rhs)
                 if operator == 'crosses_above':
-                    ok = (prev_lhs_val < prev_rhs) and (lhs >= rhs)
                     if metric == 'current_price':
-                        ok = ok and (_pb_open is not None and _pb_open < rhs)
+                        # Current bar's open need NOT be below the line — only the
+                        # previous bar's open gates direction, plus the live price.
+                        ok = (lhs >= rhs) and (_pb_open is not None and _pb_open < rhs)
+                    else:
+                        ok = (prev_lhs_val < prev_rhs) and (lhs >= rhs)
                 else:
-                    ok = (prev_lhs_val > prev_rhs) and (lhs <= rhs)
                     if metric == 'current_price':
-                        ok = ok and (_pb_open is not None and _pb_open > rhs)
+                        ok = (lhs <= rhs) and (_pb_open is not None and _pb_open > rhs)
+                    else:
+                        ok = (prev_lhs_val > prev_rhs) and (lhs <= rhs)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
@@ -1073,13 +1077,17 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 #   crosses_above: prev strictly below indicator → curr at or above (prev < rhs, curr >= rhs)
                 #   crosses_below: prev strictly above indicator → curr at or below (prev > rhs, curr <= rhs)
                 if operator == 'crosses_above':
-                    ok = (prev_lhs_val < prev_rhs_raw) and (lhs >= raw_rhs)
                     if metric == 'current_price':
-                        ok = ok and (_pb_open is not None and _pb_cmp is not None and _pb_open < _pb_cmp)
+                        # Current bar's open need NOT be below the comparator — only
+                        # the previous bar's open gates direction, plus the live price.
+                        ok = (lhs >= raw_rhs) and (_pb_open is not None and _pb_cmp is not None and _pb_open < _pb_cmp)
+                    else:
+                        ok = (prev_lhs_val < prev_rhs_raw) and (lhs >= raw_rhs)
                 else:
-                    ok = (prev_lhs_val > prev_rhs_raw) and (lhs <= raw_rhs)
                     if metric == 'current_price':
-                        ok = ok and (_pb_open is not None and _pb_cmp is not None and _pb_open > _pb_cmp)
+                        ok = (lhs <= raw_rhs) and (_pb_open is not None and _pb_cmp is not None and _pb_open > _pb_cmp)
+                    else:
+                        ok = (prev_lhs_val > prev_rhs_raw) and (lhs <= raw_rhs)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
