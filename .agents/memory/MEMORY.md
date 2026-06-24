@@ -3,3 +3,4 @@
 - [Stock engine indicator perf](stock-engine-indicator-perf.md) — stock engine recomputed rolling indicators per-bar (O(n²)); fixed with per-day causal cache mirroring options engine, exact parity.
 - [Stock backtest resilience](stock-backtest-resilience.md) — stock backtests must run as detached subprocess; status = disk metadata + PID liveness, never in-memory; don't blind-fail running rows on startup.
 - [Options Current Price cross semantics](options-currentprice-cross-semantics.md) — cross_up/down fires on the breach bar itself (this bar's open vs this bar's comparator + current VWAP), not the bar after; entry fills on VWAP.
+- [/tmp logs are snapshots](tmp-logs-are-snapshots.md) — refresh_all_logs writes point-in-time files; re-call it after a restart, don't re-tail the old snapshot.

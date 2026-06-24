@@ -2128,17 +2128,20 @@ def _exec_steps_branch(steps, ctx):
                 return False, log
 
         elif stype == 'metric':
-            ok = eval_metric(scfg, ctx['api_key'], ctx['base_url'], ctx['primary_symbol'],
-                             mkt_api_key=ctx.get('mkt_api_key'),
-                             mkt_base_url=ctx.get('mkt_base_url'))
+            ok, _m_detail = eval_metric_verbose(
+                scfg, ctx['api_key'], ctx['base_url'], ctx['primary_symbol'],
+                mkt_api_key=ctx.get('mkt_api_key'),
+                mkt_base_url=ctx.get('mkt_base_url'))
             if ok is None:
-                log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped")
+                log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped"
+                           + (f" — {_m_detail}" if _m_detail else ''))
                 if has_branch:
                     return _exec_steps_branch(no_steps, ctx)
                 return False, log
             log.append(f"[{n}] METRIC ({scfg.get('metric')} "
                        f"{scfg.get('operator')} {scfg.get('value')}): "
-                       f"{'✓ YES' if ok else '✗ NO'}")
+                       f"{'✓ YES' if ok else '✗ NO'}"
+                       + (f" — {_m_detail}" if _m_detail else ''))
             if has_branch:
                 return _exec_steps_branch(yes_steps if ok else no_steps, ctx)
             if not ok:
