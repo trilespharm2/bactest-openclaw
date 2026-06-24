@@ -559,7 +559,10 @@ function _renderOptDtPage() {
 
         // Candlestick chart — only rendered for days that actually entered a trade
         var _hasEntry = (day.events || []).some(function(e){ return e.type === 'entry'; });
-        var hasBars   = _hasEntry && day.bars && day.bars.length > 0;
+        // Intraday bars are stripped from the bulk decision-log payload (only a
+        // has_bars flag is left behind); they're fetched on demand when the day
+        // is expanded.  multi_day_bars are NOT stripped, so check those too.
+        var hasBars   = _hasEntry && (day.has_bars || (day.bars && day.bars.length > 0) || (day.multi_day_bars && Object.keys(day.multi_day_bars).length > 0));
         if (hasBars) {
             var _eT = day.entry_time || null;
             var _eEvt = (day.events || []).find(function(e) { return e.type === 'entry'; });
@@ -598,7 +601,27 @@ function _toTs(dateStr, timeStr) {
     return Date.UTC(+p[0], +p[1] - 1, +p[2], +t[0], +t[1]) / 1000;
 }
 
-function _toggleDtDay(headerEl) {
+async function _ensureDtBars(stored, idx) {
+    // Intraday bars are stripped from the bulk decision-log payload to keep it
+    // small; fetch this single day's bars on demand the first time its chart is
+    // opened.  multi_day_bars are NOT stripped, so skip the fetch when present.
+    if (!stored || !stored.day) return;
+    var hasInline = (stored.bars && stored.bars.length > 0) ||
+                    (stored.multi_day_bars && Object.keys(stored.multi_day_bars).length > 0);
+    if (hasInline || !stored.day.has_bars || !_optDetailState.id) return;
+    try {
+        var resp = await authFetch('/api/files/decision-log/' + _optDetailState.id + '/day/' + idx);
+        if (resp.ok) {
+            var d = await resp.json();
+            stored.bars = d.bars || [];
+            stored.day.bars = stored.bars;
+            if (d.seed_bars) stored.day.seed_bars = d.seed_bars;
+            if (d.seed_date) stored.day.seed_date = d.seed_date;
+        }
+    } catch (e) { console.warn('Could not load options day bars:', e); }
+}
+
+async function _toggleDtDay(headerEl) {
     var body = headerEl.nextElementSibling;
     var wasHidden = body.style.display === 'none';
     body.style.display = wasHidden ? 'block' : 'none';
@@ -608,6 +631,7 @@ function _toggleDtDay(headerEl) {
         var idx = parseInt(chartDiv.getAttribute('data-chart-day-idx'));
         var stored = _dtChartData[idx];
         if (!stored) return;
+        await _ensureDtBars(stored, idx);
         if (!stored.chart) {
             stored.chart = _buildLwChart(chartDiv, stored, false);
         } else {
@@ -816,10 +840,11 @@ function _dtRebuildModalChart() {
     }, 40);
 }
 
-function _openDtChartModal(idx) {
+async function _openDtChartModal(idx) {
     idx = parseInt(idx);
     var stored = _dtChartData[idx];
     if (!stored) return;
+    await _ensureDtBars(stored, idx);
     document.getElementById('dtChartModalTitle').textContent = (stored.day.symbol || '') + (stored.day.strategy ? '  ·  ' + stored.day.strategy : '');
     var _modalDateLabel = stored.day.date;
     if (stored.exitDate && stored.exitDate !== stored.day.date) _modalDateLabel = stored.day.date + ' → ' + stored.exitDate;
