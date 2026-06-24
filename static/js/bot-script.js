@@ -582,6 +582,15 @@ function _strikeSummary(parsedLegs) {
 }
 
 /** Render a single order as a collapsible card */
+function _fmtOrderDateTime(iso) {
+  // Tradier timestamps look like "2026-06-24T14:30:05.123Z" or with an offset.
+  // Show "YYYY-MM-DD HH:MM:SS" exactly as reported (no timezone conversion).
+  if (!iso) return '';
+  const [d, t] = String(iso).split('T');
+  if (!t) return d;
+  return `${d} ${t.slice(0, 8)}`;
+}
+
 function _renderOrderCard(o) {
   const rawLegs = o.leg ? (Array.isArray(o.leg) ? o.leg : [o.leg]) : null;
   const isMulti  = o.class === 'multileg' && rawLegs?.length > 0;
@@ -611,7 +620,11 @@ function _renderOrderCard(o) {
   const priceStr    = o.price ? _fmt$(parseFloat(o.price)) : (o.stop_price ? 'Stop '+_fmt$(parseFloat(o.stop_price)) : 'Mkt');
   const typeStr     = (o.type||'').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   const canCancel   = ['open','pending','partially_filled'].includes(o.status);
-  const dateStr     = o.create_date ? o.create_date.split('T')[0] : '';
+  // For a filled/canceled order, transaction_date is when it actually filled;
+  // otherwise fall back to when it was placed (create_date).
+  const _orderTs    = ((o.status === 'filled' || o.status === 'partially_filled' || o.status === 'canceled')
+                       && o.transaction_date) ? o.transaction_date : o.create_date;
+  const dateStr     = _fmtOrderDateTime(_orderTs);
   const hasLegs     = parsedLegs.length > 0;
 
   const titleHtml = `${stratName} <span style="color:#6366f1;">${o.symbol}</span>`
