@@ -1928,8 +1928,19 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             return False, "Option symbols missing for spread legs"
         net = max(0.01, round(abs(_mid(short_opt) - _mid(long_opt)), 2))
 
-        # Price range filter
-        ok, msg = _check_price_range(net, is_credit)
+        # Price range filter.  A MARKET order does NOT fill at the mid: the leg
+        # you sell fills near the BID and the leg you buy fills near the ASK, so
+        # the credit you actually receive (or debit you pay) is worse than the
+        # mid estimate.  Check the filter against that conservative, executable
+        # net so a "min credit" reflects what a market order can really fill at
+        # — otherwise a tight spread can slip in far below the minimum.
+        if otype == 'market':
+            sb = float(short_opt.get('bid', 0) or 0)   # leg we SELL → fills ≈ bid
+            la = float(long_opt.get('ask', 0) or 0)    # leg we BUY  → fills ≈ ask
+            exec_net = round(sb - la if is_credit else la - sb, 2)
+            ok, msg = _check_price_range(exec_net, is_credit)
+        else:
+            ok, msg = _check_price_range(net, is_credit)
         if not ok:
             return False, msg
 
