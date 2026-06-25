@@ -1250,10 +1250,32 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     # overnight gap.  Skip until a finished bar from today exists.
                     if intv != 'day':
                         try:
-                            _last_fin = datetime.fromisoformat(str(c_slice[-1].get('time', '')))
-                            if _last_fin.date() != _now_et().replace(tzinfo=None).date():
+                            # Use the true latest FINISHED bar (before any
+                            # rightLookback offset) so the lookback's intentional
+                            # shift isn't mistaken for feed lag.
+                            _last_fin = datetime.fromisoformat(str(completed[-1].get('time', '')))
+                            _now_naive = _now_et().replace(tzinfo=None)
+                            if _last_fin.date() != _now_naive.date():
                                 return None, ('No finished bar in the current session yet — '
                                               'skipping cross to avoid an overnight-gap false signal')
+                            # Staleness guard: the live price (lhs) comes from the
+                            # real-time quote, but the comparator MA is built from
+                            # intraday bars.  When the bar feed lags (provider
+                            # delay), comparing a FRESH price against a STALE MA
+                            # latches a phantom side and silently swallows real
+                            # crosses.  Skip (without touching the latch) until the
+                            # bars catch up; the next fresh eval re-syncs the side
+                            # and fires any cross that completed during the gap.
+                            _intv_secs = {'1min': 60, '5min': 300,
+                                          '15min': 900}.get(intv, 60)
+                            _stale_limit = max(_intv_secs * 5, 300)
+                            _lag = (_now_naive - _last_fin).total_seconds()
+                            if _lag > _stale_limit:
+                                return None, (
+                                    f'Intraday {intv} bars are stale (last finished '
+                                    f'{int(_lag)}s ago, limit {_stale_limit}s) — '
+                                    f'skipping cross to avoid comparing a live price '
+                                    f'against a stale MA')
                         except (ValueError, TypeError, AttributeError):
                             pass
                     _cmp = _compute_bar_metric(right_metric, right_period, c_slice,
