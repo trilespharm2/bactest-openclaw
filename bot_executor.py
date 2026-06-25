@@ -43,28 +43,76 @@ def _save_tag_store(store):
         logger.warning(f"bot_tag_store: could not save: {e}")
 
 
+# A freshly-placed order that has NOT yet been seen open in /positions is kept
+# in the active count until this age elapses, after which we assume it was
+# canceled/rejected and never filled.  Protects the position cap against fills
+# that take a long time to reflect (Tradier sandbox can lag many minutes)
+# while still letting truly-dead orders fall off.
+_TAG_NEVERSEEN_MAX_AGE = 6 * 3600  # seconds
+
+
+def _bucket_syms(bucket):
+    """Option symbols for a stored order bucket (handles legacy list + dict)."""
+    if isinstance(bucket, dict):
+        return [str(s).upper() for s in bucket.get('syms', []) if s]
+    if isinstance(bucket, list):
+        return [str(s).upper() for s in bucket if s]
+    return []
+
+
+def _bucket_ts(bucket):
+    """Placement epoch for a stored order bucket (0.0 if unknown/legacy)."""
+    if isinstance(bucket, dict):
+        try:
+            return float(bucket.get('ts') or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
+def _tracked_tag_order_ids(account_id, tag):
+    """Order ids the store already tracks for *tag* (so callers can avoid
+    double-counting the same order from another source, e.g. broker orders)."""
+    key = f"{account_id}:{tag}"
+    with _tag_store_lock:
+        store = _load_tag_store()
+    entry = store.get(key, {})
+    if isinstance(entry, dict):
+        return {str(k) for k in entry.keys()}
+    return set()
+
+
 def _register_tag_symbols(account_id, tag, option_symbols, order_id=None):
     """Record that *option_symbols* were opened under user tag *tag*.
 
     Store is keyed by order_id so we can later count TRADES (not legs).
-    Schema:  { "<account_id>:<tag>" : { "<order_id>": ["SYM1", "SYM2"] } }
+    Schema:  { "<account_id>:<tag>" :
+                 { "<order_id>": {"syms": ["SYM1","SYM2"], "ts": <epoch>,
+                                   "seen": <bool>} } }
+    The "ts"/"seen" fields let the position-count condition keep a just-placed
+    order in the count before the broker reflects the fill in /positions, then
+    drop it once it has been observed open and later closed.
     """
     if not tag or not option_symbols:
         return
     key   = f"{account_id}:{tag}"
     oid   = str(order_id) if order_id else '_noId'
     syms  = [str(s).upper() for s in option_symbols if s]
+    now   = datetime.now().timestamp()
     with _tag_store_lock:
         store = _load_tag_store()
         entry = store.get(key, {})
         # Migrate old flat-list format → dict
         if isinstance(entry, list):
             entry = {'_legacy': entry}
-        bucket = entry.get(oid, [])
+        prev   = entry.get(oid)
+        merged = list(_bucket_syms(prev))
         for s in syms:
-            if s not in bucket:
-                bucket.append(s)
-        entry[oid] = bucket
+            if s not in merged:
+                merged.append(s)
+        prev_ts   = _bucket_ts(prev) or now
+        prev_seen = bool(prev.get('seen')) if isinstance(prev, dict) else False
+        entry[oid] = {'syms': merged, 'ts': prev_ts, 'seen': prev_seen}
         store[key]  = entry
         _save_tag_store(store)
     logger.info(f"bot_tag_store: tag '{tag}' order {oid} → {syms}")
@@ -77,30 +125,72 @@ def _lookup_tag_symbols(account_id, tag):
         store = _load_tag_store()
     entry = store.get(key, {})
     if isinstance(entry, list):
-        return set(entry)
+        return set(s.upper() for s in entry if s)
     result = set()
     for bucket in entry.values():
-        result.update(s.upper() for s in bucket if s)
+        result.update(_bucket_syms(bucket))
     return result
 
 
 def _count_active_tag_trades(account_id, tag, live_pos_syms):
-    """Count TRADES (distinct orders) whose legs are still in *live_pos_syms*.
+    """Count distinct OPEN trades (orders) under *tag*.
 
-    This is what the condition step "position_count with tag X" should return:
-    1 trade = 1, regardless of how many legs that trade has.
+    This backs the condition step "position_count with tag X": 1 trade = 1,
+    regardless of how many legs it has.
+
+    Crucially it does NOT simply require the order's symbols to already be in
+    *live_pos_syms*.  Fills can take seconds (live) to many minutes (sandbox)
+    to appear in the broker's /positions feed; if we waited for that, the cap
+    would read 0 right after placing and let the strategy fire again and again
+    before the first fill ever showed up.  Instead each placed order is counted
+    until we have POSITIVELY seen it open in /positions and then seen it gone:
+
+      • symbols currently in positions          → open  (mark "seen")
+      • never seen open yet, still young         → open  (awaiting reflection)
+      • never seen open, older than max age      → drop  (canceled/rejected)
+      • was seen open before, now absent         → closed → not counted
+
+    Legacy list buckets (pre-dating this tracking) keep the old behaviour:
+    counted only when their symbols are currently live.
     """
     key = f"{account_id}:{tag}"
+    now = datetime.now().timestamp()
+    changed = False
     with _tag_store_lock:
         store = _load_tag_store()
-    entry = store.get(key, {})
-    if isinstance(entry, list):
-        # Old format — treat entire list as one trade if any sym is live
-        return int(bool(set(s.upper() for s in entry) & live_pos_syms))
-    active = 0
-    for bucket in entry.values():
-        if set(s.upper() for s in bucket) & live_pos_syms:
-            active += 1
+        entry = store.get(key, {})
+        if isinstance(entry, list):
+            # Old flat-list format — one trade if any symbol is live.
+            return int(bool(set(s.upper() for s in entry if s) & live_pos_syms))
+        active = 0
+        drop = []
+        for oid, bucket in entry.items():
+            syms     = set(_bucket_syms(bucket))
+            live_hit = bool(syms & live_pos_syms)
+            if not isinstance(bucket, dict):
+                # Legacy per-order list bucket: positions-only behaviour.
+                if live_hit:
+                    active += 1
+                continue
+            seen = bool(bucket.get('seen'))
+            ts   = _bucket_ts(bucket)
+            if live_hit:
+                active += 1
+                if not seen:
+                    bucket['seen'] = True
+                    changed = True
+            elif not seen:
+                if ts and (now - ts) > _TAG_NEVERSEEN_MAX_AGE:
+                    drop.append(oid)
+                    changed = True
+                else:
+                    active += 1
+            # else: seen open before and now absent → closed → not counted
+        for oid in drop:
+            entry.pop(oid, None)
+        if changed:
+            store[key] = entry
+            _save_tag_store(store)
     return active
 
 TRADIER_LIVE_BASE  = 'https://api.tradier.com/v1'
@@ -361,13 +451,17 @@ def eval_condition(cfg, api_key, base_url, account_id):
                              for p in all_positions}
             filled_trades = _count_active_tag_trades(account_id, tag, live_syms)
 
-            # Also count pending orders via Tradier tag field (more reliable
-            # on pending than on filled orders).
+            # Also count tagged pending orders from the broker, but ONLY those
+            # the store does not already track — _count_active_tag_trades now
+            # counts placed-but-unreflected orders itself, so adding tracked
+            # pending orders again would double-count and over-tighten the cap.
+            tracked_ids = _tracked_tag_order_ids(account_id, tag)
             all_orders = _get_all_orders(api_key, base_url, account_id)
             pending = sum(
                 1 for o in all_orders
                 if str(o.get('tag', '') or '').strip() == tag
                 and str(o.get('status', '') or '') in ('open', 'pending', 'partially_filled')
+                and str(o.get('id', '') or '') not in tracked_ids
             )
 
             count = filled_trades + pending
@@ -1093,6 +1187,19 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                                if right_lookback > 0 else completed)
                     if not c_slice:
                         return None, f'Not enough finished bars for {right_metric.upper()} cross detection'
+                    # Intraday crosses must use a "previous candle" from the
+                    # CURRENT session.  At the open the last finished bar belongs
+                    # to the prior trading day; comparing today's gap-up/down
+                    # open against it would fire a phantom cross from the
+                    # overnight gap.  Skip until a finished bar from today exists.
+                    if intv != 'day':
+                        try:
+                            _last_fin = datetime.fromisoformat(str(c_slice[-1].get('time', '')))
+                            if _last_fin.date() != _now_et().replace(tzinfo=None).date():
+                                return None, ('No finished bar in the current session yet — '
+                                              'skipping cross to avoid an overnight-gap false signal')
+                        except (ValueError, TypeError, AttributeError):
+                            pass
                     _cmp = _compute_bar_metric(right_metric, right_period, c_slice,
                                                day=0, series='close')
                     if _cmp is None:
