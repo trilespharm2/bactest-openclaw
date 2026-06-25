@@ -164,3 +164,4 @@ cython_debug/
 
 # Live trading-bot runtime state (account/order IDs) — never commit
 bot_tag_map.json
+bot_cross_state.json

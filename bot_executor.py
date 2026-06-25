@@ -3,6 +3,7 @@ Bot strategy execution engine.
 Called by APScheduler every 30 s; respects per-user poll_interval_sec.
 Only fires during US market hours (Mon-Fri 09:25-16:05 ET).
 """
+import hashlib
 import json
 import logging
 import os
@@ -25,6 +26,61 @@ logger = logging.getLogger(__name__)
 
 _TAG_STORE_PATH = os.path.join(os.path.dirname(__file__), 'bot_tag_map.json')
 _tag_store_lock = threading.Lock()
+
+# Persistent "which side of the line are we on" state for cross detection.
+# Lets a cross fire ONCE per crossing instead of every poll while the live
+# value stays past the comparator.  Keyed by strategy + condition signature.
+_CROSS_STATE_PATH = os.path.join(os.path.dirname(__file__), 'bot_cross_state.json')
+_cross_state_lock = threading.Lock()
+
+
+def _load_cross_state():
+    try:
+        with open(_CROSS_STATE_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError, OSError):
+        return {}
+
+
+def _save_cross_state(store):
+    try:
+        with open(_CROSS_STATE_PATH, 'w') as f:
+            json.dump(store, f)
+    except OSError as e:
+        logger.warning(f"bot_cross_state: could not persist: {e}")
+
+
+def _cross_state_key(strategy_id, symbol, cfg):
+    """Stable per-strategy/per-condition key for the cross side latch.
+    Excludes the operator so crosses_above and crosses_below on the same
+    series share one 'side' truth."""
+    sig_src = {k: v for k, v in (cfg or {}).items() if k != 'operator'}
+    sig = hashlib.md5(
+        json.dumps(sig_src, sort_keys=True, default=str).encode()
+    ).hexdigest()[:12]
+    return f"{strategy_id}|{str(symbol).upper()}|{sig}"
+
+
+def _cross_check_and_flip(key, cur_side, desired, opposite):
+    """Atomically read the stored side, decide whether a flip INTO *desired*
+    just happened, persist the new side, and return (fired, prev_side).
+
+    The read-decide-write happens inside ONE lock so two concurrent
+    evaluations (APScheduler runs strategies on a thread pool) can never both
+    observe the same 'opposite' side and both fire on a single crossing.
+    A never-seen key (prev_side is None) records the side WITHOUT firing."""
+    if cur_side not in ('above', 'below'):
+        return False, None
+    with _cross_state_lock:
+        store = _load_cross_state()
+        entry = store.get(key)
+        prev_side = entry.get('side') if isinstance(entry, dict) else None
+        if prev_side not in ('above', 'below'):
+            prev_side = None
+        fired = (prev_side == opposite) and (cur_side == desired)
+        store[key] = {'side': cur_side, 'ts': datetime.now().timestamp()}
+        _save_cross_state(store)
+    return fired, prev_side
 
 
 def _load_tag_store():
@@ -873,7 +929,7 @@ def _apply_threshold(rhs, unit, value, operator):
 
 
 def eval_metric_verbose(cfg, api_key, base_url, symbol,
-                        mkt_api_key=None, mkt_base_url=None):
+                        mkt_api_key=None, mkt_base_url=None, strategy_id=None):
     """Full metric evaluator. Returns (ok, detail_message).
     ok=None means data unavailable (step should be skipped).
     Handles crosses_above/crosses_below and AND conditions."""
@@ -1221,23 +1277,42 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 # Convention matches the backtester:
                 #   crosses_above: prev strictly below indicator → curr at or above (prev < rhs, curr >= rhs)
                 #   crosses_below: prev strictly above indicator → curr at or below (prev > rhs, curr <= rhs)
-                if operator == 'crosses_above':
-                    if metric == 'current_price':
-                        # Current bar's open need NOT be below the comparator — only
-                        # the previous bar's open gates direction, plus the live price.
-                        ok = (lhs >= raw_rhs) and (_pb_open is not None and _pb_cmp is not None and _pb_open < _pb_cmp)
-                    else:
-                        ok = (prev_lhs_val < prev_rhs_raw) and (lhs >= raw_rhs)
+                # ── Edge-latched cross detection ──────────────────────────────
+                # Fire ONCE, at the instant the live value moves to the far side
+                # of the comparator; never repeat while it stays there.  We
+                # persist the last observed side per strategy+condition and fire
+                # only on a genuine flip (below→above for crosses_above,
+                # above→below for crosses_below), re-arming only after the value
+                # crosses back.  On the first observation (or after a restart) we
+                # just record the side WITHOUT firing, so a value already past the
+                # line can't trigger a phantom entry — the bot then waits for the
+                # NEXT real crossing.  If a fired signal never fills, it is NOT
+                # repeated; the next entry needs a fresh cross.
+                cur_side = 'above' if lhs >= raw_rhs else 'below'
+                desired  = 'above' if operator == 'crosses_above' else 'below'
+                opposite = 'below' if desired == 'above' else 'above'
+                if strategy_id is not None:
+                    _latch_key = _cross_state_key(strategy_id, symbol, cfg)
+                    ok, prev_side = _cross_check_and_flip(
+                        _latch_key, cur_side, desired, opposite)
                 else:
+                    # Stateless preview (dry-run / legacy): compare the last
+                    # finished candle's side to the live side, no persistence.
                     if metric == 'current_price':
-                        ok = (lhs <= raw_rhs) and (_pb_open is not None and _pb_cmp is not None and _pb_open > _pb_cmp)
+                        _ref_lhs, _ref_rhs = _pb_open, _pb_cmp
                     else:
-                        ok = (prev_lhs_val > prev_rhs_raw) and (lhs <= raw_rhs)
+                        _ref_lhs, _ref_rhs = prev_lhs_val, prev_rhs_raw
+                    if _ref_lhs is None or _ref_rhs is None:
+                        prev_side = None
+                    else:
+                        prev_side = 'above' if _ref_lhs >= _ref_rhs else 'below'
+                    ok = (prev_side == opposite) and (cur_side == desired)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
                           f"Prev ({_prev_lbl}): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
-                          f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)}")
+                          f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)} "
+                          f"[latch: was={prev_side or 'none'} → now={cur_side}]")
             else:
                 rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
                 ok = _compare(lhs, operator, rhs)
@@ -2287,7 +2362,8 @@ def _exec_steps_branch(steps, ctx):
             ok, _m_detail = eval_metric_verbose(
                 scfg, ctx['api_key'], ctx['base_url'], ctx['primary_symbol'],
                 mkt_api_key=ctx.get('mkt_api_key'),
-                mkt_base_url=ctx.get('mkt_base_url'))
+                mkt_base_url=ctx.get('mkt_base_url'),
+                strategy_id=ctx.get('strategy_id'))
             if ok is None:
                 log.append(f"[{n}] METRIC ({scfg.get('metric')}): ⚠ skipped"
                            + (f" — {_m_detail}" if _m_detail else ''))
@@ -2390,7 +2466,8 @@ def execute_strategy(cfg, strategy_dict, app):
                log=[], n=0, alloc=_alloc, max_pos=_max_pos,
                primary_symbol=primary_symbol, app=app, user_id=cfg.user_id,
                mkt_api_key=mkt_api_key, mkt_base_url=mkt_base_url,
-               strategy_tag=_strat_tag, strategy_symbols=_strat_symbols)
+               strategy_tag=_strat_tag, strategy_symbols=_strat_symbols,
+               strategy_id=_strat_id)
     return _exec_steps_branch(steps, ctx)
 
 
