@@ -1039,7 +1039,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
     def _prev_lhs():
         if metric == 'current_price':
             # Use yesterday's close from daily history
-            _b = bars or _fetch_daily_history(symbol, api_key, base_url, bars=10)
+            _b = bars or _fetch_daily_history(symbol, _mkey, _murl, bars=10)
             return (_compute_bar_metric('price', 1, _b, day=-1) if _b else None), _b
         elif metric in _OPT_METRICS:
             return None, bars   # can't get previous options metric
@@ -1128,7 +1128,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
 
             if right_day == 0:
                 # Intraday bar
-                ibars = _fetch_intraday_bars(symbol, right_intv, api_key, base_url)
+                ibars = _fetch_intraday_bars(symbol, right_intv, _mkey, _murl)
                 bar_idx = -(1 + right_lookback)
                 bar = ibars[bar_idx] if ibars and len(ibars) >= (1 + right_lookback) else None
                 lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
@@ -1136,7 +1136,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
             else:
                 # Daily bar at offset
                 if bars is None:
-                    bars = _fetch_daily_history(symbol, api_key, base_url, bars=50)
+                    bars = _fetch_daily_history(symbol, _mkey, _murl, bars=50)
                 idx = abs(right_day) + right_lookback
                 bar = bars[-1 - idx] if bars and len(bars) > idx else None
                 lb_sfx = f' [-{right_lookback}]' if right_lookback else ''
@@ -1163,11 +1163,11 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
             # otherwise.  Period defaults to 20 when not specified.
             vwap_period = max(1, int(cfg.get('rightPeriod', 20) or 20))
             if intv != 'day':
-                vbars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                vbars = _fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=10)
                 if not vbars:
                     return None, f'Could not fetch intraday bars ({intv}) for VWAP'
             else:
-                vbars = bars if bars else _fetch_daily_history(symbol, api_key, base_url, bars=max(vwap_period * 3, 100))
+                vbars = bars if bars else _fetch_daily_history(symbol, _mkey, _murl, bars=max(vwap_period * 3, 100))
                 if not vbars:
                     return None, 'Could not fetch daily bars for VWAP'
             if len(vbars) < vwap_period:
@@ -1197,12 +1197,12 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
             # Use intraday bars when interval is not 'day' so EMA/SMA/RSI are
             # computed on the same timeframe the user sees on the chart.
             if intv != 'day':
-                rhs_bars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                rhs_bars = _fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=10)
                 if not rhs_bars:
                     return None, f'Could not fetch intraday bars ({intv}) for {right_metric.upper()} comparison'
             else:
                 need = max(right_period * 3 + right_lookback, 100)
-                rhs_bars = bars if bars is not None else _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                rhs_bars = bars if bars is not None else _fetch_daily_history(symbol, _mkey, _murl, bars=need)
                 if not rhs_bars:
                     return None, f'Could not fetch history for {right_metric.upper()} comparison'
             # Slice bars so that "bar 0" is `right_lookback` bars ago
@@ -1357,10 +1357,10 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
             # Reuse bars already fetched for LHS; fetch if not yet available
             if bars is None:
                 if intv != 'day':
-                    bars = _fetch_intraday_bars(symbol, intv, api_key, base_url, days_back=10)
+                    bars = _fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=10)
                 else:
                     need = max((macd_long + macd_signal) * 3 + right_lookback, 100)
-                    bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                    bars = _fetch_daily_history(symbol, _mkey, _murl, bars=need)
             if not bars:
                 return None, 'Could not fetch bars for MACD comparison'
             rhs_day = -right_lookback if right_lookback > 0 else 0
@@ -1400,7 +1400,7 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
 
             if bars is None:
                 need = max(ref_period * 3, (ref_macd_long + ref_macd_signal) * 3, 100)
-                bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                bars = _fetch_daily_history(symbol, _mkey, _murl, bars=need)
             if not bars:
                 return None, 'Could not fetch daily history for comparison indicator'
             rhs = _ref_cbm(bars, d=ref_day if not is_cross else 0)
@@ -1420,9 +1420,9 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
 
             if intv == 'day':
                 need = max(bar_offset + period * 3, 100)
-                ibars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+                ibars = _fetch_daily_history(symbol, _mkey, _murl, bars=need)
             else:
-                ibars = _fetch_intraday_bars(symbol, intv, api_key, base_url,
+                ibars = _fetch_intraday_bars(symbol, intv, _mkey, _murl,
                                              window_from=window_from, window_to=window_to)
 
             if len(ibars) < bar_offset + 1:

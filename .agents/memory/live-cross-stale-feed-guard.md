@@ -1,33 +1,34 @@
 ---
-name: Live cross stale-feed guard
-description: Why live MA-cross detection must skip (not latch) when the intraday bar feed lags behind the live price.
+name: Live bot market-data vs order credentials
+description: In the live bot, market-data fetches must use the live market-data key, never the order (sandbox) creds, or paper strategies compare live price vs delayed MA.
 ---
 
-# Live cross stale-feed guard
+# Live bot: market-data creds vs order creds
 
-The LIVE bot's `current_price` MA-cross compares a FRESH live price (Tradier
-`/markets/quotes`) against an SMA built from intraday bars (Tradier
-`/markets/timesales`). Those two feeds can desync: right after a worker
-restart the timesales feed intermittently lags (observed ~15 min stale,
-913–914s) while quotes stay current.
+**Rule:** every market-data fetch in the live bot (quotes, timesales bars,
+daily history, option chains/expirations used for indicators) must use the
+market-data credentials — `_mkey`/`_murl`, which the scheduler points at the
+LIVE Tradier key/base — never the order credentials (`api_key`/`base_url`).
 
-**The failure:** a fresh price vs a stale MA latches a phantom side
-("above"), then silently swallows the real cross when the feed catches up —
-e.g. real 2:32 PM and 2:54 PM cross-downs never fired.
+**Why:** a paper strategy's order creds are the Tradier SANDBOX, which serves
+~15-min DELAYED market data. If one side of an MA-cross (the live price) uses
+live creds and the other side (the SMA/EMA/RSI/VWAP/MACD comparator bars) uses
+order creds, the bot compares a fresh price against a stale moving average.
+That desync silently latches the wrong side and drops real crosses, and trips
+any staleness guard every tick. Order creds are for accounts/orders only.
 
-**The rule:** in the intraday cross path, if the last FINISHED bar is older
-than `max(interval_secs*5, 300s)`, return None (skip) WITHOUT touching the
-persistent latch. The next fresh eval re-syncs the side and fires any cross
-that completed during the gap.
+**How to apply:** in metric/indicator evaluation, route ALL market-data calls
+through the market-data creds. Watch the comparator (right-hand-side) paths —
+they are the easy ones to miss because the live-price (left-hand-side) path is
+usually already correct. Order/position/PnL paths that *also* read quotes in
+paper mode will likewise see delayed data; decide explicitly whether strike
+selection and PnL filters need live parity.
 
-**Why:** never act on, and never record state from, a price/MA comparison
-where the two sides come from feeds at different points in time. Skipping
-preserves the latch so detection self-heals; mutating it on stale data
-corrupts the side and drops signals.
-
-**How to apply:** measure lag from the true latest finished bar
-(`completed[-1]`, i.e. after dropping the forming bar but BEFORE applying
-`rightLookback`) — not from the lookback-offset slice, or a non-zero
-rightLookback gets mistaken for feed lag and causes false skips. Keep this
-guard alongside the existing overnight-gap guard (no finished bar in the
-current session yet).
+**Secondary guard (defense in depth):** even on the correct live feed, quotes
+and timesales can briefly desync right after a worker restart (timesales lags
+while quotes stay current). When the last finished bar is stale (older than
+~max(interval*5, 300s)), skip the cross and return None WITHOUT touching the
+persisted latch, so the next fresh tick re-syncs the side and fires any cross
+that completed during the gap. Measure lag from the true latest finished bar
+(after dropping the forming bar, before applying rightLookback) so a non-zero
+lookback isn't mistaken for feed lag.
