@@ -20,9 +20,14 @@ any staleness guard every tick. Order creds are for accounts/orders only.
 **How to apply:** in metric/indicator evaluation, route ALL market-data calls
 through the market-data creds. Watch the comparator (right-hand-side) paths —
 they are the easy ones to miss because the live-price (left-hand-side) path is
-usually already correct. Order/position/PnL paths that *also* read quotes in
-paper mode will likewise see delayed data; decide explicitly whether strike
-selection and PnL filters need live parity.
+usually already correct. RESOLVED decision: in paper mode, strike selection
+(expirations/chains/underlying quote) AND profit/loss filters (PnL quotes) must
+also use live market creds for parity — these read paths in eval_condition /
+exec_open_position / exec_close_position take `mkt_api_key`/`mkt_base_url`
+params and use `_mkey = mkt_api_key or api_key` / `_murl = mkt_base_url or
+base_url`. CRITICAL boundary: order placement (POST /accounts/{id}/orders) and
+account reads (positions/orders) must STAY on `api_key`/`base_url` (sandbox in
+paper mode). Live creds must NEVER place orders in paper mode.
 
 **Secondary guard (defense in depth):** even on the correct live feed, quotes
 and timesales can briefly desync right after a worker restart (timesales lags

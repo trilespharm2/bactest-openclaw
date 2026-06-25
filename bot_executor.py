@@ -491,7 +491,12 @@ def _resolve_tag_positions(tag, api_key, base_url, account_id):
     return matched, pending_count
 
 
-def eval_condition(cfg, api_key, base_url, account_id):
+def eval_condition(cfg, api_key, base_url, account_id,
+                   mkt_api_key=None, mkt_base_url=None):
+    # Market-data reads (quotes for PnL) use live creds (_mkey/_murl); account
+    # and order reads stay on api_key/base_url (sandbox in paper mode).
+    _mkey = mkt_api_key or api_key
+    _murl = mkt_base_url or base_url
     ctype    = cfg.get('conditionType', 'position_count')
     tag      = cfg.get('tag', '').strip()
     operator = cfg.get('operator', '<')
@@ -558,7 +563,7 @@ def eval_condition(cfg, api_key, base_url, account_id):
             sym  = pos.get('symbol', '')
             qty  = float(pos.get('quantity', 0))
             cost = float(pos.get('cost_basis', 0))
-            q = _tradier(api_key, base_url, '/markets/quotes',
+            q = _tradier(_mkey, _murl, '/markets/quotes',
                          params={'symbols': sym, 'greeks': 'false'})
             if q:
                 last = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
@@ -1577,7 +1582,14 @@ def _calc_used_allocation(positions):
     return total_risk
 
 
-def exec_open_position(cfg, api_key, base_url, account_id):
+def exec_open_position(cfg, api_key, base_url, account_id,
+                       mkt_api_key=None, mkt_base_url=None):
+    # Market-data reads (expirations/chains/quotes for strike selection and
+    # pricing) use live creds (_mkey/_murl). ORDER placement stays on
+    # api_key/base_url — in paper mode that is the sandbox, and live creds must
+    # NEVER place paper orders.
+    _mkey = mkt_api_key or api_key
+    _murl = mkt_base_url or base_url
     symbol        = (cfg.get('symbol') or 'SPY').upper()
     strategy      = cfg.get('strategy', 'Short Put Spread')
     dte           = int(cfg.get('dte', 30))
@@ -1710,7 +1722,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
             )
 
     # ── Fetch expiration ──────────────────────────────────────────────
-    exp_data = _tradier(api_key, base_url, '/markets/options/expirations',
+    exp_data = _tradier(_mkey, _murl, '/markets/options/expirations',
                         params={'symbol': symbol, 'includeAllRoots': 'true', 'strikes': 'false'})
     if not exp_data:
         return False, "Could not fetch expirations"
@@ -1729,7 +1741,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     )
 
     # ── Fetch chain + underlying price ───────────────────────────────
-    chain_data = _tradier(api_key, base_url, '/markets/options/chains',
+    chain_data = _tradier(_mkey, _murl, '/markets/options/chains',
                           params={'symbol': symbol, 'expiration': target_exp, 'greeks': 'true'})
     if not chain_data:
         return False, "Could not fetch option chain"
@@ -1738,7 +1750,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         all_opts = [all_opts]
     all_opts = all_opts or []
 
-    q = _tradier(api_key, base_url, '/markets/quotes',
+    q = _tradier(_mkey, _murl, '/markets/quotes',
                  params={'symbols': symbol, 'greeks': 'false'})
     underlying = float(((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
 
@@ -2217,7 +2229,7 @@ def exec_open_position(cfg, api_key, base_url, account_id):
         if etype == 'limit':
             limit_price = limit_price_min or 0
             if not limit_price:
-                q = _tradier(api_key, base_url, '/markets/quotes',
+                q = _tradier(_mkey, _murl, '/markets/quotes',
                              params={'symbols': symbol, 'greeks': 'false'})
                 limit_price = float(
                     ((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0
@@ -2231,8 +2243,14 @@ def exec_open_position(cfg, api_key, base_url, account_id):
     return False, f"Strategy '{strategy}' is not supported in the bot executor"
 
 
-def exec_close_position(cfg, api_key, base_url, account_id):
+def exec_close_position(cfg, api_key, base_url, account_id,
+                        mkt_api_key=None, mkt_base_url=None):
     import re as _re
+    # Market-data reads (quotes for profit/loss filtering) use live creds
+    # (_mkey/_murl). ORDER placement stays on api_key/base_url (sandbox in
+    # paper mode).
+    _mkey = mkt_api_key or api_key
+    _murl = mkt_base_url or base_url
 
     order_tag  = cfg.get('tag', '').strip()             # user-defined position tag (e.g. "ABC")
     target     = cfg.get('target', 'all').strip()       # all | profitable | losers
@@ -2274,7 +2292,7 @@ def exec_close_position(cfg, api_key, base_url, account_id):
             sym  = pos.get('symbol', '')
             qty  = float(pos.get('quantity', 0))
             cost = float(pos.get('cost_basis', 0))
-            q    = _tradier(api_key, base_url, '/markets/quotes',
+            q    = _tradier(_mkey, _murl, '/markets/quotes',
                             params={'symbols': sym, 'greeks': 'false'})
             last = float(((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
             is_opt = bool(_re.match(r'^[A-Z]+\d{6}[CP]\d{8}$', sym.upper()))
@@ -2369,7 +2387,9 @@ def _exec_steps_branch(steps, ctx):
                 return False, log
 
         elif stype == 'condition':
-            ok = eval_condition(scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+            ok = eval_condition(scfg, ctx['api_key'], ctx['base_url'], ctx['account_id'],
+                                mkt_api_key=ctx.get('mkt_api_key'),
+                                mkt_base_url=ctx.get('mkt_base_url'))
             _c_tag = scfg.get('tag', '').strip()
             _c_tag_str = f" tag='{_c_tag}'" if _c_tag else ''
             log.append(f"[{n}] CONDITION ({scfg.get('conditionType')}{_c_tag_str} "
@@ -2408,7 +2428,9 @@ def _exec_steps_branch(steps, ctx):
             scfg_limited['_strategy_tag']     = ctx.get('strategy_tag', '')
             scfg_limited['_strategy_symbols'] = ctx.get('strategy_symbols', [])
             success, msg = exec_open_position(
-                scfg_limited, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+                scfg_limited, ctx['api_key'], ctx['base_url'], ctx['account_id'],
+                mkt_api_key=ctx.get('mkt_api_key'),
+                mkt_base_url=ctx.get('mkt_base_url'))
             log.append(f"[{n}] OPEN_POSITION: {'✓' if success else '✗'} {msg}")
             if not success:
                 return False, log
@@ -2418,7 +2440,9 @@ def _exec_steps_branch(steps, ctx):
             scfg_close['_strategy_tag']     = ctx.get('strategy_tag', '')
             scfg_close['_strategy_symbols'] = ctx.get('strategy_symbols', [])
             success, msg = exec_close_position(
-                scfg_close, ctx['api_key'], ctx['base_url'], ctx['account_id'])
+                scfg_close, ctx['api_key'], ctx['base_url'], ctx['account_id'],
+                mkt_api_key=ctx.get('mkt_api_key'),
+                mkt_base_url=ctx.get('mkt_base_url'))
             log.append(f"[{n}] CLOSE_POSITION: {msg}")
 
         elif stype == 'notification':
@@ -2529,7 +2553,9 @@ def _exec_steps_test(steps, tctx):
                 tctx['stopped'] = True
 
         elif stype == 'condition':
-            ok = eval_condition(scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+            ok = eval_condition(scfg, tctx['api_key'], tctx['base_url'], tctx['account_id'],
+                                mkt_api_key=tctx.get('mkt_api_key'),
+                                mkt_base_url=tctx.get('mkt_base_url'))
             _ct   = scfg.get('conditionType', 'position_count')
             _ctag = scfg.get('tag', '').strip()
             _cop  = scfg.get('operator', '<')
@@ -2646,7 +2672,8 @@ def _exec_steps_test(steps, tctx):
                             return round((float(o.get('bid', 0) or 0) +
                                           float(o.get('ask', 0) or 0)) / 2, 2)
 
-                        exp_data = _tradier(tctx['api_key'], tctx['base_url'],
+                        exp_data = _tradier(tctx.get('mkt_api_key') or tctx['api_key'],
+                                            tctx.get('mkt_base_url') or tctx['base_url'],
                                             '/markets/options/expirations',
                                             params={'symbol': sym, 'includeAllRoots': 'true',
                                                     'strikes': 'false'})
@@ -2662,12 +2689,14 @@ def _exec_steps_test(steps, tctx):
                                 exps[-1] if exps else None
                             )
                             if target_exp:
-                                q = _tradier(tctx['api_key'], tctx['base_url'],
+                                q = _tradier(tctx.get('mkt_api_key') or tctx['api_key'],
+                                             tctx.get('mkt_base_url') or tctx['base_url'],
                                              '/markets/quotes',
                                              params={'symbols': sym, 'greeks': 'false'})
                                 underlying = float(
                                     ((q or {}).get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
-                                chain_data = _tradier(tctx['api_key'], tctx['base_url'],
+                                chain_data = _tradier(tctx.get('mkt_api_key') or tctx['api_key'],
+                                                      tctx.get('mkt_base_url') or tctx['base_url'],
                                                       '/markets/options/chains',
                                                       params={'symbol': sym,
                                                               'expiration': target_exp,
@@ -2767,7 +2796,9 @@ def _exec_steps_test(steps, tctx):
                 scfg_limited['_strategy_tag']     = tctx.get('strategy_tag', '')
                 scfg_limited['_strategy_symbols'] = tctx.get('strategy_symbols', [])
                 success, msg = exec_open_position(
-                    scfg_limited, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+                    scfg_limited, tctx['api_key'], tctx['base_url'], tctx['account_id'],
+                    mkt_api_key=tctx.get('mkt_api_key'),
+                    mkt_base_url=tctx.get('mkt_base_url'))
                 tctx['results'].append({
                     'type': 'open_position', 'label': label_str,
                     'result': bool(success), 'message': msg
@@ -2787,7 +2818,9 @@ def _exec_steps_test(steps, tctx):
                 scfg_close['_strategy_tag']     = tctx.get('strategy_tag', '')
                 scfg_close['_strategy_symbols'] = tctx.get('strategy_symbols', [])
                 success, msg = exec_close_position(
-                    scfg_close, tctx['api_key'], tctx['base_url'], tctx['account_id'])
+                    scfg_close, tctx['api_key'], tctx['base_url'], tctx['account_id'],
+                    mkt_api_key=tctx.get('mkt_api_key'),
+                    mkt_base_url=tctx.get('mkt_base_url'))
                 tctx['results'].append({'type': 'close_position', 'label': label_str,
                                         'result': bool(success), 'message': msg})
 
