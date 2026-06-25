@@ -3040,6 +3040,7 @@ function stratItemHTML(s) {
       </div>
       <button class="strat-test-btn" onclick="openTestModal(${s.id})" title="Run Test"><i class="fas fa-play"></i></button>
       <button class="strat-edit-btn" onclick="stratBuilderOpen(${s.id})" title="Edit"><i class="fas fa-pen"></i></button>
+      <button class="strat-copy-btn" onclick="stratCopy(${s.id})" title="Copy"><i class="fas fa-copy"></i></button>
       <button class="strat-del-btn" onclick="stratDelete(${s.id})" title="Delete"><i class="fas fa-trash"></i></button>
     </div>
   </div>`;
@@ -3057,6 +3058,18 @@ async function stratToggle(id, isLive) {
       body: JSON.stringify({ is_live: isLive }),
     });
   } catch (e) { console.error('stratToggle error', e); }
+}
+
+async function stratCopy(id) {
+  try {
+    const r = await fetch(`/api/bot/strategies/${id}/copy`, { method: 'POST' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert('Could not copy strategy: ' + (err.error || r.status));
+      return;
+    }
+  } catch (e) { console.error('stratCopy error', e); }
+  await strategiesRender();
 }
 
 async function stratDelete(id) {

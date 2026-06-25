@@ -8634,6 +8634,31 @@ def bot_delete_strategy(sid):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/bot/strategies/<int:sid>/copy', methods=['POST'])
+@login_required
+def bot_copy_strategy(sid):
+    from models import BotStrategy
+    src = BotStrategy.query.filter_by(id=sid, user_id=current_user.id).first()
+    if not src:
+        return jsonify({'error': 'Strategy not found'}), 404
+    try:
+        dup = BotStrategy(
+            user_id=current_user.id,
+            name=f'{src.name} (Copy)'[:200],
+            steps=src.steps,
+            is_live=False,
+            allocation=src.allocation,
+            max_positions=src.max_positions,
+        )
+        db.session.add(dup)
+        db.session.commit()
+        return jsonify(dup.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception('[bot_copy_strategy] failed: %s', e)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/bot/strategies/<int:sid>/test', methods=['POST'])
 @login_required
 def bot_test_strategy(sid):
