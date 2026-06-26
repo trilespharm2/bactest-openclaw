@@ -23,6 +23,20 @@ trigger a phantom entry — wait for the next genuine crossing.
 **Why:** user requirement — fire once at the exact cross instant; if it doesn't
 fill, do NOT repeat, wait for the next cross.
 
+**Intra-bar dead-zone (anti-whipsaw + anti-latch-recovery):** when the LHS is
+the still-FORMING live price (metric=='current_price'), require it to clear the
+comparator by a fixed buffer before it counts as a side — `above` if
+`lhs>=rhs+buf`, `below` if `lhs<=rhs-buf`, else `cur_side=None`. Buffer is $1
+for index symbols only (`_cross_index_buffer`; ~0.01% on SPX, meaningless on
+low-priced stocks) and is NEVER applied to a finished bar close. `None` means
+HOLD the latch: `_cross_check_and_flip` returns the stored side but does not
+fire or overwrite. **Why:** a live tick grazing a steeply-sloped MA by a
+fraction of a point (observed: 0.39 pt) was flipping the latch — firing a
+phantom cross AND arming a phantom opposite "recovery" cross on the next tick.
+No candle ever closed across the MA, so on a candle-close chart no cross
+existed. Holding the latch inside the dead-zone kills both the phantom flip and
+the recovery in one mechanism.
+
 **How to apply:** the check-and-set MUST be one atomic critical section (APScheduler
 runs strategies on a thread pool; a split get-then-set lets two concurrent evals
 both read the opposite side and both fire — TOCTOU). State lives in a gitignored
