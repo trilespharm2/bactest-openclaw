@@ -1369,6 +1369,18 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     cur_side = None
                 desired  = 'above' if operator == 'crosses_above' else 'below'
                 opposite = 'below' if desired == 'above' else 'above'
+                # Origin-side bar confirmation: the side the LAST FINISHED
+                # candle actually CLOSED on. Used to require that a real bar
+                # settled on the "from" side before an intra-bar live cross can
+                # fire (no buffer here — a close is a close).
+                _bar_side = None
+                if metric == 'current_price':
+                    try:
+                        _bar_side = ('above'
+                                     if float(c_slice[-1].get('close')) >= raw_rhs
+                                     else 'below')
+                    except (TypeError, ValueError, IndexError, AttributeError):
+                        _bar_side = None
                 if strategy_id is not None:
                     _latch_key = _cross_state_key(strategy_id, symbol, cfg)
                     # Intraday: gate the latch by trading day so a side latched
@@ -1389,14 +1401,23 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     else:
                         prev_side = 'above' if _ref_lhs >= _ref_rhs else 'below'
                     ok = (prev_side == opposite) and (cur_side == desired)
+                # Origin-side confirmation (intra-bar live crosses only): the
+                # last FINISHED candle must have CLOSED on the side the price is
+                # crossing FROM. A cross-up needs a candle that actually closed
+                # below the MA; a live tick that only dipped below — even past
+                # the $ buffer — with no candle closing there is NOT a real
+                # cross and must not fire. (None ⇒ can't confirm ⇒ no fire.)
+                if ok and metric == 'current_price' and _bar_side != opposite:
+                    ok = False
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 _now_lbl = cur_side if cur_side else 'neutral'
                 _buf_lbl = f", buf=${_buf:g}" if _buf else ''
+                _bar_lbl = f", last-bar={_bar_side}" if metric == 'current_price' else ''
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
                           f"Prev ({_prev_lbl}): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
                           f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)} "
-                          f"[latch: was={prev_side or 'none'} → now={_now_lbl}{_buf_lbl}]")
+                          f"[latch: was={prev_side or 'none'} → now={_now_lbl}{_buf_lbl}{_bar_lbl}]")
             else:
                 rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
                 ok = _compare(lhs, operator, rhs)
