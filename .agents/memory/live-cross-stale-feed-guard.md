@@ -29,6 +29,21 @@ base_url`. CRITICAL boundary: order placement (POST /accounts/{id}/orders) and
 account reads (positions/orders) must STAY on `api_key`/`base_url` (sandbox in
 paper mode). Live creds must NEVER place orders in paper mode.
 
+**Overnight-gap / session-rollover guard:** the edge-latch (`_cross_check_and_flip`,
+persisted in bot_cross_state.json) records the last side ('above'/'below') and
+fires on a flip. For INTRADAY crosses this side must NOT carry across the
+overnight gap: a side latched 'above' yesterday + price opening 'below' a
+falling MA today = a phantom cross-down on the first morning tick (observed:
+both prev finished candle AND live price below the SMA, yet it fired because
+latch was=above from the prior session). The plain "skip while last finished
+bar is still yesterday's" guard is NOT enough — once today's first finished bar
+exists it compares against yesterday's latch. Fix: store a `session` (ET
+trading date) on each latch entry; when stored session != current session,
+re-arm (treat prev_side as None → record side WITHOUT firing), exactly like a
+first observation/after-restart. Pass session only for intraday (intv!='day');
+daily crosses compare consecutive days legitimately so session=None there.
+Legacy entries lacking `session` re-arm once on upgrade.
+
 **Secondary guard (defense in depth):** even on the correct live feed, quotes
 and timesales can briefly desync right after a worker restart (timesales lags
 while quotes stay current). When the last finished bar is stale (older than

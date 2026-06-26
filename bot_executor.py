@@ -61,14 +61,21 @@ def _cross_state_key(strategy_id, symbol, cfg):
     return f"{strategy_id}|{str(symbol).upper()}|{sig}"
 
 
-def _cross_check_and_flip(key, cur_side, desired, opposite):
+def _cross_check_and_flip(key, cur_side, desired, opposite, session=None):
     """Atomically read the stored side, decide whether a flip INTO *desired*
     just happened, persist the new side, and return (fired, prev_side).
 
     The read-decide-write happens inside ONE lock so two concurrent
     evaluations (APScheduler runs strategies on a thread pool) can never both
     observe the same 'opposite' side and both fire on a single crossing.
-    A never-seen key (prev_side is None) records the side WITHOUT firing."""
+    A never-seen key (prev_side is None) records the side WITHOUT firing.
+
+    *session* (intraday only) marks the trading day the latch belongs to.
+    When the stored latch is from a PRIOR session, we re-arm — record the
+    current side WITHOUT firing — so a side latched yesterday can't fire a
+    phantom cross across the overnight gap (e.g. price gaps/opens on the far
+    side of the MA). Pass session=None for daily-interval crosses, where
+    consecutive bars are legitimately compared across days."""
     if cur_side not in ('above', 'below'):
         return False, None
     with _cross_state_lock:
@@ -77,8 +84,16 @@ def _cross_check_and_flip(key, cur_side, desired, opposite):
         prev_side = entry.get('side') if isinstance(entry, dict) else None
         if prev_side not in ('above', 'below'):
             prev_side = None
+        # Session rollover → treat like a first observation (re-arm, no fire).
+        if session is not None:
+            prev_session = entry.get('session') if isinstance(entry, dict) else None
+            if prev_session != session:
+                prev_side = None
         fired = (prev_side == opposite) and (cur_side == desired)
-        store[key] = {'side': cur_side, 'ts': datetime.now().timestamp()}
+        new_entry = {'side': cur_side, 'ts': datetime.now().timestamp()}
+        if session is not None:
+            new_entry['session'] = session
+        store[key] = new_entry
         _save_cross_state(store)
     return fired, prev_side
 
@@ -1320,8 +1335,12 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 opposite = 'below' if desired == 'above' else 'above'
                 if strategy_id is not None:
                     _latch_key = _cross_state_key(strategy_id, symbol, cfg)
+                    # Intraday: gate the latch by trading day so a side latched
+                    # in a prior session can't fire across the overnight gap.
+                    # Daily-interval crosses compare consecutive days legitimately.
+                    _session = _now_et().date().isoformat() if intv != 'day' else None
                     ok, prev_side = _cross_check_and_flip(
-                        _latch_key, cur_side, desired, opposite)
+                        _latch_key, cur_side, desired, opposite, session=_session)
                 else:
                     # Stateless preview (dry-run / legacy): compare the last
                     # finished candle's side to the live side, no persistence.
