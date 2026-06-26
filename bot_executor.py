@@ -61,22 +61,6 @@ def _cross_state_key(strategy_id, symbol, cfg):
     return f"{strategy_id}|{str(symbol).upper()}|{sig}"
 
 
-_INDEX_SYMBOLS = {'SPX', 'XSP', 'NDX', 'XND', 'RUT', 'MRUT', 'RUTW',
-                  'VIX', 'VIXW', 'DJX', 'OEX', 'NDXP', 'SPXW'}
-
-
-def _cross_index_buffer(symbol):
-    """Fixed-dollar intra-bar dead-zone for an index's LIVE (forming) price.
-    A live quote can graze the MA by a fraction of a point and flip the latch,
-    firing a phantom cross (and arming a phantom 'recovery' cross on the way
-    back).  $1 on a multi-thousand-point index is ~0.01-0.02%, enough to
-    ignore that quote noise.  Returns 0 for non-index symbols, where a flat $
-    buffer would be meaningless (e.g. $1 on a $20 stock is 5%).  The buffer is
-    applied ONLY to the live price, never to a finished bar close."""
-    s = str(symbol or '').upper().lstrip('$^')
-    return 1.0 if s in _INDEX_SYMBOLS else 0.0
-
-
 def _cross_check_and_flip(key, cur_side, desired, opposite, session=None):
     """Atomically read the stored side, decide whether a flip INTO *desired*
     just happened, persist the new side, and return (fired, prev_side).
@@ -93,18 +77,16 @@ def _cross_check_and_flip(key, cur_side, desired, opposite, session=None):
     side of the MA). Pass session=None for daily-interval crosses, where
     consecutive bars are legitimately compared across days.
 
-    A cur_side of None means the live value is inside the intra-bar dead-zone
-    (within the index buffer of the comparator): HOLD the latch — never fire,
-    never overwrite the stored side — and return the side currently held, so a
-    fleeting tick that grazes the MA can't flip it (nor arm a phantom
-    'recovery' cross on the way back)."""
+    A cur_side of None means the side could not be determined: HOLD the latch —
+    never fire, never overwrite the stored side — and return the side currently
+    held."""
     with _cross_state_lock:
         store = _load_cross_state()
         entry = store.get(key)
         prev_side = entry.get('side') if isinstance(entry, dict) else None
         if prev_side not in ('above', 'below'):
             prev_side = None
-        # Dead-zone: hold the latch (no flip, no fire, no write).
+        # Undetermined side: hold the latch (no flip, no fire, no write).
         if cur_side not in ('above', 'below'):
             return False, prev_side
         # Session rollover → treat like a first observation (re-arm, no fire).
@@ -1353,26 +1335,16 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 # line can't trigger a phantom entry — the bot then waits for the
                 # NEXT real crossing.  If a fired signal never fills, it is NOT
                 # repeated; the next entry needs a fresh cross.
-                # Intra-bar noise buffer: when the LHS is the still-forming
-                # LIVE price, require it to clear the comparator by a fixed
-                # buffer (index symbols only) before it counts as a side.
-                # Inside the dead-zone cur_side=None → the latch is held, so a
-                # fleeting tick that grazes the MA can't fire a phantom cross
-                # nor arm a phantom 'recovery' cross. NEVER applied to a
-                # finished bar close.
-                _buf = _cross_index_buffer(symbol) if metric == 'current_price' else 0.0
-                if lhs >= raw_rhs + _buf:
+                if lhs >= raw_rhs:
                     cur_side = 'above'
-                elif lhs <= raw_rhs - _buf:
-                    cur_side = 'below'
                 else:
-                    cur_side = None
+                    cur_side = 'below'
                 desired  = 'above' if operator == 'crosses_above' else 'below'
                 opposite = 'below' if desired == 'above' else 'above'
                 # Origin-side bar confirmation: the side the LAST FINISHED
                 # candle actually CLOSED on. Used to require that a real bar
                 # settled on the "from" side before an intra-bar live cross can
-                # fire (no buffer here — a close is a close).
+                # fire.
                 _bar_side = None
                 if metric == 'current_price':
                     try:
@@ -1404,20 +1376,19 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 # Origin-side confirmation (intra-bar live crosses only): the
                 # last FINISHED candle must have CLOSED on the side the price is
                 # crossing FROM. A cross-up needs a candle that actually closed
-                # below the MA; a live tick that only dipped below — even past
-                # the $ buffer — with no candle closing there is NOT a real
-                # cross and must not fire. (None ⇒ can't confirm ⇒ no fire.)
+                # below the MA; a live tick that only dipped below with no candle
+                # closing there is NOT a real cross and must not fire.
+                # (None ⇒ can't confirm ⇒ no fire.)
                 if ok and metric == 'current_price' and _bar_side != opposite:
                     ok = False
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 _now_lbl = cur_side if cur_side else 'neutral'
-                _buf_lbl = f", buf=${_buf:g}" if _buf else ''
                 _bar_lbl = f", last-bar={_bar_side}" if metric == 'current_price' else ''
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
                           f"Prev ({_prev_lbl}): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
                           f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)} "
-                          f"[latch: was={prev_side or 'none'} → now={_now_lbl}{_buf_lbl}{_bar_lbl}]")
+                          f"[latch: was={prev_side or 'none'} → now={_now_lbl}{_bar_lbl}]")
             else:
                 rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)
                 ok = _compare(lhs, operator, rhs)

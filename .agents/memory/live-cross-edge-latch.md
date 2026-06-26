@@ -23,25 +23,18 @@ trigger a phantom entry — wait for the next genuine crossing.
 **Why:** user requirement — fire once at the exact cross instant; if it doesn't
 fill, do NOT repeat, wait for the next cross.
 
-**Intra-bar dead-zone (anti-whipsaw + anti-latch-recovery):** when the LHS is
-the still-FORMING live price (metric=='current_price'), require it to clear the
-comparator by a fixed buffer before it counts as a side — `above` if
-`lhs>=rhs+buf`, `below` if `lhs<=rhs-buf`, else `cur_side=None`. Buffer is $1
-for index symbols only (`_cross_index_buffer`; ~0.01% on SPX, meaningless on
-low-priced stocks) and is NEVER applied to a finished bar close. `None` means
-HOLD the latch: `_cross_check_and_flip` returns the stored side but does not
-fire or overwrite. **Why:** a live tick grazing a steeply-sloped MA by a
-fraction of a point (observed: 0.39 pt) was flipping the latch — firing a
-phantom cross AND arming a phantom opposite "recovery" cross on the next tick.
-No candle ever closed across the MA, so on a candle-close chart no cross
-existed. Holding the latch inside the dead-zone kills both the phantom flip and
-the recovery in one mechanism.
+**Intra-bar dead-zone — REMOVED (was layer 1):** there used to be a fixed $1
+"index buffer" dead-zone on the still-forming live price (`_cross_index_buffer`,
+`_INDEX_SYMBOLS`): a side only counted if the live price cleared the comparator
+by $1, else `cur_side=None` (hold latch). The user explicitly asked to remove it.
+`cur_side` is now strictly binary: `'above' if lhs>=raw_rhs else 'below'` (never
+None in the live path). Anti-phantom protection now relies SOLELY on the
+edge-latch (fire-once) + origin-side bar confirmation (layer 3 below). Do NOT
+reintroduce a hardcoded global buffer; if over-triggering is reported, prefer a
+per-strategy configurable tolerance.
 
-**Origin-side bar confirmation (anti-phantom-recovery, layer 3):** the $1
-dead-zone only filters sub-buffer grazes. If a live tick breaches the comparator
-by MORE than the buffer (flipping the latch) and then returns, the latch flip
-alone would still fire an opposite "recovery" cross even though NO candle ever
-closed on the origin side. So, for `metric=='current_price'` only, a cross may
+**Origin-side bar confirmation (anti-phantom-recovery, layer 3 — now the primary
+graze filter):** for `metric=='current_price'` only, a cross may
 fire ONLY if the LAST FINISHED candle actually CLOSED on the side the price is
 crossing FROM: `_bar_side = 'above' if c_slice[-1]['close'] >= raw_rhs else
 'below'` (raw_rhs == the SMA/EMA through that same finished candle; no buffer on a
