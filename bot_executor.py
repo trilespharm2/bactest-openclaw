@@ -1859,14 +1859,21 @@ def exec_open_position(cfg, api_key, base_url, account_id,
         # auto: derive from the option type of the first option in the pool
         return (options[0].get('option_type', 'put') if options else 'put') == 'call'
 
-    def _apply_fallback(options, target):
+    def _apply_fallback(options, target, direction=None):
         """Route to the correct strike selection function based on *strike_fallback*.
 
         or_higher  → lowest strike  >= target (round up to next available)
         or_lower   → highest strike <= target (round down to next available)
         skip       → nearest strike, but abort (return None) if it is more
                      than $2 / 0.5% away from the target
-        closest    → mathematically nearest strike in the chain (default)
+        closest    → nearest strike in the chain (default). When an explicit
+                     *direction* ('above'/'below') is supplied, the chosen
+                     strike is constrained to that side of the target so the
+                     direction setting is always honoured — matching the
+                     backtest engine. 'above' → lowest strike >= target;
+                     'below' → highest strike <= target. This guarantees, e.g.,
+                     "Above underlying" never selects a strike below the
+                     underlying even when the distance is 0.
         """
         if strike_fallback == 'or_higher':
             return _by_strike_or_higher(options, target)
@@ -1886,7 +1893,12 @@ def exec_open_position(cfg, api_key, base_url, account_id,
                     )
                     return None
             return opt
-        # 'closest' — mathematically nearest strike in chain
+        # 'closest' (default) — honour an explicit direction so the strike
+        # stays on the correct side of the target; otherwise nearest in chain.
+        if direction == 'above':
+            return _by_strike_or_higher(options, target)
+        if direction == 'below':
+            return _by_strike_or_lower(options, target)
         return _by_strike(options, target)
 
     # Preserve old name for any callers still using it inside this function scope
@@ -1902,12 +1914,12 @@ def exec_open_position(cfg, api_key, base_url, account_id,
                 dist  = float(strike_value)
                 above = _resolve_dir(options, strike_direction)
                 target = underlying + dist if above else underlying - dist
-                return _apply_fallback(options, target)
+                return _apply_fallback(options, target, 'above' if above else 'below')
             if strike_method == 'pct_underlying' and strike_value:
                 pct   = float(strike_value) / 100
                 above = _resolve_dir(options, strike_direction)
                 target = underlying * (1 + pct) if above else underlying * (1 - pct)
-                return _apply_fallback(options, target)
+                return _apply_fallback(options, target, 'above' if above else 'below')
             if strike_method in ('dollar_leg', 'pct_leg') and strike_value:
                 # Leg-relative not meaningful for Leg 1 — fall through
                 pass
@@ -1940,24 +1952,29 @@ def exec_open_position(cfg, api_key, base_url, account_id,
                 return _by_delta(options, abs(float(l2_value or 0.3)))
             elif l2_method == 'dollar_underlying':
                 dist = float(l2_value or spread_width)
-                t = underlying - dist if l2_dir == 'below' else underlying + dist
-                return _apply_fallback(options, t)
+                below = (l2_dir == 'below')
+                t = underlying - dist if below else underlying + dist
+                return _apply_fallback(options, t, 'below' if below else 'above')
             elif l2_method == 'pct_underlying':
                 pct = float(l2_value or 5) / 100
-                t = underlying * (1 - pct) if l2_dir == 'below' else underlying * (1 + pct)
-                return _apply_fallback(options, t)
+                below = (l2_dir == 'below')
+                t = underlying * (1 - pct) if below else underlying * (1 + pct)
+                return _apply_fallback(options, t, 'below' if below else 'above')
             elif l2_method == 'dollar_leg1':
                 dist = float(l2_value or spread_width)
-                t = l1s - dist if l2_dir == 'below' else l1s + dist
-                return _apply_fallback(options, t)
+                below = (l2_dir == 'below')
+                t = l1s - dist if below else l1s + dist
+                return _apply_fallback(options, t, 'below' if below else 'above')
             elif l2_method == 'pct_leg1':
                 pct = float(l2_value or 5) / 100
-                t = l1s * (1 - pct) if l2_dir == 'below' else l1s * (1 + pct)
-                return _apply_fallback(options, t)
+                below = (l2_dir == 'below')
+                t = l1s * (1 - pct) if below else l1s * (1 + pct)
+                return _apply_fallback(options, t, 'below' if below else 'above')
             elif l2_method == 'fixed_strike':
                 return _apply_fallback(options, float(l2_value or 0))
             else:  # spread_width (default)
-                return _apply_fallback(options, default_target)
+                return _apply_fallback(options, default_target,
+                                       'below' if default_below else 'above')
         except Exception as e:
             logger.warning(f"_pick_leg2({l2_method}): {e}")
             return _by_strike(options, default_target)
