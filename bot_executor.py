@@ -208,7 +208,16 @@ def _lookup_tag_symbols(account_id, tag):
     return result
 
 
-def _count_active_tag_trades(account_id, tag, live_pos_syms):
+# Broker order statuses that mean the order will NEVER become a position.
+# Such orders must not count toward the position/trade cap and should be
+# dropped from the local store as soon as the broker reports them.
+_DEAD_ORDER_STATUSES = {
+    'rejected', 'canceled', 'cancelled', 'expired', 'error', 'declined',
+}
+
+
+def _count_active_tag_trades(account_id, tag, live_pos_syms,
+                             order_status_by_id=None):
     """Count distinct OPEN trades (orders) under *tag*.
 
     This backs the condition step "position_count with tag X": 1 trade = 1,
@@ -221,16 +230,24 @@ def _count_active_tag_trades(account_id, tag, live_pos_syms):
     before the first fill ever showed up.  Instead each placed order is counted
     until we have POSITIVELY seen it open in /positions and then seen it gone:
 
+      • broker reports it rejected/canceled/etc  → drop  (never filled)
       • symbols currently in positions          → open  (mark "seen")
       • never seen open yet, still young         → open  (awaiting reflection)
       • never seen open, older than max age      → drop  (canceled/rejected)
       • was seen open before, now absent         → closed → not counted
+
+    *order_status_by_id* (optional) maps broker order_id → status.  When an
+    order we are tracking is reported by the broker in a terminal-failure
+    status (rejected, canceled, expired, …) we drop it immediately instead of
+    keeping it counted for the full grace period — a rejected order will never
+    fill, so it must not count toward the cap or block new trades.
 
     Legacy list buckets (pre-dating this tracking) keep the old behaviour:
     counted only when their symbols are currently live.
     """
     key = f"{account_id}:{tag}"
     now = datetime.now().timestamp()
+    status_by_id = order_status_by_id or {}
     changed = False
     with _tag_store_lock:
         store = _load_tag_store()
@@ -243,6 +260,17 @@ def _count_active_tag_trades(account_id, tag, live_pos_syms):
         for oid, bucket in entry.items():
             syms     = set(_bucket_syms(bucket))
             live_hit = bool(syms & live_pos_syms)
+            # If the broker explicitly reports this order as rejected/canceled/
+            # expired/etc it will never become a position — drop it now and do
+            # not count it, regardless of age or whether it was ever "seen".
+            # Guard with live_hit so a partial-fill-then-cancel that still has a
+            # real open position is not wrongly dropped.
+            if not live_hit:
+                status = str(status_by_id.get(str(oid), '') or '').lower()
+                if status in _DEAD_ORDER_STATUSES:
+                    drop.append(oid)
+                    changed = True
+                    continue
             if not isinstance(bucket, dict):
                 # Legacy per-order list bucket: positions-only behaviour.
                 if live_hit:
@@ -530,14 +558,23 @@ def eval_condition(cfg, api_key, base_url, account_id,
             all_positions = _get_positions(api_key, base_url, account_id)
             live_syms     = {str(p.get('symbol', '') or '').upper()
                              for p in all_positions}
-            filled_trades = _count_active_tag_trades(account_id, tag, live_syms)
+
+            # Broker order list drives two things: (1) a status map so the
+            # store-based count can drop rejected/canceled orders that will
+            # never fill, and (2) the untracked-pending count below.
+            all_orders = _get_all_orders(api_key, base_url, account_id)
+            order_status_by_id = {
+                str(o.get('id', '') or ''): str(o.get('status', '') or '')
+                for o in all_orders
+            }
+            filled_trades = _count_active_tag_trades(
+                account_id, tag, live_syms, order_status_by_id)
 
             # Also count tagged pending orders from the broker, but ONLY those
             # the store does not already track — _count_active_tag_trades now
             # counts placed-but-unreflected orders itself, so adding tracked
             # pending orders again would double-count and over-tighten the cap.
             tracked_ids = _tracked_tag_order_ids(account_id, tag)
-            all_orders = _get_all_orders(api_key, base_url, account_id)
             pending = sum(
                 1 for o in all_orders
                 if str(o.get('tag', '') or '').strip() == tag
