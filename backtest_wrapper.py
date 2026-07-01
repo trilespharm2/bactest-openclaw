@@ -27,6 +27,7 @@ def load_config_from_json(json_path):
         'strategy': web_config.get('strategy', ''),
         'legs': web_config.get('legs', []),
         'detection_bar_size': web_config.get('detection_bar_size') or web_config.get('detectionBarSize', 1),
+        'ten_second_data': web_config.get('ten_second_data') if web_config.get('ten_second_data') is not None else web_config.get('tenSecondData', False),
         'concurrent_trades': web_config.get('concurrent_trades') if web_config.get('concurrent_trades') is not None else web_config.get('concurrentTrades', False),
         'avoid_pdt': web_config.get('avoid_pdt') if web_config.get('avoid_pdt') is not None else web_config.get('avoidPdt', False),
         'allow_synthetic': web_config.get('allow_synthetic') if web_config.get('allow_synthetic') is not None else web_config.get('allowSynthetic', True),

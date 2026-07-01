@@ -245,6 +245,310 @@ def get_underlying_ticker(symbol: str) -> str:
     """
     return _INDEX_TICKER_MAP.get(symbol.upper(), symbol)
 
+# ==================== SUB-MINUTE / CANDLE HELPERS ====================
+# Shared layer powering: (1) 10-second entry times, (2) the "$ distance from
+# previous candle" strike method, and (3) the "Current Candle" custom-builder
+# metric.  All three read sub-minute/candle OHLC via a single cached fetch.
+
+_SUBMINUTE_CANDLE_CACHE = {}
+
+def _normalize_candle_timespan(candle_type):
+    """Map UI candle-type shorthands to Polygon timespan strings."""
+    ct = str(candle_type or 'minute').strip().lower()
+    if ct in ('sec', 'second', 'seconds', 's'):
+        return 'second'
+    if ct in ('min', 'minute', 'minutes', 'm'):
+        return 'minute'
+    if ct in ('hr', 'hour', 'hours', 'h'):
+        return 'hour'
+    if ct in ('day', 'days', 'd'):
+        return 'day'
+    if ct in ('week', 'weeks', 'w'):
+        return 'week'
+    if ct in ('month', 'months'):
+        return 'month'
+    return 'minute'
+
+def _parse_entry_time_parts(entry_time_str):
+    """Parse 'HH:MM' or 'HH:MM:SS' → (hour, minute, second). Tolerant of blanks."""
+    parts = str(entry_time_str or '0:0').split(':')
+    try:
+        h = int(parts[0])
+    except (ValueError, IndexError):
+        h = 0
+    m = int(parts[1]) if len(parts) > 1 and str(parts[1]).strip() != '' else 0
+    s = int(parts[2]) if len(parts) > 2 and str(parts[2]).strip() != '' else 0
+    return h, m, s
+
+def _fetch_underlying_candles(client, underlying_sym, target_date, multiplier, candle_type):
+    """Ascending list of candle dicts for a single calendar day at (multiplier, timespan).
+
+    Each bar: {'timestamp'(UTC ms),'datetime'(ET),'time'('HH:MM:SS' ET),
+    'open','high','low','close','volume'}.  Cached per (sym,mult,span,date).
+    Returns [] when the symbol/day has no sub-minute data (e.g. ETFs 403 on
+    sub-minute) so callers can fail loudly rather than silently fall back.
+    """
+    timespan = _normalize_candle_timespan(candle_type)
+    try:
+        multiplier = max(1, int(multiplier))
+    except (ValueError, TypeError):
+        multiplier = 1
+    date_str = target_date.strftime('%Y-%m-%d')
+    cache_key = (underlying_sym, multiplier, timespan, date_str)
+    if cache_key in _SUBMINUTE_CANDLE_CACHE:
+        return _SUBMINUTE_CANDLE_CACHE[cache_key]
+    eastern = pytz.timezone('US/Eastern')
+    bars = []
+    try:
+        aggs = list(client.list_aggs(
+            underlying_sym, multiplier, timespan,
+            date_str, date_str,
+            adjusted="true", sort="asc", limit=50000
+        ))
+        for agg in aggs:
+            ts = getattr(agg, 'timestamp', None)
+            if ts is None:
+                continue
+            dt = datetime.fromtimestamp(ts / 1000, tz=pytz.UTC).astimezone(eastern)
+            if dt.strftime('%Y-%m-%d') != date_str:
+                continue
+            bars.append({
+                'timestamp': int(ts),
+                'datetime': dt,
+                'time': dt.strftime('%H:%M:%S'),
+                'open': agg.open, 'high': agg.high,
+                'low': agg.low, 'close': agg.close,
+                'volume': getattr(agg, 'volume', 0),
+            })
+    except Exception as e:
+        print(f"  [Candle] fetch error {underlying_sym} {multiplier}/{timespan} {date_str}: {e}", flush=True)
+        bars = []
+    bars.sort(key=lambda b: b['timestamp'])
+    _SUBMINUTE_CANDLE_CACHE[cache_key] = bars
+    return bars
+
+def _select_prev_current_candles(bars, cutoff_ts_ms):
+    """current = last bar with timestamp <= cutoff; previous = the completed bar before it."""
+    cur = None
+    cur_idx = -1
+    for i, b in enumerate(bars):
+        if b['timestamp'] <= cutoff_ts_ms:
+            cur = b
+            cur_idx = i
+        else:
+            break
+    prev = bars[cur_idx - 1] if cur_idx >= 1 else None
+    return prev, cur
+
+def _candle_color(candle):
+    if not candle:
+        return None
+    o = candle.get('open')
+    c = candle.get('close')
+    if o is None or c is None:
+        return None
+    if c > o:
+        return 'green'
+    if c < o:
+        return 'red'
+    return 'doji'
+
+def _candle_datapoint(candle, datapoint):
+    dp = str(datapoint or 'close').strip().lower()
+    if dp in ('o', 'open'):
+        dp = 'open'
+    elif dp in ('h', 'high'):
+        dp = 'high'
+    elif dp in ('l', 'low'):
+        dp = 'low'
+    else:
+        dp = 'close'
+    if not candle:
+        return None
+    v = candle.get(dp)
+    return float(v) if v is not None else None
+
+def _compare_values(a, op, b):
+    if a is None or b is None:
+        return False
+    op = str(op or '>').strip()
+    if op == '>':
+        return a > b
+    if op == '<':
+        return a < b
+    if op == '>=':
+        return a >= b
+    if op == '<=':
+        return a <= b
+    if op in ('==', '='):
+        return abs(a - b) < 1e-9
+    if op == '!=':
+        return abs(a - b) >= 1e-9
+    return False
+
+def _resolve_candle(client, symbol, trade_date, cutoff_ts_ms, day_offset, candle_type, multiplier, which):
+    """Fetch candles for (trade_date + day_offset) and return (previous, current, bars).
+
+    For day 0 the cutoff is the entry timestamp (current = forming candle at entry,
+    previous = last completed candle before it).  For prior days the current candle
+    is the last completed candle of that day.
+    """
+    from datetime import timedelta as _td
+    underlying_sym = get_underlying_ticker(symbol)
+    try:
+        day_off = int(day_offset or 0)
+    except (ValueError, TypeError):
+        day_off = 0
+    target_date = trade_date + _td(days=day_off)
+    bars = _fetch_underlying_candles(client, underlying_sym, target_date, multiplier, candle_type)
+    if not bars:
+        return None, None, bars
+    if day_off != 0:
+        cutoff = bars[-1]['timestamp'] + 1
+    else:
+        cutoff = cutoff_ts_ms
+    prev, cur = _select_prev_current_candles(bars, cutoff)
+    return prev, cur, bars
+
+def _reference_candle_price(client, symbol, trade_date, entry_ts_ms, params, which='previous'):
+    """Datapoint of the previous/current candle for the $-distance-from-candle strike
+    method.  Returns (value, note); value None → skip trade (missing data / color mismatch)."""
+    candle_type = params.get('candle_type', 'min')
+    multiplier = params.get('multiplier', 1)
+    day_offset = params.get('day', 0)
+    datapoint = params.get('datapoint', 'close')
+    candle_color = str(params.get('candle_color', 'either')).strip().lower()
+    prev, cur, bars = _resolve_candle(
+        client, symbol, trade_date, entry_ts_ms, day_offset, candle_type, multiplier, which
+    )
+    if not bars:
+        return None, f"no {candle_type} candle data"
+    candle = prev if which == 'previous' else cur
+    if candle is None:
+        return None, "candle unavailable"
+    if candle_color in ('green', 'red'):
+        col = _candle_color(candle)
+        if col != candle_color:
+            return None, f"candle is {col}, need {candle_color}"
+    return _candle_datapoint(candle, datapoint), ""
+
+def _current_underlying_price(client, symbol, trade_date, entry_ts_ms, ten_second=True):
+    """Underlying price at/just-before the entry timestamp (10-sec when available, else 1-min)."""
+    underlying_sym = get_underlying_ticker(symbol)
+    mult, span = (10, 'second') if ten_second else (1, 'minute')
+    bars = _fetch_underlying_candles(client, underlying_sym, trade_date, mult, span)
+    if not bars:
+        bars = _fetch_underlying_candles(client, underlying_sym, trade_date, 1, 'minute')
+    if not bars:
+        return None
+    last = None
+    for b in bars:
+        if b['timestamp'] <= entry_ts_ms:
+            last = b
+        else:
+            break
+    if last is None:
+        # No bar exists at/before entry: never fall back to a future bar
+        # (that would introduce lookahead bias). Signal "no price available".
+        return None
+    c = last.get('close')
+    return float(c) if c is not None else None
+
+def _eval_current_candle_condition(condition, client, symbol, trade_date, entry_ts_ms, ten_second=True):
+    """Evaluate a Custom-Builder 'current_candle' metric condition.
+
+    comparator 'none'                → assert current-candle color (green/red/either),
+                                       colour = current price vs current-candle open.
+    comparator 'compare_prev_candle' → compare a current-candle datapoint (or the live
+                                       current price) against a previous-candle datapoint,
+                                       with an optional stricter threshold.
+    Returns (met, reason, detail_dict).
+    """
+    comparator = str(condition.get('comparator', 'none')).strip()
+    left = condition.get('left', {}) or {}
+    l_ct = left.get('candle_type', 'min')
+    l_mult = left.get('multiplier', 1)
+    l_day = left.get('day', 0)
+
+    prev_l, cur_l, bars_l = _resolve_candle(
+        client, symbol, trade_date, entry_ts_ms, l_day, l_ct, l_mult, 'current'
+    )
+    if not bars_l or cur_l is None:
+        return False, "No current candle data", {}
+
+    cur_price = _current_underlying_price(client, symbol, trade_date, entry_ts_ms, ten_second=ten_second)
+    detail = {'metric': 'current_candle', 'operator': condition.get('operator', '=='),
+              'threshold': 0, 'threshold_unit': 'dollar', 'series_type': 'current_candle'}
+
+    if comparator == 'none':
+        want = str(left.get('candle_color', 'either')).strip().lower()
+        cur_open = cur_l.get('open')
+        if want in ('either', '', 'any'):
+            detail.update({'met': True, 'left_label': 'Current candle', 'left_value': round(cur_price or 0, 4),
+                           'right_label': 'any color', 'right_value': 0, 'effective_right': 0})
+            return True, "", detail
+        if cur_price is None or cur_open is None:
+            return False, "No current price for candle color", detail
+        actual = 'green' if cur_price > cur_open else ('red' if cur_price < cur_open else 'doji')
+        met = (actual == want)
+        detail.update({'met': met, 'left_label': f'Current candle ({actual})', 'left_value': round(cur_price, 4),
+                       'right_label': want, 'right_value': round(cur_open, 4), 'effective_right': round(cur_open, 4)})
+        return (met, "" if met else f"current candle is {actual}, need {want}", detail)
+
+    if comparator == 'compare_prev_candle':
+        operator = str(condition.get('operator', '<')).strip()
+        l_dp = str(left.get('datapoint', 'open')).strip().lower()
+        if l_dp in ('price', 'current_price', 'current'):
+            left_val = cur_price
+            left_lbl = 'Current price'
+        else:
+            left_val = _candle_datapoint(cur_l, l_dp)
+            left_lbl = f'Current candle {l_dp}'
+        l_color = str(left.get('candle_color', 'either')).strip().lower()
+        if l_color in ('green', 'red') and cur_price is not None:
+            _co = cur_l.get('open', cur_price)
+            _cc = 'green' if cur_price > _co else ('red' if cur_price < _co else 'doji')
+            if _cc != l_color:
+                return False, f"current candle is {_cc}, need {l_color}", detail
+        right = condition.get('right', {}) or {}
+        r_ct = right.get('candle_type', l_ct)
+        r_mult = right.get('multiplier', l_mult)
+        r_day = right.get('day', 0)
+        r_dp = str(right.get('datapoint', 'close')).strip().lower()
+        r_color = str(right.get('candle_color', 'either')).strip().lower()
+        prev_r, cur_r, bars_r = _resolve_candle(
+            client, symbol, trade_date, entry_ts_ms, r_day, r_ct, r_mult, 'previous'
+        )
+        if not bars_r or prev_r is None:
+            return False, "No previous candle data", detail
+        if r_color in ('green', 'red'):
+            _pc = _candle_color(prev_r)
+            if _pc != r_color:
+                return False, f"previous candle is {_pc}, need {r_color}", detail
+        right_val = _candle_datapoint(prev_r, r_dp)
+        if left_val is None or right_val is None:
+            return False, "Missing candle values", detail
+        threshold = condition.get('threshold', {}) or {}
+        eff_right = right_val
+        try:
+            tv = float(threshold.get('value', 0) or 0)
+        except (ValueError, TypeError):
+            tv = 0.0
+        tu = str(threshold.get('unit', 'dollar')).strip().lower()
+        if tv:
+            if operator in ('<', '<='):
+                eff_right = right_val * (1 - tv / 100.0) if tu in ('percent', 'pct', '%') else right_val - tv
+            else:
+                eff_right = right_val * (1 + tv / 100.0) if tu in ('percent', 'pct', '%') else right_val + tv
+        met = _compare_values(left_val, operator, eff_right)
+        detail.update({'met': met, 'left_label': left_lbl, 'left_value': round(left_val, 4),
+                       'operator': operator, 'right_label': f'Prev candle {r_dp}',
+                       'right_value': round(right_val, 4), 'effective_right': round(eff_right, 4),
+                       'threshold': tv, 'threshold_unit': tu})
+        return (met, "" if met else f"{left_lbl} {left_val:.2f} {operator} {eff_right:.2f} failed", detail)
+
+    return False, f"Unknown current-candle comparator {comparator}", detail
+
 # ==================== RATE LIMITING ====================
 
 def rate_limit_option_request():
@@ -1445,7 +1749,8 @@ def _opt_compute_tc_line_value(tc_params: Dict, bars_by_date: Dict, trade_date, 
 
 def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cache: Dict, 
                                           trade_date: datetime = None,
-                                          bars_by_date: Dict = None) -> Tuple[bool, str]:
+                                          bars_by_date: Dict = None,
+                                          client: RESTClient = None) -> Tuple[bool, str]:
     """
     Evaluate price conditions using pre-fetched indicator data.
     Uses the bar's timestamp to look up indicator values from cache.
@@ -1493,6 +1798,20 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 except Exception as _cpe:
                     print(f"  [CandlePattern opt] Error: {_cpe}")
                     return False, f"Candle pattern error: {str(_cpe)}", _cond_details
+
+            # ── Current Candle (sub-minute custom builder) ───────────────────
+            if condition.get('metric') == 'current_candle':
+                if client is None:
+                    return False, f"Current-candle condition {idx+1} requires market client", _cond_details
+                _cc_met, _cc_reason, _cc_detail = _eval_current_candle_condition(
+                    condition, client, config.get('symbol'), trade_date, bar_timestamp,
+                    ten_second=bool(config.get('ten_second_data'))
+                )
+                if _cc_detail:
+                    _cond_details.append(_cc_detail)
+                if not _cc_met:
+                    return False, f"Current-candle condition {idx+1}: {_cc_reason}", _cond_details
+                continue
 
             metric = condition.get('metric', 'price')
             operator = condition.get('operator', '>')
@@ -3913,8 +4232,8 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     delta_leg_data = {}  # Store delta leg data (strike, price, delta) for later use
     
     # Calculate entry timestamp for delta calculations
-    entry_hour, entry_min = map(int, config['entry_time'].split(':'))
-    entry_timestamp = trade_date.replace(hour=entry_hour, minute=entry_min, second=0, microsecond=0)
+    entry_hour, entry_min, entry_sec = _parse_entry_time_parts(config['entry_time'])
+    entry_timestamp = trade_date.replace(hour=entry_hour, minute=entry_min, second=entry_sec, microsecond=0)
     # Only localize if not already timezone aware
     if entry_timestamp.tzinfo is None:
         entry_timestamp = pytz.timezone('US/Eastern').localize(entry_timestamp)
@@ -4015,7 +4334,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             orb_total_min = 9 * 60 + 30 + orb_period_min
             orb_end_hour = orb_total_min // 60
             orb_end_min = orb_total_min % 60
-            entry_h, entry_m = map(int, config['entry_time'].split(':'))
+            entry_h, entry_m, _ = _parse_entry_time_parts(config['entry_time'])
             entry_total_min = entry_h * 60 + entry_m
             if entry_total_min <= orb_total_min:
                 print(f"  ✗ ORB: Entry time {config['entry_time']} must be after "
@@ -4058,6 +4377,36 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             dist_label = f"${dist_value}" if dist_type == 'dollar' else f"{dist_value}%"
             print(f"    {leg_name}: ORB {orb_period_min}m {orb_level}={orb_value:.2f} "
                   f"→ {dist_label} {direction} → target={target_strike:.2f} → strike={strike}")
+
+        elif config_type == 'dollar_prev_candle':
+            # "$ Distance from previous candle": target strike = a datapoint of the
+            # previous candle (of the configured type/multiplier/day, optionally gated
+            # by candle colour) offset by a $ distance in the chosen direction.
+            leg_name = leg_config.get('name', f"Leg {i+1}")
+            direction = str(params.get('direction', 'above'))
+            try:
+                amount = float(params.get('amount', params.get('distance', 0)) or 0)
+            except (ValueError, TypeError):
+                amount = 0.0
+            strike_fallback = str(params.get('strike_fallback', 'closest'))
+            _entry_ms = int(entry_timestamp.timestamp() * 1000)
+            ref_price, ref_note = _reference_candle_price(
+                client, config['symbol'], trade_date, _entry_ms, params, which='previous'
+            )
+            if ref_price is None:
+                print(f"  ✗ {leg_name}: $-from-prev-candle strike skipped ({ref_note})")
+                return False, [], []
+            target_strike = ref_price + amount if direction == 'above' else ref_price - amount
+            sym = config['symbol']
+            increment = 1 if sym in ("SPY", "QQQ", "IWM") else 5
+            strike = round_strike_with_direction(target_strike, increment, direction, strike_fallback)
+            if strike is None:
+                print(f"  ✗ {leg_name}: Failed to round $-from-prev-candle strike")
+                return False, [], []
+            calculated_strikes.append(strike)
+            print(f"    {leg_name}: prev {params.get('candle_type','min')}x{params.get('multiplier',1)} "
+                  f"{params.get('datapoint','close')}={ref_price:.2f} {direction} ${amount} "
+                  f"→ target={target_strike:.2f} → strike={strike}")
 
         else:
             # Standard strike calculation (no API calls)
@@ -4828,7 +5177,24 @@ def run_backtest(config: Dict, client: RESTClient):
         latest_exp,
         1  # Always 1-minute for entry
     )
-    
+
+    # 10-second entry mode: the entry scan runs on 10-second underlying candles
+    # (fetched lazily per trading day via _fetch_underlying_candles so times keep
+    # HH:MM:SS resolution).  Probe the first trading day(s) up front and FAIL LOUDLY
+    # if the symbol has no sub-minute data (e.g. SPY/QQQ/IWM 403) instead of silently
+    # collapsing to minute entry.
+    ten_second_mode = bool(config.get('ten_second_data'))
+    if ten_second_mode and trading_days:
+        _probe = _fetch_underlying_candles(client, underlying_sym, trading_days[0], 10, 'second')
+        if not _probe and len(trading_days) > 1:
+            _probe = _fetch_underlying_candles(client, underlying_sym, trading_days[1], 10, 'second')
+        if not _probe:
+            raise RuntimeError(
+                f"10-second data is unavailable for {config['symbol']}. Sub-minute entry "
+                f"requires an index such as SPX/SPXW. Disable the 10-second toggle or switch symbols."
+            )
+        print(f"  ✓ 10-second underlying data confirmed for {config['symbol']}")
+
     print(f"\nFetching {config['symbol']} daily closes for expiration pricing...")
     underlying_daily_closes = get_daily_closes_for_period(
         client, underlying_sym,
@@ -4969,6 +5335,15 @@ def run_backtest(config: Dict, client: RESTClient):
             entry_time_start = config['entry_time']
             entry_time_end = config.get('entry_time_end') or config.get('entry_time_max') or entry_time_start
 
+            # In 10-second mode candidate bar times are HH:MM:SS, so normalise
+            # HH:MM window bounds to full-second bounds for correct lexical range
+            # matching (start → :00, end → :59).
+            if ten_second_mode:
+                if len(entry_time_start) == 5:
+                    entry_time_start = entry_time_start + ':00'
+                if len(entry_time_end) == 5:
+                    entry_time_end = entry_time_end + ':59'
+
             # Store FULL-DAY OHLCV bars (09:30–16:15) for the decision-tree chart.
             # Storing all day bars means the chart frontend can scroll/pan freely to
             # see entry AND exit no matter when they occur in the session.
@@ -5020,11 +5395,21 @@ def run_backtest(config: Dict, client: RESTClient):
                     day_entry['bars'] = []
                     day_entry['seed_bars'] = []
 
-            # Entry condition scanning always uses 1-minute bars so that rolling
+            # Entry condition scanning normally uses 1-minute bars so that rolling
             # window presets (e.g. Velocity) are evaluated at every minute.
+            # In 10-second mode the scan uses 10-second underlying candles so entry
+            # can occur at an exact sub-minute time (e.g. 15:59:30).
             # detection_bar_size controls only the monitoring interval after entry.
+            if ten_second_mode:
+                scan_bars_today = _fetch_underlying_candles(client, underlying_sym, trade_date, 10, 'second')
+                if not scan_bars_today:
+                    day_entry['events'].append({'type': 'no_data', 'reason': '10-second underlying data unavailable for this day'})
+                    decision_log.append(day_entry)
+                    continue
+            else:
+                scan_bars_today = bars_1min_today
             candidate_bars = []
-            for bar in sorted(bars_1min_today, key=lambda x: x['time']):
+            for bar in sorted(scan_bars_today, key=lambda x: x['time']):
                 if entry_time_start <= bar['time'] <= entry_time_end:
                     candidate_bars.append(bar)
             
@@ -5102,7 +5487,7 @@ def run_backtest(config: Dict, client: RESTClient):
                             _pconf = {**config, 'price_conditions': _prereq_conds}
                             conditions_met, condition_reason, cond_details = evaluate_price_conditions_with_cache(
                                 _pconf, bar, indicators_cache, trade_date,
-                                bars_by_date=underlying_bars_1min
+                                bars_by_date=underlying_bars_1min, client=client
                             )
                             if not conditions_met:
                                 print(f"  Conditions not met: {condition_reason}", flush=True)
@@ -5149,7 +5534,7 @@ def run_backtest(config: Dict, client: RESTClient):
                             _sc_conf = {**config, 'price_conditions': [_sc]}
                             _sc_met, condition_reason, _sc_details = evaluate_price_conditions_with_cache(
                                 _sc_conf, bar, indicators_cache, trade_date,
-                                bars_by_date=underlying_bars_1min
+                                bars_by_date=underlying_bars_1min, client=client
                             )
                             _group_details.extend(_sc_details)
                             if not _sc_met:
@@ -5443,8 +5828,10 @@ def run_backtest(config: Dict, client: RESTClient):
             # bar's time (e.g. "10:00:00"), so use entry_time[:5] as the floor.
             eastern = pytz.timezone('US/Eastern')
             has_entry_window = entry_time_start != entry_time_end
-            window_start = entry_time[:5] if has_entry_window else entry_time
-            window_end   = entry_time_end  if has_entry_window else entry_time
+            # Minute-availability matching is always at HH:MM granularity, so trim any
+            # seconds component (present in 10-second mode) from the window bounds.
+            window_start = entry_time[:5] if has_entry_window else entry_time[:5]
+            window_end   = entry_time_end[:5]  if has_entry_window else entry_time[:5]
 
             valid_minutes = sorted([m for m in common_minutes if window_start <= m <= window_end])
 
@@ -5657,7 +6044,7 @@ def run_backtest(config: Dict, client: RESTClient):
                             _syn_day_bars = option_cache_1min[legs_info[0]['symbol']].get(date_str, [])
                             _syn_minutes = sorted(set(b['time'][:5] for b in _syn_day_bars))
                             _syn_valid = [m for m in _syn_minutes if window_start <= m <= window_end]
-                            valid_minutes = _syn_valid if _syn_valid else [entry_time]
+                            valid_minutes = _syn_valid if _syn_valid else [entry_time[:5]]
 
                             _theoretical = True
                             day_entry['_theoretical'] = True
@@ -5673,7 +6060,7 @@ def run_backtest(config: Dict, client: RESTClient):
                     # --- End strike sweep ---
             # --- End fallback ---
 
-            common_minute = valid_minutes[0]
+            common_minute = valid_minutes[0][:5]  # normalise to HH:MM for downstream minute matching
 
             # Compute entry_timestamp as the :00 boundary of the chosen minute.
             # Pricing uses bars strictly AFTER this (i.e. :10, :20, :30 within the minute).
@@ -5682,16 +6069,22 @@ def run_backtest(config: Dict, client: RESTClient):
             )
             entry_timestamp = int(entry_dt_est.timestamp() * 1000)
 
-            # If the common minute is later than the configured entry time,
-            # sync underlying_price to that minute's open.
-            if common_minute != entry_time:
-                bars_1min_dict = {bar['time']: bar for bar in bars_1min_today}
-                matched_bar = bars_1min_dict.get(common_minute)
-                if matched_bar:
-                    underlying_price = matched_bar['open']
-                    print(f"  ↳ First common minute is {common_minute} (not {entry_time}); underlying updated to {underlying_price:.2f}")
-
-            entry_time = common_minute
+            if ten_second_mode and entry_bar and str(entry_bar.get('time', ''))[:5] == common_minute:
+                # Sub-minute entry: fill at the exact 10-second bar the signal fired on
+                # rather than snapping to the :00 minute boundary.
+                entry_timestamp = int(entry_bar['timestamp'])
+                entry_time = entry_bar['time']
+                # underlying_price already reflects the 10-sec entry bar.
+            else:
+                # If the common minute is later than the configured entry time,
+                # sync underlying_price to that minute's open.
+                if common_minute != entry_time:
+                    bars_1min_dict = {bar['time']: bar for bar in bars_1min_today}
+                    matched_bar = bars_1min_dict.get(common_minute)
+                    if matched_bar:
+                        underlying_price = matched_bar['open']
+                        print(f"  ↳ First common minute is {common_minute} (not {entry_time}); underlying updated to {underlying_price:.2f}")
+                entry_time = common_minute
         
             # Get entry prices using first 3 consecutive 10-sec bars at the entry minute.
             # Short (credit) legs → LOWEST price across the 3 bars (conservative: least credit).
@@ -5703,9 +6096,12 @@ def run_backtest(config: Dict, client: RESTClient):
 
                 # First 3 × 10-sec bars AFTER the entry-minute open bar (:10, :20, :30).
                 # Strictly greater-than so the :00 bar (minute open) is excluded.
+                # In 10-second mode the entry_timestamp is the exact signal bar, so the
+                # lower bound is inclusive to fill AT that bar.
+                _fill_lb = entry_timestamp - 1 if ten_second_mode else entry_timestamp
                 window_bars = sorted(
                     [b for b in bars_10sec_today
-                     if entry_timestamp < b['timestamp'] < entry_timestamp + 60_000],
+                     if _fill_lb < b['timestamp'] < entry_timestamp + 60_000],
                     key=lambda x: x['timestamp']
                 )[:3]
 

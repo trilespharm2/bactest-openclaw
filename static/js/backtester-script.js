@@ -95,7 +95,8 @@ const METRICS = [
     { value: 'ema', label: 'EMA' },
     { value: 'rsi', label: 'RSI' },
     { value: 'macd', label: 'MACD' },
-    { value: 'trend_capture', label: 'Trend Capture' }
+    { value: 'trend_capture', label: 'Trend Capture' },
+    { value: 'current_candle', label: 'Current Candle' }
 ];
 
 function updateOptionsEntryType() {
@@ -178,7 +179,7 @@ function addOptExitCondition() {
                 <div class="col-md-4 col-sm-6">
                     <label class="form-label small">Metric</label>
                     <select class="form-select form-select-sm" id="optExitMetric${n}" onchange="updateOptExitConditionFields(${n})">
-                        ${METRICS.map(m => '<option value="' + m.value + '">' + m.label + '</option>').join('')}
+                        ${METRICS.filter(m => m.value !== 'current_candle').map(m => '<option value="' + m.value + '">' + m.label + '</option>').join('')}
                     </select>
                 </div>
                 <div class="col-md-4 col-sm-6" id="optExitLeftDayGroup${n}">
@@ -800,8 +801,119 @@ function addPriceCondition() {
             </div>
         </div>
         
+        <!-- Current Candle panel (shown only when metric=current_candle) -->
+        <div id="ccPanel${conditionId}" style="display:none; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:12px;" class="mb-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="fas fa-fire" style="color:#ea580c;"></i>
+                <strong style="color:#c2410c; font-size:13px;">Current Candle</strong>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Candle Type</label>
+                    <select class="form-select form-select-sm" id="ccLeftCandleType${conditionId}">
+                        <option value="second">Second</option>
+                        <option value="minute" selected>Minute</option>
+                        <option value="hour">Hour</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Multiplier</label>
+                    <input type="number" class="form-control form-control-sm" id="ccLeftMultiplier${conditionId}" value="1" min="1" max="3600">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Day</label>
+                    <select class="form-select form-select-sm" id="ccLeftDay${conditionId}">
+                        ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small">Candle Color</label>
+                    <select class="form-select form-select-sm" id="ccLeftColor${conditionId}">
+                        <option value="either" selected>Either</option>
+                        <option value="green">Green</option>
+                        <option value="red">Red</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2 mt-1">
+                <div class="col-md-4 col-sm-6">
+                    <label class="form-label small">Compare</label>
+                    <select class="form-select form-select-sm" id="ccComparator${conditionId}" onchange="updateCcRightVisibility(${conditionId}); updateOptConditionSummary(${conditionId}, false);">
+                        <option value="none" selected>None (color only)</option>
+                        <option value="compare_prev_candle">Compare Previous Candle</option>
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="ccLeftDatapointGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Current Datapoint</label>
+                    <select class="form-select form-select-sm" id="ccLeftDatapoint${conditionId}">
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                        <option value="close" selected>Close</option>
+                        <option value="price">Current Price</option>
+                    </select>
+                </div>
+                <div class="col-md-4 col-sm-6" id="ccOperatorGroup${conditionId}" style="display:none;">
+                    <label class="form-label small">Operator</label>
+                    <select class="form-select form-select-sm" id="ccOperator${conditionId}">
+                        <option value="&lt;">&lt;</option>
+                        <option value="&lt;=">&lt;=</option>
+                        <option value="&gt;">&gt;</option>
+                        <option value="&gt;=">&gt;=</option>
+                        <option value="==">==</option>
+                    </select>
+                </div>
+            </div>
+            <div id="ccRightWrap${conditionId}" style="display:none;">
+                <div class="mt-2 p-2 rounded" style="background:#fef2f2; border:1px solid #fecaca;">
+                    <strong style="color:#b91c1c; font-size:12px;">Previous Candle</strong>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-4 col-sm-6">
+                            <label class="form-label small">Candle Type</label>
+                            <select class="form-select form-select-sm" id="ccRightCandleType${conditionId}">
+                                <option value="second">Second</option>
+                                <option value="minute" selected>Minute</option>
+                                <option value="hour">Hour</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <label class="form-label small">Multiplier</label>
+                            <input type="number" class="form-control form-control-sm" id="ccRightMultiplier${conditionId}" value="1" min="1" max="3600">
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <label class="form-label small">Day</label>
+                            <select class="form-select form-select-sm" id="ccRightDay${conditionId}">
+                                ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <label class="form-label small">Datapoint</label>
+                            <select class="form-select form-select-sm" id="ccRightDatapoint${conditionId}">
+                                <option value="open">Open</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                                <option value="close" selected>Close</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <label class="form-label small">Candle Color</label>
+                            <select class="form-select form-select-sm" id="ccRightColor${conditionId}">
+                                <option value="either" selected>Either</option>
+                                <option value="green">Green</option>
+                                <option value="red">Red</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <label class="form-label small">Threshold ($, optional)</label>
+                            <input type="number" class="form-control form-control-sm" id="ccThreshold${conditionId}" step="0.01" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Operator Row -->
-        <div class="condition-operator mb-3">
+        <div class="condition-operator mb-3" id="conditionOperatorRow${conditionId}">
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Operator</label>
@@ -1245,6 +1357,19 @@ function updateConditionFields(conditionId) {
             updateComparatorOptions(conditionId, ['value', 'compare_trend_capture']);
             setCrossOperators('operator' + conditionId, false);
             break;
+
+        case 'current_candle':
+            if (leftDayGroup) leftDayGroup.style.display = 'none';
+            if (leftCandleTypeGroup) leftCandleTypeGroup.style.display = 'none';
+            if (leftMultiplierGroup) leftMultiplierGroup.style.display = 'none';
+            if (leftWindowGroup) leftWindowGroup.style.display = 'none';
+            if (leftSeriesTypeGroup) leftSeriesTypeGroup.style.display = 'none';
+            (function() {
+                var ccP = document.getElementById('ccPanel' + conditionId);
+                if (ccP) ccP.style.display = 'block';
+                updateCcRightVisibility(conditionId);
+            })();
+            break;
     }
 
     // Always hide TC panels unless metric is trend_capture
@@ -1253,7 +1378,31 @@ function updateConditionFields(conditionId) {
         if (tcP) tcP.style.display = 'none';
     }
 
+    // Current Candle panel replaces the standard operator/right-side rows
+    var ccPanelEl = document.getElementById('ccPanel' + conditionId);
+    var operatorRowEl = document.getElementById('conditionOperatorRow' + conditionId);
+    if (metric === 'current_candle') {
+        if (operatorRowEl) operatorRowEl.style.display = 'none';
+        var rsCC = document.getElementById('rightSide' + conditionId);
+        if (rsCC) rsCC.style.display = 'none';
+        return;
+    } else {
+        if (ccPanelEl) ccPanelEl.style.display = 'none';
+        if (operatorRowEl) operatorRowEl.style.display = '';
+    }
+
     updateRightSideVisibility(conditionId);
+}
+
+function updateCcRightVisibility(conditionId) {
+    var cmp = (document.getElementById('ccComparator' + conditionId) || {}).value || 'none';
+    var isCompare = cmp === 'compare_prev_candle';
+    var wrap = document.getElementById('ccRightWrap' + conditionId);
+    var dpGrp = document.getElementById('ccLeftDatapointGroup' + conditionId);
+    var opGrp = document.getElementById('ccOperatorGroup' + conditionId);
+    if (wrap) wrap.style.display = isCompare ? 'block' : 'none';
+    if (dpGrp) dpGrp.style.display = isCompare ? 'block' : 'none';
+    if (opGrp) opGrp.style.display = isCompare ? 'block' : 'none';
 }
 
 function handleCandleTypeChange(conditionId) {
@@ -1533,6 +1682,22 @@ function updateOptThresholdUnitOptions(n, metric, isExit) {
 function buildOptConditionDesc(n, isExit) {
     function getVal(id) { return (document.getElementById(id) || {}).value; }
 
+    if (!isExit && getVal('metric' + n) === 'current_candle') {
+        var _ccCmp = getVal('ccComparator' + n) || 'none';
+        var _ccCt = getVal('ccLeftCandleType' + n) || 'minute';
+        var _ccMult = getVal('ccLeftMultiplier' + n) || '1';
+        var _ccColor = getVal('ccLeftColor' + n) || 'either';
+        if (_ccCmp === 'none') {
+            return 'Current ' + _ccMult + ' ' + _ccCt + ' candle is ' + _ccColor;
+        }
+        var _ccDp = getVal('ccLeftDatapoint' + n) || 'close';
+        var _ccOp = getVal('ccOperator' + n) || '<';
+        var _ccRdp = getVal('ccRightDatapoint' + n) || 'close';
+        var _ccRct = getVal('ccRightCandleType' + n) || 'minute';
+        var _ccRmult = getVal('ccRightMultiplier' + n) || '1';
+        return 'Current candle ' + _ccDp + ' ' + _ccOp + ' previous ' + _ccRmult + ' ' + _ccRct + ' candle ' + _ccRdp;
+    }
+
     var metric, operator, comparator, leftDay, leftCandle, leftMult, leftSeries, leftTimeframe;
     var compareValue, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe, threshUnit, threshVal;
 
@@ -1688,7 +1853,36 @@ function collectPriceConditions() {
         const id = row.id.replace('priceCondition', '');
         const metric = document.getElementById(`metric${id}`)?.value;
         const comparator = document.getElementById(`comparator${id}`)?.value;
-        
+
+        if (metric === 'current_candle') {
+            var ccCmp = document.getElementById(`ccComparator${id}`)?.value || 'none';
+            var ccCond = {
+                metric: 'current_candle',
+                comparator: ccCmp,
+                left: {
+                    candle_type: document.getElementById(`ccLeftCandleType${id}`)?.value || 'minute',
+                    multiplier: parseInt(document.getElementById(`ccLeftMultiplier${id}`)?.value) || 1,
+                    day: document.getElementById(`ccLeftDay${id}`)?.value || '0',
+                    candle_color: document.getElementById(`ccLeftColor${id}`)?.value || 'either'
+                }
+            };
+            if (ccCmp === 'compare_prev_candle') {
+                ccCond.operator = document.getElementById(`ccOperator${id}`)?.value || '<';
+                ccCond.left.datapoint = document.getElementById(`ccLeftDatapoint${id}`)?.value || 'close';
+                ccCond.right = {
+                    candle_type: document.getElementById(`ccRightCandleType${id}`)?.value || 'minute',
+                    multiplier: parseInt(document.getElementById(`ccRightMultiplier${id}`)?.value) || 1,
+                    day: document.getElementById(`ccRightDay${id}`)?.value || '0',
+                    datapoint: document.getElementById(`ccRightDatapoint${id}`)?.value || 'close',
+                    candle_color: document.getElementById(`ccRightColor${id}`)?.value || 'either'
+                };
+                var ccThr = document.getElementById(`ccThreshold${id}`)?.value;
+                ccCond.threshold = { unit: 'dollar', value: ccThr ? parseFloat(ccThr) : 0 };
+            }
+            conditions.push(ccCond);
+            return;
+        }
+
         var effectiveMetric = metric === 'current_price' ? 'price' : metric;
         const condition = {
             metric: effectiveMetric,
@@ -2142,6 +2336,7 @@ function buildLegConfiguration(strategy) {
         optionsHTML += `
             <option value="delta">${legDefinitions.length > 1 ? '6' : '4'}. Delta-based Strike Selection</option>
             <option value="orb_breakout">${legDefinitions.length > 1 ? '7' : '5'}. ORB Breakout Strike Selection</option>
+            <option value="dollar_prev_candle">${legDefinitions.length > 1 ? '8' : '6'}. $ Distance from Previous Candle</option>
         `;
         
         const dteFieldHTML = leg.dte_label ? `
@@ -2430,6 +2625,79 @@ function handleLegMethodChange(e) {
                     <i class="fas fa-info-circle"></i> Strike: <span id="orbSummaryText_${legIndex}">$1 above 60 min low (closest)</span>
                 </div>
                 <div id="orbEntryWarn_${legIndex}" style="display:none; margin-top:8px; padding:10px 14px; background:#fce4ec; border:1px solid #ef9a9a; border-radius:6px; font-size:13px; color:#c62828; font-weight:600;">
+                </div>
+            `;
+            break;
+
+        case 'dollar_prev_candle':
+            html = `
+                <div style="margin-bottom:10px; padding:8px 12px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px;">
+                    <small style="color:#795548; font-weight:600;">🕯️ Strike is set a $ distance from a chosen datapoint of a previous candle (optionally filtered by candle color).</small>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Direction:</label>
+                        <select class="leg-param" data-param="direction">
+                            <option value="above" ${defaultDirection === 'above' ? 'selected' : ''}>above</option>
+                            <option value="below" ${defaultDirection === 'below' ? 'selected' : ''}>below</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>$ distance:</label>
+                        <input type="number" class="leg-param" data-param="amount" step="0.5" min="0" placeholder="1" value="1">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Datapoint:</label>
+                        <select class="leg-param" data-param="datapoint">
+                            <option value="open">Open</option>
+                            <option value="high">High</option>
+                            <option value="low">Low</option>
+                            <option value="close" selected>Close</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Candle color:</label>
+                        <select class="leg-param" data-param="candle_color">
+                            <option value="either" selected>Either</option>
+                            <option value="green">Green</option>
+                            <option value="red">Red</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Candle type:</label>
+                        <select class="leg-param" data-param="candle_type">
+                            <option value="second">Second</option>
+                            <option value="minute" selected>Minute</option>
+                            <option value="hour">Hour</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Multiplier:</label>
+                        <input type="number" class="leg-param" data-param="multiplier" step="1" min="1" max="3600" placeholder="1" value="1">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Day offset:</label>
+                        <select class="leg-param" data-param="day">
+                            <option value="0" selected>0 (entry day)</option>
+                            <option value="-1">-1 (previous day)</option>
+                            <option value="-2">-2</option>
+                            <option value="-3">-3</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Strike selection fallback:</label>
+                        <select class="leg-param" data-param="strike_fallback">
+                            <option value="closest">Closest (default)</option>
+                            <option value="or_higher">Or Higher</option>
+                            <option value="or_less">Or Lower</option>
+                        </select>
+                    </div>
                 </div>
             `;
             break;
@@ -3141,7 +3409,7 @@ function buildOptConfigSummaryHtml(config) {
     let legsHtml = '';
     if (config.legs && config.legs.length > 0) {
         legsHtml = config.legs.map(leg => {
-            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg','orb_breakout':'ORB Breakout'};
+            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg','orb_breakout':'ORB Breakout','dollar_prev_candle':'$ from Prev Candle'};
             const method = methodMap[leg.config_type] || leg.config_type;
             let paramStr = '';
             if (leg.params) {
@@ -3152,6 +3420,7 @@ function buildOptConfigSummaryHtml(config) {
                 else if (leg.config_type === 'dollar_underlying') paramStr = `${p.direction || ''} $${p.amount || 0}`;
                 else if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') paramStr = `From ${p.reference_leg || 'Leg'}: ${p.pct || p.amount || 0}${leg.config_type === 'pct_leg' ? '%' : '$'}`;
                 else if (leg.config_type === 'orb_breakout') { const dPfx = p.dist_type === 'pct' ? '' : '$'; const dSfx = p.dist_type === 'pct' ? '%' : ''; paramStr = `${dPfx}${p.dist_value}${dSfx} ${p.direction} ${p.orb_period}m ${p.orb_level} (${p.strike_fallback || 'closest'})`; }
+                else if (leg.config_type === 'dollar_prev_candle') { const _col = (p.candle_color && p.candle_color !== 'either') ? ` ${p.candle_color}` : ''; paramStr = `$${p.amount || 0} ${p.direction || ''} prev ${p.multiplier || 1} ${p.candle_type || 'min'}${_col} candle ${p.datapoint || 'close'} [day ${p.day || 0}] (${p.strike_fallback || 'closest'})`; }
             }
             const dteStr = leg.dte !== undefined ? ` (DTE: ${leg.dte})` : '';
             return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}${dteStr}</div>`;
@@ -3306,7 +3575,7 @@ function validateOptionsConfig(config) {
     
     if (!config.entry_time) {
         errors.push('Entry time is required');
-    } else if (config.entry_time < '09:30' || config.entry_time > '16:00') {
+    } else if (config.entry_time.slice(0, 5) < '09:30' || config.entry_time.slice(0, 5) > '16:00') {
         errors.push('Entry time must be between 09:30 and 16:00');
     }
     if (config.entry_time_max && config.entry_time_max <= config.entry_time) {
@@ -3610,6 +3879,19 @@ async function handleBacktestSubmit(e) {
     };
 }
 
+function toggleTenSecondData(enabled) {
+    var step = enabled ? '1' : '60';
+    var et = document.getElementById('entryTime');
+    var etm = document.getElementById('entryTimeMax');
+    if (et) et.step = step;
+    if (etm) etm.step = step;
+    if (!enabled) {
+        // Trim any seconds back to HH:MM when disabling
+        if (et && et.value && et.value.length > 5) et.value = et.value.slice(0, 5);
+        if (etm && etm.value && etm.value.length > 5) etm.value = etm.value.slice(0, 5);
+    }
+}
+
 function collectFormData() {
     // Collect backtest name (optional)
     const backtestName = document.getElementById('backtestName') ? document.getElementById('backtestName').value.trim() : '';
@@ -3631,7 +3913,7 @@ function collectFormData() {
     if (!endDate) _missingFields.push({label: 'End Date', id: 'endDate'});
     if (!entryTime) {
         _missingFields.push({label: 'Entry Time', id: 'entryTime'});
-    } else if (entryTime < '09:30' || entryTime > '16:00') {
+    } else if (entryTime.slice(0, 5) < '09:30' || entryTime.slice(0, 5) > '16:00') {
         _missingFields.push({label: 'Entry Time (must be between 09:30 and 16:00)', id: 'entryTime'});
     }
     if (!isCalendarDiagonalStrategy(strategy) && (_dteRaw === '' || isNaN(dte))) _missingFields.push({label: 'Days to Expiration (DTE)', id: 'dte'});
@@ -3722,7 +4004,8 @@ function collectFormData() {
         avoid_pdt: document.querySelector('input[name="avoidPdt"]:checked').value === 'y',
         allow_synthetic: document.querySelector('input[name="allowSynthetic"]:checked').value === 'y',
         expiry_close_time: document.querySelector('input[name="expiryCloseTime"]:checked')?.value || '16:15',
-        starting_capital: startingCapital
+        starting_capital: startingCapital,
+        ten_second_data: document.getElementById('tenSecondData')?.checked || false
     };
     
     // Add allocation

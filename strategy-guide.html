@@ -171,6 +171,11 @@
             <div class="sg-bt-field-desc">If set, creates a window between Start and End times. The engine looks for the first minute within this window where all entry conditions are met. If conditions aren't met by the End time, that day is skipped. Useful for condition-based entries that might trigger at different times.</div>
             <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Leave the end time blank to enter at a fixed time each day. Use a window when combining with underlying price conditions.</div>
           </div>
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-stopwatch"></i> 10-Second Data (Precision Entries)</div>
+            <div class="sg-bt-field-desc">By default the entry time is specified to the minute (HH:MM). Turn on the <strong>10-second data</strong> toggle to specify entry times down to the second (HH:MM:SS, e.g., 15:59:30). This pulls sub-minute underlying data so the backtester can enter precisely inside the final seconds of a bar — useful for late-day 0DTE entries and candle-shape conditions. When the toggle is off, seconds are trimmed and the engine uses standard 1-minute data (no change to existing backtests).</div>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Sub-minute data isn't available for every symbol (some ETFs return no second-level bars). If a symbol has no sub-minute data, those entries are skipped rather than silently falling back.</div>
+          </div>
         </div>
       </div>
 
@@ -232,7 +237,7 @@
             <div class="sg-bt-field-name"><i class="fas fa-cogs"></i> Custom Builder</div>
             <div class="sg-bt-field-desc">Build complex conditions using technical indicators. Each row defines a rule:</div>
             <ul class="sg-bt-list">
-              <li><strong>Left Side (Metric)</strong> — The value to test: Current Price, SMA, EMA, RSI, or MACD.</li>
+              <li><strong>Left Side (Metric)</strong> — The value to test: Current Price, SMA, EMA, RSI, MACD, or <strong>Current Candle</strong>.</li>
               <li><strong>Day</strong> — Which day's data to use: Today, Yesterday, 2 Days Ago, etc.</li>
               <li><strong>Candle Type</strong> — Bar timeframe: 1-minute, 5-minute, 15-minute, hourly, or daily candles.</li>
               <li><strong>Period/Window</strong> — Lookback period for the indicator (e.g., 20 for SMA20, 14 for RSI14).</li>
@@ -241,6 +246,16 @@
               <li><strong>Threshold</strong> — Optional offset in dollars or percent (e.g., "Price > SMA 20 + 1%").</li>
             </ul>
             <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Multiple conditions are AND-combined. All must be true for a trade to trigger. Example: "RSI < 30 AND Price > SMA 200" for oversold bounces in an uptrend.</div>
+          </div>
+
+          <div class="sg-bt-field">
+            <div class="sg-bt-field-name"><i class="fas fa-candle-holder"></i> Current Candle Metric</div>
+            <div class="sg-bt-field-desc">A specialized metric for candle-shape entries. Pick the candle type (second/minute/hour), multiplier, and day for the <em>current</em> candle at entry, then choose one of two comparators:</div>
+            <ul class="sg-bt-list">
+              <li><strong>None (color only)</strong> — Enters only when the current candle's color matches your choice (green, red, or either). Color is judged by the live price versus the current candle's open, so it works even on the forming candle at entry time.</li>
+              <li><strong>Compare Previous Candle</strong> — Compares a datapoint of the current candle (or the live current price) against a datapoint of the previous candle using an operator, with an optional dollar/percent threshold offset. You can also gate each side by candle color (only trigger when the current and/or previous candle is green/red).</li>
+            </ul>
+            <div class="sg-bt-field-tip"><i class="fas fa-lightbulb"></i> Example: "Current Candle (30-second) — Compare Previous Candle: current Open &lt; previous 30-second Close, previous candle red" enters only on a continued downside break.</div>
           </div>
 
           <div class="sg-bt-field sg-bt-example-field">
@@ -580,7 +595,7 @@
 
           <div class="sg-bt-field">
             <div class="sg-bt-field-name"><i class="fas fa-crosshairs"></i> Strike Selection Methods</div>
-            <div class="sg-bt-field-desc">Six methods are available to choose the strike price for each leg:</div>
+            <div class="sg-bt-field-desc">Seven methods are available to choose the strike price for each leg:</div>
             <ul class="sg-bt-list">
               <li><strong>Mid-Price Range</strong> — Select strikes within a minimum and maximum option premium range (e.g., $1.00 to $3.00). Finds the strike whose option premium falls within your specified range.</li>
               <li><strong>% Distance from Underlying</strong> — Select strike as a percentage away from the underlying price (e.g., 2% OTM). Positive = OTM, negative = ITM.</li>
@@ -588,6 +603,7 @@
               <li><strong>$ Distance from Another Leg</strong> — Select strike relative to another leg's resolved strike. Used for defining spread width (e.g., "Leg 2 = Leg 1 strike + $5").</li>
               <li><strong>% Distance from Another Leg</strong> — Same concept but using percentage distance from another leg's strike.</li>
               <li><strong>Delta</strong> — Select the strike closest to a target delta value (e.g., 0.30 delta call). The most precise method for consistent positioning relative to probability.</li>
+              <li><strong>$ Distance from Previous Candle</strong> — Anchor the strike to a datapoint of the previous candle rather than the current underlying price. You choose the <em>direction</em> (above/below), the <em>$ amount</em> offset, the <em>datapoint</em> (Open/High/Low/Close), the <em>candle type</em> (second/minute/hour) and <em>multiplier</em> (e.g., 30-second, 5-minute), the <em>day</em> (0 = today, -1 = yesterday, …), and an optional <em>candle color</em> gate (only anchor when the reference candle is green/red). If the reference candle can't be found (e.g., no sub-minute data for that symbol), a <em>strike fallback</em> controls whether the day is skipped or the closest strike is used. Example: "Short leg = 30-second previous candle High + $2, only if that candle is red."</li>
             </ul>
           </div>
 
