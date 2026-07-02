@@ -756,6 +756,201 @@ def _drop_forming_bar(bars, interval):
     return bars
 
 
+def _bot_candle_color(candle):
+    """'green'|'red'|'doji' from a bar's open/close, or None if unavailable."""
+    if not candle:
+        return None
+    o = candle.get('open')
+    c = candle.get('close')
+    if o is None or c is None:
+        return None
+    try:
+        o = float(o); c = float(c)
+    except (TypeError, ValueError):
+        return None
+    return 'green' if c > o else ('red' if c < o else 'doji')
+
+
+def _bot_candle_dp(candle, datapoint):
+    """Return a bar's open/high/low/close as float (default close), or None."""
+    dp = str(datapoint or 'close').strip().lower()
+    dp = {'o': 'open', 'h': 'high', 'l': 'low', 'c': 'close'}.get(dp, dp)
+    if dp not in ('open', 'high', 'low', 'close'):
+        dp = 'close'
+    if not candle:
+        return None
+    v = candle.get(dp)
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _session_intraday_bars(symbol, interval, api_key, base_url, day=0):
+    """Intraday bars for the trading session `day` sessions back (0 = today).
+
+    Tradier's timesales only supports 1/5/15-min intraday buckets.  For prior
+    sessions we fetch a wider window and group by calendar date, then return the
+    requested day's bars (oldest first)."""
+    try:
+        day = int(day or 0)
+    except (TypeError, ValueError):
+        day = 0
+    if day == 0:
+        bars = _fetch_intraday_bars(symbol, interval, api_key, base_url, days_back=0)
+        if not bars:
+            bars = _fetch_intraday_bars(symbol, interval, api_key, base_url, days_back=3)
+        return bars
+    bars = _fetch_intraday_bars(symbol, interval, api_key, base_url,
+                                days_back=max(abs(day) * 2 + 5, 10))
+    if not bars:
+        return []
+    from collections import OrderedDict
+    by_date = OrderedDict()
+    for b in bars:
+        d = str(b.get('time', ''))[:10]
+        if d:
+            by_date.setdefault(d, []).append(b)
+    dates = list(by_date.keys())
+    idx = len(dates) - 1 + day  # day is negative
+    if 0 <= idx < len(dates):
+        return by_date[dates[idx]]
+    return []
+
+
+def _live_candle_pair(symbol, interval, api_key, base_url, day=0):
+    """Return (prev_candle, cur_candle) dicts for live 'current/previous candle'
+    logic, mirroring the options backtester.
+
+    cur_candle  = the most recent (currently forming) candle.
+    prev_candle = the last finished candle before it.
+    interval: '1min'|'5min'|'15min'|'day'.  day: 0=today, negative=prior sessions.
+    Returns (None, None) when data is unavailable."""
+    interval = interval or '1min'
+    try:
+        day = int(day or 0)
+    except (TypeError, ValueError):
+        day = 0
+    if interval == 'day':
+        need = max(abs(day) + 5, 10)
+        bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
+        if not bars:
+            return None, None
+        # Normalise daily rows to the OHLC keys used elsewhere.
+        norm = []
+        for b in bars:
+            norm.append({
+                'time':  b.get('date', ''),
+                'open':  b.get('open'),
+                'high':  b.get('high'),
+                'low':   b.get('low'),
+                'close': b.get('close'),
+            })
+        bars = norm
+        if day != 0:
+            cut = len(bars) + day  # day negative
+            bars = bars[:cut] if cut > 0 else []
+            if not bars:
+                return None, None
+    else:
+        bars = _session_intraday_bars(symbol, interval, api_key, base_url, day=day)
+        if not bars:
+            return None, None
+    cur = bars[-1]
+    prev = bars[-2] if len(bars) >= 2 else None
+    return prev, cur
+
+
+def _eval_current_candle_bot(cfg, symbol, mkey, murl, comparator, operator, interval):
+    """Evaluate a 'current_candle' metric condition against live Tradier data.
+
+    Mirrors options_backtester._eval_current_candle_condition:
+      comparator 'none'                → assert current-candle colour
+                                         (live price vs current-candle open).
+      comparator 'compare_prev_candle' → compare a current-candle datapoint (or
+                                         the live current price) against the
+                                         previous candle's datapoint, with an
+                                         optional stricter threshold.
+    Returns (ok, detail).  ok=None → data unavailable (skip)."""
+    try:
+        day = int(cfg.get('day', 0) or 0)
+    except (TypeError, ValueError):
+        day = 0
+    left_dp    = str(cfg.get('ccDatapoint', 'close')).strip().lower()
+    left_color = str(cfg.get('ccColor', 'either')).strip().lower()
+
+    def _live_price():
+        q = _tradier(mkey, murl, '/markets/quotes',
+                     params={'symbols': symbol, 'greeks': 'false'})
+        if not q:
+            return None
+        try:
+            p = float((q.get('quotes', {}).get('quote') or {}).get('last', 0) or 0)
+        except (TypeError, ValueError):
+            return None
+        return p if p > 0 else None
+
+    prev_c, cur_c = _live_candle_pair(symbol, interval, mkey, murl, day=day)
+    cur_price = _live_price()
+
+    if comparator == 'none':
+        want = left_color
+        if want in ('either', '', 'any'):
+            return True, 'Current candle: any color ✓'
+        if cur_c is None:
+            return None, 'No current candle data'
+        cur_open = _bot_candle_dp(cur_c, 'open')
+        if cur_price is None or cur_open is None:
+            return None, 'No current price for candle color'
+        actual = 'green' if cur_price > cur_open else ('red' if cur_price < cur_open else 'doji')
+        ok = (actual == want)
+        return ok, f"Current candle is {actual}, need {want} {'✓' if ok else '✗'}"
+
+    if comparator == 'compare_prev_candle':
+        if left_dp in ('price', 'current_price', 'current'):
+            left_val = cur_price
+            left_lbl = 'Current price'
+        else:
+            if cur_c is None:
+                return None, 'No current candle data'
+            left_val = _bot_candle_dp(cur_c, left_dp)
+            left_lbl = f'Current candle {left_dp}'
+        # Colour gate on the current candle (live price vs current-candle open)
+        if left_color in ('green', 'red') and cur_price is not None and cur_c is not None:
+            _co = _bot_candle_dp(cur_c, 'open')
+            if _co is not None:
+                _cc = 'green' if cur_price > _co else ('red' if cur_price < _co else 'doji')
+                if _cc != left_color:
+                    return False, f'current candle is {_cc}, need {left_color} ✗'
+        if prev_c is None:
+            return None, 'No previous candle data'
+        right_dp    = str(cfg.get('ccRightDatapoint', 'close')).strip().lower()
+        right_color = str(cfg.get('ccRightColor', 'either')).strip().lower()
+        if right_color in ('green', 'red'):
+            _pc = _bot_candle_color(prev_c)
+            if _pc != right_color:
+                return False, f'previous candle is {_pc}, need {right_color} ✗'
+        right_val = _bot_candle_dp(prev_c, right_dp)
+        if left_val is None or right_val is None:
+            return None, 'Missing candle values'
+        try:
+            tv = float(cfg.get('thresholdValue') or 0)
+        except (TypeError, ValueError):
+            tv = 0.0
+        tu = str(cfg.get('thresholdUnit', 'dollar')).strip().lower()
+        eff_right = right_val
+        if tv:
+            if operator in ('<', '<='):
+                eff_right = right_val * (1 - tv / 100.0) if tu in ('percent', 'pct', '%') else right_val - tv
+            else:
+                eff_right = right_val * (1 + tv / 100.0) if tu in ('percent', 'pct', '%') else right_val + tv
+        ok = _compare(left_val, operator, eff_right)
+        return ok, (f'{left_lbl} = {left_val:.2f} {operator} Prev candle {right_dp} '
+                    f'{eff_right:.2f} {"✓" if ok else "✗"}')
+
+    return None, f'Unknown current-candle comparator {comparator}'
+
+
 def _ind_sma(closes, period):
     if len(closes) < period:
         return None
@@ -1055,6 +1250,13 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
         return _compute_bar_metric(metric, period, brs, day=d, series=series,
                                    macd_short=macd_short, macd_long=macd_long,
                                    macd_signal=macd_signal, macd_comp=macd_comp)
+
+    # ── Current-candle metric (self-contained; mirrors options backtester) ─────
+    if metric == 'current_candle':
+        _cc_comp = ctype if ctype in ('none', 'compare_prev_candle') else 'none'
+        return _eval_current_candle_bot(cfg, symbol, _mkey, _murl,
+                                        comparator=_cc_comp, operator=operator,
+                                        interval=intv)
 
     # ── Fetch LHS ─────────────────────────────────────────────────────────────
     bars = None
@@ -1956,6 +2158,34 @@ def exec_open_position(cfg, api_key, base_url, account_id,
                 pct   = float(strike_value) / 100
                 above = _resolve_dir(options, strike_direction)
                 target = underlying * (1 + pct) if above else underlying * (1 - pct)
+                return _apply_fallback(options, target, 'above' if above else 'below')
+            if strike_method == 'dollar_prev_candle' and strike_value:
+                # "$ Distance from Previous Candle": target = a datapoint of the
+                # previous (last finished) candle offset by a $ distance, optionally
+                # gated by candle colour. Mirrors the options backtester.
+                amount    = float(strike_value)
+                pc_intv   = cfg.get('prevCandleType', '1min')
+                pc_day    = cfg.get('prevCandleDay', 0)
+                pc_dp     = cfg.get('prevCandleDatapoint', 'close')
+                pc_color  = str(cfg.get('prevCandleColor', 'either')).strip().lower()
+                prev_c, _cur = _live_candle_pair(symbol, pc_intv, _mkey, _murl, day=pc_day)
+                if prev_c is None:
+                    logger.warning("_pick(dollar_prev_candle): no previous candle data — skip")
+                    return None
+                if pc_color in ('green', 'red'):
+                    col = _bot_candle_color(prev_c)
+                    if col != pc_color:
+                        logger.info(f"_pick(dollar_prev_candle): prev candle is {col}, "
+                                    f"need {pc_color} — skip")
+                        return None
+                ref = _bot_candle_dp(prev_c, pc_dp)
+                if ref is None:
+                    logger.warning("_pick(dollar_prev_candle): missing candle datapoint — skip")
+                    return None
+                above = _resolve_dir(options, strike_direction)
+                target = ref + amount if above else ref - amount
+                logger.info(f"_pick(dollar_prev_candle): prev {pc_intv} {pc_dp}={ref:.2f} "
+                            f"{'above' if above else 'below'} ${amount} → target={target:.2f}")
                 return _apply_fallback(options, target, 'above' if above else 'below')
             if strike_method in ('dollar_leg', 'pct_leg') and strike_value:
                 # Leg-relative not meaningful for Leg 1 — fall through

@@ -2029,6 +2029,10 @@ function stratSaveStepConfig() {
     c.rightLookback = (_rlbRaw === '' || _rlbRaw == null) ? null : (parseInt(_rlbRaw) || 0);
     c.thresholdUnit  = document.getElementById('sbcThresholdUnit')?.value || 'percent';
     c.thresholdValue = (document.getElementById('sbcThresholdValue')?.value || '').trim();
+    c.ccDatapoint      = document.getElementById('sbcCcDatapoint')?.value || 'close';
+    c.ccColor          = document.getElementById('sbcCcColor')?.value || 'either';
+    c.ccRightDatapoint = document.getElementById('sbcCcRightDatapoint')?.value || 'close';
+    c.ccRightColor     = document.getElementById('sbcCcRightColor')?.value || 'either';
     c.andEnabled  = document.getElementById('sbcAndEnabled')?.checked || false;
     c.andMetric   = document.getElementById('sbcAndMetric')?.value || 'rsi';
     c.andPeriod   = parseInt(document.getElementById('sbcAndPeriod')?.value) || 14;
@@ -2057,7 +2061,21 @@ function stratSaveStepConfig() {
           : '';
     const opLbl = {'>':'>','<':'<','>=':'≥','<=':'≤','=':'=',
                    'crosses_above':'↑ cross','crosses_below':'↓ cross'}[c.operator] || c.operator;
-    let lbl = `${mName}${pSfx}${_ctx(c.metric,c.day,c.interval,c.series)} ${opLbl}`;
+    let lbl;
+    if (c.metric === 'current_candle') {
+      const iStr = c.interval === 'day' ? 'Daily' : c.interval;
+      const dStr = c.day !== 0 ? ` D(${c.day})` : '';
+      const colL = c.ccColor && c.ccColor !== 'either' ? ` ${c.ccColor}` : '';
+      lbl = `Candle[${iStr}${dStr}]${colL} ${c.ccDatapoint}`;
+      if (c.comparator === 'compare_prev_candle') {
+        const rc  = c.ccRightColor && c.ccRightColor !== 'either' ? ` ${c.ccRightColor}` : '';
+        const th  = c.thresholdValue ? ` ±${c.thresholdValue}${c.thresholdUnit==='percent'?'%':'$'}` : '';
+        lbl += ` ${opLbl} Prev${rc} ${c.ccRightDatapoint}${th}`;
+      } else {
+        lbl += ` (color only)`;
+      }
+    } else {
+    lbl = `${mName}${pSfx}${_ctx(c.metric,c.day,c.interval,c.series)} ${opLbl}`;
 
     const _RN = { compare_price:'Price', compare_vwap:'VWAP', compare_sma:'SMA', compare_ema:'EMA', compare_rsi:'RSI' };
     if (c.comparator === 'value') {
@@ -2076,6 +2094,7 @@ function stratSaveStepConfig() {
       const lbStr = c.rightLookback > 0 ? ` [-${c.rightLookback}]` : '';
       const thStr = c.thresholdValue ? ` ±${c.thresholdValue}${c.thresholdUnit==='percent'?'%':'$'}` : '';
       lbl += ` ${rName}(${c.rightPeriod})${lbStr}${thStr}`;
+    }
     }
 
     if (c.andEnabled && c.andValue !== '') {
@@ -2107,6 +2126,10 @@ function stratSaveStepConfig() {
     c.putWidth      = parseFloat(document.getElementById('sbcPutWidth')?.value) || 5;
     c.strikeDirection = document.getElementById('sbcStrikeDirection')?.value || 'auto';
     c.strikeFallback  = document.getElementById('sbcStrikeFallback')?.value  || 'closest';
+    c.prevCandleType      = document.getElementById('sbcPrevCandleType')?.value || '1min';
+    c.prevCandleDay       = parseInt(document.getElementById('sbcPrevCandleDay')?.value ?? '0') || 0;
+    c.prevCandleDatapoint = document.getElementById('sbcPrevCandleDatapoint')?.value || 'close';
+    c.prevCandleColor     = document.getElementById('sbcPrevCandleColor')?.value || 'either';
     const _tpRaw = parseFloat(document.getElementById('sbcTakeProfitPct')?.value);
     c.takeProfitPct = isNaN(_tpRaw) ? null : _tpRaw;
     const _slRaw = parseFloat(document.getElementById('sbcStopLossPct')?.value);
@@ -2167,12 +2190,14 @@ const _SB_METRIC_COMPS = {
   sma:           ['value','compare_price','compare_sma','compare_ema'],
   ema:           ['value','compare_price','compare_sma','compare_ema'],
   rsi:           ['value','compare_rsi'],
+  current_candle:['none','compare_prev_candle'],
 };
 const _SB_ALL_COMP_LABELS = {
   value:'Fixed Value', compare_price:'Compare Price', compare_vwap:'Compare VWAP',
   compare_sma:'Compare SMA', compare_ema:'Compare EMA', compare_rsi:'Compare RSI',
   compare_histogram:'Compare Histogram', compare_macd_line:'Compare MACD Line',
   compare_signal_line:'Compare Signal Line',
+  none:'None (color only)', compare_prev_candle:'Previous Candle',
 };
 
 // Compute allowed comparator list for a metric. For MACD, the list depends on
@@ -2209,15 +2234,17 @@ function sbSyncMetricForm() {
 
   const ct       = compSel?.value || 'value';
 
+  const isCC      = m === 'current_candle';
+  const ccPrev    = isCC && ct === 'compare_prev_candle';
   const noBarCtx  = ['gap_pct','iv_rank','delta','theta','current_price'].includes(m);
   const noIntv    = ['change_pct'].includes(m);
   const op        = document.getElementById('sbcOperator')?.value || '>';
   const isCrossOp = op === 'crosses_above' || op === 'crosses_below';
-  _show('sbcDayRow',       !noBarCtx);
+  _show('sbcDayRow',       !noBarCtx || isCC);
   // Always expose Candle Type for cross operators — the backend needs the
   // interval to fetch bars for cross detection even when the metric is a
-  // live quote (current_price).
-  _show('sbcIntervalRow',  (!noBarCtx || isCrossOp) && !noIntv && day === 0);
+  // live quote (current_price).  Current-candle always needs the candle type.
+  _show('sbcIntervalRow',  ((!noBarCtx || isCrossOp) && !noIntv && day === 0) || isCC);
   // Series type (open/high/low/close) applies to Price AND to any indicator
   // that derives a single input column from the bars.
   _show('sbcSeriesRow',    ['price','sma','ema','rsi','macd','roc'].includes(m));
@@ -2229,19 +2256,26 @@ function sbSyncMetricForm() {
   _show('sbcOptTypeRow',   ['iv_rank','delta','theta'].includes(m));
   _show('sbcOptDteRow',    ['iv_rank','delta','theta'].includes(m));
 
-  const showRight      = ct !== 'value';
+  // Current-candle left-side controls (datapoint + colour gate)
+  _show('sbcCcLeftRow',    isCC);
+  _show('sbcCcColorRow',   isCC);
+
+  const showRight      = !isCC && ct !== 'value';
   const rightIsPrice   = ct === 'compare_price';
   const rightIsVwap    = ct === 'compare_vwap';
   const rightIsIndic   = ['compare_sma','compare_ema','compare_rsi'].includes(ct);
-  _show('sbcValueRow',           ct === 'value');
-  _show('sbcRightSide',          showRight);
+  _show('sbcValueRow',           !isCC && ct === 'value');
+  _show('sbcRightSide',          showRight || ccPrev);
   _show('sbcRightDayRow',        showRight && rightIsPrice);
   _show('sbcRightIntervalRow',   showRight && rightIsPrice);
   _show('sbcRightSeriesRow',     showRight && rightIsPrice);
   // VWAP is now a rolling N-bar indicator too — expose the Period field.
   _show('sbcRightPeriodRow',     showRight && (rightIsIndic || rightIsVwap));
-  _show('sbcThresholdRow',       showRight && !isCrossOp);
+  _show('sbcThresholdRow',       (showRight && !isCrossOp) || ccPrev);
   _show('sbcRightLookbackRow',   showRight && !rightIsVwap);
+  // Current-candle right-side (previous candle) controls
+  _show('sbcCcRightDpRow',       ccPrev);
+  _show('sbcCcRightColorRow',    ccPrev);
 }
 function sbMetricChange()      { sbSyncMetricForm(); }
 function sbDayChange()         { sbSyncMetricForm(); }
@@ -2311,9 +2345,10 @@ function sbStrategyChange() {
   _show('sbcBackDteRow',     isCal && !isEquity);
   _show('sbcStrikeRow',      !isStraddle && !isEquity);
   _show('sbcStrikeValRow',   !isStraddle && !isEquity && sm !== 'atm');
-  const _sdirM = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg'];
+  const _sdirM = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg','dollar_prev_candle'];
   _show('sbcStrikeDirRow',   !isStraddle && !isEquity && sm !== 'atm' && _sdirM.includes(sm));
   _show('sbcStrikeFbRow',    !isStraddle && !isEquity && sm !== 'atm');
+  _show('sbcStrikePrevRows', !isStraddle && !isEquity && sm === 'dollar_prev_candle');
   _show('sbcSpreadWidthRow', isStrangle && !isEquity);
   _show('sbcLeg2Section',   isVertical && !isEquity);
   if (isVertical) sbLeg2MethodChange();
@@ -2406,9 +2441,10 @@ function sbStrikeMethodChange() {
   const isEquity   = _OP_EQUITY.includes(s);
   const showVal    = !isStraddle && !isEquity && sm !== 'atm';
   _show('sbcStrikeValRow', showVal);
-  const _sdirM = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg'];
+  const _sdirM = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg','dollar_prev_candle'];
   _show('sbcStrikeDirRow', showVal && _sdirM.includes(sm));
   _show('sbcStrikeFbRow',  showVal);
+  _show('sbcStrikePrevRows', !isStraddle && !isEquity && sm === 'dollar_prev_candle');
   const lbl = document.getElementById('sbcStrikeValLabel');
   const inp = document.getElementById('sbcStrikeValue');
   const smLabelMap = {
@@ -2416,9 +2452,10 @@ function sbStrikeMethodChange() {
     dollar_underlying:'$ Distance from Underlying',
     pct_leg:         '% Distance from Another Leg',
     dollar_leg:      '$ Distance from Another Leg',
+    dollar_prev_candle:'$ Distance from Previous Candle',
     delta:           'Target Delta',
   };
-  const smPhMap = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', delta:'0.30' };
+  const smPhMap = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', dollar_prev_candle:'50', delta:'0.30' };
   if (lbl) lbl.textContent = smLabelMap[sm] || '% Distance from Underlying';
   if (inp) inp.placeholder  = smPhMap[sm]  || '5';
 }
@@ -2516,14 +2553,27 @@ function sbStepConfigHTML(step) {
     const AND_METRICS = [['rsi','RSI'],['sma','SMA'],['ema','EMA'],['macd','MACD'],['price','Price'],['volume','Volume'],['roc','ROC'],['gap_pct','Gap%'],['change_pct','Change%']];
 
     const _ALL_COMP_OPTS = [
-      ['value',         'Fixed Value'],
-      ['compare_price', 'Compare Price'],
-      ['compare_vwap',  'Compare VWAP'],
-      ['compare_sma',   'Compare SMA'],
-      ['compare_ema',   'Compare EMA'],
-      ['compare_rsi',   'Compare RSI'],
+      ['value',              'Fixed Value'],
+      ['compare_price',      'Compare Price'],
+      ['compare_vwap',       'Compare VWAP'],
+      ['compare_sma',        'Compare SMA'],
+      ['compare_ema',        'Compare EMA'],
+      ['compare_rsi',        'Compare RSI'],
+      ['none',               'None (color only)'],
+      ['compare_prev_candle','Previous Candle'],
     ];
     const COMP_OPTS = _ALL_COMP_OPTS.filter(([k]) => allowedCts.includes(k));
+
+    // Current-candle sub-form values + option lists
+    const isCCm       = m === 'current_candle';
+    const ccPrevm     = isCCm && safeCt === 'compare_prev_candle';
+    const ccDp        = c.ccDatapoint || 'close';
+    const ccColor     = c.ccColor || 'either';
+    const ccRightDp   = c.ccRightDatapoint || 'close';
+    const ccRightColor= c.ccRightColor || 'either';
+    const CC_LDP_OPTS = [['close','Close'],['open','Open'],['high','High'],['low','Low'],['price','Current Price (live)']];
+    const CC_RDP_OPTS = [['close','Close'],['open','Open'],['high','High'],['low','Low']];
+    const CC_CLR_OPTS = [['either','Either color'],['green','Green'],['red','Red']];
 
     return `
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:8px;">Left Side (Compare this)</div>
@@ -2549,6 +2599,9 @@ function sbStepConfigHTML(step) {
             <option value="ema"  ${m==='ema'?'selected':''}>EMA</option>
             <option value="rsi"  ${m==='rsi'?'selected':''}>RSI</option>
             <option value="macd" ${m==='macd'?'selected':''}>MACD</option>
+          </optgroup>
+          <optgroup label="Candle">
+            <option value="current_candle" ${m==='current_candle'?'selected':''}>Current Candle</option>
           </optgroup>
           <optgroup label="Options (ATM)">
             <option value="iv_rank" ${m==='iv_rank'?'selected':''}>IV% — ATM implied volatility</option>
@@ -2598,6 +2651,15 @@ function sbStepConfigHTML(step) {
         <input id="sbcOptDte" class="sb-form-input" type="number" min="1" max="365" value="${c.optDte??30}" placeholder="30">
       </div>
 
+      <div class="sb-form-row" id="sbcCcLeftRow" style="${isCCm?'':'display:none'}">
+        <div class="sb-form-label">Current candle datapoint</div>
+        ${_sel('sbcCcDatapoint', ccDp, CC_LDP_OPTS)}
+      </div>
+      <div class="sb-form-row" id="sbcCcColorRow" style="${isCCm?'':'display:none'}">
+        <div class="sb-form-label">Current candle color</div>
+        ${_sel('sbcCcColor', ccColor, CC_CLR_OPTS)}
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;">
         <div>
           <div class="sb-form-label">Operator</div>
@@ -2616,6 +2678,14 @@ function sbStepConfigHTML(step) {
 
       <div id="sbcRightSide" style="${showRight?'':'display:none'};margin-top:10px;padding:10px 12px;background:#f8faff;border-radius:8px;border:1px solid #c7d9f5;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:8px;">Right Side (To this)</div>
+        <div class="sb-form-row" id="sbcCcRightDpRow" style="${ccPrevm?'':'display:none'}">
+          <div class="sb-form-label">Previous candle datapoint</div>
+          ${_sel('sbcCcRightDatapoint', ccRightDp, CC_RDP_OPTS)}
+        </div>
+        <div class="sb-form-row" id="sbcCcRightColorRow" style="${ccPrevm?'':'display:none'}">
+          <div class="sb-form-label">Previous candle color gate</div>
+          ${_sel('sbcCcRightColor', ccRightColor, CC_CLR_OPTS)}
+        </div>
         <div class="sb-form-row" id="sbcRightDayRow" style="${showRightDay?'':'display:none'}">
           <div class="sb-form-label">Day</div>
           ${_sel('sbcRightDay', String(rightDay), DAY_OPTS, 'onchange="sbRightDayChange()"')}
@@ -2709,15 +2779,25 @@ function sbStepConfigHTML(step) {
 
     const showStrikeVal  = !isStraddle && sm !== 'atm';
     const _smLbl = { pct_underlying:'% Distance from Underlying', dollar_underlying:'$ Distance from Underlying',
-                     pct_leg:'% Distance from Another Leg', dollar_leg:'$ Distance from Another Leg', delta:'Target Delta' };
-    const _smPh  = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', delta:'0.30' };
+                     pct_leg:'% Distance from Another Leg', dollar_leg:'$ Distance from Another Leg',
+                     dollar_prev_candle:'$ Distance from Previous Candle', delta:'Target Delta' };
+    const _smPh  = { pct_underlying:'5', dollar_underlying:'50', pct_leg:'5', dollar_leg:'50', dollar_prev_candle:'50', delta:'0.30' };
     const strikeValLabel = _smLbl[sm] || '% Distance from Underlying';
     const strikeValPh    = _smPh[sm]  || '5';
-    const _dirMethods = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg'];
+    const _dirMethods = ['dollar_underlying','pct_underlying','dollar_leg','pct_leg','dollar_prev_candle'];
     const showStrikeDir  = showStrikeVal && _dirMethods.includes(sm) && !isEquity;
     const showStrikeFb   = showStrikeVal && !isEquity;
+    const showStrikePrev = sm === 'dollar_prev_candle' && !isStraddle && !isEquity;
     const sd = c.strikeDirection || 'auto';
     const sf = c.strikeFallback  || 'closest';
+    const _spType  = c.prevCandleType || '1min';
+    const _spDay   = String(c.prevCandleDay ?? 0);
+    const _spDp    = c.prevCandleDatapoint || 'close';
+    const _spColor = c.prevCandleColor || 'either';
+    const _SP_INTV = [['1min','1-minute'],['5min','5-minute'],['15min','15-minute'],['day','Daily']];
+    const _SP_DAY  = [['0','Current day'],['-1','1 day ago'],['-2','2 days ago'],['-3','3 days ago'],['-4','4 days ago'],['-5','5 days ago']];
+    const _SP_DP   = [['close','Close'],['open','Open'],['high','High'],['low','Low']];
+    const _SP_CLR  = [['either','Either color'],['green','Green'],['red','Red']];
 
     return `
       <div class="sb-form-row">
@@ -2768,7 +2848,26 @@ function sbStepConfigHTML(step) {
           <option value="pct_leg"           ${sm==='pct_leg'?'selected':''}>4. % Distance from Another Leg</option>
           <option value="dollar_leg"        ${sm==='dollar_leg'?'selected':''}>5. $ Distance from Another Leg</option>
           <option value="delta"             ${sm==='delta'?'selected':''}>6. Delta-based Strike Selection</option>
+          <option value="dollar_prev_candle" ${sm==='dollar_prev_candle'?'selected':''}>7. $ Distance from Previous Candle</option>
         </select>
+      </div>
+      <div id="sbcStrikePrevRows" style="${showStrikePrev?'':'display:none'}">
+        <div class="sb-form-row">
+          <div class="sb-form-label">Previous candle type</div>
+          ${_sel('sbcPrevCandleType', _spType, _SP_INTV)}
+        </div>
+        <div class="sb-form-row">
+          <div class="sb-form-label">Day offset</div>
+          ${_sel('sbcPrevCandleDay', _spDay, _SP_DAY)}
+        </div>
+        <div class="sb-form-row">
+          <div class="sb-form-label">Candle datapoint</div>
+          ${_sel('sbcPrevCandleDatapoint', _spDp, _SP_DP)}
+        </div>
+        <div class="sb-form-row">
+          <div class="sb-form-label">Candle color gate</div>
+          ${_sel('sbcPrevCandleColor', _spColor, _SP_CLR)}
+        </div>
       </div>
       <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal&&!isEquity?'':'display:none'}">
         <div class="sb-form-label" id="sbcStrikeValLabel">${strikeValLabel}</div>

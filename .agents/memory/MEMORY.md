@@ -9,3 +9,4 @@
 - [Live bot cross edge-latch](live-cross-edge-latch.md) — live crosses must fire once per crossing via a persisted side-latch with ATOMIC check-and-set (APScheduler thread pool = TOCTOU); per-bar gate re-fired repeatedly.
 - [Bot vs chart data sources & cross mismatch](bot-vs-chart-data-sources.md) — bot + bot-page chart both Tradier; sim-trading uses Polygon; cross mismatch is live-tick/forming-bar SMA methodology, not feed.
 - [/tmp logs are snapshots](tmp-logs-are-snapshots.md) — refresh_all_logs writes point-in-time files; re-call it after a restart, don't re-tail the old snapshot.
+- [Bot day-offset sign convention](bot-day-offset-sign.md) — bot "days ago" selectors use NEGATIVE offsets (0,-1,-2…); positive values silently skip trades. Match end-to-end.
