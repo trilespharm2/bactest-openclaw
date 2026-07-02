@@ -31,3 +31,21 @@ whenever metric is `current_candle` (the dedicated orange panel replaces them).
 **How to apply:** any new cc* field must be added in THREE places in
 `static/js/backtester-script.js` — the panel render, `collectPriceConditions()`, and the
 `current_candle` branch of `applyPriceConditions()` — or save/load silently drifts.
+
+# "Second" candles live on a 10-second grid
+
+Any Custom-Builder candle with `candle_type === 'second'` may only use a multiplier that
+is a whole number of 10s (10, 20, 30, …), so sub-minute candles align with the 10-second
+underlying feed. The UI snaps the multiplier (step/min=10 + round) on change, on render,
+and on restore, and `collectPriceConditions()` re-snaps as a final guard. Polygon *does*
+serve arbitrary second aggregates (e.g. a real 30-second bar), so a 30s bar's Open is a
+genuine 30-second bar open — not three 10s bars stitched client-side.
+
+# "Current price" left datapoint doesn't need the current candle
+
+In `_eval_current_candle_condition` (options engine), when comparator is
+`compare_prev_candle`, the left datapoint is the live current price, and left color is
+`either`, the configured current-candle bar is irrelevant — a missing sub-minute bar must
+NOT abort with "No current candle data". Guard the early bail with a `needs_cur_candle`
+check (only require the bar for color-only mode, a candle-datapoint left, or a green/red
+left color filter).

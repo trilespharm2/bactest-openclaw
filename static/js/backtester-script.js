@@ -810,7 +810,7 @@ function addPriceCondition() {
             <div class="row g-2">
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Candle Type</label>
-                    <select class="form-select form-select-sm" id="ccLeftCandleType${conditionId}">
+                    <select class="form-select form-select-sm" id="ccLeftCandleType${conditionId}" onchange="enforceCcSecond(${conditionId}, 'Left')">
                         <option value="second">Second</option>
                         <option value="minute" selected>Minute</option>
                         <option value="hour">Hour</option>
@@ -818,7 +818,7 @@ function addPriceCondition() {
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Multiplier</label>
-                    <input type="number" class="form-control form-control-sm" id="ccLeftMultiplier${conditionId}" value="1" min="1" max="3600">
+                    <input type="number" class="form-control form-control-sm" id="ccLeftMultiplier${conditionId}" value="1" min="1" max="3600" onchange="enforceCcSecond(${conditionId}, 'Left')">
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <label class="form-label small">Day</label>
@@ -867,7 +867,7 @@ function addPriceCondition() {
                     <div class="row g-2 mt-1">
                         <div class="col-md-4 col-sm-6">
                             <label class="form-label small">Candle Type</label>
-                            <select class="form-select form-select-sm" id="ccRightCandleType${conditionId}">
+                            <select class="form-select form-select-sm" id="ccRightCandleType${conditionId}" onchange="enforceCcSecond(${conditionId}, 'Right')">
                                 <option value="second">Second</option>
                                 <option value="minute" selected>Minute</option>
                                 <option value="hour">Hour</option>
@@ -875,7 +875,7 @@ function addPriceCondition() {
                         </div>
                         <div class="col-md-4 col-sm-6">
                             <label class="form-label small">Multiplier</label>
-                            <input type="number" class="form-control form-control-sm" id="ccRightMultiplier${conditionId}" value="1" min="1" max="3600">
+                            <input type="number" class="form-control form-control-sm" id="ccRightMultiplier${conditionId}" value="1" min="1" max="3600" onchange="enforceCcSecond(${conditionId}, 'Right')">
                         </div>
                         <div class="col-md-4 col-sm-6">
                             <label class="form-label small">Day</label>
@@ -1365,6 +1365,8 @@ function updateConditionFields(conditionId) {
                 var ccP = document.getElementById('ccPanel' + conditionId);
                 if (ccP) ccP.style.display = 'block';
                 updateCcRightVisibility(conditionId);
+                enforceCcSecond(conditionId, 'Left');
+                enforceCcSecond(conditionId, 'Right');
             })();
             break;
     }
@@ -1400,6 +1402,41 @@ function updateCcRightVisibility(conditionId) {
     if (wrap) wrap.style.display = isCompare ? 'block' : 'none';
     if (dpGrp) dpGrp.style.display = isCompare ? 'block' : 'none';
     if (opGrp) opGrp.style.display = isCompare ? 'block' : 'none';
+}
+
+// "Second" candles only exist on a 10-second grid, so their multiplier can
+// only be a whole number of 10-second increments (10, 20, 30, ...). Snap the
+// multiplier input accordingly whenever the candle type or value changes.
+function snapSecondsMultiplier(candleType, multEl) {
+    if (!multEl) return;
+    if (String(candleType) === 'second') {
+        multEl.step = 10;
+        multEl.min = 10;
+        var v = parseInt(multEl.value, 10) || 0;
+        if (v < 10) v = 10;
+        v = Math.round(v / 10) * 10;
+        multEl.value = v;
+    } else {
+        multEl.step = 1;
+        if (parseInt(multEl.min, 10) === 10) multEl.min = 1;
+    }
+}
+
+// Current Candle panel: enforce the 10-second increment rule on either side.
+function enforceCcSecond(conditionId, side) {
+    var ct = document.getElementById('cc' + side + 'CandleType' + conditionId);
+    var mult = document.getElementById('cc' + side + 'Multiplier' + conditionId);
+    if (ct) snapSecondsMultiplier(ct.value, mult);
+    updateOptConditionSummary(conditionId, false);
+}
+
+// "$ Distance from previous candle" strike method leg params (class-based).
+function snapLegSecond(el) {
+    var grid = el.closest('.form-grid');
+    if (!grid) return;
+    var sel = grid.querySelector('[data-param="candle_type"]');
+    var mult = grid.querySelector('[data-param="multiplier"]');
+    snapSecondsMultiplier(sel ? sel.value : 'minute', mult);
 }
 
 function handleCandleTypeChange(conditionId) {
@@ -1861,13 +1898,21 @@ function collectPriceConditions() {
         const comparator = document.getElementById(`comparator${id}`)?.value;
 
         if (metric === 'current_candle') {
+            // Final guard: "second" candles only exist on a 10-second grid, so
+            // snap the multiplier to a multiple of 10 (>=10) regardless of UI events.
+            var snap10 = function(ct, m) {
+                m = parseInt(m, 10) || 1;
+                if (String(ct) === 'second') { if (m < 10) m = 10; m = Math.round(m / 10) * 10; }
+                return m;
+            };
             var ccCmp = document.getElementById(`ccComparator${id}`)?.value || 'none';
+            var ccLeftCt = document.getElementById(`ccLeftCandleType${id}`)?.value || 'minute';
             var ccCond = {
                 metric: 'current_candle',
                 comparator: ccCmp,
                 left: {
-                    candle_type: document.getElementById(`ccLeftCandleType${id}`)?.value || 'minute',
-                    multiplier: parseInt(document.getElementById(`ccLeftMultiplier${id}`)?.value) || 1,
+                    candle_type: ccLeftCt,
+                    multiplier: snap10(ccLeftCt, document.getElementById(`ccLeftMultiplier${id}`)?.value),
                     day: document.getElementById(`ccLeftDay${id}`)?.value || '0',
                     candle_color: document.getElementById(`ccLeftColor${id}`)?.value || 'either'
                 }
@@ -1875,9 +1920,10 @@ function collectPriceConditions() {
             if (ccCmp === 'compare_prev_candle') {
                 ccCond.operator = document.getElementById(`ccOperator${id}`)?.value || '<';
                 ccCond.left.datapoint = document.getElementById(`ccLeftDatapoint${id}`)?.value || 'price';
+                var ccRightCt = document.getElementById(`ccRightCandleType${id}`)?.value || 'minute';
                 ccCond.right = {
-                    candle_type: document.getElementById(`ccRightCandleType${id}`)?.value || 'minute',
-                    multiplier: parseInt(document.getElementById(`ccRightMultiplier${id}`)?.value) || 1,
+                    candle_type: ccRightCt,
+                    multiplier: snap10(ccRightCt, document.getElementById(`ccRightMultiplier${id}`)?.value),
                     day: document.getElementById(`ccRightDay${id}`)?.value || '0',
                     datapoint: document.getElementById(`ccRightDatapoint${id}`)?.value || 'close',
                     candle_color: document.getElementById(`ccRightColor${id}`)?.value || 'either'
@@ -2675,7 +2721,7 @@ function handleLegMethodChange(e) {
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Candle type:</label>
-                        <select class="leg-param" data-param="candle_type">
+                        <select class="leg-param" data-param="candle_type" onchange="snapLegSecond(this)">
                             <option value="second">Second</option>
                             <option value="minute" selected>Minute</option>
                             <option value="hour">Hour</option>
@@ -2683,7 +2729,7 @@ function handleLegMethodChange(e) {
                     </div>
                     <div class="form-group">
                         <label>Multiplier:</label>
-                        <input type="number" class="leg-param" data-param="multiplier" step="1" min="1" max="3600" placeholder="1" value="1">
+                        <input type="number" class="leg-param" data-param="multiplier" step="1" min="1" max="3600" placeholder="1" value="1" onchange="snapLegSecond(this)">
                     </div>
                 </div>
                 <div class="form-grid">
@@ -4812,6 +4858,8 @@ function applyPriceConditions(conditions) {
                     }
                 }
                 updateCcRightVisibility(id);
+                enforceCcSecond(id, 'Left');
+                enforceCcSecond(id, 'Right');
                 updateOptConditionSummary(id, false);
             }, 50);
             return;

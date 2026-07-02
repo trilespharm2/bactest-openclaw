@@ -469,11 +469,19 @@ def _eval_current_candle_condition(condition, client, symbol, trade_date, entry_
     l_ct = left.get('candle_type', 'min')
     l_mult = left.get('multiplier', 1)
     l_day = left.get('day', 0)
+    l_dp_raw = str(left.get('datapoint', 'open')).strip().lower()
+    l_dp_is_price = l_dp_raw in ('price', 'current_price', 'current')
+    l_color_raw = str(left.get('candle_color', 'either')).strip().lower()
 
     prev_l, cur_l, bars_l = _resolve_candle(
         client, symbol, trade_date, entry_ts_ms, l_day, l_ct, l_mult, 'current'
     )
-    if not bars_l or cur_l is None:
+    # The current candle bar is only required when we actually read a datapoint
+    # from it or test its colour. When the left side is the live "current price"
+    # with no colour filter, the configured candle type is irrelevant, so a
+    # missing sub-minute bar must NOT block the comparison.
+    needs_cur_candle = (comparator != 'compare_prev_candle') or (not l_dp_is_price) or (l_color_raw in ('green', 'red'))
+    if needs_cur_candle and (not bars_l or cur_l is None):
         return False, "No current candle data", {}
 
     cur_price = _current_underlying_price(client, symbol, trade_date, entry_ts_ms, ten_second=ten_second)
