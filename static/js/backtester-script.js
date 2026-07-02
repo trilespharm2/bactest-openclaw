@@ -909,6 +909,54 @@ function addPriceCondition() {
             </div>
         </div>
 
+        <!-- Current Price → Previous Candle panel (shown when metric=current_price & comparator=compare_prev_candle) -->
+        <div id="cpPanel${conditionId}" style="display:none;" class="mb-3">
+            <div class="p-2 rounded" style="background:#fef2f2; border:1px solid #fecaca;">
+                <strong style="color:#b91c1c; font-size:12px;">Previous Candle</strong>
+                <div class="row g-2 mt-1">
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Candle Type</label>
+                        <select class="form-select form-select-sm" id="cpCandleType${conditionId}" onchange="enforceCpSecond(${conditionId})">
+                            <option value="second">Second</option>
+                            <option value="minute" selected>Minute</option>
+                            <option value="hour">Hour</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Multiplier</label>
+                        <input type="number" class="form-control form-control-sm" id="cpMultiplier${conditionId}" value="1" min="1" max="3600" onchange="enforceCpSecond(${conditionId})">
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Day Offset</label>
+                        <select class="form-select form-select-sm" id="cpDay${conditionId}" onchange="updateOptConditionSummary(${conditionId}, false)">
+                            ${DAY_OPTIONS.map(d => `<option value="${d.value}">${d.label}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Datapoint</label>
+                        <select class="form-select form-select-sm" id="cpDatapoint${conditionId}" onchange="updateOptConditionSummary(${conditionId}, false)">
+                            <option value="open">Open</option>
+                            <option value="high">High</option>
+                            <option value="low">Low</option>
+                            <option value="close" selected>Close</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Candle Color</label>
+                        <select class="form-select form-select-sm" id="cpColor${conditionId}" onchange="updateOptConditionSummary(${conditionId}, false)">
+                            <option value="either" selected>Either</option>
+                            <option value="green">Green</option>
+                            <option value="red">Red</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <label class="form-label small">Threshold ($, optional)</label>
+                        <input type="number" class="form-control form-control-sm" id="cpThreshold${conditionId}" step="0.01" placeholder="0" onchange="updateOptConditionSummary(${conditionId}, false)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Operator Row -->
         <div class="condition-operator mb-3" id="conditionOperatorRow${conditionId}">
             <div class="row g-2 align-items-end">
@@ -1228,7 +1276,7 @@ function updateConditionFields(conditionId) {
             if (document.getElementById(`leftDay${conditionId}`)) document.getElementById(`leftDay${conditionId}`).value = '0';
             if (document.getElementById(`leftCandleType${conditionId}`)) document.getElementById(`leftCandleType${conditionId}`).value = 'minute';
             if (document.getElementById(`leftSeriesType${conditionId}`)) document.getElementById(`leftSeriesType${conditionId}`).value = 'vwap';
-            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'compare_trend_capture']);
+            updateComparatorOptions(conditionId, ['value', 'compare_price', 'compare_vwap', 'compare_sma', 'compare_ema', 'compare_trend_capture', 'compare_prev_candle']);
             setCrossOperators('operator' + conditionId, false);
             break;
         case 'price':
@@ -1430,6 +1478,15 @@ function enforceCcSecond(conditionId, side) {
     updateOptConditionSummary(conditionId, false);
 }
 
+// Current Price → Previous Candle panel: enforce the 10-second increment rule
+// on the previous-candle multiplier.
+function enforceCpSecond(conditionId) {
+    var ct = document.getElementById('cpCandleType' + conditionId);
+    var mult = document.getElementById('cpMultiplier' + conditionId);
+    if (ct) snapSecondsMultiplier(ct.value, mult);
+    updateOptConditionSummary(conditionId, false);
+}
+
 // "$ Distance from previous candle" strike method leg params (class-based).
 function snapLegSecond(el) {
     var grid = el.closest('.form-grid');
@@ -1533,7 +1590,8 @@ function updateComparatorOptions(conditionId, options) {
         'compare_ema': 'Compare EMA',
         'compare_rsi': 'Compare RSI',
         'compare_volume': 'Compare Volume',
-        'compare_trend_capture': 'Compare Trend Capture'
+        'compare_trend_capture': 'Compare Trend Capture',
+        'compare_prev_candle': 'Compare Previous Candle'
     };
     
     comparatorSelect.innerHTML = options.map(opt => 
@@ -1567,6 +1625,20 @@ function updateRightSideVisibility(conditionId) {
     const isEquals = (operator === '==' || operator === '=');
 
     if (!rightSide || !valueInputGroup) return;
+
+    // Current Price → Previous Candle uses its own compact panel (cp* controls).
+    var cpPanel = document.getElementById('cpPanel' + conditionId);
+    var isCpPrev = (metric === 'current_price' && comparator === 'compare_prev_candle');
+    if (cpPanel) cpPanel.style.display = isCpPrev ? 'block' : 'none';
+    if (isCpPrev) {
+        setCrossOperators('operator' + conditionId, false);
+        rightSide.style.display = 'none';
+        valueInputGroup.style.display = 'none';
+        var _cpct = document.getElementById('cpCandleType' + conditionId);
+        var _cpm = document.getElementById('cpMultiplier' + conditionId);
+        if (_cpct) snapSecondsMultiplier(_cpct.value, _cpm);
+        return;
+    }
 
     // Current Candle uses its own dedicated panel — never show the generic
     // operator row or "Right Side (To this)" section for it.
@@ -1860,6 +1932,18 @@ function buildOptConditionDesc(n, isExit) {
         return leftDesc + ' ' + opLabel + ' ' + _tcLbl + _thSufx;
     }
 
+    // Current Price → Previous Candle (cp* controls, entry only)
+    if (!isExit && comparator === 'compare_prev_candle') {
+        var _cpDp  = getVal('cpDatapoint' + n) || 'close';
+        var _cpCt  = getVal('cpCandleType' + n) || 'minute';
+        var _cpM   = getVal('cpMultiplier' + n) || '1';
+        var _cpClr = getVal('cpColor' + n) || 'either';
+        var _cpThr = parseFloat(getVal('cpThreshold' + n) || '0') || 0;
+        var _cpClrLbl = (_cpClr && _cpClr !== 'either') ? _cpClr + ' ' : '';
+        var _cpSufx = _cpThr ? ' by $' + _cpThr : '';
+        return leftDesc + ' ' + opLabel + ' previous ' + _cpClrLbl + _cpM + ' ' + _cpCt + ' candle ' + _cpDp + _cpSufx;
+    }
+
     var rightMetric = comparator.replace('compare_', '');
     var rightDesc = sideDesc(rightMetric, rightDay, rightCandle, rightMult, rightSeries, rightTimeframe);
 
@@ -1932,6 +2016,35 @@ function collectPriceConditions() {
                 ccCond.threshold = { unit: 'dollar', value: ccThr ? parseFloat(ccThr) : 0 };
             }
             conditions.push(ccCond);
+            return;
+        }
+
+        // Current Price → Previous Candle: reuse the proven current_candle engine
+        // path (left datapoint = live current price, colour = either). A ui_source
+        // marker lets restore bring it back under the Current Price metric.
+        if (metric === 'current_price' && comparator === 'compare_prev_candle') {
+            var cpSnap10 = function(ct, m) {
+                m = parseInt(m, 10) || 1;
+                if (String(ct) === 'second') { if (m < 10) m = 10; m = Math.round(m / 10) * 10; }
+                return m;
+            };
+            var cpCt = document.getElementById(`cpCandleType${id}`)?.value || 'minute';
+            var cpThr = document.getElementById(`cpThreshold${id}`)?.value;
+            conditions.push({
+                metric: 'current_candle',
+                ui_source: 'current_price',
+                comparator: 'compare_prev_candle',
+                operator: document.getElementById(`operator${id}`)?.value || '<',
+                left: { datapoint: 'price', candle_color: 'either', candle_type: 'minute', multiplier: 1, day: '0' },
+                right: {
+                    candle_type: cpCt,
+                    multiplier: cpSnap10(cpCt, document.getElementById(`cpMultiplier${id}`)?.value),
+                    day: document.getElementById(`cpDay${id}`)?.value || '0',
+                    datapoint: document.getElementById(`cpDatapoint${id}`)?.value || 'close',
+                    candle_color: document.getElementById(`cpColor${id}`)?.value || 'either'
+                },
+                threshold: { unit: 'dollar', value: cpThr ? parseFloat(cpThr) : 0 }
+            });
             return;
         }
 
@@ -4819,6 +4932,37 @@ function applyPriceConditions(conditions) {
     conditions.forEach((condition, idx) => {
         addPriceCondition();
         const id = idx;
+
+        // Current Price → Previous Candle: emitted as a current_candle structure
+        // with ui_source='current_price'. Restore it under the Current Price metric.
+        if (condition.metric === 'current_candle' && condition.ui_source === 'current_price') {
+            if (document.getElementById(`metric${id}`)) {
+                document.getElementById(`metric${id}`).value = 'current_price';
+                updateConditionFields(id);
+            }
+            setTimeout(() => {
+                var setV = function(elId, val) {
+                    var e = document.getElementById(elId);
+                    if (e && val !== null && val !== undefined) e.value = val;
+                };
+                setV(`comparator${id}`, 'compare_prev_candle');
+                setV(`operator${id}`, condition.operator || '<');
+                var R = condition.right || {};
+                setV(`cpCandleType${id}`, R.candle_type || 'minute');
+                setV(`cpMultiplier${id}`, R.multiplier || 1);
+                setV(`cpDay${id}`, String(R.day != null ? R.day : '0'));
+                setV(`cpDatapoint${id}`, R.datapoint || 'close');
+                setV(`cpColor${id}`, R.candle_color || 'either');
+                if (condition.threshold && document.getElementById(`cpThreshold${id}`)) {
+                    var tv = condition.threshold.value;
+                    document.getElementById(`cpThreshold${id}`).value = (tv != null ? tv : '');
+                }
+                updateRightSideVisibility(id);
+                enforceCpSecond(id);
+                updateOptConditionSummary(id, false);
+            }, 50);
+            return;
+        }
 
         // Current Candle conditions use their own dedicated panel (cc* controls),
         // so they need a separate restore path from the generic left/right fields.

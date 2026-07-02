@@ -41,6 +41,23 @@ and on restore, and `collectPriceConditions()` re-snaps as a final guard. Polygo
 serve arbitrary second aggregates (e.g. a real 30-second bar), so a 30s bar's Open is a
 genuine 30-second bar open — not three 10s bars stitched client-side.
 
+# "Compare Previous Candle" under the Current Price metric reuses this engine path
+
+The Custom-Builder "Current Price" metric also offers a `compare_prev_candle` comparator
+(its own compact `cp*` panel). It does NOT get a new engine path — collect emits the same
+`current_candle` structure (left `datapoint:'price'`, `candle_color:'either'`) plus a
+`ui_source:'current_price'` marker. On restore, a branch in `applyPriceConditions()` that
+runs BEFORE the generic `current_candle` branch checks `ui_source==='current_price'` and
+rebuilds it under the Current Price metric.
+
+**Why:** the engine's `_eval_current_candle_condition` already compares live current price
+vs a previous candle's O/H/L/C with no lookahead; duplicating it would risk drift/bias.
+
+**How to apply:** don't add a second engine path for current-price-vs-prev-candle. Like
+`current_candle`, the `cp*` collect branch returns early and does NOT serialize
+`time_window`/`restrict_bars` (that engine path doesn't honor them) — this is intentional
+parity, not a bug.
+
 # "Current price" left datapoint doesn't need the current candle
 
 In `_eval_current_candle_condition` (options engine), when comparator is
