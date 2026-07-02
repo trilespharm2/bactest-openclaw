@@ -5418,6 +5418,14 @@ def run_backtest(config: Dict, client: RESTClient):
                 scan_bars_today = bars_1min_today
             candidate_bars = []
             for bar in sorted(scan_bars_today, key=lambda x: x['time']):
+                # The regular session ends at 16:00:00 ET. The closing-bell bar
+                # (and anything after it) is not a tradeable entry — there is no
+                # session time left to hold the position — so never enter at or
+                # after the close. Last valid entry is 15:59:50 (10-sec) or
+                # 15:59:00 (1-min). Compare on the HH:MM prefix so this works
+                # for both 1-minute ('HH:MM') and 10-second ('HH:MM:SS') bars.
+                if bar['time'][:5] >= '16:00':
+                    continue
                 if entry_time_start <= bar['time'] <= entry_time_end:
                     candidate_bars.append(bar)
             

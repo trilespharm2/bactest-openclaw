@@ -4,6 +4,7 @@
 - [Stock backtest resilience](stock-backtest-resilience.md) — stock backtests must run as detached subprocess; status = disk metadata + PID liveness, never in-memory; don't blind-fail running rows on startup.
 - [Options Current Price cross semantics](options-currentprice-cross-semantics.md) — cross_up/down fires on the breach bar itself (this bar's open vs this bar's comparator + current VWAP), not the bar after; entry fills on VWAP.
 - [Current Candle forming-datapoint & restore](current-candle-forming-datapoint.md) — entry (forming) candle only has Open + Current Price (High/Low/Close = lookahead); cc* fields need own restore branch in 3 places.
+- [Entry window excludes market close](entry-window-market-close.md) — never enter at/after 16:00 ET close bar; compare bar time on HH:MM prefix (1-min='HH:MM' vs 10-sec='HH:MM:SS' lexical trap).
 - [Live bot market-data vs order creds](live-cross-stale-feed-guard.md) — market-data fetches must use live mkt key, not order (sandbox) creds; else MA-cross compares live price vs delayed MA. Plus stale-bar skip guard.
 - [Live bot cross edge-latch](live-cross-edge-latch.md) — live crosses must fire once per crossing via a persisted side-latch with ATOMIC check-and-set (APScheduler thread pool = TOCTOU); per-bar gate re-fired repeatedly.
 - [Bot vs chart data sources & cross mismatch](bot-vs-chart-data-sources.md) — bot + bot-page chart both Tradier; sim-trading uses Polygon; cross mismatch is live-tick/forming-bar SMA methodology, not feed.
