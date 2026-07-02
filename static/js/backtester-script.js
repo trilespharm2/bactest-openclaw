@@ -847,10 +847,7 @@ function addPriceCondition() {
                     <label class="form-label small">Current Datapoint</label>
                     <select class="form-select form-select-sm" id="ccLeftDatapoint${conditionId}">
                         <option value="open">Open</option>
-                        <option value="high">High</option>
-                        <option value="low">Low</option>
-                        <option value="close" selected>Close</option>
-                        <option value="price">Current Price</option>
+                        <option value="price" selected>Current Price</option>
                     </select>
                 </div>
                 <div class="col-md-4 col-sm-6" id="ccOperatorGroup${conditionId}" style="display:none;">
@@ -1534,6 +1531,15 @@ function updateRightSideVisibility(conditionId) {
 
     if (!rightSide || !valueInputGroup) return;
 
+    // Current Candle uses its own dedicated panel — never show the generic
+    // operator row or "Right Side (To this)" section for it.
+    if (metric === 'current_candle') {
+        rightSide.style.display = 'none';
+        var opRowCC = document.getElementById('conditionOperatorRow' + conditionId);
+        if (opRowCC) opRowCC.style.display = 'none';
+        return;
+    }
+
     // Whether price metric is being compared to TC line value
     var isPriceTc = (comparator === 'compare_trend_capture') && (metric === 'current_price' || metric === 'price');
 
@@ -1690,7 +1696,7 @@ function buildOptConditionDesc(n, isExit) {
         if (_ccCmp === 'none') {
             return 'Current ' + _ccMult + ' ' + _ccCt + ' candle is ' + _ccColor;
         }
-        var _ccDp = getVal('ccLeftDatapoint' + n) || 'close';
+        var _ccDp = getVal('ccLeftDatapoint' + n) || 'price';
         var _ccOp = getVal('ccOperator' + n) || '<';
         var _ccRdp = getVal('ccRightDatapoint' + n) || 'close';
         var _ccRct = getVal('ccRightCandleType' + n) || 'minute';
@@ -1868,7 +1874,7 @@ function collectPriceConditions() {
             };
             if (ccCmp === 'compare_prev_candle') {
                 ccCond.operator = document.getElementById(`ccOperator${id}`)?.value || '<';
-                ccCond.left.datapoint = document.getElementById(`ccLeftDatapoint${id}`)?.value || 'close';
+                ccCond.left.datapoint = document.getElementById(`ccLeftDatapoint${id}`)?.value || 'price';
                 ccCond.right = {
                     candle_type: document.getElementById(`ccRightCandleType${id}`)?.value || 'minute',
                     multiplier: parseInt(document.getElementById(`ccRightMultiplier${id}`)?.value) || 1,
@@ -4767,7 +4773,50 @@ function applyPriceConditions(conditions) {
     conditions.forEach((condition, idx) => {
         addPriceCondition();
         const id = idx;
-        
+
+        // Current Candle conditions use their own dedicated panel (cc* controls),
+        // so they need a separate restore path from the generic left/right fields.
+        if (condition.metric === 'current_candle') {
+            if (document.getElementById(`metric${id}`)) {
+                document.getElementById(`metric${id}`).value = 'current_candle';
+                updateConditionFields(id);
+            }
+            setTimeout(() => {
+                var L = condition.left || {};
+                var setV = function(elId, val) {
+                    var e = document.getElementById(elId);
+                    if (e && val !== null && val !== undefined) e.value = val;
+                };
+                var cmp = condition.comparator || 'none';
+                setV(`ccComparator${id}`, cmp);
+                setV(`ccLeftCandleType${id}`, L.candle_type || 'minute');
+                setV(`ccLeftMultiplier${id}`, L.multiplier || 1);
+                setV(`ccLeftDay${id}`, String(L.day != null ? L.day : '0'));
+                setV(`ccLeftColor${id}`, L.candle_color || 'either');
+                if (cmp === 'compare_prev_candle') {
+                    setV(`ccOperator${id}`, condition.operator || '<');
+                    // Legacy look-ahead datapoints (high/low/close) are no longer
+                    // valid for the forming candle — map them to Current Price.
+                    var ldp = String(L.datapoint || 'price').toLowerCase();
+                    if (['high', 'low', 'close', 'current', 'current_price'].indexOf(ldp) !== -1) ldp = 'price';
+                    setV(`ccLeftDatapoint${id}`, ldp);
+                    var R = condition.right || {};
+                    setV(`ccRightCandleType${id}`, R.candle_type || 'minute');
+                    setV(`ccRightMultiplier${id}`, R.multiplier || 1);
+                    setV(`ccRightDay${id}`, String(R.day != null ? R.day : '0'));
+                    setV(`ccRightDatapoint${id}`, R.datapoint || 'close');
+                    setV(`ccRightColor${id}`, R.candle_color || 'either');
+                    if (condition.threshold && document.getElementById(`ccThreshold${id}`)) {
+                        var tv = condition.threshold.value;
+                        document.getElementById(`ccThreshold${id}`).value = (tv != null ? tv : '');
+                    }
+                }
+                updateCcRightVisibility(id);
+                updateOptConditionSummary(id, false);
+            }, 50);
+            return;
+        }
+
         // Detect current_price pattern
         var metricToSet = condition.metric || 'price';
         if (metricToSet === 'price' && condition.left) {
