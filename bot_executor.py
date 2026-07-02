@@ -248,6 +248,10 @@ def _count_active_tag_trades(account_id, tag, live_pos_syms,
     key = f"{account_id}:{tag}"
     now = datetime.now().timestamp()
     status_by_id = order_status_by_id or {}
+    # Only real (non-empty) broker order ids count as "the broker returned a
+    # usable order list". Guards the absence-drop below against a status map
+    # that is technically non-empty but carries only malformed/empty ids.
+    known_ids = {oid for oid in status_by_id if oid}
     changed = False
     with _tag_store_lock:
         store = _load_tag_store()
@@ -270,6 +274,24 @@ def _count_active_tag_trades(account_id, tag, live_pos_syms,
                 if status in _DEAD_ORDER_STATUSES:
                     drop.append(oid)
                     changed = True
+                    continue
+                # Absent from a POPULATED broker order list AND never seen open
+                # in /positions → the order has left the working set for good.
+                # A freshly-placed order always appears in Tradier's /orders
+                # immediately (open/pending/filled/rejected), so absence here is
+                # NOT fill latency — it is a rejected/canceled order that has
+                # scrolled out of the recent-orders window (or whose terminal
+                # status is simply no longer reported). Drop it so a rejected
+                # order can't keep the position cap occupied for the 6h grace.
+                if (known_ids and str(oid) not in known_ids
+                        and isinstance(bucket, dict) and not bucket.get('seen')):
+                    drop.append(oid)
+                    changed = True
+                    logger.info(
+                        f"_count_active_tag_trades tag='{tag}': dropping unseen "
+                        f"order {oid} — absent from broker order list "
+                        f"({len(known_ids)} known ids), never opened → terminal"
+                    )
                     continue
             if not isinstance(bucket, dict):
                 # Legacy per-order list bucket: positions-only behaviour.
