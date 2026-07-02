@@ -2029,7 +2029,7 @@ function stratSaveStepConfig() {
     c.rightLookback = (_rlbRaw === '' || _rlbRaw == null) ? null : (parseInt(_rlbRaw) || 0);
     c.thresholdUnit  = document.getElementById('sbcThresholdUnit')?.value || 'percent';
     c.thresholdValue = (document.getElementById('sbcThresholdValue')?.value || '').trim();
-    c.ccDatapoint      = document.getElementById('sbcCcDatapoint')?.value || 'close';
+    c.ccDatapoint      = document.getElementById('sbcCcDatapoint')?.value || 'price';
     c.ccColor          = document.getElementById('sbcCcColor')?.value || 'either';
     c.ccRightDatapoint = document.getElementById('sbcCcRightDatapoint')?.value || 'close';
     c.ccRightColor     = document.getElementById('sbcCcRightColor')?.value || 'either';
@@ -2567,11 +2567,12 @@ function sbStepConfigHTML(step) {
     // Current-candle sub-form values + option lists
     const isCCm       = m === 'current_candle';
     const ccPrevm     = isCCm && safeCt === 'compare_prev_candle';
-    const ccDp        = c.ccDatapoint || 'close';
+    let   ccDp        = c.ccDatapoint || 'price';
+    if (ccDp === 'close') ccDp = 'price';   // forming candle has no close → live price
     const ccColor     = c.ccColor || 'either';
     const ccRightDp   = c.ccRightDatapoint || 'close';
     const ccRightColor= c.ccRightColor || 'either';
-    const CC_LDP_OPTS = [['close','Close'],['open','Open'],['high','High'],['low','Low'],['price','Current Price (live)']];
+    const CC_LDP_OPTS = [['open','Open'],['high','High'],['low','Low'],['price','Current Price (live)']];
     const CC_RDP_OPTS = [['close','Close'],['open','Open'],['high','High'],['low','Low']];
     const CC_CLR_OPTS = [['either','Either color'],['green','Green'],['red','Red']];
 
