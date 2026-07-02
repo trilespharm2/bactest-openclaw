@@ -2463,6 +2463,10 @@ function sbStrikeMethodChange() {
 function sbStepConfigHTML(step) {
   const c = step.config || {};
 
+  // Shared <select> builder — available to every step branch below.
+  const _sel = (id, val, opts, extra='') =>
+    `<select id="${id}" class="sb-form-select" ${extra}>${opts.map(([v,l])=>`<option value="${v}" ${String(val)===v?'selected':''}>${l}</option>`).join('')}</select>`;
+
   // ── Time ────────────────────────────────────────────────────────
   if (step.type === 'time') {
     const _days = (c.daysOfWeek && c.daysOfWeek.length) ? c.daysOfWeek : ['any'];
@@ -2541,9 +2545,6 @@ function sbStepConfigHTML(step) {
     const andM     = c.andMetric || 'rsi';
     const andEn    = c.andEnabled || false;
     const showAndP = ['sma','ema','rsi','roc'].includes(andM);
-
-    const _sel = (id, val, opts, extra='') =>
-      `<select id="${id}" class="sb-form-select" ${extra}>${opts.map(([v,l])=>`<option value="${v}" ${String(val)===v?'selected':''}>${l}</option>`).join('')}</select>`;
 
     const DAY_OPTS  = [['0','Today (0)'],['-1','Yesterday (-1)'],['-2','2 days ago (-2)'],['-3','3 days ago (-3)'],['-4','4 days ago (-4)'],['-5','5 days ago (-5)']];
     const INTV_OPTS = [['1min','Minute (1min)'],['5min','5-Minute'],['15min','15-Minute'],['day','Daily bar']];

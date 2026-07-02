@@ -11,3 +11,4 @@
 - [/tmp logs are snapshots](tmp-logs-are-snapshots.md) — refresh_all_logs writes point-in-time files; re-call it after a restart, don't re-tail the old snapshot.
 - [Bot day-offset sign convention](bot-day-offset-sign.md) — bot "days ago" selectors use NEGATIVE offsets (0,-1,-2…); positive values silently skip trades. Match end-to-end.
 - [Standalone DB scripts](standalone-db-script.md) — bind db to a minimal Flask app + raw SQL (User lives in main.py, breaks ORM mapper); creds decrypt via FLASK_SECRET_KEY when ENCRYPTION_KEY unset.
+- [JS block-scope ReferenceError](js-blockscope-referror.md) — `const` helpers (e.g. _sel) declared inside one if-branch aren't visible in sibling branches; node --check won't catch it (runtime error). Hoist shared helpers to function top.
