@@ -3123,8 +3123,17 @@ def round_strike_with_direction(target: float, increment: int,
         # This prevents, e.g., direction="below" from returning a strike
         # that is numerically closer but sits above the underlying price.
         if direction == "below":
+            # "at or below": floor already yields the target itself when the
+            # target sits exactly on a strike.
             return lower
         if direction == "above":
+            # "at or above": if the target already sits exactly on a strike,
+            # keep it instead of bumping to the next increment. Without this,
+            # a leg-relative spread whose amount is a multiple of the strike
+            # increment (e.g. Long = Short + $5 on SPX) would be pushed one
+            # extra increment away, turning a $5 spread into $10.
+            if abs(target - lower) < 1e-9:
+                return lower
             return upper
 
         # No directional constraint — pick nearest; tiebreak to lower.
