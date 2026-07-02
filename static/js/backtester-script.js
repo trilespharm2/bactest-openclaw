@@ -3932,7 +3932,7 @@ async function handleBacktestSubmit(e) {
 }
 
 function toggleTenSecondData(enabled) {
-    var step = enabled ? '1' : '60';
+    var step = enabled ? '10' : '60';
     var et = document.getElementById('entryTime');
     var etm = document.getElementById('entryTimeMax');
     if (et) et.step = step;
