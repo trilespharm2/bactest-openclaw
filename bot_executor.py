@@ -818,19 +818,56 @@ def _session_intraday_bars(symbol, interval, api_key, base_url, day=0):
     return []
 
 
-def _live_candle_pair(symbol, interval, api_key, base_url, day=0):
+def _aggregate_candles(bars, n):
+    """Group consecutive OHLC candles (oldest-first) into buckets of `n`.
+
+    Each bucket: open=first.open, high=max(highs), low=min(lows),
+    close=last.close, time=first.time.  A trailing partial bucket is kept so
+    the most recent (possibly still-forming) group is represented.  Used to
+    build N-bar candles the data feed does not serve natively (e.g. a 3-minute
+    candle from 1-minute Tradier bars)."""
+    try:
+        n = max(1, int(n or 1))
+    except (TypeError, ValueError):
+        n = 1
+    if n <= 1 or not bars:
+        return bars
+    out = []
+    for i in range(0, len(bars), n):
+        grp = bars[i:i + n]
+        if not grp:
+            continue
+        highs = [g.get('high') for g in grp if g.get('high') is not None]
+        lows  = [g.get('low')  for g in grp if g.get('low')  is not None]
+        out.append({
+            'time':  grp[0].get('time', ''),
+            'open':  grp[0].get('open'),
+            'high':  max(highs) if highs else None,
+            'low':   min(lows)  if lows  else None,
+            'close': grp[-1].get('close'),
+        })
+    return out
+
+
+def _live_candle_pair(symbol, interval, api_key, base_url, day=0, multiplier=1):
     """Return (prev_candle, cur_candle) dicts for live 'current/previous candle'
     logic, mirroring the options backtester.
 
     cur_candle  = the most recent (currently forming) candle.
     prev_candle = the last finished candle before it.
     interval: '1min'|'5min'|'15min'|'day'.  day: 0=today, negative=prior sessions.
+    multiplier: bars-per-candle; >1 aggregates the base interval into N-bar
+    candles (e.g. interval='1min', multiplier=3 → 3-minute candles).
     Returns (None, None) when data is unavailable."""
     interval = interval or '1min'
     try:
         day = int(day or 0)
     except (TypeError, ValueError):
         day = 0
+    try:
+        multiplier = max(1, int(multiplier or 1))
+    except (TypeError, ValueError):
+        multiplier = 1
     if interval == 'day':
         need = max(abs(day) + 5, 10)
         bars = _fetch_daily_history(symbol, api_key, base_url, bars=need)
@@ -854,6 +891,10 @@ def _live_candle_pair(symbol, interval, api_key, base_url, day=0):
                 return None, None
     else:
         bars = _session_intraday_bars(symbol, interval, api_key, base_url, day=day)
+        if not bars:
+            return None, None
+    if multiplier > 1:
+        bars = _aggregate_candles(bars, multiplier)
         if not bars:
             return None, None
     cur = bars[-1]
@@ -922,15 +963,30 @@ def _eval_current_candle_bot(cfg, symbol, mkey, murl, comparator, operator, inte
                 _cc = 'green' if cur_price > _co else ('red' if cur_price < _co else 'doji')
                 if _cc != left_color:
                     return False, f'current candle is {_cc}, need {left_color} ✗'
-        if prev_c is None:
+        # The previous candle has its own day offset, candle type and
+        # multiplier, independent of the current candle (parity with the
+        # options backtester).  Fall back to the current-candle settings when
+        # the right-side fields are absent (legacy configs).
+        try:
+            r_day = int(cfg.get('rightDay', day) or 0)
+        except (TypeError, ValueError):
+            r_day = day
+        r_interval = str(cfg.get('rightInterval', interval) or interval).strip() or interval
+        try:
+            r_mult = max(1, int(cfg.get('ccRightMultiplier', 1) or 1))
+        except (TypeError, ValueError):
+            r_mult = 1
+        prev_r, _cur_r = _live_candle_pair(symbol, r_interval, mkey, murl,
+                                           day=r_day, multiplier=r_mult)
+        if prev_r is None:
             return None, 'No previous candle data'
         right_dp    = str(cfg.get('ccRightDatapoint', 'close')).strip().lower()
         right_color = str(cfg.get('ccRightColor', 'either')).strip().lower()
         if right_color in ('green', 'red'):
-            _pc = _bot_candle_color(prev_c)
+            _pc = _bot_candle_color(prev_r)
             if _pc != right_color:
                 return False, f'previous candle is {_pc}, need {right_color} ✗'
-        right_val = _bot_candle_dp(prev_c, right_dp)
+        right_val = _bot_candle_dp(prev_r, right_dp)
         if left_val is None or right_val is None:
             return None, 'Missing candle values'
         try:

@@ -2033,6 +2033,7 @@ function stratSaveStepConfig() {
     c.ccColor          = document.getElementById('sbcCcColor')?.value || 'either';
     c.ccRightDatapoint = document.getElementById('sbcCcRightDatapoint')?.value || 'close';
     c.ccRightColor     = document.getElementById('sbcCcRightColor')?.value || 'either';
+    c.ccRightMultiplier = parseInt(document.getElementById('sbcCcRightMultiplier')?.value) || 1;
     c.andEnabled  = document.getElementById('sbcAndEnabled')?.checked || false;
     c.andMetric   = document.getElementById('sbcAndMetric')?.value || 'rsi';
     c.andPeriod   = parseInt(document.getElementById('sbcAndPeriod')?.value) || 14;
@@ -2070,7 +2071,10 @@ function stratSaveStepConfig() {
       if (c.comparator === 'compare_prev_candle') {
         const rc  = c.ccRightColor && c.ccRightColor !== 'either' ? ` ${c.ccRightColor}` : '';
         const th  = c.thresholdValue ? ` ±${c.thresholdValue}${c.thresholdUnit==='percent'?'%':'$'}` : '';
-        lbl += ` ${opLbl} Prev${rc} ${c.ccRightDatapoint}${th}`;
+        const rI  = (c.rightInterval === 'day' ? 'Daily' : (c.rightInterval || '1min'));
+        const rM  = (c.ccRightMultiplier && c.ccRightMultiplier > 1) ? `×${c.ccRightMultiplier}` : '';
+        const rD  = c.rightDay ? ` D(${c.rightDay})` : '';
+        lbl += ` ${opLbl} Prev[${rI}${rM}${rD}]${rc} ${c.ccRightDatapoint}${th}`;
       } else {
         lbl += ` (color only)`;
       }
@@ -2266,8 +2270,8 @@ function sbSyncMetricForm() {
   const rightIsIndic   = ['compare_sma','compare_ema','compare_rsi'].includes(ct);
   _show('sbcValueRow',           !isCC && ct === 'value');
   _show('sbcRightSide',          showRight || ccPrev);
-  _show('sbcRightDayRow',        showRight && rightIsPrice);
-  _show('sbcRightIntervalRow',   showRight && rightIsPrice);
+  _show('sbcRightDayRow',        (showRight && rightIsPrice) || ccPrev);
+  _show('sbcRightIntervalRow',   (showRight && rightIsPrice) || ccPrev);
   _show('sbcRightSeriesRow',     showRight && rightIsPrice);
   // VWAP is now a rolling N-bar indicator too — expose the Period field.
   _show('sbcRightPeriodRow',     showRight && (rightIsIndic || rightIsVwap));
@@ -2276,6 +2280,7 @@ function sbSyncMetricForm() {
   // Current-candle right-side (previous candle) controls
   _show('sbcCcRightDpRow',       ccPrev);
   _show('sbcCcRightColorRow',    ccPrev);
+  _show('sbcCcRightMultRow',     ccPrev);
 }
 function sbMetricChange()      { sbSyncMetricForm(); }
 function sbDayChange()         { sbSyncMetricForm(); }
@@ -2537,8 +2542,9 @@ function sbStepConfigHTML(step) {
     const rightIsPrice  = safeCt === 'compare_price';
     const rightIsVwap   = safeCt === 'compare_vwap';
     const rightIsIndic  = ['compare_sma','compare_ema','compare_rsi'].includes(safeCt);
-    const showRightDay  = showRight && rightIsPrice;
-    const showRightIntv = showRight && rightIsPrice;
+    const _ccPrevRight  = (m === 'current_candle') && safeCt === 'compare_prev_candle';
+    const showRightDay  = showRight && (rightIsPrice || _ccPrevRight);
+    const showRightIntv = showRight && (rightIsPrice || _ccPrevRight);
     const showRightSer  = showRight && rightIsPrice;
     const showRightPer  = showRight && (rightIsIndic || rightIsVwap);
 
@@ -2573,6 +2579,7 @@ function sbStepConfigHTML(step) {
     const ccColor     = c.ccColor || 'either';
     const ccRightDp   = c.ccRightDatapoint || 'close';
     const ccRightColor= c.ccRightColor || 'either';
+    const ccRightMult = c.ccRightMultiplier ?? 1;
     const CC_LDP_OPTS = [['open','Open'],['high','High'],['low','Low'],['price','Current Price (live)']];
     const CC_RDP_OPTS = [['close','Close'],['open','Open'],['high','High'],['low','Low']];
     const CC_CLR_OPTS = [['either','Either color'],['green','Green'],['red','Red']];
@@ -2695,6 +2702,10 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-row" id="sbcRightIntervalRow" style="${showRightIntv?'':'display:none'}">
           <div class="sb-form-label">Candle Type</div>
           ${_sel('sbcRightInterval', rightIntv, INTV_OPTS)}
+        </div>
+        <div class="sb-form-row" id="sbcCcRightMultRow" style="${_ccPrevRight?'':'display:none'}">
+          <div class="sb-form-label">Multiplier <span style="font-weight:400;color:#94a3b8;">(bars per candle)</span></div>
+          <input id="sbcCcRightMultiplier" class="sb-form-input" type="number" min="1" max="60" value="${ccRightMult}">
         </div>
         <div class="sb-form-row" id="sbcRightSeriesRow" style="${showRightSer?'':'display:none'}">
           <div class="sb-form-label">Price Type</div>
