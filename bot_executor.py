@@ -1415,21 +1415,21 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 return None, f"Invalid threshold value '{cv}'"
 
             if is_cross:
-                _pb_open = None   # prev-bar open (prev-bar gate, current_price only)
+                _pb_open = None   # prev candle open (prev-candle gate, current_price only)
                 if metric == 'current_price':
-                    # Within-bar breach (matches the options backtester): compare
-                    # THIS currently-forming bar's OPEN against the threshold; the
-                    # live price must land on the other side.  Fires on the exact
-                    # bar where price breaks the level, not the bar after.
+                    # Candle-OPEN cross (matches the backtesters): the PREVIOUS
+                    # candle's open below/above the threshold, then the CURRENT
+                    # candle's open on the far side. The live price is NOT part
+                    # of the trigger.
                     _ob = (_fetch_intraday_bars(symbol, intv, _mkey, _murl, days_back=2)
                            if intv != 'day'
                            else _fetch_daily_history(symbol, _mkey, _murl, bars=3))
-                    prev_lhs_val = _bar_open(_ob[-1]) if _ob else None
-                    # Prev-bar gate: also require the PREVIOUS bar's open below/above
-                    # the threshold.
+                    prev_lhs_val = _bar_open(_ob[-1]) if _ob else None  # CURRENT candle's open
+                    # Prev-candle gate: the PREVIOUS candle's open must be on the
+                    # origin side of the threshold.
                     if _ob and len(_ob) >= 2:
                         _pb_open = _bar_open(_ob[-2])
-                    _prev_lbl = 'bar open'
+                    _prev_lbl = 'curr candle open'
                 else:
                     prev_lhs_val, bars = _prev_lhs()
                     _prev_lbl = 'bar 2 (prev)'
@@ -1437,26 +1437,31 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     return None, f'Could not get previous bar {lhs_name}'
                 prev_rhs = rhs
                 # Convention matches the backtester:
-                #   crosses_above: prev strictly below → curr at or above (prev < rhs, curr >= rhs)
-                #   crosses_below: prev strictly above → curr at or below (prev > rhs, curr <= rhs)
+                #   current_price: prev candle open strictly below → current candle
+                #     open strictly above (cross-up); symmetric for cross-down.
+                #   other series: prev strictly below → curr at or above.
                 if operator == 'crosses_above':
                     if metric == 'current_price':
-                        # Current bar's open need NOT be below the line — only the
-                        # previous bar's open gates direction, plus the live price.
-                        ok = (lhs >= rhs) and (_pb_open is not None and _pb_open < rhs)
+                        ok = (prev_lhs_val > rhs) and (_pb_open is not None and _pb_open < rhs)
                     else:
                         ok = (prev_lhs_val < prev_rhs) and (lhs >= rhs)
                 else:
                     if metric == 'current_price':
-                        ok = (lhs <= rhs) and (_pb_open is not None and _pb_open > rhs)
+                        ok = (prev_lhs_val < rhs) and (_pb_open is not None and _pb_open > rhs)
                     else:
                         ok = (prev_lhs_val > prev_rhs) and (lhs <= rhs)
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
-                detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
-                          f"{_prev_lbl.capitalize()}: {lhs_name} = {_fmt(prev_lhs_val)}, "
-                          f"threshold = {rhs_name}; "
-                          f"Bar 1 (curr): {lhs_name} = {_fmt(lhs)}")
+                if metric == 'current_price':
+                    detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
+                              f"Prev candle open = {_fmt(_pb_open)}, "
+                              f"curr candle open = {_fmt(prev_lhs_val)}, "
+                              f"threshold = {rhs_name}")
+                else:
+                    detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
+                              f"{_prev_lbl.capitalize()}: {lhs_name} = {_fmt(prev_lhs_val)}, "
+                              f"threshold = {rhs_name}; "
+                              f"Bar 1 (curr): {lhs_name} = {_fmt(lhs)}")
             else:
                 ok = _compare(lhs, operator, rhs)
                 sym = _op_sym(operator)
@@ -1573,13 +1578,11 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 _pb_open = None   # prev-bar open (prev-bar gate, current_price only)
                 _pb_cmp  = None   # comparator at the previous bar
                 if metric == 'current_price':
-                    # CHART-ALIGNED cross: anchor the moving average and the
-                    # "previous candle" to FINISHED candles only.  Drop any
-                    # in-progress bar so (a) the average matches what the chart
-                    # draws (no partial bar mixed in) and (b) scheduler timing
-                    # can't shift which candle counts as "previous".  The live
-                    # price (lhs) stays the value that crosses the line, so
-                    # entries remain intra-bar (no waiting for the candle close).
+                    # Candle-OPEN cross: the PREVIOUS candle's open must be on the
+                    # origin side of its MA, then the CURRENT candle's open on the
+                    # far side of the latest MA.  The live price is NOT part of the
+                    # trigger.  The MA is anchored to FINISHED candles only so it
+                    # matches what the chart draws (no partial bar mixed in).
                     completed = _drop_forming_bar(rhs_bars, intv)
                     c_slice = (completed[:len(completed) - right_lookback]
                                if right_lookback > 0 else completed)
@@ -1620,18 +1623,37 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                                     f'against a stale MA')
                         except (ValueError, TypeError, AttributeError):
                             pass
-                    _cmp = _compute_bar_metric(right_metric, right_period, c_slice,
+                    # Current candle = the forming bar (dropped from `completed`);
+                    # if the feed hasn't printed a forming bar yet, the last
+                    # finished bar is the current candle.  Each candle's open is
+                    # compared against the latest MA known at that open (MA
+                    # through all FINISHED candles before it) — mirrors the
+                    # backtesters, where each bar has its own MA value.
+                    if len(rhs_bars) > len(completed):
+                        _cur_open      = _bar_open(rhs_bars[-1])
+                        _cur_ma_slice  = c_slice
+                        _prev_bar_o    = _bar_open(c_slice[-1])
+                        _prev_ma_slice = c_slice[:-1]
+                    else:
+                        if len(c_slice) < 2:
+                            return None, f'Not enough finished bars for {right_metric.upper()} cross detection'
+                        _cur_open      = _bar_open(c_slice[-1])
+                        _cur_ma_slice  = c_slice[:-1]
+                        _prev_bar_o    = _bar_open(c_slice[-2])
+                        _prev_ma_slice = c_slice[:-2]
+                    if _cur_open is None or _prev_bar_o is None:
+                        return None, 'Could not read candle opens for cross detection'
+                    _cmp = _compute_bar_metric(right_metric, right_period, _cur_ma_slice,
                                                day=0, series='close')
-                    if _cmp is None:
+                    _pb_cmp = (_compute_bar_metric(right_metric, right_period, _prev_ma_slice,
+                                                   day=0, series='close')
+                               if _prev_ma_slice else None)
+                    if _cmp is None or _pb_cmp is None:
                         return None, f'Could not compute {right_metric.upper()}({right_period})'
-                    # Comparator = the MA through the last FINISHED candle — the
-                    # same value the chart plots — used for both the prev-candle
-                    # gate and the live-price cross.
                     raw_rhs = _cmp
-                    _pb_cmp = _cmp
-                    prev_lhs_val = _bar_open(c_slice[-1])   # last finished candle's OPEN
-                    _pb_open = prev_lhs_val
-                    prev_rhs_raw = raw_rhs
+                    prev_lhs_val = _prev_bar_o   # PREVIOUS candle's OPEN
+                    _pb_open = _prev_bar_o
+                    prev_rhs_raw = _pb_cmp
                     _prev_lbl = 'prev candle open'
                 else:
                     prev_lhs_val = _cbm(bars[:-1], d=0) if bars and len(bars) > 1 else None
@@ -1642,32 +1664,35 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                 #   crosses_above: prev strictly below indicator → curr at or above (prev < rhs, curr >= rhs)
                 #   crosses_below: prev strictly above indicator → curr at or below (prev > rhs, curr <= rhs)
                 # ── Edge-latched cross detection ──────────────────────────────
-                # Fire ONCE, at the instant the live value moves to the far side
-                # of the comparator; never repeat while it stays there.  We
-                # persist the last observed side per strategy+condition and fire
-                # only on a genuine flip (below→above for crosses_above,
-                # above→below for crosses_below), re-arming only after the value
-                # crosses back.  On the first observation (or after a restart) we
-                # just record the side WITHOUT firing, so a value already past the
-                # line can't trigger a phantom entry — the bot then waits for the
-                # NEXT real crossing.  If a fired signal never fills, it is NOT
-                # repeated; the next entry needs a fresh cross.
-                if lhs >= raw_rhs:
+                # Fire ONCE per crossing; never repeat while the value stays on
+                # the far side.  We persist the last observed side per
+                # strategy+condition and fire only on a genuine flip
+                # (below→above for crosses_above, above→below for
+                # crosses_below), re-arming only after the value crosses back.
+                # On the first observation (or after a restart) we just record
+                # the side WITHOUT firing.  For "Current Price" the side is the
+                # CURRENT candle's OPEN vs the latest MA (open-based cross — the
+                # live price is not part of the trigger); the side therefore only
+                # changes at candle boundaries.
+                if metric == 'current_price':
+                    cur_side = 'above' if _cur_open > raw_rhs else 'below'
+                elif lhs >= raw_rhs:
                     cur_side = 'above'
                 else:
                     cur_side = 'below'
                 desired  = 'above' if operator == 'crosses_above' else 'below'
                 opposite = 'below' if desired == 'above' else 'above'
-                # Origin-side bar confirmation: the side the LAST FINISHED
-                # candle actually CLOSED on. Used to require that a real bar
-                # settled on the "from" side before an intra-bar live cross can
-                # fire.
+                # Prev-candle gate: the side the PREVIOUS candle's OPEN sat on
+                # relative to its own MA. A cross-up requires the previous
+                # candle to have OPENED strictly below its MA (and cross-down
+                # strictly above). Exactly on the line ⇒ no side ⇒ no fire.
                 _bar_side = None
                 if metric == 'current_price':
                     try:
-                        _bar_side = ('above'
-                                     if float(c_slice[-1].get('close')) >= raw_rhs
-                                     else 'below')
+                        if float(_pb_open) < float(_pb_cmp):
+                            _bar_side = 'below'
+                        elif float(_pb_open) > float(_pb_cmp):
+                            _bar_side = 'above'
                     except (TypeError, ValueError, IndexError, AttributeError):
                         _bar_side = None
                 if strategy_id is not None:
@@ -1690,21 +1715,21 @@ def eval_metric_verbose(cfg, api_key, base_url, symbol,
                     else:
                         prev_side = 'above' if _ref_lhs >= _ref_rhs else 'below'
                     ok = (prev_side == opposite) and (cur_side == desired)
-                # Origin-side confirmation (intra-bar live crosses only): the
-                # last FINISHED candle must have CLOSED on the side the price is
-                # crossing FROM. A cross-up needs a candle that actually closed
-                # below the MA; a live tick that only dipped below with no candle
-                # closing there is NOT a real cross and must not fire.
-                # (None ⇒ can't confirm ⇒ no fire.)
+                # Prev-candle open confirmation ("Current Price" only): the
+                # previous candle must have OPENED on the side the price is
+                # crossing FROM (below its MA for a cross-up, above for a
+                # cross-down). (None ⇒ can't confirm ⇒ no fire.)
                 if ok and metric == 'current_price' and _bar_side != opposite:
                     ok = False
                 word = 'occurred ✓' if ok else 'did not occur ✗'
                 dir_w = 'cross-up' if operator == 'crosses_above' else 'cross-down'
                 _now_lbl = cur_side if cur_side else 'neutral'
-                _bar_lbl = f", last-bar={_bar_side}" if metric == 'current_price' else ''
+                _bar_lbl = f", prev-open={_bar_side}" if metric == 'current_price' else ''
+                _cur_lbl = 'curr candle open' if metric == 'current_price' else 'live'
+                _cur_val = _cur_open if metric == 'current_price' else lhs
                 detail = (f"{lhs_name} {dir_w} {rhs_name} {word}. "
                           f"Prev ({_prev_lbl}): {lhs_name}={_fmt(prev_lhs_val)}, {rhs_name}={_fmt(prev_rhs_raw)}; "
-                          f"Curr (live): {lhs_name}={_fmt(lhs)}, {rhs_name}={_fmt(raw_rhs)} "
+                          f"Curr ({_cur_lbl}): {lhs_name}={_fmt(_cur_val)}, {rhs_name}={_fmt(raw_rhs)} "
                           f"[latch: was={prev_side or 'none'} → now={_now_lbl}{_bar_lbl}]")
             else:
                 rhs = _apply_threshold(raw_rhs, thresh_unit, thresh_value, operator)

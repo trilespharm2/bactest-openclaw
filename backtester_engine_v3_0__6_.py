@@ -1861,10 +1861,33 @@ class BacktesterEngine:
                 except Exception:
                     return False
 
+                # "Current Price" cross is candle-OPEN based: the CURRENT bar is
+                # also evaluated on its OPEN (cross_up = prev open < line, then
+                # current open > line). Other series keep their configured value.
+                cur_left = left_value
+                if condition.get('metric') == 'current_price':
+                    cur_left = self.get_candle_value(
+                        grouped_data, dates, current_date_index,
+                        condition.get('left_day', 0), condition.get('left_candle', 'min'),
+                        condition.get('left_multiplier', 1), 'open',
+                        current_candle=current_candle
+                    )
+                    if cur_left is None:
+                        return False
+                    try:
+                        if pd.isna(cur_left):
+                            return False
+                    except Exception:
+                        return False
+
                 was_below  = prev_left < prev_right
                 was_above  = prev_left > prev_right
-                now_above  = left_value >= right_value
-                now_below  = left_value <= right_value
+                if condition.get('metric') == 'current_price':
+                    now_above = cur_left > right_value
+                    now_below = cur_left < right_value
+                else:
+                    now_above = left_value >= right_value
+                    now_below = left_value <= right_value
 
                 if operation == 'cross_up':
                     return was_below and now_above

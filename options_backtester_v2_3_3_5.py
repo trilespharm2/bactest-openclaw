@@ -2146,19 +2146,23 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         print(f"  [cross] WARN: prev_left=None for key={_lkey} prev_ts={_prev_left_ts} "
                               f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
                 elif metric == 'price':
-                    # Within-bar breach "Current Price" cross: compare THIS bar's
-                    # OPEN against THIS bar's comparator (prev_right is overridden to
-                    # the current comparator below) while the current bar keeps using
-                    # its VWAP (the current price). This fires on the bar that actually
-                    # breaches the line — the first instance — instead of the bar after.
-                    # Falls back to the previous-bar VWAP cache when the open series is
-                    # unavailable.
-                    if left_params.get('current_price') and indicators_cache.get('price_open'):
+                    # Candle-OPEN "Current Price" cross: THIS bar's OPEN is compared
+                    # against THIS bar's comparator (prev_right is overridden to the
+                    # current comparator below), and the PREVIOUS bar's open against
+                    # the previous comparator. cross_up = prev open < line, then
+                    # current open > line. If the open series is unavailable the
+                    # cross fails closed (no fire).
+                    if left_params.get('current_price'):
+                        # Always use the open-based rule for Current Price; if the
+                        # open series is unavailable, fail CLOSED (no fire) rather
+                        # than falling back to live-price semantics.
                         _within_bar_cross = True
                         _price_cache = indicators_cache.get('price_open', {})
-                        prev_left = find_closest_indicator_value(_price_cache, bar_timestamp)
+                        prev_left = (find_closest_indicator_value(_price_cache, bar_timestamp)
+                                     if _price_cache else None)
                         # Also grab the PREVIOUS bar's open for the prev-bar gate.
-                        _prev_bar_open = find_closest_indicator_value(_price_cache, _prev_left_ts)
+                        _prev_bar_open = (find_closest_indicator_value(_price_cache, _prev_left_ts)
+                                          if _price_cache else None)
                     else:
                         _price_cache = indicators_cache.get('price', {})
                         prev_left = find_closest_indicator_value(_price_cache, _prev_left_ts)
@@ -2222,18 +2226,20 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
 
                 if prev_left is not None and prev_right is not None:
                     if _within_bar_cross:
-                        # Within-bar "Current Price" cross: the direction is gated by
-                        # the PREVIOUS bar's open being on the right side of its
-                        # comparator (below for cross_up, above for cross_down) plus
-                        # the current price crossing the line. The current bar's open
-                        # need NOT be on either side. If the previous bar's data is
-                        # unavailable we cannot confirm the gate, so it does not fire.
+                        # Candle-OPEN "Current Price" cross: the PREVIOUS candle's
+                        # open must be on the origin side of its comparator AND the
+                        # CURRENT candle's open on the far side of the current
+                        # comparator (prev open < SMA then current open > SMA for
+                        # cross_up). The live price is NOT part of the trigger.
+                        # If the previous bar's data is unavailable we cannot
+                        # confirm the gate, so it does not fire.
+                        _cur_bar_open = prev_left  # within-bar mode: prev_left holds THIS bar's open
                         _pb_below = (_prev_bar_open is not None and _prev_bar_comparator is not None
                                      and _prev_bar_open < _prev_bar_comparator)
                         _pb_above = (_prev_bar_open is not None and _prev_bar_comparator is not None
                                      and _prev_bar_open > _prev_bar_comparator)
-                        _cross_up   = _pb_below and left_value >= right_value
-                        _cross_down = _pb_above and left_value <= right_value
+                        _cross_up   = _pb_below and _cur_bar_open > right_value
+                        _cross_down = _pb_above and _cur_bar_open < right_value
                     else:
                         _cross_up   = prev_left < prev_right and left_value >= right_value
                         _cross_down = prev_left > prev_right and left_value <= right_value
