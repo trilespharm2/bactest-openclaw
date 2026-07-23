@@ -565,7 +565,7 @@ def init_scheduler(app):
         scheduler.add_job(
             func=execute_all_live_strategies,
             args=[app],
-            trigger=IntervalTrigger(seconds=30),
+            trigger=IntervalTrigger(seconds=5),
             id='bot_executor',
             name='Bot Strategy Executor',
             replace_existing=True,

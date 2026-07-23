@@ -1,6 +1,6 @@
 """
 Bot strategy execution engine.
-Called by APScheduler every 30 s; respects per-user poll_interval_sec.
+Called by APScheduler every 5 s; respects per-user poll_interval_sec.
 Only fires during US market hours (Mon-Fri 09:25-16:05 ET).
 """
 import hashlib
