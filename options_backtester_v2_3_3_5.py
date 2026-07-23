@@ -5388,9 +5388,11 @@ def run_backtest(config: Dict, client: RESTClient):
                 if len(entry_time_end) == 5:
                     entry_time_end = entry_time_end + ':59'
 
-            # Store FULL-DAY OHLCV bars (09:30–16:15) for the decision-tree chart.
-            # Storing all day bars means the chart frontend can scroll/pan freely to
-            # see entry AND exit no matter when they occur in the session.
+            # Store FULL-DAY OHLCV bars (09:30–15:59) for the decision-tree chart.
+            # Bars at/after 16:00 are excluded: the regular session's last tradable
+            # bar is 15:59 (its close IS the 16:00 print), so a separate 16:00 bar
+            # on the chart is redundant — expiration exits at 16:00 render on the
+            # 15:59 bar. Settlement math still uses the official daily close.
             if bars_1min_today:
                 try:
                     _sorted_bars = sorted(bars_1min_today, key=lambda x: x.get('time', ''))
@@ -5402,7 +5404,7 @@ def run_backtest(config: Dict, client: RESTClient):
                          round(b.get('close', 0), 2),
                          int(b.get('volume', b.get('v', 0)) or 0)]
                         for b in _sorted_bars
-                        if '09:30' <= b.get('time', '')[:5] <= '16:15'
+                        if '09:30' <= b.get('time', '')[:5] <= '15:59'
                     ]
                     day_entry['entry_time'] = entry_time_start[:5]
 
@@ -5650,10 +5652,10 @@ def run_backtest(config: Dict, client: RESTClient):
                 decision_log.append(day_entry)
                 continue
             
-            # Use the entry bar's VWAP as the underlying reference so it matches the
-            # "Current Price" the entry signal is measured on (falls back to close).
-            _entry_vw = entry_bar.get('vw')
-            underlying_price = _entry_vw if _entry_vw is not None else entry_bar['close']
+            # Use the entry bar's OPEN as the underlying reference for strike
+            # selection: the entry fills at the bar's open, so that is the price
+            # known at decision time (vw/close of the entry bar are lookahead).
+            underlying_price = entry_bar['open']
             entry_time = entry_bar['time']
             entry_timestamp = entry_bar['timestamp']
             exp_date = exp_map[date_str]
@@ -6755,7 +6757,7 @@ def run_backtest(config: Dict, client: RESTClient):
                                  round(b.get('close', 0), 2),
                                  int(b.get('volume', b.get('v', 0)) or 0)]
                                 for b in _ds
-                                if '09:30' <= b.get('time', '')[:5] <= '16:15'
+                                if '09:30' <= b.get('time', '')[:5] <= '15:59'
                             ]
                 day_entry['multi_day_bars'] = _multi
 

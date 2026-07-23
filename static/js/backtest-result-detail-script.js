@@ -695,14 +695,21 @@ function _buildLwChart(container, stored, isModal, aggBars, tf) {
     }
     cs.setData(data);
 
+    // Clamp a marker timestamp to the last plotted bar: e.g. a 16:00 expiration
+    // exit renders on the 15:59 bar (its close IS the 16:00 print) — bars at/after
+    // 16:00 are no longer plotted.
+    var _lastBarTime = data.length ? data[data.length - 1].time : null;
+    function _clampToBars(t) {
+        return (_lastBarTime != null && t > _lastBarTime) ? _lastBarTime : t;
+    }
     var markers = [];
     if (stored.entryTime) {
         var eRaw = _toTs(stored.day.date, stored.entryTime);
-        markers.push({ time: _dtSnapToTf(eRaw, tf), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' + (stored.entryPrice != null ? ' $' + stored.entryPrice.toFixed(2) : '') });
+        markers.push({ time: _clampToBars(_dtSnapToTf(eRaw, tf)), position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Entry' + (stored.entryPrice != null ? ' $' + stored.entryPrice.toFixed(2) : '') });
     }
     if (stored.exitTime) {
         var xRaw = _toTs(stored.exitDate || stored.day.date, stored.exitTime);
-        markers.push({ time: _dtSnapToTf(xRaw, tf), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit' + (stored.exitPrice != null ? ' $' + stored.exitPrice.toFixed(2) : '') });
+        markers.push({ time: _clampToBars(_dtSnapToTf(xRaw, tf)), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Exit' + (stored.exitPrice != null ? ' $' + stored.exitPrice.toFixed(2) : '') });
     }
     if (markers.length) cs.setMarkers(markers);
 
