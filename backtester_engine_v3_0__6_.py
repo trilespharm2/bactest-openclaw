@@ -991,11 +991,15 @@ class BacktesterEngine:
             return None
 
     def _get_price_series(self, grouped_data, dates, current_date_index, day_offset,
-                          series_type='close', current_candle=None, cutoff_time_str=None):
+                          series_type='close', current_candle=None, cutoff_time_str=None,
+                          include_current=False):
         """Build a price series from grouped_data up to and including the target day.
 
         Lookahead-bias rules for day_offset==0:
-        - current_candle provided  → truncate at that bar's timestamp (per-bar path).
+        - current_candle provided  → truncate STRICTLY BEFORE that bar's timestamp
+          (per-bar path). The decision bar's own close is not known at decision
+          time (entry fills at the bar's open), so the last datapoint in the
+          series is the prior completed bar's value.
         - cutoff_time_str provided → truncate today's bars strictly before that
           time string ('HH:MM'), used for day-level prereqs that have a time window.
         - Neither provided         → include all of today's bars (original behaviour,
@@ -1015,7 +1019,13 @@ class BacktesterEngine:
             if day_offset == 0 and 'timestamp' in combined.columns:
                 if current_candle is not None:
                     ts = current_candle.get('timestamp') or current_candle.name
-                    combined = combined[combined['timestamp'] <= ts]
+                    # include_current=True (exit-at-close evaluation): the bar has
+                    # just closed, so its own close IS known. Entry evaluation
+                    # (default) stays strictly before — see docstring.
+                    if include_current:
+                        combined = combined[combined['timestamp'] <= ts]
+                    else:
+                        combined = combined[combined['timestamp'] < ts]
                     if combined.empty:
                         return None
                 elif cutoff_time_str is not None:
@@ -1058,7 +1068,8 @@ class BacktesterEngine:
         return pd.Series(result, index=series.index, dtype=float)
 
     def _build_vwap_frame(self, condition, side, grouped_data, dates,
-                          current_date_index, current_candle=None, cutoff_time_str=None):
+                          current_date_index, current_candle=None, cutoff_time_str=None,
+                          include_current=False):
         """Return a DataFrame with high/low/close/volume (and open when
         available) for rolling-VWAP computation, respecting the requested
         candle type and multiplier.  Lookahead-safe for day_offset==0.
@@ -1090,7 +1101,13 @@ class BacktesterEngine:
                         ts = current_candle.get('timestamp') if isinstance(current_candle, dict) \
                              else (current_candle['timestamp'] if 'timestamp' in current_candle.index else None)
                         if ts is not None:
-                            day_data = day_data[day_data['timestamp'] <= ts]
+                            # entry (default): strictly before — the decision bar's
+                            # own H/L/C/volume are not known at decision time.
+                            # exit-at-close: bar just completed, include it.
+                            if include_current:
+                                day_data = day_data[day_data['timestamp'] <= ts]
+                            else:
+                                day_data = day_data[day_data['timestamp'] < ts]
                     elif cutoff_time_str is not None and 'timestamp' in day_data.columns:
                         try:
                             ch, cm = map(int, cutoff_time_str.split(':'))
@@ -1152,7 +1169,8 @@ class BacktesterEngine:
             return None
 
     def _build_indicator_series(self, condition, side, grouped_data, dates,
-                                current_date_index, current_candle=None, cutoff_time_str=None):
+                                current_date_index, current_candle=None, cutoff_time_str=None,
+                                include_current=False):
         """
         Build the price series used for indicator computation, respecting the
         candle type (min / hr / day) chosen by the user.
@@ -1181,9 +1199,12 @@ class BacktesterEngine:
                 col = series_type if series_type in day_data.columns else 'close'
                 if day_offset == 0 and i == current_date_index:
                     if current_candle is not None:
-                        # per-bar path: use current bar as today's live close
-                        val = current_candle.get(col) if isinstance(current_candle, dict) \
-                              else (current_candle[col] if col in current_candle.index else None)
+                        # per-bar path: today's session is still forming. At entry
+                        # time only the current bar's OPEN is known; at exit-at-close
+                        # the bar's close is known. Use the appropriate live value.
+                        _live_col = col if include_current else 'open'
+                        val = current_candle.get(_live_col) if isinstance(current_candle, dict) \
+                              else (current_candle[_live_col] if _live_col in current_candle.index else None)
                     elif cutoff_time_str is not None and 'timestamp' in day_data.columns:
                         # prereq path with time cutoff: last bar strictly before cutoff
                         try:
@@ -1210,7 +1231,8 @@ class BacktesterEngine:
             raw = self._get_price_series(grouped_data, dates, current_date_index,
                                          day_offset, series_type,
                                          current_candle=current_candle,
-                                         cutoff_time_str=cutoff_time_str)
+                                         cutoff_time_str=cutoff_time_str,
+                                         include_current=include_current)
             if raw is None or raw.empty:
                 return None
             # resample: group every 60 rows into one bar, take the last value
@@ -1226,7 +1248,8 @@ class BacktesterEngine:
         return self._get_price_series(grouped_data, dates, current_date_index,
                                       day_offset, series_type,
                                       current_candle=current_candle,
-                                      cutoff_time_str=cutoff_time_str)
+                                      cutoff_time_str=cutoff_time_str,
+                                      include_current=include_current)
 
     def _indicator_signature(self, condition, side):
         """Stable key capturing every parameter that affects an indicator value."""
@@ -1244,7 +1267,7 @@ class BacktesterEngine:
         )
 
     def _build_perbar_min_indicator(self, condition, side, grouped_data, dates,
-                                    current_date_index, ind_type):
+                                    current_date_index, ind_type, shifted=True):
         """Pre-compute a time-varying minute indicator for the WHOLE current day at once.
 
         Returns a dict {timestamp -> value} covering every bar of the current day.
@@ -1297,6 +1320,12 @@ class BacktesterEngine:
             else:
                 return None
 
+            # shifted=True (entry): the value visible at bar B is computed from
+            # data through bar B-1's close (the decision bar's own close is not
+            # known at decision time) — mirrors _get_price_series' strict cutoff.
+            # shifted=False (exit-at-close): value at bar B uses B's own close.
+            if shifted:
+                rolled = rolled.shift(1)
             today_vals = rolled.iloc[-n_today:]
             out = {}
             for ts, v in zip(today['timestamp'], today_vals):
@@ -1306,7 +1335,7 @@ class BacktesterEngine:
             return None
 
     def _compute_indicator(self, condition, side, grouped_data, dates, current_date_index,
-                           current_candle=None, cutoff_time_str=None):
+                           current_candle=None, cutoff_time_str=None, at_bar_close=False):
         """Cached front-end for indicator computation.
 
         Two fast paths (both produce values identical to the raw computation):
@@ -1330,7 +1359,7 @@ class BacktesterEngine:
                     return const_cache[ck]
                 val = self._compute_indicator_raw(
                     condition, side, grouped_data, dates, current_date_index,
-                    current_candle, cutoff_time_str)
+                    current_candle, cutoff_time_str, at_bar_close=at_bar_close)
                 const_cache[ck] = val
                 return val
 
@@ -1342,23 +1371,24 @@ class BacktesterEngine:
                 except Exception:
                     ts = None
                 if ts is not None:
-                    ck = (current_date_index, self._indicator_signature(condition, side))
+                    ck = (current_date_index, self._indicator_signature(condition, side), at_bar_close)
                     perbar = cache_root['perbar']
                     if ck not in perbar:
                         # Build once per day. Store even a None result so a failed
                         # build is not retried on every bar of the day.
                         perbar[ck] = self._build_perbar_min_indicator(
-                            condition, side, grouped_data, dates, current_date_index, ind_type)
+                            condition, side, grouped_data, dates, current_date_index, ind_type,
+                            shifted=not at_bar_close)
                     day_map = perbar[ck]
                     if day_map is not None and ts in day_map:
                         return day_map[ts]
 
         return self._compute_indicator_raw(
             condition, side, grouped_data, dates, current_date_index,
-            current_candle, cutoff_time_str)
+            current_candle, cutoff_time_str, at_bar_close=at_bar_close)
 
     def _compute_indicator_raw(self, condition, side, grouped_data, dates, current_date_index,
-                               current_candle=None, cutoff_time_str=None):
+                               current_candle=None, cutoff_time_str=None, at_bar_close=False):
         """Compute an indicator value for a given side (left/right) of a condition.
 
         Respects left_candle / right_candle: 'min' uses 1-minute bars (original
@@ -1367,7 +1397,8 @@ class BacktesterEngine:
         ind_type = condition.get(f'{side}_type')
         series = self._build_indicator_series(condition, side, grouped_data, dates,
                                               current_date_index, current_candle,
-                                              cutoff_time_str=cutoff_time_str)
+                                              cutoff_time_str=cutoff_time_str,
+                                              include_current=at_bar_close)
         if series is None or len(series) < 2:
             return None
 
@@ -1405,6 +1436,7 @@ class BacktesterEngine:
                     condition, side, grouped_data, dates,
                     current_date_index, current_candle,
                     cutoff_time_str=cutoff_time_str,
+                    include_current=at_bar_close,
                 )
                 if bars is None or len(bars) < window:
                     return None
@@ -1708,7 +1740,8 @@ class BacktesterEngine:
             return False
 
     def check_custom_condition(self, condition: Dict, grouped_data: Dict, dates: List,
-                              current_date_index: int, current_candle: Optional[pd.Series] = None) -> bool:
+                              current_date_index: int, current_candle: Optional[pd.Series] = None,
+                              at_bar_close: bool = False) -> bool:
         """
         NEW v3.0: Check if custom condition is met
         
@@ -1762,7 +1795,7 @@ class BacktesterEngine:
                 left_value = self._get_volume(condition, 'left', grouped_data, dates, current_date_index, current_candle)
             elif left_type in self._INDICATOR_TYPES:
                 left_value = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, current_candle,
-                                                     cutoff_time_str=_prereq_cutoff)
+                                                     cutoff_time_str=_prereq_cutoff, at_bar_close=at_bar_close)
             elif condition['left_day'] == 0 and condition['left_candle'] == 'min' and current_candle is not None:
                 left_value = current_candle[left_type]
             else:
@@ -1779,7 +1812,7 @@ class BacktesterEngine:
                 right_value = self._get_volume(condition, 'right', grouped_data, dates, current_date_index, current_candle)
             elif right_type in self._INDICATOR_TYPES:
                 right_value = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, current_candle,
-                                                      cutoff_time_str=_prereq_cutoff)
+                                                      cutoff_time_str=_prereq_cutoff, at_bar_close=at_bar_close)
             elif condition['right_day'] == 0 and condition['right_candle'] == 'min' and current_candle is not None:
                 right_value = current_candle[right_type]
             else:
@@ -1826,7 +1859,7 @@ class BacktesterEngine:
                     prev_left_type = 'open'
 
                 if prev_left_type in self._INDICATOR_TYPES:
-                    prev_left = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, prev_candle)
+                    prev_left = self._compute_indicator(condition, 'left', grouped_data, dates, current_date_index, prev_candle, at_bar_close=at_bar_close)
                 elif prev_left_type == 'volume':
                     prev_left = self._get_volume(condition, 'left', grouped_data, dates, current_date_index, prev_candle)
                 else:
@@ -1842,7 +1875,7 @@ class BacktesterEngine:
                 if right_type == 'value':
                     prev_right = right_value  # fixed threshold never changes
                 elif right_type in self._INDICATOR_TYPES:
-                    prev_right = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, prev_candle)
+                    prev_right = self._compute_indicator(condition, 'right', grouped_data, dates, current_date_index, prev_candle, at_bar_close=at_bar_close)
                 elif right_type == 'volume':
                     prev_right = self._get_volume(condition, 'right', grouped_data, dates, current_date_index, prev_candle)
                 else:
@@ -2186,8 +2219,7 @@ class BacktesterEngine:
                 gap_pct = ((open_price / prev_close) - 1) * 100
                 
                 if self._evaluate_operator(gap_pct, operator, threshold):
-                    mid = (current_candle['high'] + current_candle['low']) / 2.0
-                    return True, 'mid', mid
+                    return True, 'open', float(open_price)
                 
                 return False, None, None
             
@@ -2225,8 +2257,7 @@ class BacktesterEngine:
             change_pct = ((price / reference_price) - 1) * 100
             
             if self._evaluate_operator(change_pct, operator, threshold):
-                mid = (candle['high'] + candle['low']) / 2.0
-                return True, 'mid', mid
+                return True, 'open', float(candle['open'])
         
         return False, None, None
     
@@ -2351,7 +2382,8 @@ class BacktesterEngine:
 
         elif exit_cond_type == 'custom' and self.config.get('exit_custom_conditions'):
             for exit_cond in self.config['exit_custom_conditions']:
-                met = self.check_custom_condition(exit_cond, grouped_data, dates, day_idx, candle)
+                met = self.check_custom_condition(exit_cond, grouped_data, dates, day_idx, candle,
+                                                  at_bar_close=True)
                 if not met:
                     return False, None
             return True, 'exit_condition'
@@ -2820,8 +2852,8 @@ class BacktesterEngine:
                         }
                         if self.check_velocity_condition(velocity_condition, grouped, dates, i, candle):
                             entry_signal = True
-                            price_point = 'mid'
-                            entry_price = (candle['high'] + candle['low']) / 2.0
+                            price_point = 'open'
+                            entry_price = float(candle['open'])
                     elif self.config['entry_type'] == 'custom':
                         if seq_phase == 0:
                             # Phase 1: check the entry condition (condition 0)
@@ -2848,8 +2880,8 @@ class BacktesterEngine:
                                 else:
                                     # No sequential conditions — enter immediately
                                     entry_signal = True
-                                    price_point = 'mid'
-                                    entry_price = (candle['high'] + candle['low']) / 2.0
+                                    price_point = 'open'
+                                    entry_price = float(candle['open'])
                         else:
                             # Sequential phase k: check seq_conds[seq_phase - 1]
                             seq_cond_current = seq_conds[seq_phase - 1]
@@ -2862,8 +2894,8 @@ class BacktesterEngine:
                                 if seq_phase == len(seq_conds):
                                     # All sequential phases satisfied — entry!
                                     entry_signal = True
-                                    price_point = 'mid'
-                                    entry_price = (candle['high'] + candle['low']) / 2.0
+                                    price_point = 'open'
+                                    entry_price = float(candle['open'])
                                 else:
                                     # Advance to next sequential phase
                                     seq_phase += 1

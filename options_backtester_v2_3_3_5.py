@@ -1554,8 +1554,12 @@ def get_indicator_value_for_date(indicators_cache: Dict, metric: str, target_dat
     eastern = pytz.timezone('US/Eastern')
 
     # Shift the lookup date by the offset (handles weekends: falls back to
-    # most recent bar before the shifted date via the <= comparison below)
-    lookup_date = target_date + timedelta(days=day_offset)
+    # most recent bar before the shifted date via the <= comparison below).
+    # day_offset==0 ("today") is shifted back one day: today's daily value is
+    # computed from today's close, which is not known at intraday entry time —
+    # the last completed daily value is yesterday's.
+    effective_offset = day_offset if day_offset != 0 else -1
+    lookup_date = target_date + timedelta(days=effective_offset)
 
     day_end = eastern.localize(datetime.combine(lookup_date, datetime.max.time().replace(microsecond=0)))
     day_end_ts = int(day_end.timestamp() * 1000)
@@ -1758,7 +1762,8 @@ def _opt_compute_tc_line_value(tc_params: Dict, bars_by_date: Dict, trade_date, 
 def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cache: Dict, 
                                           trade_date: datetime = None,
                                           bars_by_date: Dict = None,
-                                          client: RESTClient = None) -> Tuple[bool, str]:
+                                          client: RESTClient = None,
+                                          at_bar_close: bool = False) -> Tuple[bool, str]:
     """
     Evaluate price conditions using pre-fetched indicator data.
     Uses the bar's timestamp to look up indicator values from cache.
@@ -1769,6 +1774,10 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
         bar: Current price bar with timestamp and open price
         indicators_cache: Pre-fetched indicator data for entire date range
         trade_date: Current trading date (for looking up daily indicators)
+        at_bar_close: False (entry, default) = indicator lookups are STRICTLY
+            BEFORE the bar (its own close is unknown at decision time; fills at
+            open). True (exit-at-close) = the bar just completed, its close IS
+            known, so lookups include the current bar.
     """
     price_conditions = config.get('price_conditions', [])
     if not price_conditions:
@@ -1777,6 +1786,11 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
     bar_timestamp = bar['timestamp']
     bar_price = bar['open']
     _cond_details = []   # collects per-condition evaluated values for decision log
+
+    # Entry (default): indicator lookups strictly before the bar (no lookahead —
+    # the bar's own close is unknown when the entry fills at its open).
+    # Exit-at-close (at_bar_close=True): the bar just completed, include it.
+    _strict = not at_bar_close
 
     for idx, condition in enumerate(price_conditions):
         try:
@@ -1912,13 +1926,13 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     indicator_data = indicators_cache.get(metric, {})
                 if indicator_data:
                     if metric in ('sma', 'ema', 'vwap'):
-                        left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                        left_value = find_closest_indicator_value(indicator_data, bar_timestamp, strictly_before=_strict)
                     elif left_candle_type in ('day', 'week', 'month', 'quarter', 'year') and trade_date:
                         # Daily+ timeframe: return the last value at/before end of the target date
                         left_value = get_indicator_value_for_date(indicators_cache, metric, trade_date, left_day_offset)
                     else:
-                        # Minute timeframe: look up by bar timestamp so each bar gets its own RSI/MACD value
-                        left_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                        # Minute timeframe: prior completed bar's RSI/MACD value (no lookahead)
+                        left_value = find_closest_indicator_value(indicator_data, bar_timestamp, strictly_before=_strict)
                 else:
                     left_value = None
             
@@ -1942,7 +1956,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     # Find closest timestamp in macd_all cache and extract right component
                     _mc_best_ts = None
                     for _ts_k in _mc_all:
-                        if _ts_k <= bar_timestamp:
+                        if (_ts_k < bar_timestamp) if _strict else (_ts_k <= bar_timestamp):
                             if _mc_best_ts is None or _ts_k > _mc_best_ts:
                                 _mc_best_ts = _ts_k
                     right_value = _mc_all[_mc_best_ts].get(_mc_right_comp) if _mc_best_ts is not None else None
@@ -2080,13 +2094,13 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                         indicator_data = indicators_cache.get(right_metric, {})
                     if indicator_data:
                         if right_metric in ('sma', 'ema', 'vwap'):
-                            right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                            right_value = find_closest_indicator_value(indicator_data, bar_timestamp, strictly_before=_strict)
                         elif right_candle_type in ('day', 'week', 'month', 'quarter', 'year') and trade_date:
                             # Daily+ timeframe: return the last value at/before end of the target date
                             right_value = get_indicator_value_for_date(indicators_cache, right_metric, trade_date, right_day_offset)
                         else:
-                            # Minute timeframe: look up by bar timestamp so each bar gets its own RSI/MACD value
-                            right_value = find_closest_indicator_value(indicator_data, bar_timestamp)
+                            # Minute timeframe: prior completed bar's RSI/MACD value (no lookahead)
+                            right_value = find_closest_indicator_value(indicator_data, bar_timestamp, strictly_before=_strict)
                     else:
                         right_value = None
                 
@@ -2141,7 +2155,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 if metric in ('sma', 'ema', 'vwap'):
                     _lw = int(left_params.get('window', 14))
                     _lkey = f'{metric}_w{_lw}_t{_ltf_mins}'
-                    prev_left = find_closest_indicator_value(indicators_cache.get(_lkey, {}), _prev_left_ts)
+                    prev_left = find_closest_indicator_value(indicators_cache.get(_lkey, {}), _prev_left_ts, strictly_before=_strict)
                     if prev_left is None:
                         print(f"  [cross] WARN: prev_left=None for key={_lkey} prev_ts={_prev_left_ts} "
                               f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
@@ -2176,7 +2190,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 elif metric in ('macd', 'rsi'):
                     # For MACD/RSI cross: find the 2nd most recent cached value
                     _left_ind_cache = indicators_cache.get(metric, {})
-                    _sorted_l_ts = sorted([t for t in _left_ind_cache if t <= bar_timestamp], reverse=True)
+                    _sorted_l_ts = sorted([t for t in _left_ind_cache if (t < bar_timestamp if _strict else t <= bar_timestamp)], reverse=True)
                     prev_left = _left_ind_cache.get(_sorted_l_ts[1]) if len(_sorted_l_ts) >= 2 else None
                 else:
                     prev_left = None
@@ -2190,7 +2204,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     # MACD self-comparator: get the 2nd most recent value of the other component
                     _mc_pr_comp = 'macd_line' if comparator == 'compare_macd_line' else 'signal'
                     _mc_all_pr = indicators_cache.get('macd_all', {})
-                    _sorted_mac_ts = sorted([t for t in _mc_all_pr if t <= bar_timestamp], reverse=True)
+                    _sorted_mac_ts = sorted([t for t in _mc_all_pr if (t < bar_timestamp if _strict else t <= bar_timestamp)], reverse=True)
                     prev_right = _mc_all_pr[_sorted_mac_ts[1]].get(_mc_pr_comp) if len(_sorted_mac_ts) >= 2 else None
                 elif comparator == 'compare_trend_capture':
                     # Compute TC line value at the previous bar's time
@@ -2208,7 +2222,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                 elif right_metric in ('sma', 'ema', 'vwap'):
                     _rw = int(right_params.get('window', 14))
                     _rkey = f'{right_metric}_w{_rw}_t{_rtf_mins}'
-                    prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_right_ts)
+                    prev_right = find_closest_indicator_value(indicators_cache.get(_rkey, {}), _prev_right_ts, strictly_before=_strict)
                     if prev_right is None and not _within_bar_cross:
                         print(f"  [cross] WARN: prev_right=None for key={_rkey} prev_ts={_prev_right_ts} "
                               f"cache_keys={list(indicators_cache.keys())[:8]}", flush=True)
@@ -2429,8 +2443,15 @@ def get_day_bar_value(indicators_cache: Dict, trade_date: datetime, day_offset: 
     return closest_val
 
 
-def find_closest_indicator_value(indicator_data: Dict, target_timestamp: int) -> Optional[float]:
-    """Find the indicator value with timestamp closest to (but not after) target."""
+def find_closest_indicator_value(indicator_data: Dict, target_timestamp: int,
+                                 strictly_before: bool = False) -> Optional[float]:
+    """Find the indicator value with timestamp closest to (but not after) target.
+
+    strictly_before=True returns the value timestamped STRICTLY BEFORE target —
+    used for entry-condition indicator lookups at bar T, whose own close (and
+    therefore its indicator value) is not known at decision time (entry fills
+    at the bar's open). The prior completed bar's value is the latest knowable.
+    """
     if not indicator_data:
         return None
     
@@ -2438,7 +2459,7 @@ def find_closest_indicator_value(indicator_data: Dict, target_timestamp: int) ->
     closest_val = None
     
     for ts, val in indicator_data.items():
-        if ts <= target_timestamp:
+        if (ts < target_timestamp) if strictly_before else (ts <= target_timestamp):
             if closest_ts is None or ts > closest_ts:
                 closest_ts = ts
                 closest_val = val
@@ -5615,7 +5636,7 @@ def run_backtest(config: Dict, client: RESTClient):
                         _ik = f'{_m}_w{_w}_t{_tf}'
                         _id = indicators_cache.get(_ik, {})
                         if _id:
-                            _v = find_closest_indicator_value(_id, _entry_bar_ts)
+                            _v = find_closest_indicator_value(_id, _entry_bar_ts, strictly_before=True)
                             if _v is not None:
                                 _entry_snap[f'{_m.upper()}({_w},{_tf}min)'] = round(_v, 4)
                 break
@@ -7113,7 +7134,7 @@ def check_exit_signal_conditions(config: Dict, underlying_bars_today: List[Dict]
         exit_config_for_eval = dict(config)
         exit_config_for_eval['price_conditions'] = config['exit_price_conditions']
         
-        met, reason, _ = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date, bars_by_date=bars_by_date)
+        met, reason, _ = evaluate_price_conditions_with_cache(exit_config_for_eval, current_bar, indicators_cache, trade_date, bars_by_date=bars_by_date, at_bar_close=True)
         if met:
             return True, f"EXIT_SIGNAL_CUSTOM: {reason}"
         return False, ""
