@@ -6706,18 +6706,20 @@ def get_simulated_trading_bars():
                     return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
                                     'multiplier': multiplier, 'bars': bars, 'count': len(bars), 'source': 'cache'})
 
-                # Simulated trading only needs historical data — serve from cache only.
-                # The daily scheduler keeps the cache current; live gap-fill is skipped here
-                # to avoid long Polygon API waits that would trip the proxy timeout.
+                # Partial overlap: serve what the cache has; if request is entirely
+                # beyond the cache (clamp_start > clamp_end) fall through to Polygon.
                 clamp_start = max(start_date, cache_first.strftime('%Y-%m-%d'))
                 clamp_end = min(end_date, cache_last.strftime('%Y-%m-%d'))
-                cached_bars = spy_data_cache.load_cached_bars_as_list(clamp_start, clamp_end)
-                bars = [{'timestamp': int(b['timestamp']), 'open': b['open'], 'high': b['high'],
-                         'low': b['low'], 'close': b['close'], 'volume': b['volume'],
-                         'vwap': b.get('vwap')} for b in (cached_bars or [])]
-                print(f"[SPY Cache] Served {len(bars)} bars from cache for {clamp_start} to {clamp_end} (requested {start_date} to {end_date})")
-                return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
-                                'multiplier': multiplier, 'bars': bars, 'count': len(bars), 'source': 'cache'})
+                if clamp_start <= clamp_end:
+                    cached_bars = spy_data_cache.load_cached_bars_as_list(clamp_start, clamp_end)
+                    bars = [{'timestamp': int(b['timestamp']), 'open': b['open'], 'high': b['high'],
+                             'low': b['low'], 'close': b['close'], 'volume': b['volume'],
+                             'vwap': b.get('vwap')} for b in (cached_bars or [])]
+                    print(f"[SPY Cache] Served {len(bars)} bars from cache for {clamp_start} to {clamp_end} (requested {start_date} to {end_date})")
+                    return jsonify({'success': True, 'symbol': symbol, 'bar_size': bar_size,
+                                    'multiplier': multiplier, 'bars': bars, 'count': len(bars), 'source': 'cache'})
+                # Request is entirely beyond cache range — fall through to Polygon API
+                print(f"[SPY Cache] Request {start_date}→{end_date} beyond cache (ends {cache_last}); fetching from Polygon")
 
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
