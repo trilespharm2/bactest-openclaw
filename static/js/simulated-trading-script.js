@@ -1249,7 +1249,24 @@ function createLWChart() {
             secondsVisible: false,
             rightOffset: 5,
             barSpacing: 6,
-            minBarSpacing: 2
+            minBarSpacing: 2,
+            tickMarkFormatter: function(t, tickType) {
+                // t is a Unix timestamp in seconds (UTC). Convert to ET for display.
+                var d = new Date(t * 1000);
+                var etStr = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false,
+                    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                // etStr: "MM/DD, HH:MM"
+                var parts = etStr.split(', ');
+                var datePart = parts[0] || '';  // MM/DD
+                var timePart = parts[1] || '';  // HH:MM
+                // tickType 0=Year,1=Month,2=DayOfMonth,3=Time,4=TimeWithSeconds
+                if (tickType === 0 || tickType === 1) {
+                    var yr = d.toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric' });
+                    return tickType === 0 ? yr : datePart;
+                }
+                if (tickType === 2) return datePart;
+                return timePart;
+            }
         },
         handleScroll: { vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true }
