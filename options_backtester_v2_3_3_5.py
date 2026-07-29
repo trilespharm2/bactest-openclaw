@@ -602,12 +602,13 @@ def evaluate_preset_condition(config: Dict, bars_today: List[Dict], bar: Dict,
             open_930_price = b.get('open')
             break
     
-    def check_op(value, op, thresh):
+    def check_op(value, op, thresh, thresh2=None):
         if op == '>': return value > thresh
         if op == '<': return value < thresh
         if op == '>=': return value >= thresh
         if op == '<=': return value <= thresh
         if op == '=' or op == '==': return abs(value - thresh) < 0.01
+        if op == '><' and thresh2 is not None: return thresh <= value <= thresh2
         return False
     
     try:
@@ -670,6 +671,31 @@ def evaluate_preset_condition(config: Dict, bars_today: List[Dict], bar: Dict,
                 return True, f"Velocity {velocity_pct:.2f}% over {lookback}min {operator} {threshold}%"
             return False, f"Velocity {velocity_pct:.2f}% over {lookback}min failed {operator} {threshold}%"
         
+        elif preset == '6':
+            # Absolute % distance between current price and previous candle close
+            sorted_bars = sorted(bars_today, key=lambda x: x.get('time', ''))
+            current_idx = None
+            for i, b in enumerate(sorted_bars):
+                if b.get('time', '') == bar_time:
+                    current_idx = i
+                    break
+            if current_idx is None or current_idx == 0:
+                return False, "No previous candle available for distance %"
+            prev_bar = sorted_bars[current_idx - 1]
+            prev_candle_close = prev_bar.get('close') or prev_bar.get('open', 0)
+            if not prev_candle_close or prev_candle_close == 0:
+                return False, "No previous candle close for distance %"
+            dist_pct = abs((bar_price / prev_candle_close) - 1) * 100
+            threshold2 = float(config.get('preset_threshold2', 0) or 0)
+            if operator == '><':
+                met = threshold <= dist_pct <= threshold2
+                if met:
+                    return True, f"Dist {dist_pct:.3f}% between {threshold}% and {threshold2}%"
+                return False, f"Dist {dist_pct:.3f}% not between {threshold}% and {threshold2}%"
+            if check_op(dist_pct, operator, threshold):
+                return True, f"Dist {dist_pct:.3f}% {operator} {threshold}%"
+            return False, f"Dist {dist_pct:.3f}% failed {operator} {threshold}%"
+
         else:
             return True, "Unknown preset - skipping"
     
