@@ -119,30 +119,14 @@ function updateOptionsPresetFields() {
     const preset = document.getElementById('optionsPresetCondition')?.value;
     const standardFields = document.getElementById('optionsStandardPresetFields');
     const velocityFields = document.getElementById('optionsVelocityFields');
-    const distancePrevFields = document.getElementById('optionsDistancePrevFields');
-
+    
     if (preset === '5') {
         if (standardFields) standardFields.style.display = 'none';
         if (velocityFields) velocityFields.style.display = 'flex';
-        if (distancePrevFields) distancePrevFields.style.display = 'none';
-    } else if (preset === '6') {
-        if (standardFields) standardFields.style.display = 'none';
-        if (velocityFields) velocityFields.style.display = 'none';
-        if (distancePrevFields) distancePrevFields.style.display = 'flex';
-        updateOptionsDistancePrevFields();
     } else {
         if (standardFields) standardFields.style.display = 'flex';
         if (velocityFields) velocityFields.style.display = 'none';
-        if (distancePrevFields) distancePrevFields.style.display = 'none';
     }
-}
-
-function updateOptionsDistancePrevFields() {
-    const op = document.getElementById('optionsDistancePrevOperator')?.value;
-    const maxCol = document.getElementById('optionsDistancePrevMaxCol');
-    const minLabel = document.getElementById('optionsDistancePrevMinLabel');
-    if (maxCol) maxCol.style.display = (op === '><') ? '' : 'none';
-    if (minLabel) minLabel.textContent = (op === '><') ? 'Min % Distance:' : 'Threshold (%):';
 }
 
 // =============================================================================
@@ -3609,18 +3593,11 @@ function buildOptConfigSummaryHtml(config) {
     }
 
     let conditionsHtml = '<span style="color:#94a3b8;">None</span>';
-    const presetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity','6':'Dist from Prev Candle'};
+    const presetNames = {'1':'Premarket Change %','2':'Change %','3':'Gap %','4':'Change-Open %','5':'Velocity'};
     if (config.options_entry_type === 'preset' && config.preset_condition) {
         const condName = presetNames[config.preset_condition] || `Preset #${config.preset_condition}`;
         if (config.preset_condition === '5') {
             conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}% over ${config.velocity_lookback || 5} min`;
-        } else if (config.preset_condition === '6') {
-            const op6 = config.preset_operator || '><';
-            if (op6 === '><') {
-                conditionsHtml = `${condName}: ${config.preset_threshold || 0}% – ${config.preset_threshold2 || 0}%`;
-            } else {
-                conditionsHtml = `${condName}: ${op6} ${config.preset_threshold || 0}%`;
-            }
         } else {
             conditionsHtml = `${condName}: ${config.preset_operator || '>'} ${config.preset_threshold || 0}%`;
         }
@@ -3864,27 +3841,13 @@ function validateOptionsConfig(config) {
     }
     
     if (config.options_entry_type === 'preset') {
-        if (config.preset_condition === '6') {
-            if (config.preset_threshold === undefined || config.preset_threshold === '') {
-                errors.push('% Distance from Prev Candle requires a min threshold');
-            }
-            if (config.preset_operator === '><' && (!config.preset_threshold2 || config.preset_threshold2 === '')) {
-                errors.push('% Distance from Prev Candle (Between) requires a max threshold');
-            }
-            if (config.preset_operator === '><' && parseFloat(config.preset_threshold2) <= parseFloat(config.preset_threshold)) {
-                errors.push('% Distance max must be greater than min');
-            }
-        } else if (config.preset_condition === '5') {
-            if (!config.preset_operator || config.preset_threshold === undefined || config.preset_threshold === '') {
-                errors.push('Preset condition requires an operator and threshold');
-            }
+        if (!config.preset_operator || config.preset_threshold === undefined || config.preset_threshold === '') {
+            errors.push('Preset condition requires an operator and threshold');
+        }
+        if (config.preset_condition === '5') {
             const lookback = parseInt(config.velocity_lookback);
             if (!lookback || lookback < 1 || lookback > 120) {
                 errors.push('Velocity lookback must be between 1 and 120 minutes');
-            }
-        } else {
-            if (!config.preset_operator || config.preset_threshold === undefined || config.preset_threshold === '') {
-                errors.push('Preset condition requires an operator and threshold');
             }
         }
     }
@@ -4264,10 +4227,6 @@ function collectFormData() {
             config.velocity_lookback = document.getElementById('optionsVelocityLookback').value;
             config.preset_operator = document.getElementById('optionsVelocityOperator').value;
             config.preset_threshold = document.getElementById('optionsVelocityThreshold').value;
-        } else if (config.preset_condition === '6') {
-            config.preset_operator = document.getElementById('optionsDistancePrevOperator').value;
-            config.preset_threshold = document.getElementById('optionsDistancePrevMin').value;
-            config.preset_threshold2 = document.getElementById('optionsDistancePrevMax').value;
         } else {
             config.preset_operator = document.getElementById('optionsPresetOperator').value;
             config.preset_threshold = document.getElementById('optionsPresetThreshold').value;
@@ -4666,7 +4625,6 @@ function applyOptionsConfig(rawConfig) {
     config.presetCondition = rawConfig.presetCondition || rawConfig.preset_condition || '';
     config.presetOperator = rawConfig.presetOperator || rawConfig.preset_operator || '>';
     config.presetThreshold = rawConfig.presetThreshold || rawConfig.preset_threshold || '';
-    config.presetThreshold2 = rawConfig.presetThreshold2 || rawConfig.preset_threshold2 || '';
     config.velocityLookback = rawConfig.velocityLookback || rawConfig.velocity_lookback || '5';
 
     if (document.getElementById('backtestName') && config.backtestName) {
@@ -4831,11 +4789,6 @@ function applyOptionsConfig(rawConfig) {
             if (document.getElementById('optionsVelocityLookback')) document.getElementById('optionsVelocityLookback').value = config.velocityLookback || '5';
             if (document.getElementById('optionsVelocityOperator')) document.getElementById('optionsVelocityOperator').value = config.presetOperator || '>';
             if (document.getElementById('optionsVelocityThreshold')) document.getElementById('optionsVelocityThreshold').value = config.presetThreshold || '';
-        } else if (config.presetCondition === '6') {
-            if (document.getElementById('optionsDistancePrevOperator')) document.getElementById('optionsDistancePrevOperator').value = config.presetOperator || '><';
-            if (document.getElementById('optionsDistancePrevMin')) document.getElementById('optionsDistancePrevMin').value = config.presetThreshold || '';
-            if (document.getElementById('optionsDistancePrevMax')) document.getElementById('optionsDistancePrevMax').value = config.presetThreshold2 || '';
-            if (typeof updateOptionsDistancePrevFields === 'function') updateOptionsDistancePrevFields();
         } else {
             if (document.getElementById('optionsPresetOperator')) document.getElementById('optionsPresetOperator').value = config.presetOperator || '>';
             if (document.getElementById('optionsPresetThreshold')) document.getElementById('optionsPresetThreshold').value = config.presetThreshold || '';

@@ -1716,7 +1716,6 @@
                             <option value="3">Gap % (open vs prev close)</option>
                             <option value="4">Change-Open % (from today's open)</option>
                             <option value="5">Velocity (Rate of Change)</option>
-                            <option value="6">% Distance from Prev Candle</option>
                           </select>
                         </div>
                         
@@ -1734,27 +1733,6 @@
                           <div class="col-md-6 mb-3">
                             <label class="form-label">Threshold (%):</label>
                             <input type="number" class="form-control" id="optionsPresetThreshold" step="0.01" placeholder="e.g., 2.5">
-                          </div>
-                        </div>
-
-                        <div id="optionsDistancePrevFields" class="row" style="display: none;">
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label">Operator:</label>
-                            <select class="form-select" id="optionsDistancePrevOperator" onchange="updateOptionsDistancePrevFields()">
-                              <option value="><">Between (><)</option>
-                              <option value=">">></option>
-                              <option value="<"><</option>
-                              <option value=">=">>=</option>
-                              <option value="<="><=</option>
-                            </select>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                            <label class="form-label" id="optionsDistancePrevMinLabel">Min % Distance:</label>
-                            <input type="number" class="form-control" id="optionsDistancePrevMin" step="0.01" placeholder="e.g., 0.1">
-                          </div>
-                          <div class="col-md-4 mb-3" id="optionsDistancePrevMaxCol">
-                            <label class="form-label">Max % Distance:</label>
-                            <input type="number" class="form-control" id="optionsDistancePrevMax" step="0.01" placeholder="e.g., 0.2">
                           </div>
                         </div>
                         
