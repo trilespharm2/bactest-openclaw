@@ -1502,6 +1502,35 @@ function enforceCpSecond(conditionId) {
     updateOptConditionSummary(conditionId, false);
 }
 
+// "$ Distance from Candle" strike method: when the CURRENT (forming) candle is
+// selected, only its Open is known at entry time — High/Low/Close would be
+// lookahead — so the datapoint is locked to Open and color to Either.
+function enforceLegWhichCandle(el) {
+    var container = el.closest('.leg-params-container');
+    if (!container) return;
+    var dpSel = container.querySelector('[data-param="datapoint"]');
+    var colSel = container.querySelector('[data-param="candle_color"]');
+    var isCurrent = (el.value === 'current');
+    if (dpSel) {
+        if (isCurrent) {
+            dpSel.innerHTML = '<option value="open" selected>Open</option>';
+            dpSel.value = 'open';
+        } else if (dpSel.options.length === 1) {
+            var prev = dpSel.value;
+            dpSel.innerHTML = '<option value="open">Open</option><option value="high">High</option><option value="low">Low</option><option value="close">Close</option>';
+            dpSel.value = (['open','high','low','close'].indexOf(prev) !== -1) ? prev : 'close';
+        }
+    }
+    if (colSel) {
+        if (isCurrent) {
+            colSel.value = 'either';
+            colSel.disabled = true;
+        } else {
+            colSel.disabled = false;
+        }
+    }
+}
+
 // "$ Distance from previous candle" strike method leg params (class-based).
 function snapLegSecond(el) {
     var grid = el.closest('.form-grid');
@@ -2546,7 +2575,7 @@ function buildLegConfiguration(strategy) {
         optionsHTML += `
             <option value="delta">${legDefinitions.length > 1 ? '6' : '4'}. Delta-based Strike Selection</option>
             <option value="orb_breakout">${legDefinitions.length > 1 ? '7' : '5'}. ORB Breakout Strike Selection</option>
-            <option value="dollar_prev_candle">${legDefinitions.length > 1 ? '8' : '6'}. $ Distance from Previous Candle</option>
+            <option value="dollar_prev_candle">${legDefinitions.length > 1 ? '8' : '6'}. $ Distance from Candle</option>
         `;
         
         const dteFieldHTML = leg.dte_label ? `
@@ -2842,7 +2871,7 @@ function handleLegMethodChange(e) {
         case 'dollar_prev_candle':
             html = `
                 <div style="margin-bottom:10px; padding:8px 12px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px;">
-                    <small style="color:#795548; font-weight:600;">🕯️ Strike is set a $ distance from a chosen datapoint of a previous candle (optionally filtered by candle color).</small>
+                    <small style="color:#795548; font-weight:600;">🕯️ Strike is set a $ distance from a chosen datapoint of the previous or current candle (optionally filtered by candle color). For the current (forming) candle only its Open is known at entry.</small>
                 </div>
                 <div class="form-grid">
                     <div class="form-group">
@@ -2858,6 +2887,13 @@ function handleLegMethodChange(e) {
                     </div>
                 </div>
                 <div class="form-grid">
+                    <div class="form-group">
+                        <label>Candle:</label>
+                        <select class="leg-param" data-param="which_candle" onchange="enforceLegWhichCandle(this)">
+                            <option value="previous" selected>Previous</option>
+                            <option value="current">Current</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label>Datapoint:</label>
                         <select class="leg-param" data-param="datapoint">
@@ -3619,7 +3655,7 @@ function buildOptConfigSummaryHtml(config) {
     let legsHtml = '';
     if (config.legs && config.legs.length > 0) {
         legsHtml = config.legs.map(leg => {
-            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg','orb_breakout':'ORB Breakout','dollar_prev_candle':'$ from Prev Candle'};
+            const methodMap = {'mid_price':'Mid Price','pct_underlying':'% from Underlying','dollar_underlying':'$ from Underlying','delta':'Delta','pct_leg':'% from Leg','dollar_leg':'$ from Leg','orb_breakout':'ORB Breakout','dollar_prev_candle':'$ from Candle'};
             const method = methodMap[leg.config_type] || leg.config_type;
             let paramStr = '';
             if (leg.params) {
@@ -3630,7 +3666,7 @@ function buildOptConfigSummaryHtml(config) {
                 else if (leg.config_type === 'dollar_underlying') paramStr = `${p.direction || ''} $${p.amount || 0}`;
                 else if (leg.config_type === 'pct_leg' || leg.config_type === 'dollar_leg') paramStr = `From ${p.reference_leg || 'Leg'}: ${p.pct || p.amount || 0}${leg.config_type === 'pct_leg' ? '%' : '$'}`;
                 else if (leg.config_type === 'orb_breakout') { const dPfx = p.dist_type === 'pct' ? '' : '$'; const dSfx = p.dist_type === 'pct' ? '%' : ''; paramStr = `${dPfx}${p.dist_value}${dSfx} ${p.direction} ${p.orb_period}m ${p.orb_level} (${p.strike_fallback || 'closest'})`; }
-                else if (leg.config_type === 'dollar_prev_candle') { const _col = (p.candle_color && p.candle_color !== 'either') ? ` ${p.candle_color}` : ''; paramStr = `$${p.amount || 0} ${p.direction || ''} prev ${p.multiplier || 1} ${p.candle_type || 'min'}${_col} candle ${p.datapoint || 'close'} [day ${p.day || 0}] (${p.strike_fallback || 'closest'})`; }
+                else if (leg.config_type === 'dollar_prev_candle') { const _col = (p.candle_color && p.candle_color !== 'either') ? ` ${p.candle_color}` : ''; const _wc = (p.which_candle === 'current') ? 'current' : 'prev'; paramStr = `$${p.amount || 0} ${p.direction || ''} ${_wc} ${p.multiplier || 1} ${p.candle_type || 'min'}${_col} candle ${p.datapoint || 'close'} [day ${p.day || 0}] (${p.strike_fallback || 'closest'})`; }
             }
             const dteStr = leg.dte !== undefined ? ` (DTE: ${leg.dte})` : '';
             return `<div style="margin-bottom:4px;"><span style="color:#7c3aed; font-weight:600;">${leg.name}:</span> ${leg.position} ${leg.type} — ${method} ${paramStr}${dteStr}</div>`;
@@ -4735,6 +4771,9 @@ function applyOptionsConfig(rawConfig) {
                             if (input) input.value = params[key];
                         }
                     });
+                    // Re-apply current-candle datapoint/color restrictions after restore
+                    var _wcSel = paramsContainer.querySelector('[data-param="which_candle"]');
+                    if (_wcSel && typeof enforceLegWhichCandle === 'function') enforceLegWhichCandle(_wcSel);
                 }
             }
         });

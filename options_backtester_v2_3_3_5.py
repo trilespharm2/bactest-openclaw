@@ -399,6 +399,9 @@ def _resolve_candle(client, symbol, trade_date, cutoff_ts_ms, day_offset, candle
         day_off = int(day_offset or 0)
     except (ValueError, TypeError):
         day_off = 0
+    # Positive offsets would reference a FUTURE day (lookahead) — clamp to today.
+    if day_off > 0:
+        day_off = 0
     target_date = trade_date + _td(days=day_off)
     bars = _fetch_underlying_candles(client, underlying_sym, target_date, multiplier, candle_type)
     if not bars:
@@ -4461,9 +4464,9 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
                   f"→ {dist_label} {direction} → target={target_strike:.2f} → strike={strike}")
 
         elif config_type == 'dollar_prev_candle':
-            # "$ Distance from previous candle": target strike = a datapoint of the
-            # previous candle (of the configured type/multiplier/day, optionally gated
-            # by candle colour) offset by a $ distance in the chosen direction.
+            # "$ Distance from Candle": target strike = a datapoint of the previous
+            # or current candle (of the configured type/multiplier/day, optionally
+            # gated by candle colour) offset by a $ distance in the chosen direction.
             leg_name = leg_config.get('name', f"Leg {i+1}")
             direction = str(params.get('direction', 'above'))
             try:
@@ -4471,22 +4474,30 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             except (ValueError, TypeError):
                 amount = 0.0
             strike_fallback = str(params.get('strike_fallback', 'closest'))
+            which = str(params.get('which_candle', 'previous')).strip().lower()
+            if which == 'current':
+                # Only the Open of the forming candle is known at entry time —
+                # High/Low/Close would be lookahead, and candle colour needs the
+                # close. Enforce server-side regardless of what the UI sent.
+                params = dict(params, datapoint='open', candle_color='either')
+            else:
+                which = 'previous'
             _entry_ms = int(entry_timestamp.timestamp() * 1000)
             ref_price, ref_note = _reference_candle_price(
-                client, config['symbol'], trade_date, _entry_ms, params, which='previous'
+                client, config['symbol'], trade_date, _entry_ms, params, which=which
             )
             if ref_price is None:
-                print(f"  ✗ {leg_name}: $-from-prev-candle strike skipped ({ref_note})")
+                print(f"  ✗ {leg_name}: $-from-candle strike skipped ({ref_note})")
                 return False, [], []
             target_strike = ref_price + amount if direction == 'above' else ref_price - amount
             sym = config['symbol']
             increment = 1 if sym in ("SPY", "QQQ", "IWM") else 5
             strike = round_strike_with_direction(target_strike, increment, direction, strike_fallback)
             if strike is None:
-                print(f"  ✗ {leg_name}: Failed to round $-from-prev-candle strike")
+                print(f"  ✗ {leg_name}: Failed to round $-from-candle strike")
                 return False, [], []
             calculated_strikes.append(strike)
-            print(f"    {leg_name}: prev {params.get('candle_type','min')}x{params.get('multiplier',1)} "
+            print(f"    {leg_name}: {which} {params.get('candle_type','min')}x{params.get('multiplier',1)} "
                   f"{params.get('datapoint','close')}={ref_price:.2f} {direction} ${amount} "
                   f"→ target={target_strike:.2f} → strike={strike}")
 
