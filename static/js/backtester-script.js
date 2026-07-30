@@ -950,8 +950,23 @@ function addPriceCondition() {
                         </select>
                     </div>
                     <div class="col-md-4 col-sm-6">
-                        <label class="form-label small">Threshold ($, optional)</label>
+                        <label class="form-label small">Threshold Unit</label>
+                        <select class="form-select form-select-sm" id="cpThresholdUnit${conditionId}" onchange="updateOptConditionSummary(${conditionId}, false)">
+                            <option value="dollar" selected>Dollar ($)</option>
+                            <option value="percent">Percent (%)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 col-sm-6" id="cpThresholdSingleGroup${conditionId}">
+                        <label class="form-label small">Threshold (optional)</label>
                         <input type="number" class="form-control form-control-sm" id="cpThreshold${conditionId}" step="0.01" placeholder="0" onchange="updateOptConditionSummary(${conditionId}, false)">
+                    </div>
+                    <div class="col-md-4 col-sm-6" id="cpThresholdLowGroup${conditionId}" style="display:none;">
+                        <label class="form-label small">Low Threshold</label>
+                        <input type="number" class="form-control form-control-sm" id="cpThresholdLow${conditionId}" step="0.01" placeholder="e.g. 1" onchange="updateOptConditionSummary(${conditionId}, false)">
+                    </div>
+                    <div class="col-md-4 col-sm-6" id="cpThresholdHighGroup${conditionId}" style="display:none;">
+                        <label class="form-label small">High Threshold</label>
+                        <input type="number" class="form-control form-control-sm" id="cpThresholdHigh${conditionId}" step="0.01" placeholder="e.g. 2" onchange="updateOptConditionSummary(${conditionId}, false)">
                     </div>
                 </div>
             </div>
@@ -1637,6 +1652,15 @@ function updateRightSideVisibility(conditionId) {
         var _cpct = document.getElementById('cpCandleType' + conditionId);
         var _cpm = document.getElementById('cpMultiplier' + conditionId);
         if (_cpct) snapSecondsMultiplier(_cpct.value, _cpm);
+        // Between (><): show low/high threshold fields, hide the single one
+        var _cpBetween = (operator === '><');
+        var _cpG1 = document.getElementById('cpThresholdSingleGroup' + conditionId);
+        var _cpGL = document.getElementById('cpThresholdLowGroup' + conditionId);
+        var _cpGH = document.getElementById('cpThresholdHighGroup' + conditionId);
+        if (_cpG1) _cpG1.style.display = _cpBetween ? 'none' : '';
+        if (_cpGL) _cpGL.style.display = _cpBetween ? '' : 'none';
+        if (_cpGH) _cpGH.style.display = _cpBetween ? '' : 'none';
+        updateOptConditionSummary(conditionId, false);
         return;
     }
 
@@ -1939,8 +1963,21 @@ function buildOptConditionDesc(n, isExit) {
         var _cpM   = getVal('cpMultiplier' + n) || '1';
         var _cpClr = getVal('cpColor' + n) || 'either';
         var _cpThr = parseFloat(getVal('cpThreshold' + n) || '0') || 0;
+        var _cpUnit = getVal('cpThresholdUnit' + n) || 'dollar';
+        var _cpFmt = function(v) {
+            var sign = v >= 0 ? '+' : '-';
+            var abs = Math.abs(v);
+            return sign + (_cpUnit === 'percent' ? abs + '%' : '$' + abs);
+        };
         var _cpClrLbl = (_cpClr && _cpClr !== 'either') ? _cpClr + ' ' : '';
-        var _cpSufx = _cpThr ? ' by $' + _cpThr : '';
+        var _cpSufx = '';
+        if (operator === '><') {
+            var _cpLo = parseFloat(getVal('cpThresholdLow' + n) || '0') || 0;
+            var _cpHi = parseFloat(getVal('cpThresholdHigh' + n) || '0') || 0;
+            _cpSufx = ' between ' + _cpFmt(_cpLo) + ' and ' + _cpFmt(_cpHi) + ' of';
+            return leftDesc + _cpSufx + ' previous ' + _cpClrLbl + _cpM + ' ' + _cpCt + ' candle ' + _cpDp;
+        }
+        if (_cpThr) _cpSufx = ' by ' + (_cpUnit === 'percent' ? _cpThr + '%' : '$' + _cpThr);
         return leftDesc + ' ' + opLabel + ' previous ' + _cpClrLbl + _cpM + ' ' + _cpCt + ' candle ' + _cpDp + _cpSufx;
     }
 
@@ -2030,6 +2067,9 @@ function collectPriceConditions() {
             };
             var cpCt = document.getElementById(`cpCandleType${id}`)?.value || 'minute';
             var cpThr = document.getElementById(`cpThreshold${id}`)?.value;
+            var cpUnit = document.getElementById(`cpThresholdUnit${id}`)?.value || 'dollar';
+            var cpLow = document.getElementById(`cpThresholdLow${id}`)?.value;
+            var cpHigh = document.getElementById(`cpThresholdHigh${id}`)?.value;
             conditions.push({
                 metric: 'current_candle',
                 ui_source: 'current_price',
@@ -2043,7 +2083,12 @@ function collectPriceConditions() {
                     datapoint: document.getElementById(`cpDatapoint${id}`)?.value || 'close',
                     candle_color: document.getElementById(`cpColor${id}`)?.value || 'either'
                 },
-                threshold: { unit: 'dollar', value: cpThr ? parseFloat(cpThr) : 0 }
+                threshold: {
+                    unit: cpUnit,
+                    value: cpThr ? parseFloat(cpThr) : 0,
+                    low: cpLow ? parseFloat(cpLow) : 0,
+                    high: cpHigh ? parseFloat(cpHigh) : 0
+                }
             });
             return;
         }
@@ -4953,9 +4998,19 @@ function applyPriceConditions(conditions) {
                 setV(`cpDay${id}`, String(R.day != null ? R.day : '0'));
                 setV(`cpDatapoint${id}`, R.datapoint || 'close');
                 setV(`cpColor${id}`, R.candle_color || 'either');
-                if (condition.threshold && document.getElementById(`cpThreshold${id}`)) {
+                if (condition.threshold) {
                     var tv = condition.threshold.value;
-                    document.getElementById(`cpThreshold${id}`).value = (tv != null ? tv : '');
+                    if (document.getElementById(`cpThreshold${id}`)) {
+                        document.getElementById(`cpThreshold${id}`).value = (tv != null ? tv : '');
+                    }
+                    setV(`cpThresholdUnit${id}`, condition.threshold.unit || 'dollar');
+                    var tlo = condition.threshold.low, thi = condition.threshold.high;
+                    if (document.getElementById(`cpThresholdLow${id}`)) {
+                        document.getElementById(`cpThresholdLow${id}`).value = (tlo != null && tlo !== 0 ? tlo : '');
+                    }
+                    if (document.getElementById(`cpThresholdHigh${id}`)) {
+                        document.getElementById(`cpThresholdHigh${id}`).value = (thi != null && thi !== 0 ? thi : '');
+                    }
                 }
                 updateRightSideVisibility(id);
                 enforceCpSecond(id);

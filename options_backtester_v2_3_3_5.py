@@ -543,11 +543,49 @@ def _eval_current_candle_condition(condition, client, symbol, trade_date, entry_
         except (ValueError, TypeError):
             tv = 0.0
         tu = str(threshold.get('unit', 'dollar')).strip().lower()
+        _is_pct = tu in ('percent', 'pct', '%')
+        if operator == '><':
+            # Between: left must fall between (right + low offset) and (right + high offset).
+            # Offsets may be negative (below the reference datapoint).
+            try:
+                t_lo = float(threshold.get('low', 0) or 0)
+            except (ValueError, TypeError):
+                t_lo = 0.0
+            try:
+                t_hi = float(threshold.get('high', 0) or 0)
+            except (ValueError, TypeError):
+                t_hi = 0.0
+            if t_lo == 0.0 and t_hi == 0.0:
+                # No band configured (e.g. legacy current_candle condition saved with
+                # '><' but only a single threshold) — a zero-width band can never be
+                # met; fail loudly instead of silently filtering every trade.
+                detail.update({'met': False, 'left_label': left_lbl,
+                               'left_value': round(left_val, 4), 'operator': operator,
+                               'right_label': f'Prev candle {r_dp}',
+                               'right_value': round(right_val, 4),
+                               'effective_right': round(right_val, 4),
+                               'threshold': 0, 'threshold_unit': tu})
+                return False, "Between (><) requires Low and High thresholds", detail
+            if _is_pct:
+                b1 = right_val * (1 + t_lo / 100.0)
+                b2 = right_val * (1 + t_hi / 100.0)
+            else:
+                b1 = right_val + t_lo
+                b2 = right_val + t_hi
+            lo_b, hi_b = (b1, b2) if b1 <= b2 else (b2, b1)
+            met = lo_b < left_val < hi_b
+            detail.update({'met': met, 'left_label': left_lbl, 'left_value': round(left_val, 4),
+                           'operator': operator, 'right_label': f'Prev candle {r_dp}',
+                           'right_value': round(right_val, 4),
+                           'effective_right': round(lo_b, 4), 'effective_right_high': round(hi_b, 4),
+                           'threshold': t_lo, 'threshold_high': t_hi, 'threshold_unit': tu})
+            return (met, "" if met else
+                    f"{left_lbl} {left_val:.2f} not between {lo_b:.2f} and {hi_b:.2f}", detail)
         if tv:
             if operator in ('<', '<='):
-                eff_right = right_val * (1 - tv / 100.0) if tu in ('percent', 'pct', '%') else right_val - tv
+                eff_right = right_val * (1 - tv / 100.0) if _is_pct else right_val - tv
             else:
-                eff_right = right_val * (1 + tv / 100.0) if tu in ('percent', 'pct', '%') else right_val + tv
+                eff_right = right_val * (1 + tv / 100.0) if _is_pct else right_val + tv
         met = _compare_values(left_val, operator, eff_right)
         detail.update({'met': met, 'left_label': left_lbl, 'left_value': round(left_val, 4),
                        'operator': operator, 'right_label': f'Prev candle {r_dp}',
