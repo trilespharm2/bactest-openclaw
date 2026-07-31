@@ -559,7 +559,7 @@ def init_scheduler(app):
     except Exception as e:
         logger.warning(f"Could not setup SPY cache scheduler: {e}")
 
-    # Bot strategy execution engine — polls every 30 s, respects per-user interval
+    # Bot strategy execution engine — polls every 5 s, respects per-user interval
     try:
         from bot_executor import execute_all_live_strategies
         scheduler.add_job(
@@ -571,7 +571,7 @@ def init_scheduler(app):
             replace_existing=True,
             misfire_grace_time=15,
         )
-        print("✅ Bot executor scheduled (30 s tick)", flush=True)
+        print("✅ Bot executor scheduled (5 s tick)", flush=True)
     except Exception as e:
         print(f"⚠️  Could not schedule bot executor: {e}", flush=True)
         logger.warning(f"Bot executor scheduling failed: {e}")
