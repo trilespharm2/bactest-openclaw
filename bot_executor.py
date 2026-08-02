@@ -2263,31 +2263,36 @@ def exec_open_position(cfg, api_key, base_url, account_id,
                 target = underlying * (1 + pct) if above else underlying * (1 - pct)
                 return _apply_fallback(options, target, 'above' if above else 'below')
             if strike_method == 'dollar_prev_candle' and strike_value:
-                # "$ Distance from Previous Candle": target = a datapoint of the
-                # previous (last finished) candle offset by a $ distance, optionally
-                # gated by candle colour. Mirrors the options backtester.
+                # "$ Distance from Candle": target = a datapoint of the previous
+                # or current candle offset by a $ distance. For the current forming
+                # candle, only Open is available at decision time (no lookahead).
                 amount    = float(strike_value)
                 pc_intv   = cfg.get('prevCandleType', '1min')
                 pc_day    = cfg.get('prevCandleDay', 0)
                 pc_dp     = cfg.get('prevCandleDatapoint', 'close')
                 pc_color  = str(cfg.get('prevCandleColor', 'either')).strip().lower()
-                prev_c, _cur = _live_candle_pair(symbol, pc_intv, _mkey, _murl, day=pc_day)
-                if prev_c is None:
-                    logger.warning("_pick(dollar_prev_candle): no previous candle data — skip")
+                candle_ref = str(cfg.get('candleReference', 'previous')).strip().lower()
+                prev_c, cur_c = _live_candle_pair(symbol, pc_intv, _mkey, _murl, day=pc_day)
+                if candle_ref == 'current':
+                    pc_dp, pc_color, ref_candle = 'open', 'either', cur_c
+                else:
+                    candle_ref, ref_candle = 'previous', prev_c
+                if ref_candle is None:
+                    logger.warning(f"_pick(dollar_prev_candle): no {candle_ref} candle data — skip")
                     return None
                 if pc_color in ('green', 'red'):
-                    col = _bot_candle_color(prev_c)
+                    col = _bot_candle_color(ref_candle)
                     if col != pc_color:
-                        logger.info(f"_pick(dollar_prev_candle): prev candle is {col}, "
+                        logger.info(f"_pick(dollar_prev_candle): {candle_ref} candle is {col}, "
                                     f"need {pc_color} — skip")
                         return None
-                ref = _bot_candle_dp(prev_c, pc_dp)
+                ref = _bot_candle_dp(ref_candle, pc_dp)
                 if ref is None:
                     logger.warning("_pick(dollar_prev_candle): missing candle datapoint — skip")
                     return None
                 above = _resolve_dir(options, strike_direction)
                 target = ref + amount if above else ref - amount
-                logger.info(f"_pick(dollar_prev_candle): prev {pc_intv} {pc_dp}={ref:.2f} "
+                logger.info(f"_pick(dollar_prev_candle): {candle_ref} {pc_intv} {pc_dp}={ref:.2f} "
                             f"{'above' if above else 'below'} ${amount} → target={target:.2f}")
                 return _apply_fallback(options, target, 'above' if above else 'below')
             if strike_method in ('dollar_leg', 'pct_leg') and strike_value:
