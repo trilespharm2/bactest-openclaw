@@ -2130,11 +2130,11 @@ function stratSaveStepConfig() {
     c.putWidth      = parseFloat(document.getElementById('sbcPutWidth')?.value) || 5;
     c.strikeDirection = document.getElementById('sbcStrikeDirection')?.value || 'auto';
     c.strikeFallback  = document.getElementById('sbcStrikeFallback')?.value  || 'closest';
+    c.whichCandle         = document.getElementById('sbcWhichCandle')?.value || 'previous';
     c.prevCandleType      = document.getElementById('sbcPrevCandleType')?.value || '1min';
     c.prevCandleDay       = parseInt(document.getElementById('sbcPrevCandleDay')?.value ?? '0') || 0;
     c.prevCandleDatapoint = document.getElementById('sbcPrevCandleDatapoint')?.value || 'close';
     c.prevCandleColor     = document.getElementById('sbcPrevCandleColor')?.value || 'either';
-    c.candleReference     = document.getElementById('sbcCandleReference')?.value || 'previous';
     const _tpRaw = parseFloat(document.getElementById('sbcTakeProfitPct')?.value);
     c.takeProfitPct = isNaN(_tpRaw) ? null : _tpRaw;
     const _slRaw = parseFloat(document.getElementById('sbcStopLossPct')?.value);
@@ -2466,29 +2466,27 @@ function sbStrikeMethodChange() {
   if (inp) inp.placeholder  = smPhMap[sm]  || '5';
 }
 
-// "$ Distance from Candle": the forming current candle only has a known Open
-// at decision time. Lock its lookahead-prone datapoints/color server-side too.
-function sbCandleReferenceChange() {
-  const isCurrent = document.getElementById('sbcCandleReference')?.value === 'current';
-  const dp = document.getElementById('sbcPrevCandleDatapoint');
-  const color = document.getElementById('sbcPrevCandleColor');
-  if (dp) {
-    if (isCurrent) {
-      dp.innerHTML = '<option value="open" selected>Open</option>';
-      dp.value = 'open';
-    } else if (dp.options.length === 1) {
-      const previous = dp.value;
+// "$ Distance from Candle" — lock datapoint to Open and color to Either
+// when the Current (forming) candle is selected, mirroring the backtester.
+function sbEnforceWhichCandle() {
+  const wc  = document.getElementById('sbcWhichCandle')?.value || 'previous';
+  const dp  = document.getElementById('sbcPrevCandleDatapoint');
+  const col = document.getElementById('sbcPrevCandleColor');
+  if (!dp || !col) return;
+  if (wc === 'current') {
+    dp.innerHTML = '<option value="open" selected>Open</option>';
+    dp.value = 'open';
+    dp.disabled = true;
+    col.value = 'either';
+    col.disabled = true;
+  } else {
+    if (dp.options.length === 1) {
+      const prev = dp.value;
       dp.innerHTML = '<option value="close">Close</option><option value="open">Open</option><option value="high">High</option><option value="low">Low</option>';
-      dp.value = ['close', 'open', 'high', 'low'].includes(previous) ? previous : 'close';
+      dp.value = (['close','open','high','low'].indexOf(prev) !== -1) ? prev : 'close';
     }
-  }
-  if (color) {
-    if (isCurrent) {
-      color.value = 'either';
-      color.disabled = true;
-    } else {
-      color.disabled = false;
-    }
+    dp.disabled = false;
+    col.disabled = false;
   }
 }
 
@@ -2830,14 +2828,16 @@ function sbStepConfigHTML(step) {
     const showStrikePrev = sm === 'dollar_prev_candle' && !isStraddle && !isEquity;
     const sd = c.strikeDirection || 'auto';
     const sf = c.strikeFallback  || 'closest';
+    const _spWhich = c.whichCandle || 'previous';
     const _spType  = c.prevCandleType || '1min';
     const _spDay   = String(c.prevCandleDay ?? 0);
-    const _spDp    = c.prevCandleDatapoint || 'close';
+    const _spDp    = (_spWhich === 'current') ? 'open' : (c.prevCandleDatapoint || 'close');
     const _spColor = c.prevCandleColor || 'either';
-    const _spRef   = c.candleReference || 'previous';
     const _SP_INTV = [['1min','1-minute'],['5min','5-minute'],['15min','15-minute'],['day','Daily']];
     const _SP_DAY  = [['0','Current day'],['-1','1 day ago'],['-2','2 days ago'],['-3','3 days ago'],['-4','4 days ago'],['-5','5 days ago']];
-    const _SP_DP   = [['close','Close'],['open','Open'],['high','High'],['low','Low']];
+    const _SP_DP   = (_spWhich === 'current')
+      ? [['open','Open']]
+      : [['close','Close'],['open','Open'],['high','High'],['low','Low']];
     const _SP_CLR  = [['either','Either color'],['green','Green'],['red','Red']];
 
     return `
@@ -2894,8 +2894,8 @@ function sbStepConfigHTML(step) {
       </div>
       <div id="sbcStrikePrevRows" style="${showStrikePrev?'':'display:none'}">
         <div class="sb-form-row">
-          <div class="sb-form-label">Candle</div>
-          ${_sel('sbcCandleReference', _spRef, [['previous','Previous'],['current','Current']], 'onchange="sbCandleReferenceChange()"')}
+          <div class="sb-form-label">Which candle</div>
+          ${_sel('sbcWhichCandle', _spWhich, [['previous','Previous (last completed)'],['current','Current (forming)']], 'onchange="sbEnforceWhichCandle()"')}
         </div>
         <div class="sb-form-row">
           <div class="sb-form-label">Candle type</div>
@@ -2907,11 +2907,11 @@ function sbStepConfigHTML(step) {
         </div>
         <div class="sb-form-row">
           <div class="sb-form-label">Candle datapoint</div>
-          ${_sel('sbcPrevCandleDatapoint', _spRef==='current' ? 'open' : _spDp, _spRef==='current' ? [['open','Open']] : _SP_DP)}
+          ${_sel('sbcPrevCandleDatapoint', _spDp, _SP_DP, _spWhich === 'current' ? 'disabled' : '')}
         </div>
         <div class="sb-form-row">
           <div class="sb-form-label">Candle color gate</div>
-          ${_sel('sbcPrevCandleColor', _spRef==='current' ? 'either' : _spColor, _SP_CLR, _spRef==='current' ? 'disabled' : '')}
+          ${_sel('sbcPrevCandleColor', _spColor, _SP_CLR, _spWhich === 'current' ? 'disabled' : '')}
         </div>
       </div>
       <div class="sb-form-row" id="sbcStrikeValRow" style="${showStrikeVal&&!isEquity?'':'display:none'}">
@@ -2919,11 +2919,11 @@ function sbStepConfigHTML(step) {
         <input id="sbcStrikeValue" class="sb-form-input" type="number" step="0.01" value="${c.strikeValue||''}" placeholder="${strikeValPh}">
       </div>
       <div class="sb-form-row" id="sbcStrikeDirRow" style="${showStrikeDir?'':'display:none'}">
-        <div class="sb-form-label">Direction — strike placement</div>
+        <div class="sb-form-label">Direction — Leg 1 strike placement</div>
         <select id="sbcStrikeDirection" class="sb-form-select">
           <option value="auto"  ${sd==='auto' ?'selected':''}>Auto (derived from option type)</option>
-          <option value="below" ${sd==='below'?'selected':''}>Below candle reference</option>
-          <option value="above" ${sd==='above'?'selected':''}>Above candle reference</option>
+          <option value="below" ${sd==='below'?'selected':''}>Below underlying</option>
+          <option value="above" ${sd==='above'?'selected':''}>Above underlying</option>
         </select>
       </div>
       <div class="sb-form-row" id="sbcStrikeFbRow" style="${showStrikeFb?'':'display:none'}">
