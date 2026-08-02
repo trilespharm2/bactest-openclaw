@@ -2922,8 +2922,8 @@ function sbStepConfigHTML(step) {
         <div class="sb-form-label">Direction — Leg 1 strike placement</div>
         <select id="sbcStrikeDirection" class="sb-form-select">
           <option value="auto"  ${sd==='auto' ?'selected':''}>Auto (derived from option type)</option>
-          <option value="below" ${sd==='below'?'selected':''}>Below underlying</option>
-          <option value="above" ${sd==='above'?'selected':''}>Above underlying</option>
+          <option value="below" ${sd==='below'?'selected':''}>Below candle reference</option>
+          <option value="above" ${sd==='above'?'selected':''}>Above candle reference</option>
         </select>
       </div>
       <div class="sb-form-row" id="sbcStrikeFbRow" style="${showStrikeFb?'':'display:none'}">
