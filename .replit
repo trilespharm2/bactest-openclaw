@@ -57,3 +57,7 @@ ENABLE_SCHEDULER = "1"
 SESSION_COOKIE_SECURE = "0"
 CORS_ORIGINS = ""
 ADMIN_BOOTSTRAP_ENABLED = "1"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 30000
