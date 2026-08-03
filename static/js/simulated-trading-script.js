@@ -102,27 +102,6 @@ let lwMacdLineSeries2 = null;
 let lwMacdSignalSeries = null;
 let _lwTsSyncing = false;
 
-const SIM_API_RATE_LIMIT = 3;
-const SIM_API_RATE_WINDOW = 60000;
-let simApiCallTimestamps = [];
-
-async function waitForRateLimit() {
-    while (true) {
-        const now = Date.now();
-        simApiCallTimestamps = simApiCallTimestamps.filter(ts => now - ts < SIM_API_RATE_WINDOW);
-        if (simApiCallTimestamps.length < SIM_API_RATE_LIMIT) {
-            simApiCallTimestamps.push(Date.now());
-            return true;
-        }
-        const oldestCall = simApiCallTimestamps[0];
-        const waitTime = SIM_API_RATE_WINDOW - (now - oldestCall) + 100;
-        if (waitTime > 0) {
-            updateLoadingStatus(`Rate limit: waiting ${Math.ceil(waitTime / 1000)}s...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-    }
-}
-
 function parseETDateTime(dateStr, timeStr) {
     const [hours, minutes] = timeStr.split(':').map(Number);
     const testDateEST = new Date(`${dateStr}T${timeStr}:00-05:00`);
@@ -1023,7 +1002,6 @@ function updateLoadingStatus(text) {
 }
 
 async function fetchMinuteBars(symbol, startDate, endDate) {
-    await waitForRateLimit();
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
     try {
@@ -2979,7 +2957,6 @@ async function executeOptionTrade() {
 }
 
 async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, multiplier, legConfig, underlyingPrice) {
-    await waitForRateLimit();
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
     const dirSign = (legConfig.method === 'dollar_underlying' || legConfig.method === 'pct_underlying')
