@@ -5440,10 +5440,17 @@ def get_best_backtest():
             'stock_best': None
         }
         
-        # Get best options backtest
+        # Get best options backtest.  A completed options run stores a compact
+        # summary sidecar for this purpose.  Do not scan every JSON file here:
+        # decision logs can be tens of megabytes each and are not dashboard
+        # data.  Parsing them in a request can exceed Gunicorn's worker timeout
+        # and causes the worker to be restarted.
         options_dir = 'backtest_results'
         if os.path.exists(options_dir):
-            json_files = [f for f in os.listdir(options_dir) if f.endswith('.json')]
+            json_files = [
+                f for f in os.listdir(options_dir)
+                if f.startswith('summary_') and f.endswith('.json')
+            ]
             best_score = -float('inf')
             best_backtest = None
             
@@ -5460,18 +5467,15 @@ def get_best_backtest():
                             
                             if score > best_score:
                                 best_score = score
-                                equity_curve = data.get('files', {}).get('image', None)
-                                if equity_curve:
-                                    equity_curve = f"backtest_results/{equity_curve}"
                                 best_backtest = {
-                                    'id': data.get('id', filename.replace('.json', '')),
+                                    'id': filename.removeprefix('summary_').removesuffix('.json'),
                                     'symbol': data.get('config', {}).get('symbol', 'N/A'),
                                     'strategy': data.get('config', {}).get('strategy', 'N/A'),
                                     'total_pnl': data.get('summary', {}).get('total_pnl', 0),
                                     'total_return': data.get('summary', {}).get('total_return', 0),
                                     'win_rate': data.get('summary', {}).get('win_rate', 0),
                                     'total_trades': data.get('summary', {}).get('total_trades', 0),
-                                    'equity_curve': equity_curve,
+                                    'equity_curve': None,
                                     'timestamp': data.get('timestamp', '')
                                 }
                 except Exception as e:
