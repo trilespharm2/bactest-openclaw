@@ -234,6 +234,7 @@ _INDEX_TICKER_MAP = {
     "NDX":  "I:NDX",
     "RUT":  "I:RUT",
     "XSP":  "I:XSP",
+    "VIX":  "I:VIX",
 }
 
 def get_underlying_ticker(symbol: str) -> str:
@@ -244,6 +245,18 @@ def get_underlying_ticker(symbol: str) -> str:
     All other symbols (SPY, QQQ, AAPL …) are returned unchanged.
     """
     return _INDEX_TICKER_MAP.get(symbol.upper(), symbol)
+
+
+def get_strike_increment(symbol: str) -> float:
+    """Return the standard option strike spacing for a configured symbol."""
+    symbol = str(symbol or '').upper().strip()
+    if symbol == 'VIX':
+        return 0.5
+    if symbol in ('SPY', 'QQQ', 'IWM'):
+        return 1
+    if symbol in ('SPX', 'SPXW', 'NDX'):
+        return 5
+    return 5
 
 # ==================== SUB-MINUTE / CANDLE HELPERS ====================
 # Shared layer powering: (1) 10-second entry times, (2) the "$ distance from
@@ -2916,12 +2929,7 @@ class DeltaStrikeSelector:
         print(f"    ⏱ Time to expiration: {T*365.25:.4f} days ({T*365.25*24:.2f} hours)")
         
         # Determine increment based on underlying
-        if self.underlying in ["SPX", "SPXW", "NDX"]:
-            increment = 5
-        elif self.underlying in ["SPY", "QQQ", "IWM"]:
-            increment = 1
-        else:
-            increment = 5
+        increment = get_strike_increment(self.underlying)
         
         # STRICTLY DIRECTIONAL SEARCH:
         # 1. Start at ATM (underlying price)
@@ -3227,6 +3235,8 @@ def round_to_nearest_strike(price: float, increment: int = 5, underlying: str = 
             increment = 1
         elif underlying in ["SPX", "SPXW", "NDX"]:  # Indices typically use $5
             increment = 5
+        elif underlying == "VIX":  # VIX options use $0.50 strikes
+            increment = 0.5
         # For other symbols, use provided increment or default to 5
     
     return round(price / increment) * increment
@@ -4077,12 +4087,7 @@ def calculate_strike_simple(underlying_price: float, leg_config: Dict,
     strike_fallback = params.get('strike_fallback', 'closest')
     
     # Determine increment based on underlying
-    if underlying in ["SPY", "QQQ", "IWM"]:
-        increment = 1
-    elif underlying in ["SPX", "SPXW", "NDX"]:
-        increment = 5
-    else:
-        increment = 5
+    increment = get_strike_increment(underlying)
     
     # Calculate target strike
     target_strike = None
@@ -4157,7 +4162,7 @@ def check_iv_entry_condition(client: RESTClient, config: Dict, underlying_price:
         exp_str = exp_date.strftime("%Y-%m-%d")
         
         atm_strike = round(underlying_price)
-        increment = 5 if symbol in ['SPX', 'NDX', 'RUT'] else 1
+        increment = get_strike_increment(symbol)
         atm_strike = round(underlying_price / increment) * increment
         
         for opt_type in ['C', 'P']:
@@ -4446,12 +4451,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
 
             # Determine strike increment for the underlying
             sym = config['symbol']
-            if sym in ["SPY", "QQQ", "IWM"]:
-                increment = 1
-            elif sym in ["SPX", "SPXW", "NDX"]:
-                increment = 5
-            else:
-                increment = 5
+            increment = get_strike_increment(sym)
 
             strike = round_strike_with_direction(target_strike, increment, direction, strike_fallback)
             if strike is None:
@@ -4491,7 +4491,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
                 return False, [], []
             target_strike = ref_price + amount if direction == 'above' else ref_price - amount
             sym = config['symbol']
-            increment = 1 if sym in ("SPY", "QQQ", "IWM") else 5
+            increment = get_strike_increment(sym)
             strike = round_strike_with_direction(target_strike, increment, direction, strike_fallback)
             if strike is None:
                 print(f"  ✗ {leg_name}: Failed to round $-from-candle strike")
@@ -4525,7 +4525,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     # both legs can round to the same 5-pt increment, or the long can land below the
     # short. Detect and fix this before symbol formatting so no API call is wasted.
     _sym = config['symbol']
-    _inc = 1 if _sym in ("SPY", "QQQ", "IWM") else 5
+    _inc = get_strike_increment(_sym)
     _strategy = config.get('strategy', '')
     _is_long_strat = 'Long' in _strategy
 
@@ -6003,7 +6003,7 @@ def run_backtest(config: Dict, client: RESTClient):
 
                 if not found_fallback:
                     # --- Strike sweep: try adjacent strikes for legs missing data in window ---
-                    _sym_inc = 1 if config['symbol'] in ("SPY", "QQQ", "IWM") else 5
+                    _sym_inc = get_strike_increment(config['symbol'])
                     _MAX_SWEEP = 5
                     _sweep_found = False
 

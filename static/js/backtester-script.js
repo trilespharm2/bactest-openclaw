@@ -2796,7 +2796,7 @@ function handleLegMethodChange(e) {
                     </div>
                     <div class="form-group">
                         <label>$ distance:</label>
-                        <input type="number" class="leg-param" data-param="amount" step="1" placeholder="5">
+                        <input type="number" class="leg-param" data-param="amount" step="0.5" min="0" placeholder="0.5">
                     </div>
                 </div>
                 <div class="form-group" style="margin-top: 12px;">
