@@ -801,6 +801,35 @@ function addPriceCondition() {
             </div>
         </div>
         
+        <!-- Operator Row -->
+        <!-- Keep this above the dedicated Previous Candle panel so the
+             comparison reads from left to right: Current Price → Operator →
+             Previous Candle. -->
+        <div class="condition-operator mb-3" id="conditionOperatorRow${conditionId}">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Operator</label>
+                    <select class="form-select" id="operator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
+                        ${OPERATORS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Comparator</label>
+                    <select class="form-select" id="comparator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
+                        <option value="value">Value</option>
+                        <option value="compare_price">Compare Price</option>
+                        <option value="compare_vwap">Compare VWAP</option>
+                        <option value="compare_sma">Compare SMA</option>
+                        <option value="compare_ema">Compare EMA</option>
+                    </select>
+                </div>
+                <div class="col-md-3" id="valueInputGroup${conditionId}">
+                    <label class="form-label">Value</label>
+                    <input type="number" class="form-control" id="compareValue${conditionId}" step="0.01" placeholder="e.g., 50">
+                </div>
+            </div>
+        </div>
+
         <!-- Current Candle panel (shown only when metric=current_candle) -->
         <div id="ccPanel${conditionId}" style="display:none; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:12px;" class="mb-3">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -972,32 +1001,6 @@ function addPriceCondition() {
             </div>
         </div>
 
-        <!-- Operator Row -->
-        <div class="condition-operator mb-3" id="conditionOperatorRow${conditionId}">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label fw-bold">Operator</label>
-                    <select class="form-select" id="operator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
-                        ${OPERATORS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Comparator</label>
-                    <select class="form-select" id="comparator${conditionId}" onchange="updateRightSideVisibility(${conditionId})">
-                        <option value="value">Value</option>
-                        <option value="compare_price">Compare Price</option>
-                        <option value="compare_vwap">Compare VWAP</option>
-                        <option value="compare_sma">Compare SMA</option>
-                        <option value="compare_ema">Compare EMA</option>
-                    </select>
-                </div>
-                <div class="col-md-3" id="valueInputGroup${conditionId}">
-                    <label class="form-label">Value</label>
-                    <input type="number" class="form-control" id="compareValue${conditionId}" step="0.01" placeholder="e.g., 50">
-                </div>
-            </div>
-        </div>
-        
         <!-- Right Side (To this) - hidden by default -->
         <div class="condition-right-side mb-3" id="rightSide${conditionId}" style="display: none;">
             <label class="form-label fw-bold">Right Side (To this)</label>
