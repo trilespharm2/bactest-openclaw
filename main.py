@@ -3568,16 +3568,6 @@ def start_backtest_async():
                              - datetime.strptime(_bt_start, '%Y-%m-%d').date()).days + 1
                 except ValueError:
                     return jsonify({'error': 'Invalid start or end date'}), 400
-                if _sec_interval <= 1:
-                    _max_days = 1
-                elif _sec_interval <= 5:
-                    _max_days = 2
-                elif _sec_interval <= 15:
-                    _max_days = 3
-                else:
-                    _max_days = 5
-                if _span > _max_days:
-                    return jsonify({'error': f'{_sec_interval}-second bars are limited to {_max_days} calendar day(s). Shorten the date range or choose a larger bar size.'}), 400
 
         # Check if user already has a running backtest
         for bid, binfo in running_backtests.items():
@@ -6722,17 +6712,6 @@ def get_simulated_trading_bars():
             from datetime import datetime as _sim_dt
             requested_days = (_sim_dt.strptime(end_date, '%Y-%m-%d').date() -
                               _sim_dt.strptime(start_date, '%Y-%m-%d').date()).days + 1
-            # Must match maxDaysForSecondsInterval() in the simulated-trading frontend.
-            if multiplier <= 1:
-                max_days = 1
-            elif multiplier <= 5:
-                max_days = 2
-            elif multiplier <= 15:
-                max_days = 3
-            else:
-                max_days = 5
-            if requested_days > max_days:
-                return jsonify({'error': f'{multiplier}-second data is limited to {max_days} calendar day(s) per session'}), 400
 
         tier = get_user_tier()
         tier_errors = validate_tier_restrictions(tier, symbol, start_date=start_date, end_date=end_date)

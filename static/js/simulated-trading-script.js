@@ -91,13 +91,9 @@ let simSecondsInterval = 10;
 let simDataWindow = { start: '', end: '' };
 let simIsChangingResolution = false;
 
-// Maximum calendar days of seconds data that may be loaded at once. One-second bars
-// are capped at a single day, as requested; coarser seconds allow a slightly wider view.
+// No calendar day limit on seconds data.
 function maxDaysForSecondsInterval(interval) {
-    if (interval <= 1) return 1;
-    if (interval <= 5) return 2;
-    if (interval <= 15) return 3;
-    return 5;
+    return Infinity;
 }
 
 function addDaysToDateStr(dateStr, days) {

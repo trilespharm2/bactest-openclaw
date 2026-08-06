@@ -4159,26 +4159,12 @@ function toggleTenSecondData(enabled) {
     onSecondsResolutionChange(enabled ? '10' : '');
 }
 
-// 1-second bars produce ~23k underlying bars per day plus per-leg option bars, so the
-// backtest range is capped at a single trading day at that resolution.
 function maxDaysForBacktestSeconds(interval) {
-    if (!interval) return null;
-    if (interval === 1) return 1;
-    if (interval <= 5) return 2;
-    if (interval <= 15) return 3;
-    return 5;
+    return null; // no calendar day limit
 }
 
 function validateSecondsResolutionRange(startDate, endDate) {
-    var interval = getSecondsResolution();
-    var maxDays = maxDaysForBacktestSeconds(interval);
-    if (!maxDays || !startDate || !endDate) return null;
-    var spanDays = Math.round((new Date(endDate + 'T00:00:00') - new Date(startDate + 'T00:00:00')) / 86400000) + 1;
-    if (spanDays > maxDays) {
-        return `${interval}-second bars are limited to ${maxDays} calendar day${maxDays === 1 ? '' : 's'}. `
-             + `Shorten the date range or choose a larger bar size.`;
-    }
-    return null;
+    return null; // no calendar day limit
 }
 
 function collectFormData() {
