@@ -142,10 +142,15 @@ let lwMacdLineSeries2 = null;
 let lwMacdSignalSeries = null;
 let _lwTsSyncing = false;
 
+// Accepts 'HH:MM' or 'HH:MM:SS'.
 function parseETDateTime(dateStr, timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const testDateEST = new Date(`${dateStr}T${timeStr}:00-05:00`);
-    const testDateEDT = new Date(`${dateStr}T${timeStr}:00-04:00`);
+    const parts = String(timeStr).split(':');
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1] || 0);
+    const seconds = Number(parts[2] || 0);
+    const hhmmss = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    const testDateEST = new Date(`${dateStr}T${hhmmss}-05:00`);
+    const testDateEDT = new Date(`${dateStr}T${hhmmss}-04:00`);
     const estCheck = testDateEST.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
     const [estH, estM] = estCheck.split(':').map(Number);
     if (estH === hours && estM === minutes) return testDateEST.getTime();
@@ -1211,6 +1216,20 @@ async function loadSimulatedChart(restoreMinuteIndex = null, restoreTimestamp = 
     }
 }
 
+// The session opens with the 09:30 bar of the trading start day already printed, so the
+// chart is never blank. If that date is a weekend/holiday (or falls outside a narrowed
+// seconds window) the first available bar at/after it is used instead.
+function resolveTradingStartIndex(bars, tradingStartDate) {
+    if (!bars || bars.length === 0) return 0;
+    const openTs = String(tradingStartDate).includes('T')
+        ? new Date(tradingStartDate).getTime()
+        : parseETDateTime(tradingStartDate, '09:30');
+    let idx = bars.findIndex(bar => bar.timestamp >= openTs);
+    if (idx === -1) idx = bars.length - 1;
+    // Index is a visible-bar COUNT, so +1 makes the opening bar the current bar.
+    return Math.min(idx + 1, bars.length);
+}
+
 function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
     for (const tf of SIM_TIMEFRAMES) {
         updateLoadingStatus(`Computing ${SIM_TIMEFRAME_CONFIG[tf].label}...`);
@@ -1227,20 +1246,7 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
     }
     syncSecondsSelect();
 
-    const tradingStartTs = tradingStartDate.includes('T')
-        ? new Date(tradingStartDate).getTime()
-        : parseETDateTime(tradingStartDate, '09:31');
-    simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= tradingStartTs);
-    if (simTradingStartMinuteIndex === -1) {
-        const dayStartTs = new Date(tradingStartDate + 'T00:00:00').getTime();
-        simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= dayStartTs);
-        if (simTradingStartMinuteIndex === -1) simTradingStartMinuteIndex = simMinuteBarsCache.length;
-    }
-    // A narrowed seconds window can start after the session's trading start date; in
-    // that case every loaded bar is tradable.
-    if (simSecondsEnabled && simMinuteBarsCache.length > 0 && simMinuteBarsCache[0].timestamp >= tradingStartTs) {
-        simTradingStartMinuteIndex = 0;
-    }
+    simTradingStartMinuteIndex = resolveTradingStartIndex(simMinuteBarsCache, tradingStartDate);
 
     if (restoreMinuteIndex !== null) {
         simCurrentMinuteIndex = Math.min(restoreMinuteIndex, simMinuteBarsCache.length);
@@ -1265,8 +1271,8 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
 
 function syncSecondsSelect() {
     const select = document.getElementById('simSecondsSelect');
-    if (!select) return;
-    select.value = simSecondsEnabled ? String(simSecondsInterval) : '';
+    if (select) select.value = simSecondsEnabled ? String(simSecondsInterval) : '';
+    syncAdvanceIntervalOptions();
 }
 
 // Reloads the base bars at the selected resolution while keeping the replay anchored
@@ -1327,15 +1333,7 @@ function rebuildBarsForCurrentTimeframe() {
     const targetMinutes = TIMEFRAME_MINUTES[simCurrentTimeframe];
     simAllBars = simTimeframeData[simCurrentTimeframe] || [];
     simVisibleBars = aggregateBarsUpToMinute(simMinuteBarsCache, targetMinutes, simCurrentMinuteIndex);
-    const tradingStartTs = simChartDates.tradingStart.includes('T')
-        ? new Date(simChartDates.tradingStart).getTime()
-        : parseETDateTime(simChartDates.tradingStart, '09:31');
-    simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= tradingStartTs);
-    if (simTradingStartIndex === -1) {
-        const dayStartTs = new Date(simChartDates.tradingStart + 'T00:00:00').getTime();
-        simTradingStartIndex = simAllBars.findIndex(bar => bar.timestamp >= dayStartTs);
-        if (simTradingStartIndex === -1) simTradingStartIndex = 0;
-    }
+    simTradingStartIndex = Math.max(0, resolveTradingStartIndex(simAllBars, simChartDates.tradingStart) - 1);
     simCurrentBarIndex = simVisibleBars.length;
 }
 
@@ -2031,9 +2029,39 @@ function updateTimeframeButtons() {
     });
 }
 
+// Size of one base bar in seconds.
+function baseBarSeconds() {
+    return simSecondsEnabled && simSecondsInterval > 0 ? simSecondsInterval : 60;
+}
+
+// The Interval control is expressed in SECONDS of market time; convert it to a number of
+// base bars so "1 min" always advances one minute regardless of the chart resolution.
+function getAdvanceStepBars() {
+    const wanted = parseInt(document.getElementById('simAutoplayInterval')?.value, 10) || 60;
+    return Math.max(1, Math.round(wanted / baseBarSeconds()));
+}
+
+// Sub-minute steps are meaningless on minute bars, so hide them unless seconds bars are
+// loaded, and keep the selection valid when the resolution changes.
+function syncAdvanceIntervalOptions() {
+    const select = document.getElementById('simAutoplayInterval');
+    if (!select) return;
+    const base = baseBarSeconds();
+    let firstAllowed = null;
+    for (const opt of select.options) {
+        const secs = parseInt(opt.value, 10);
+        const allowed = secs >= base;
+        opt.hidden = !allowed;
+        opt.disabled = !allowed;
+        if (allowed && firstAllowed === null) firstAllowed = opt.value;
+    }
+    const current = parseInt(select.value, 10);
+    if (!(current >= base) && firstAllowed !== null) select.value = firstAllowed;
+}
+
 function showNextBar() {
     stopAutoplay();
-    const skipMinutes = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
+    const skipMinutes = getAdvanceStepBars();
     if (simCurrentMinuteIndex < simMinuteBarsCache.length) {
         simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
         rebuildBarsForCurrentTimeframe();
@@ -2054,7 +2082,7 @@ function showNextBar() {
 
 function showPreviousBar() {
     stopAutoplay();
-    const skipMinutes = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
+    const skipMinutes = getAdvanceStepBars();
     if (simCurrentMinuteIndex > (simTradingStartMinuteIndex || 0)) {
         simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex || 0, simCurrentMinuteIndex - skipMinutes);
         rebuildBarsForCurrentTimeframe();
@@ -2093,7 +2121,7 @@ function stopAutoplay() {
 }
 
 function autoplayAdvance() {
-    const interval = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
+    const interval = getAdvanceStepBars();
     if (simCurrentMinuteIndex >= simMinuteBarsCache.length) { stopAutoplay(); return; }
     simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + interval);
     rebuildBarsForCurrentTimeframe();
@@ -2123,7 +2151,7 @@ function gotoDateTime() {
     const gotoTimeValue = document.getElementById('simGotoTime')?.value.trim();
 
     let targetDateStr;
-    let targetTime = '09:30';
+    let targetTime = '09:30:00';
 
     if (gotoDateValue) {
         const dateParts = gotoDateValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -2137,9 +2165,9 @@ function gotoDateTime() {
     } else { appAlert('Please enter a date'); return; }
 
     if (gotoTimeValue) {
-        const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})$/);
-        if (!timeParts) { appAlert('Please enter time in HH:MM format'); return; }
-        targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
+        const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        if (!timeParts) { appAlert('Please enter time as HH:MM or HH:MM:SS'); return; }
+        targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}:${timeParts[3] || '00'}`;
     }
 
     // Check if the requested date has any trading bars at all
@@ -2156,15 +2184,32 @@ function gotoDateTime() {
     }
 
     const resolvedTargetTs = parseETDateTime(resolvedDateStr, targetTime);
+
+    // Snap DOWN to the bar that CONTAINS the requested instant. Snapping up would reveal
+    // a bar that had not finished at the requested time (lookahead). A request finer than
+    // the chart resolution (12:31:55 on minute bars) therefore lands on the 12:31 bar.
+    const lowerBound = Math.max(0, (simTradingStartMinuteIndex || 0) - 1);
     let targetMinuteIndex = -1;
-    for (let i = simTradingStartMinuteIndex; i < simMinuteBarsCache.length; i++) {
-        if (simMinuteBarsCache[i].timestamp >= resolvedTargetTs) { targetMinuteIndex = i + 1; break; }
+    for (let i = simMinuteBarsCache.length - 1; i >= lowerBound; i--) {
+        if (simMinuteBarsCache[i].timestamp <= resolvedTargetTs) { targetMinuteIndex = i + 1; break; }
     }
 
     if (targetMinuteIndex === -1) {
-        if (simMinuteBarsCache.length > 0 && simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp < resolvedTargetTs) {
-            targetMinuteIndex = simMinuteBarsCache.length;
-        } else { appAlert('Date/time not found in the available data range'); return; }
+        // The instant precedes every tradable bar — land on the first one.
+        if (simMinuteBarsCache.length === 0) { appAlert('Date/time not found in the available data range'); return; }
+        targetMinuteIndex = lowerBound + 1;
+    }
+
+    const landedBar = simMinuteBarsCache[targetMinuteIndex - 1];
+    if (landedBar) {
+        const landedTime = new Date(landedBar.timestamp).toLocaleTimeString('en-US', {
+            timeZone: 'America/New_York', hour12: false
+        });
+        const requested = `${targetTime}`;
+        if (landedTime !== requested) {
+            updateLoadingStatus(`Snapped to ${landedTime} (${simSecondsEnabled ? simSecondsInterval + '-second' : '1-minute'} bars)`);
+            setTimeout(() => updateLoadingStatus(''), 4000);
+        }
     }
 
     simCurrentMinuteIndex = targetMinuteIndex;
@@ -2199,7 +2244,8 @@ function updateNavigationButtons() {
             currentDate = new Date(currentMinuteBar.timestamp);
             const hours = currentDate.getHours().toString().padStart(2, '0');
             const mins = currentDate.getMinutes().toString().padStart(2, '0');
-            timeStr = `${hours}:${mins}`;
+            const secs = currentDate.getSeconds().toString().padStart(2, '0');
+            timeStr = simSecondsEnabled ? `${hours}:${mins}:${secs}` : `${hours}:${mins}`;
         }
     }
 
@@ -3790,7 +3836,7 @@ function refreshPayoffModal() {
 }
 
 function payoffModalAdvanceBar(direction) {
-    const skipMinutes = parseInt(document.getElementById('simAutoplayInterval')?.value) || 1;
+    const skipMinutes = getAdvanceStepBars();
     if (direction > 0 && simCurrentMinuteIndex < simMinuteBarsCache.length) {
         simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
     } else if (direction < 0 && simCurrentMinuteIndex > simTradingStartMinuteIndex) {

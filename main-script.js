@@ -587,7 +587,7 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
-                    scriptName = 'simulated-trading-script.js?v=9';
+                    scriptName = 'simulated-trading-script.js?v=10';
                 }
                 if (pageName === 'screener') {
                     scriptName = 'static/js/screener-script.js';
@@ -660,7 +660,7 @@ async function loadPageContent(pageName) {
                     scriptName = 'stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
-                    scriptName = 'simulated-trading-script.js?v=9';
+                    scriptName = 'simulated-trading-script.js?v=10';
                     if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);

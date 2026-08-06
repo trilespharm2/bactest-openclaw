@@ -2538,12 +2538,17 @@
                   <div style="width: 1px; height: 20px; background: #e0e3eb;"></div>
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Interval: <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_autoplay')" title="How autoplay works"></i></label>
-                    <select class="sim-dark-select" id="simAutoplayInterval">
-                      <option value="1">1 min</option>
-                      <option value="5">5 min</option>
-                      <option value="15">15 min</option>
-                      <option value="30">30 min</option>
-                      <option value="60">1 hr</option>
+                    <select class="sim-dark-select" id="simAutoplayInterval" title="How far each step advances (values are market time)">
+                      <option value="1">1 sec</option>
+                      <option value="5">5 sec</option>
+                      <option value="10">10 sec</option>
+                      <option value="15">15 sec</option>
+                      <option value="30">30 sec</option>
+                      <option value="60" selected>1 min</option>
+                      <option value="300">5 min</option>
+                      <option value="900">15 min</option>
+                      <option value="1800">30 min</option>
+                      <option value="3600">1 hr</option>
                     </select>
                     <label style="font-size: 11px; color: #6a6d78; white-space: nowrap;">Speed:</label>
                     <select class="sim-dark-select" id="simAutoplaySpeed" title="Delay between auto-advance steps">
@@ -2621,7 +2626,7 @@
                   <div style="display: flex; align-items: center; gap: 4px;">
                     <label style="font-size: 11px; color: #6a6d78;">Go to: <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;cursor:pointer;" onclick="openBtInfoModal('simact_goto')" title="Jump to a specific date/time"></i></label>
                     <input type="text" class="sim-dark-input" id="simGotoDate" placeholder="MM/DD/YYYY" style="width: 95px;">
-                    <input type="text" class="sim-dark-input" id="simGotoTime" placeholder="HH:MM" style="width: 55px;">
+                    <input type="text" class="sim-dark-input" id="simGotoTime" placeholder="HH:MM:SS" style="width: 72px;" title="HH:MM or HH:MM:SS — snaps back to the bar containing that time">
                     <button type="button" class="sim-nav-btn" id="simGotoDateBtn" title="Jump to date">
                       <i class="fas fa-search"></i>
                     </button>
