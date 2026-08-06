@@ -3549,21 +3549,35 @@ def start_backtest_async():
         if tier_errors:
             return jsonify({'error': tier_errors[0]}), 403
 
-        raw_seconds_interval = (params.get('seconds_interval') if params.get('seconds_interval') is not None
-                                else params.get('secondsInterval', 0))
+        # Seconds-resolution backtests are capped by date span (must match
+        # maxDaysForBacktestSeconds() in the backtester frontend).
         try:
-            seconds_interval = int(raw_seconds_interval or 0)
-        except (TypeError, ValueError):
-            return jsonify({'error': 'Seconds interval must be a whole number from 1 to 59'}), 400
-        if isinstance(raw_seconds_interval, float) and not raw_seconds_interval.is_integer():
-            return jsonify({'error': 'Seconds interval must be a whole number from 1 to 59'}), 400
-        if isinstance(raw_seconds_interval, str) and raw_seconds_interval.strip() and not raw_seconds_interval.strip().isdigit():
-            return jsonify({'error': 'Seconds interval must be a whole number from 1 to 59'}), 400
-        if seconds_interval and not 1 <= seconds_interval <= 59:
-            return jsonify({'error': 'Seconds interval must be a whole number from 1 to 59'}), 400
-        if seconds_interval:
-            params['seconds_interval'] = seconds_interval
-            params['ten_second_data'] = True
+            _sec_interval = int(params.get('seconds_interval') or params.get('secondsInterval') or 0)
+        except (ValueError, TypeError):
+            _sec_interval = 0
+        if _sec_interval <= 0 and (params.get('ten_second_data') or params.get('tenSecondData')):
+            _sec_interval = 10
+        if _sec_interval > 0:
+            if _sec_interval > 59:
+                return jsonify({'error': 'Seconds bar size must be a whole number from 1 to 59'}), 400
+            _bt_start = params.get('start_date') or params.get('startDate')
+            _bt_end = params.get('end_date') or params.get('endDate')
+            if _bt_start and _bt_end:
+                try:
+                    _span = (datetime.strptime(_bt_end, '%Y-%m-%d').date()
+                             - datetime.strptime(_bt_start, '%Y-%m-%d').date()).days + 1
+                except ValueError:
+                    return jsonify({'error': 'Invalid start or end date'}), 400
+                if _sec_interval <= 1:
+                    _max_days = 1
+                elif _sec_interval <= 5:
+                    _max_days = 2
+                elif _sec_interval <= 15:
+                    _max_days = 3
+                else:
+                    _max_days = 5
+                if _span > _max_days:
+                    return jsonify({'error': f'{_sec_interval}-second bars are limited to {_max_days} calendar day(s). Shorten the date range or choose a larger bar size.'}), 400
 
         # Check if user already has a running backtest
         for bid, binfo in running_backtests.items():
@@ -3617,7 +3631,7 @@ def start_backtest_async():
                 'stop_loss_dollar': params.get('stop_loss_dollar') or params.get('stopLossDollar'),
                 'detection_bar_size': params.get('detection_bar_size') or params.get('detectionBarSize', 1),
                 'ten_second_data': params.get('ten_second_data') if params.get('ten_second_data') is not None else params.get('tenSecondData', False),
-                'seconds_interval': seconds_interval,
+                'seconds_interval': params.get('seconds_interval') if params.get('seconds_interval') is not None else params.get('secondsInterval', 0),
                 'net_premium_min': params.get('net_premium_min') or params.get('netPremiumMin'),
                 'net_premium_max': params.get('net_premium_max') or params.get('netPremiumMax'),
                 'avoid_pdt': params.get('avoid_pdt') or params.get('avoidPdt', False),
@@ -6695,33 +6709,30 @@ def get_simulated_trading_bars():
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         bar_size = data.get('bar_size', 'day')
-        try:
-            multiplier = int(data.get('multiplier', 1))
-        except (TypeError, ValueError):
-            return jsonify({'error': 'Bar interval must be a whole number'}), 400
+        multiplier = int(data.get('multiplier', 1))
         print(f"[SimBars] symbol={symbol!r} start={start_date!r} end={end_date!r} bar_size={bar_size!r} user={'auth' if current_user.is_authenticated else 'anon'}")
 
         if not symbol or not start_date or not end_date:
             return jsonify({'error': 'Symbol, start_date, and end_date are required'}), 400
-        if bar_size not in ('second', 'minute', 'hour', 'day'):
-            return jsonify({'error': 'Unsupported bar size'}), 400
-        if multiplier < 1 or multiplier > (59 if bar_size == 'second' else 10000):
-            return jsonify({'error': 'Unsupported bar interval'}), 400
+        if bar_size not in ('minute', 'second'):
+            return jsonify({'error': 'bar_size must be minute or second'}), 400
+        if multiplier < 1 or (bar_size == 'second' and multiplier > 59):
+            return jsonify({'error': 'Second-bar interval must be a whole number from 1 to 59'}), 400
         if bar_size == 'second':
             from datetime import datetime as _sim_dt
-            try:
-                requested_days = (_sim_dt.strptime(end_date, '%Y-%m-%d').date() -
-                                  _sim_dt.strptime(start_date, '%Y-%m-%d').date()).days + 1
-            except ValueError:
-                return jsonify({'error': 'Dates must use YYYY-MM-DD format'}), 400
-            if requested_days < 1:
-                return jsonify({'error': 'End date cannot be before start date'}), 400
-            estimated_bars = requested_days * 23400 // multiplier
-            if requested_days > 5 or estimated_bars > 50000:
-                return jsonify({
-                    'error': 'Second-bar replay is limited to 5 calendar days and 50,000 bars. '
-                             'Choose a shorter date range or a larger seconds-per-bar interval.'
-                }), 400
+            requested_days = (_sim_dt.strptime(end_date, '%Y-%m-%d').date() -
+                              _sim_dt.strptime(start_date, '%Y-%m-%d').date()).days + 1
+            # Must match maxDaysForSecondsInterval() in the simulated-trading frontend.
+            if multiplier <= 1:
+                max_days = 1
+            elif multiplier <= 5:
+                max_days = 2
+            elif multiplier <= 15:
+                max_days = 3
+            else:
+                max_days = 5
+            if requested_days > max_days:
+                return jsonify({'error': f'{multiplier}-second data is limited to {max_days} calendar day(s) per session'}), 400
 
         tier = get_user_tier()
         tier_errors = validate_tier_restrictions(tier, symbol, start_date=start_date, end_date=end_date)
@@ -6777,7 +6788,7 @@ def get_simulated_trading_bars():
             from polygon.rest import RESTClient as _RC
             _client = _RC(_api_key, connect_timeout=5, read_timeout=10, retries=0)
             _aggs = _client.get_aggs(ticker=_ticker, multiplier=_multiplier, timespan=_bar_size,
-                                     from_=_start, to=_end, limit=50001 if _bar_size == 'second' else 50000)
+                                     from_=_start, to=_end, limit=50000)
             _result = []
             for _agg in _aggs:
                 _ts = _agg.timestamp
@@ -6805,11 +6816,6 @@ def get_simulated_trading_bars():
             return jsonify({'error': f'Failed to fetch data from Polygon: {str(e)}'}), 500
 
         bars.sort(key=lambda x: x['timestamp'])
-        if bar_size == 'second' and len(bars) > 50000:
-            return jsonify({
-                'error': 'This second-bar request returned too much data for a safe replay. '
-                         'Choose a shorter date range or a larger seconds-per-bar interval.'
-            }), 400
 
         return jsonify({
             'success': True,
@@ -6934,10 +6940,7 @@ def get_simulated_trading_option_bars():
         expiration_date = data.get('expiration_date')
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        try:
-            multiplier = int(data.get('multiplier', 1))
-        except (TypeError, ValueError):
-            return jsonify({'error': 'Bar interval must be a whole number'}), 400
+        multiplier = int(data.get('multiplier', 1))
         bar_size = data.get('bar_size', 'minute')
         fallback = data.get('fallback', 'closest')
         
@@ -6979,24 +6982,8 @@ def get_simulated_trading_option_bars():
         if not symbol or not strike or not expiration_date or not start_date:
             print(f"[SimTrading Option Bars] Missing required fields: symbol={bool(symbol)}, strike={strike}, exp={bool(expiration_date)}, start={bool(start_date)}")
             return jsonify({'error': 'Symbol, strike, expiration_date, and start_date are required'}), 400
-        if bar_size not in ('second', 'minute'):
-            return jsonify({'error': 'Options replay supports minute or second bars'}), 400
-        if multiplier < 1 or multiplier > (59 if bar_size == 'second' else 10000):
-            return jsonify({'error': 'Unsupported bar interval'}), 400
-        if bar_size == 'second':
-            from datetime import datetime as _sim_dt
-            try:
-                requested_days = (_sim_dt.strptime(end_date or start_date, '%Y-%m-%d').date() -
-                                  _sim_dt.strptime(start_date, '%Y-%m-%d').date()).days + 1
-            except ValueError:
-                return jsonify({'error': 'Dates must use YYYY-MM-DD format'}), 400
-            if requested_days < 1:
-                return jsonify({'error': 'End date cannot be before start date'}), 400
-            if requested_days > 5 or requested_days * 23400 // multiplier > 50000:
-                return jsonify({
-                    'error': 'Second-bar options replay is limited to 5 calendar days and 50,000 bars. '
-                             'Choose a shorter date range or a larger seconds-per-bar interval.'
-                }), 400
+        if bar_size not in ('minute', 'second') or multiplier < 1 or (bar_size == 'second' and multiplier > 59):
+            return jsonify({'error': 'Invalid option-bar resolution'}), 400
         
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
@@ -7026,7 +7013,7 @@ def get_simulated_trading_option_bars():
                 timespan=bar_size,
                 from_=start_date,
                 to=end_date or start_date,
-                limit=50001 if bar_size == 'second' else 50000
+                limit=50000
             )
             
             for agg in aggs:
@@ -7079,7 +7066,7 @@ def get_simulated_trading_option_bars():
                             timespan=bar_size,
                             from_=start_date,
                             to=end_date or start_date,
-                            limit=50001 if bar_size == 'second' else 50000
+                            limit=50000
                         )
                         
                         for agg in aggs:
@@ -7130,8 +7117,8 @@ def get_simulated_trading_option_bars():
                         t_int = int(test_k * 1000)
                         t_sym = f"O:{option_symbol_base}{date_part}{option_type}{t_int:08d}"
                         t_aggs = client.get_aggs(ticker=t_sym, multiplier=multiplier,
-                                                  timespan=bar_size, from_=start_date,
-                                                 to=end_date or start_date, limit=50001 if bar_size == 'second' else 50000)
+                                                 timespan=bar_size, from_=start_date,
+                                                 to=end_date or start_date, limit=50000)
                         tmp = []
                         for agg in t_aggs:
                             ts = agg.timestamp
@@ -7148,13 +7135,13 @@ def get_simulated_trading_option_bars():
                 if ref_bars_raw:
                     break
 
-            # Fetch underlying minute bars for per-timestamp S values
+            # Fetch underlying bars at the requested resolution for per-timestamp S values.
             und_map = {}
             try:
                 _IDX = {'SPX': 'I:SPX', 'SPXW': 'I:SPX', 'NDX': 'I:NDX', 'RUT': 'I:RUT', 'XSP': 'I:XSP'}
                 u_ticker = _IDX.get(symbol, symbol)
                 u_aggs = client.get_aggs(ticker=u_ticker, multiplier=multiplier, timespan=bar_size,
-                                         from_=start_date, to=end_date or start_date, limit=50001 if bar_size == 'second' else 50000)
+                                         from_=start_date, to=end_date or start_date, limit=50000)
                 for agg in u_aggs:
                     ts = agg.timestamp
                     if hasattr(ts, 'timestamp'): ts = int(ts.timestamp() * 1000)
@@ -7200,8 +7187,6 @@ def get_simulated_trading_option_bars():
                     print(f"[SimTrading] Generated {len(bars)} synthetic BS bars for {option_symbol} (ref strike: {ref_strike_found})")
 
         bars.sort(key=lambda x: x['timestamp'])
-        if bar_size == 'second' and len(bars) > 50000:
-            return jsonify({'error': 'This second-bar option request returned too much data for a safe replay.'}), 400
         
         from datetime import datetime as _dt_cls, timezone as _tz
         import pytz
@@ -7443,41 +7428,23 @@ def get_option_bars_by_symbol():
     """Fetch option bars by known option symbol (for session restore)"""
     try:
         data = request.json
-        from datetime import datetime as _dt_cls, timezone as _tz
         option_symbol = data.get('option_symbol', '')
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        try:
-            multiplier = int(data.get('multiplier', 1))
-        except (TypeError, ValueError):
-            return jsonify({'error': 'Bar interval must be a whole number'}), 400
+        multiplier = int(data.get('multiplier', 1))
         bar_size = data.get('bar_size', 'minute')
 
         if not option_symbol or not start_date:
             return jsonify({'error': 'option_symbol and start_date are required'}), 400
-        if bar_size not in ('second', 'minute'):
-            return jsonify({'error': 'Options replay supports minute or second bars'}), 400
-        if multiplier < 1 or multiplier > (59 if bar_size == 'second' else 10000):
-            return jsonify({'error': 'Unsupported bar interval'}), 400
-        if bar_size == 'second':
-            try:
-                requested_days = (_dt_cls.strptime(end_date or start_date, '%Y-%m-%d').date() -
-                                  _dt_cls.strptime(start_date, '%Y-%m-%d').date()).days + 1
-            except ValueError:
-                return jsonify({'error': 'Dates must use YYYY-MM-DD format'}), 400
-            if requested_days < 1:
-                return jsonify({'error': 'End date cannot be before start date'}), 400
-            if requested_days > 5 or requested_days * 23400 // multiplier > 50000:
-                return jsonify({
-                    'error': 'Second-bar options replay is limited to 5 calendar days and 50,000 bars. '
-                             'Choose a shorter date range or a larger seconds-per-bar interval.'
-                }), 400
+        if bar_size not in ('minute', 'second') or multiplier < 1 or (bar_size == 'second' and multiplier > 59):
+            return jsonify({'error': 'Invalid option-bar resolution'}), 400
 
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
             return jsonify({'error': 'Polygon API key not configured'}), 400
 
         from polygon.rest import RESTClient
+        from datetime import datetime as _dt_cls, timezone as _tz
         import pytz
         client = RESTClient(api_key)
 
@@ -7488,7 +7455,7 @@ def get_option_bars_by_symbol():
             timespan=bar_size,
             from_=start_date,
             to=end_date or start_date,
-            limit=50001 if bar_size == 'second' else 50000
+            limit=50000
         )
         for agg in aggs:
             ts = agg.timestamp
@@ -7510,8 +7477,6 @@ def get_option_bars_by_symbol():
             })
 
         bars.sort(key=lambda x: x['timestamp'])
-        if bar_size == 'second' and len(bars) > 50000:
-            return jsonify({'error': 'This second-bar option request returned too much data for a safe replay.'}), 400
         et_tz = pytz.timezone('America/New_York')
         filtered_bars = []
         for b in bars:

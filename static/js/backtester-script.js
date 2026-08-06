@@ -4134,10 +4134,7 @@ async function handleBacktestSubmit(e) {
 function getSecondsResolution() {
     var raw = document.getElementById('secondsResolution')?.value;
     var n = parseInt(raw, 10);
-    if (Number.isInteger(n) && n >= 1 && n <= 59 && String(n) === String(raw).trim()) return n;
-    // Older saved/forms expose only the 10-second checkbox. Keep that
-    // established control functional until its replacement is rendered.
-    return document.getElementById('tenSecondData')?.checked ? 10 : 0;
+    return (Number.isInteger(n) && n >= 1 && n <= 59) ? n : 0;
 }
 
 function onSecondsResolutionChange(value) {
@@ -4720,8 +4717,6 @@ function applyOptionsConfig(rawConfig) {
     config.strategy = rawConfig.strategy || '';
     config.entryTime = rawConfig.entryTime || rawConfig.entry_time || '10:00';
     config.entryTimeMax = rawConfig.entryTimeMax || rawConfig.entry_time_max || '';
-    config.secondsInterval = rawConfig.secondsInterval || rawConfig.seconds_interval ||
-        ((rawConfig.tenSecondData || rawConfig.ten_second_data) ? 10 : 0);
     config.dte = rawConfig.dte != null ? String(rawConfig.dte) : '0';
     var rawSkewed = rawConfig.allowSkewedWings != null ? rawConfig.allowSkewedWings : rawConfig.allow_skewed_wings;
     config.allowSkewedWings = rawSkewed === true || rawSkewed === 'y' ? 'y' : 'n';
@@ -4845,13 +4840,6 @@ function applyOptionsConfig(rawConfig) {
     }
     if (document.getElementById('stopLossPct')) document.getElementById('stopLossPct').value = config.stopLossPct || '';
     if (document.getElementById('stopLossDollar')) document.getElementById('stopLossDollar').value = config.stopLossDollar || '';
-
-    // Restore the requested base resolution and keep entry time inputs aligned.
-    var secondsResolution = document.getElementById('secondsResolution');
-    if (secondsResolution) {
-        secondsResolution.value = config.secondsInterval ? String(config.secondsInterval) : '';
-        onSecondsResolutionChange(secondsResolution.value);
-    }
 
     // Apply EOD action
     if (document.getElementById('eodAction')) document.getElementById('eodAction').value = config.eodAction || 'close';

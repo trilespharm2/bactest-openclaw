@@ -588,7 +588,7 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
-                    scriptName = '/static/js/simulated-trading-script.js?v=15';
+                    scriptName = '/static/js/simulated-trading-script.js?v=9';
                 }
                 if (pageName === 'screener') {
                     scriptName = '/static/js/screener-script.js';
@@ -661,7 +661,7 @@ async function loadPageContent(pageName) {
                     scriptName = '/static/js/stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
-                    scriptName = '/static/js/simulated-trading-script.js?v=15';
+                    scriptName = '/static/js/simulated-trading-script.js?v=9';
                     if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);
@@ -1638,7 +1638,7 @@ async function loadWatchlist() {
 
 // ── Global Search Autocomplete ──────────────────────────────────────────────
 (function () {
-    const input = document.getElementById('globalSearch');
+    const input    = document.getElementById('globalSearch');
     const dropdown = document.getElementById('searchDropdown');
     if (!input || !dropdown) return;
 
