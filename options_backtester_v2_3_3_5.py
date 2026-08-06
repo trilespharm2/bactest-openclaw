@@ -448,10 +448,29 @@ def _reference_candle_price(client, symbol, trade_date, entry_ts_ms, params, whi
             return None, f"candle is {col}, need {candle_color}"
     return _candle_datapoint(candle, datapoint), ""
 
+def get_seconds_interval(config):
+    """Configured sub-minute bar size in seconds, or 0 when the backtest runs on minutes.
+
+    `seconds_interval` is the current control; `ten_second_data` is the older boolean
+    flag and still maps to 10 seconds so saved configs keep working.
+    """
+    try:
+        value = int(config.get('seconds_interval') or 0)
+    except (ValueError, TypeError):
+        value = 0
+    if value <= 0 and config.get('ten_second_data'):
+        value = 10
+    return value if 1 <= value <= 59 else 0
+
+
 def _current_underlying_price(client, symbol, trade_date, entry_ts_ms, ten_second=True):
-    """Underlying price at/just-before the entry timestamp (10-sec when available, else 1-min)."""
+    """Underlying price at/just-before the entry timestamp (sub-minute when available, else 1-min).
+
+    `ten_second` accepts a seconds interval (int) or a bool for the legacy 10-second mode.
+    """
     underlying_sym = get_underlying_ticker(symbol)
-    mult, span = (10, 'second') if ten_second else (1, 'minute')
+    sub_seconds = 10 if ten_second is True else (int(ten_second) if ten_second else 0)
+    mult, span = (sub_seconds, 'second') if sub_seconds else (1, 'minute')
     bars = _fetch_underlying_candles(client, underlying_sym, trade_date, mult, span)
     if not bars:
         bars = _fetch_underlying_candles(client, underlying_sym, trade_date, 1, 'minute')
@@ -1881,7 +1900,7 @@ def evaluate_price_conditions_with_cache(config: Dict, bar: Dict, indicators_cac
                     return False, f"Current-candle condition {idx+1} requires market client", _cond_details
                 _cc_met, _cc_reason, _cc_detail = _eval_current_candle_condition(
                     condition, client, config.get('symbol'), trade_date, bar_timestamp,
-                    ten_second=bool(config.get('ten_second_data'))
+                    ten_second=get_seconds_interval(config)
                 )
                 if _cc_detail:
                     _cond_details.append(_cc_detail)
@@ -4601,12 +4620,16 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
     option_data = {}
     missing_indices = []
 
+    # Option bars are fetched at the same sub-minute resolution as the underlying scan
+    # so entries, exits and TP/SL all read from one timestamp grid.
+    opt_seconds = get_seconds_interval(config) or 10
+
     def _fetch_leg_ohlcv(args):
         i, symbol = args
         leg_exp = leg_exp_dates[i] if i < len(leg_exp_dates) else exp_date
         try:
             aggs = list(client.list_aggs(
-                symbol, 10, "second",
+                symbol, opt_seconds, "second",
                 trade_date.strftime("%Y-%m-%d"),
                 leg_exp.strftime("%Y-%m-%d"),
                 adjusted="true", sort="asc", limit=50000
@@ -4700,7 +4723,7 @@ def fetch_options_data_optimized(client: RESTClient, config: Dict, underlying_pr
             aggs = []
             for a in client.list_aggs(
                 adjusted_symbol,
-                10,
+                opt_seconds,
                 "second",
                 trade_date.strftime("%Y-%m-%d"),
                 leg_exp.strftime("%Y-%m-%d"),
@@ -5276,17 +5299,18 @@ def run_backtest(config: Dict, client: RESTClient):
     # HH:MM:SS resolution).  Probe the first trading day(s) up front and FAIL LOUDLY
     # if the symbol has no sub-minute data (e.g. SPY/QQQ/IWM 403) instead of silently
     # collapsing to minute entry.
-    ten_second_mode = bool(config.get('ten_second_data'))
+    seconds_interval = get_seconds_interval(config)
+    ten_second_mode = seconds_interval > 0
     if ten_second_mode and trading_days:
-        _probe = _fetch_underlying_candles(client, underlying_sym, trading_days[0], 10, 'second')
+        _probe = _fetch_underlying_candles(client, underlying_sym, trading_days[0], seconds_interval, 'second')
         if not _probe and len(trading_days) > 1:
-            _probe = _fetch_underlying_candles(client, underlying_sym, trading_days[1], 10, 'second')
+            _probe = _fetch_underlying_candles(client, underlying_sym, trading_days[1], seconds_interval, 'second')
         if not _probe:
             raise RuntimeError(
-                f"10-second data is unavailable for {config['symbol']}. Sub-minute entry "
-                f"requires an index such as SPX/SPXW. Disable the 10-second toggle or switch symbols."
+                f"{seconds_interval}-second data is unavailable for {config['symbol']}. Sub-minute entry "
+                f"requires an index such as SPX/SPXW. Select minute bars or switch symbols."
             )
-        print(f"  ✓ 10-second underlying data confirmed for {config['symbol']}")
+        print(f"  ✓ {seconds_interval}-second underlying data confirmed for {config['symbol']}")
 
     print(f"\nFetching {config['symbol']} daily closes for expiration pricing...")
     underlying_daily_closes = get_daily_closes_for_period(
@@ -5496,9 +5520,9 @@ def run_backtest(config: Dict, client: RESTClient):
             # can occur at an exact sub-minute time (e.g. 15:59:30).
             # detection_bar_size controls only the monitoring interval after entry.
             if ten_second_mode:
-                scan_bars_today = _fetch_underlying_candles(client, underlying_sym, trade_date, 10, 'second')
+                scan_bars_today = _fetch_underlying_candles(client, underlying_sym, trade_date, seconds_interval, 'second')
                 if not scan_bars_today:
-                    day_entry['events'].append({'type': 'no_data', 'reason': '10-second underlying data unavailable for this day'})
+                    day_entry['events'].append({'type': 'no_data', 'reason': f'{seconds_interval}-second underlying data unavailable for this day'})
                     decision_log.append(day_entry)
                     continue
             else:
@@ -5985,8 +6009,14 @@ def run_backtest(config: Dict, client: RESTClient):
                     return result
 
                 found_fallback = False
-                for (fb_mult, fb_tspan, fb_label) in [(30, 'second', '30-sec'), (1, 'minute', '1-min')]:
-                    print(f"  ↳ No common minute via 10-sec — retrying with {fb_label} bars...")
+                # Fall back only to resolutions COARSER than the one just tried, so a
+                # 30-second backtest never retries at 30 seconds and a 1-second backtest
+                # gets the intermediate steps.
+                _primary_seconds = seconds_interval or 10
+                _fb_chain = [(s, 'second', f'{s}-sec') for s in (5, 10, 30) if s > _primary_seconds]
+                _fb_chain.append((1, 'minute', '1-min'))
+                for (fb_mult, fb_tspan, fb_label) in _fb_chain:
+                    print(f"  ↳ No common minute via {_primary_seconds}-sec — retrying with {fb_label} bars...")
                     fb_bars = _fetch_coarser_bars_for_date(fb_mult, fb_tspan)
                     if len(fb_bars) != len(legs_info) or any(len(b) == 0 for b in fb_bars):
                         print(f"  ↳ {fb_label}: insufficient data for one or more legs")
@@ -6059,7 +6089,7 @@ def run_backtest(config: Dict, client: RESTClient):
                                 else:
                                     try:
                                         _sw_raw = list(client.list_aggs(
-                                            _new_sym, 10, "second",
+                                            _new_sym, seconds_interval or 10, "second",
                                             trade_date.strftime("%Y-%m-%d"),
                                             _sl_exp.strftime("%Y-%m-%d"),
                                             adjusted="true", sort="asc", limit=50000

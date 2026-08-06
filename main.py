@@ -3549,6 +3549,36 @@ def start_backtest_async():
         if tier_errors:
             return jsonify({'error': tier_errors[0]}), 403
 
+        # Seconds-resolution backtests are capped by date span (must match
+        # maxDaysForBacktestSeconds() in the backtester frontend).
+        try:
+            _sec_interval = int(params.get('seconds_interval') or params.get('secondsInterval') or 0)
+        except (ValueError, TypeError):
+            _sec_interval = 0
+        if _sec_interval <= 0 and (params.get('ten_second_data') or params.get('tenSecondData')):
+            _sec_interval = 10
+        if _sec_interval > 0:
+            if _sec_interval > 59:
+                return jsonify({'error': 'Seconds bar size must be a whole number from 1 to 59'}), 400
+            _bt_start = params.get('start_date') or params.get('startDate')
+            _bt_end = params.get('end_date') or params.get('endDate')
+            if _bt_start and _bt_end:
+                try:
+                    _span = (datetime.strptime(_bt_end, '%Y-%m-%d').date()
+                             - datetime.strptime(_bt_start, '%Y-%m-%d').date()).days + 1
+                except ValueError:
+                    return jsonify({'error': 'Invalid start or end date'}), 400
+                if _sec_interval <= 1:
+                    _max_days = 1
+                elif _sec_interval <= 5:
+                    _max_days = 2
+                elif _sec_interval <= 15:
+                    _max_days = 3
+                else:
+                    _max_days = 5
+                if _span > _max_days:
+                    return jsonify({'error': f'{_sec_interval}-second bars are limited to {_max_days} calendar day(s). Shorten the date range or choose a larger bar size.'}), 400
+
         # Check if user already has a running backtest
         for bid, binfo in running_backtests.items():
             if binfo.get('user_id') == user_id and binfo.get('status') == 'running':
@@ -3601,6 +3631,7 @@ def start_backtest_async():
                 'stop_loss_dollar': params.get('stop_loss_dollar') or params.get('stopLossDollar'),
                 'detection_bar_size': params.get('detection_bar_size') or params.get('detectionBarSize', 1),
                 'ten_second_data': params.get('ten_second_data') if params.get('ten_second_data') is not None else params.get('tenSecondData', False),
+                'seconds_interval': params.get('seconds_interval') if params.get('seconds_interval') is not None else params.get('secondsInterval', 0),
                 'net_premium_min': params.get('net_premium_min') or params.get('netPremiumMin'),
                 'net_premium_max': params.get('net_premium_max') or params.get('netPremiumMax'),
                 'avoid_pdt': params.get('avoid_pdt') or params.get('avoidPdt', False),
@@ -4745,6 +4776,7 @@ def run_backtester_script(config, api_key):
                 'stop_loss_dollar': config.get('stop_loss_dollar') or config.get('stopLossDollar'),
                 'detection_bar_size': config.get('detection_bar_size') or config.get('detectionBarSize', 1),
                 'ten_second_data': config.get('ten_second_data') if config.get('ten_second_data') is not None else config.get('tenSecondData', False),
+                'seconds_interval': config.get('seconds_interval') if config.get('seconds_interval') is not None else config.get('secondsInterval', 0),
                 'net_premium_min': config.get('net_premium_min') or config.get('netPremiumMin'),
                 'net_premium_max': config.get('net_premium_max') or config.get('netPremiumMax'),
                 'avoid_pdt': config.get('avoid_pdt') or config.get('avoidPdt', False),
@@ -6690,7 +6722,15 @@ def get_simulated_trading_bars():
             from datetime import datetime as _sim_dt
             requested_days = (_sim_dt.strptime(end_date, '%Y-%m-%d').date() -
                               _sim_dt.strptime(start_date, '%Y-%m-%d').date()).days + 1
-            max_days = 1 if multiplier <= 5 else (3 if multiplier <= 15 else 7)
+            # Must match maxDaysForSecondsInterval() in the simulated-trading frontend.
+            if multiplier <= 1:
+                max_days = 1
+            elif multiplier <= 5:
+                max_days = 2
+            elif multiplier <= 15:
+                max_days = 3
+            else:
+                max_days = 5
             if requested_days > max_days:
                 return jsonify({'error': f'{multiplier}-second data is limited to {max_days} calendar day(s) per session'}), 400
 

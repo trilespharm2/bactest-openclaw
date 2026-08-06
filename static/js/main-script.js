@@ -588,7 +588,7 @@ async function loadPageContent(pageName) {
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
                     fileName = 'simulated-trading';
-                    scriptName = '/static/js/simulated-trading-script.js?v=8';
+                    scriptName = '/static/js/simulated-trading-script.js?v=9';
                 }
                 if (pageName === 'screener') {
                     scriptName = '/static/js/screener-script.js';
@@ -655,13 +655,13 @@ async function loadPageContent(pageName) {
                 console.log('Loading script for inline content:', pageName);
                 let scriptName = `${pageName}-script.js`;
                 if (pageName === 'backtester') {
-                    scriptName = '/static/js/backtester-script.js?v=6';
+                    scriptName = '/static/js/backtester-script.js?v=7';
                 }
                 if (pageName === 'stockBacktester') {
                     scriptName = '/static/js/stock-backtester-script.js';
                 }
                 if (pageName === 'simulatedTrading' || pageName === 'simTradingActive') {
-                    scriptName = '/static/js/simulated-trading-script.js?v=8';
+                    scriptName = '/static/js/simulated-trading-script.js?v=9';
                     if (loadedScripts.has('simulatedTrading') || loadedScripts.has('simTradingActive')) {
                         loadedScripts.add(pageName);
                         initializePage(pageName);

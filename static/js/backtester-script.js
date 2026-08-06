@@ -4024,6 +4024,9 @@ async function handleBacktestSubmit(e) {
         return;
     }
 
+    var secErr = validateSecondsResolutionRange(config.start_date, config.end_date);
+    if (secErr) { showError(secErr); form.dataset.isSubmitting = 'false'; return; }
+
     if (typeof TierRestrictions !== 'undefined') {
         var symErr = TierRestrictions.getSymbolError(config.symbol);
         if (symErr) { showError(symErr); form.dataset.isSubmitting = 'false'; return; }
@@ -4128,17 +4131,54 @@ async function handleBacktestSubmit(e) {
     };
 }
 
-function toggleTenSecondData(enabled) {
-    var step = enabled ? '10' : '60';
+function getSecondsResolution() {
+    var raw = document.getElementById('secondsResolution')?.value;
+    var n = parseInt(raw, 10);
+    return (Number.isInteger(n) && n >= 1 && n <= 59) ? n : 0;
+}
+
+function onSecondsResolutionChange(value) {
+    var interval = parseInt(value, 10);
+    var enabled = Number.isInteger(interval) && interval >= 1 && interval <= 59;
+    var step = enabled ? String(interval) : '60';
     var et = document.getElementById('entryTime');
     var etm = document.getElementById('entryTimeMax');
     if (et) et.step = step;
     if (etm) etm.step = step;
     if (!enabled) {
-        // Trim any seconds back to HH:MM when disabling
+        // Trim any seconds back to HH:MM when returning to minute bars
         if (et && et.value && et.value.length > 5) et.value = et.value.slice(0, 5);
         if (etm && etm.value && etm.value.length > 5) etm.value = etm.value.slice(0, 5);
     }
+}
+
+// Backwards-compatible alias for the old 10-second toggle.
+function toggleTenSecondData(enabled) {
+    var select = document.getElementById('secondsResolution');
+    if (select) select.value = enabled ? '10' : '';
+    onSecondsResolutionChange(enabled ? '10' : '');
+}
+
+// 1-second bars produce ~23k underlying bars per day plus per-leg option bars, so the
+// backtest range is capped at a single trading day at that resolution.
+function maxDaysForBacktestSeconds(interval) {
+    if (!interval) return null;
+    if (interval === 1) return 1;
+    if (interval <= 5) return 2;
+    if (interval <= 15) return 3;
+    return 5;
+}
+
+function validateSecondsResolutionRange(startDate, endDate) {
+    var interval = getSecondsResolution();
+    var maxDays = maxDaysForBacktestSeconds(interval);
+    if (!maxDays || !startDate || !endDate) return null;
+    var spanDays = Math.round((new Date(endDate + 'T00:00:00') - new Date(startDate + 'T00:00:00')) / 86400000) + 1;
+    if (spanDays > maxDays) {
+        return `${interval}-second bars are limited to ${maxDays} calendar day${maxDays === 1 ? '' : 's'}. `
+             + `Shorten the date range or choose a larger bar size.`;
+    }
+    return null;
 }
 
 function collectFormData() {
@@ -4254,7 +4294,8 @@ function collectFormData() {
         allow_synthetic: document.querySelector('input[name="allowSynthetic"]:checked').value === 'y',
         expiry_close_time: document.querySelector('input[name="expiryCloseTime"]:checked')?.value || '16:15',
         starting_capital: startingCapital,
-        ten_second_data: document.getElementById('tenSecondData')?.checked || false
+        seconds_interval: getSecondsResolution(),
+        ten_second_data: getSecondsResolution() > 0
     };
     
     // Add allocation

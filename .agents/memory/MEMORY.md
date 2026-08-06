@@ -15,4 +15,5 @@
 - [Bot day-offset sign convention](bot-day-offset-sign.md) — bot "days ago" selectors use NEGATIVE offsets (0,-1,-2…); positive values silently skip trades. Match end-to-end.
 - [Standalone DB scripts](standalone-db-script.md) — bind db to a minimal Flask app + raw SQL (User lives in main.py, breaks ORM mapper); creds decrypt via FLASK_SECRET_KEY when ENCRYPTION_KEY unset.
 - [JS block-scope ReferenceError](js-blockscope-referror.md) — `const` helpers (e.g. _sel) declared inside one if-branch aren't visible in sibling branches; node --check won't catch it (runtime error). Hoist shared helpers to function top.
+- [Bar resolution switching](bar-resolution-switching.md) — restore replay by timestamp not index; narrowed seconds window + server-side day caps; one bar grid for underlying and options.
 - [VIX option strike spacing](vix-option-strike-spacing.md) — VIX options use $0.50 strikes and Polygon underlying bars require `I:VIX`; apply both across strike paths.

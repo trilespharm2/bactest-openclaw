@@ -86,6 +86,44 @@ let simIsPlaying = false;
 let simMinuteBarsCache = [];
 let simSecondsEnabled = false;
 let simSecondsInterval = 10;
+// Date window actually fetched for the base bars. Equals the full session range for
+// minute data, but is narrowed for seconds data so payloads stay manageable.
+let simDataWindow = { start: '', end: '' };
+let simIsChangingResolution = false;
+
+// Maximum calendar days of seconds data that may be loaded at once. One-second bars
+// are capped at a single day, as requested; coarser seconds allow a slightly wider view.
+function maxDaysForSecondsInterval(interval) {
+    if (interval <= 1) return 1;
+    if (interval <= 5) return 2;
+    if (interval <= 15) return 3;
+    return 5;
+}
+
+function addDaysToDateStr(dateStr, days) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+}
+
+function etDateStrFromTimestamp(ts) {
+    return new Date(ts).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// Chooses the date range to request for the current base resolution. Seconds data is
+// anchored on the day being replayed so the visible day is always covered.
+function computeDataWindow(anchorTs) {
+    if (!simSecondsEnabled) {
+        return { start: simChartDates.start, end: simChartDates.end };
+    }
+    const maxDays = maxDaysForSecondsInterval(simSecondsInterval);
+    let anchorDate = anchorTs ? etDateStrFromTimestamp(anchorTs) : simChartDates.tradingStart;
+    if (anchorDate < simChartDates.start) anchorDate = simChartDates.start;
+    if (anchorDate > simChartDates.end) anchorDate = simChartDates.end;
+    let start = addDaysToDateStr(anchorDate, -(maxDays - 1));
+    if (start < simChartDates.start) start = simChartDates.start;
+    return { start, end: anchorDate };
+}
 
 let lwChart = null;
 let lwCandleSeries = null;
@@ -147,14 +185,6 @@ function initSimulatedTrading() {
     setTimeout(applySimTierRestrictions, 600);
 
     loadBtn.addEventListener('click', startNewSession);
-
-    const secondsToggle = document.getElementById('simUseSecondsBars');
-    const secondsGroup = document.getElementById('simSecondsIntervalGroup');
-    if (secondsToggle && secondsGroup) {
-        secondsToggle.addEventListener('change', () => {
-            secondsGroup.style.display = secondsToggle.checked ? '' : 'none';
-        });
-    }
 
     document.querySelectorAll('#simTradingModeSwitch .sim-mode-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -247,8 +277,6 @@ function startNewSession() {
     const tradingStartDate = document.getElementById('simTradingStartDate').value;
     const mode = document.getElementById('simTradingMode').value;
     const balance = parseFloat(document.getElementById('simAccountBalance').value) || 100000;
-    const secondsEnabled = Boolean(document.getElementById('simUseSecondsBars')?.checked);
-    const secondsInterval = parseInt(document.getElementById('simSecondsInterval')?.value || '10', 10);
 
     const dateErrorDiv = document.getElementById('simDateError');
     const dateErrorText = document.getElementById('simDateErrorText');
@@ -274,21 +302,6 @@ function startNewSession() {
         dateErrorDiv.classList.remove('d-none');
         return;
     }
-    if (secondsEnabled && (!Number.isInteger(secondsInterval) || secondsInterval < 1 || secondsInterval > 59)) {
-        dateErrorText.textContent = 'Seconds interval must be a whole number from 1 to 59.';
-        dateErrorDiv.classList.remove('d-none');
-        return;
-    }
-    if (secondsEnabled) {
-        const requestedDays = Math.floor((new Date(chartEndDate) - new Date(chartStartDate)) / 86400000) + 1;
-        const maxDays = secondsInterval <= 5 ? 1 : secondsInterval <= 15 ? 3 : 7;
-        if (requestedDays > maxDays) {
-            dateErrorText.textContent = `A ${secondsInterval}-second session supports up to ${maxDays} calendar day${maxDays === 1 ? '' : 's'} to keep replay responsive.`;
-            dateErrorDiv.classList.remove('d-none');
-            return;
-        }
-    }
-
     var isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : true;
     if (isGuest) {
         window._simGuestSession = true;
@@ -300,7 +313,7 @@ function startNewSession() {
 
     window._simPendingSession = {
         symbol, chartStartDate, chartEndDate, tradingStartDate, mode, balance,
-        secondsEnabled, secondsInterval,
+        secondsEnabled: false, secondsInterval: 0,
         isNew: true
     };
 
@@ -329,7 +342,7 @@ function resumeSession(index) {
         mode: session.mode,
         balance: session.initialBalance,
         secondsEnabled: Boolean(session.secondsEnabled),
-        secondsInterval: session.secondsInterval || 10,
+        secondsInterval: session.secondsInterval || 0,
         isNew: false,
         sessionIndex: index,
         savedState: session
@@ -644,8 +657,8 @@ function initSimTradingActive() {
         simCurrentSymbol = pending.symbol;
         simChartDates = { start: pending.chartStartDate, end: pending.chartEndDate, tradingStart: pending.tradingStartDate };
         simInitialBalance = pending.balance;
-        simSecondsEnabled = Boolean(pending.secondsEnabled);
-        simSecondsInterval = pending.secondsInterval || 10;
+        simSecondsEnabled = false;
+        simSecondsInterval = 0;
         document.getElementById('simTradingMode') && (window._simTradingMode = pending.mode);
         window._simTradingMode = pending.mode;
         applyTradingMode();
@@ -714,6 +727,10 @@ function setupTradingPageListeners() {
 
     document.querySelectorAll('.sim-tf-btn').forEach(btn => {
         btn.addEventListener('click', (e) => switchTimeframe(e.target.dataset.timeframe));
+    });
+
+    document.getElementById('simSecondsSelect')?.addEventListener('change', (e) => {
+        changeSecondsResolution(e.target.value);
     });
 }
 
@@ -849,6 +866,9 @@ function saveCurrentSessionState() {
         realizedPnl: realizedPnl,
         unrealizedPnl: unrealizedPnl,
         currentMinuteIndex: simCurrentMinuteIndex,
+        // Replay position as a wall-clock anchor. The index alone is meaningless once
+        // the base resolution or the fetched date window changes.
+        currentTimestamp: (simMinuteBarsCache[simCurrentMinuteIndex - 1] || {}).timestamp || null,
         currentTimeframe: simCurrentTimeframe,
         secondsEnabled: simSecondsEnabled,
         secondsInterval: simSecondsInterval,
@@ -916,7 +936,8 @@ async function restoreSession(savedState) {
     simCurrentSymbol = savedState.symbol;
     simChartDates = { start: savedState.chartStartDate, end: savedState.chartEndDate, tradingStart: savedState.tradingStartDate };
     simSecondsEnabled = Boolean(savedState.secondsEnabled);
-    simSecondsInterval = savedState.secondsInterval || 10;
+    simSecondsInterval = savedState.secondsInterval || 0;
+    if (simSecondsEnabled && !simSecondsInterval) simSecondsEnabled = false;
     simInitialBalance = savedState.initialBalance;
     window._simTradingMode = savedState.mode;
     applyTradingMode();
@@ -929,10 +950,14 @@ async function restoreSession(savedState) {
     simOpenOptionPositions = savedState.openOptionPositions || [];
     simActiveSessionId = savedState.createdAt;
 
-    const targetMinuteIndex = savedState.currentMinuteIndex || 0;
     simCurrentTimeframe = savedState.currentTimeframe || (simSecondsEnabled ? 'seconds' : '1m');
 
-    await loadSimulatedChart(targetMinuteIndex);
+    // Prefer the timestamp anchor; the saved index is only valid for sessions written
+    // before timestamps were stored, which were always full-range minute sessions.
+    const targetTimestamp = savedState.currentTimestamp || null;
+    const targetMinuteIndex = targetTimestamp ? null : (savedState.currentMinuteIndex || 0);
+
+    await loadSimulatedChart(targetMinuteIndex, targetTimestamp);
     await restoreOptionBarsForOpenPositions();
 
     if (savedState.indicators && savedState.indicators.length > 0) {
@@ -962,8 +987,8 @@ async function restoreOptionBarsForOpenPositions() {
                     credentials: 'include',
                     body: JSON.stringify({
                         option_symbol: leg.optionSymbol,
-                        start_date: simChartDates.start,
-                        end_date: simChartDates.end,
+                        start_date: simDataWindow.start || simChartDates.start,
+                        end_date: simDataWindow.end || simChartDates.end,
                         multiplier: simSecondsEnabled ? simSecondsInterval : 1,
                         bar_size: simSecondsEnabled ? 'second' : 'minute'
                     })
@@ -1004,7 +1029,8 @@ function resetTradingState() {
     simTradingStartMinuteIndex = 0;
     simMinuteBarsCache = [];
     simSecondsEnabled = false;
-    simSecondsInterval = 10;
+    simSecondsInterval = 0;
+    simDataWindow = { start: '', end: '' };
     simTimeframeData = {};
     simCurrentTimeframe = '1m';
     simIsLoadingTimeframes = false;
@@ -1039,7 +1065,7 @@ function updateLoadingStatus(text) {
     if (statusEl) statusEl.textContent = text;
 }
 
-async function fetchMinuteBars(symbol, startDate, endDate) {
+async function fetchBaseBars(symbol, startDate, endDate) {
     const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
     try {
@@ -1064,7 +1090,9 @@ async function fetchMinuteBars(symbol, startDate, endDate) {
 
 function aggregateBars(minuteBars, targetMinutes) {
     if (!minuteBars || minuteBars.length === 0) return [];
-    if (targetMinutes === 1) return minuteBars;
+    // Only skip aggregation when the base cache already holds 1-minute bars. With a
+    // seconds base, 1m must still be built by grouping the sub-minute bars.
+    if (targetMinutes === 1 && !simSecondsEnabled) return minuteBars;
     const aggregated = [];
     const intervalMs = targetMinutes * 60 * 1000;
     let currentBatch = [];
@@ -1105,7 +1133,7 @@ function createAggregatedBar(bars, timestamp, isPartial = false) {
 
 function aggregateBarsUpToMinute(minuteBars, targetMinutes, upToMinuteIndex) {
     if (!minuteBars || minuteBars.length === 0 || upToMinuteIndex <= 0) return [];
-    if (targetMinutes === 1) {
+    if (targetMinutes === 1 && !simSecondsEnabled) {
         return minuteBars.slice(0, upToMinuteIndex).map(bar => ({
             ...bar, isPartial: false, minuteCount: 1, lastMinuteTimestamp: bar.timestamp
         }));
@@ -1141,12 +1169,14 @@ function aggregateBarsUpToMinute(minuteBars, targetMinutes, upToMinuteIndex) {
     return aggregated;
 }
 
-async function loadSimulatedChart(restoreMinuteIndex = null) {
+async function loadSimulatedChart(restoreMinuteIndex = null, restoreTimestamp = null) {
     stopAutoplay();
     showLoader(true, 'Loading chart data...', '');
 
     try {
-        const rawMinuteBars = await fetchMinuteBars(simCurrentSymbol, simChartDates.start, simChartDates.end);
+        const window_ = computeDataWindow(restoreTimestamp);
+        simDataWindow = window_;
+        const rawMinuteBars = await fetchBaseBars(simCurrentSymbol, window_.start, window_.end);
         if (!rawMinuteBars || rawMinuteBars.length === 0) throw new Error('No data found for the specified parameters');
 
         const minuteBars = rawMinuteBars.filter(bar => {
@@ -1164,12 +1194,20 @@ async function loadSimulatedChart(restoreMinuteIndex = null) {
         console.log(`Fetched ${minuteBars.length} ${simSecondsEnabled ? `${simSecondsInterval}-second` : '1-minute'} bars`);
 
         showLoader(true, 'Computing timeframes...', '0 / 7');
-        computeAllTimeframes(simChartDates.tradingStart, restoreMinuteIndex);
+        let resolvedIndex = restoreMinuteIndex;
+        if (resolvedIndex === null && restoreTimestamp) {
+            // Re-anchor the replay on the same moment in time after a resolution change.
+            const idx = minuteBars.findIndex(bar => bar.timestamp > restoreTimestamp);
+            resolvedIndex = idx === -1 ? minuteBars.length : idx;
+        }
+        computeAllTimeframes(simChartDates.tradingStart, resolvedIndex);
+        return true;
     } catch (error) {
         console.error('Error loading chart:', error);
         simDataLoaded = false;
         appAlert('Error loading chart: ' + error.message);
         showLoader(false);
+        return false;
     }
 }
 
@@ -1184,12 +1222,11 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
 
     if (simSecondsEnabled) {
         simTimeframeData.seconds = simMinuteBarsCache;
-        const secondsBtn = document.getElementById('simSecondsTimeframeBtn');
-        if (secondsBtn) {
-            secondsBtn.textContent = `${simSecondsInterval}s`;
-            secondsBtn.style.display = '';
-        }
+    } else {
+        delete simTimeframeData.seconds;
     }
+    syncSecondsSelect();
+
     const tradingStartTs = tradingStartDate.includes('T')
         ? new Date(tradingStartDate).getTime()
         : parseETDateTime(tradingStartDate, '09:31');
@@ -1198,6 +1235,11 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
         const dayStartTs = new Date(tradingStartDate + 'T00:00:00').getTime();
         simTradingStartMinuteIndex = simMinuteBarsCache.findIndex(bar => bar.timestamp >= dayStartTs);
         if (simTradingStartMinuteIndex === -1) simTradingStartMinuteIndex = simMinuteBarsCache.length;
+    }
+    // A narrowed seconds window can start after the session's trading start date; in
+    // that case every loaded bar is tradable.
+    if (simSecondsEnabled && simMinuteBarsCache.length > 0 && simMinuteBarsCache[0].timestamp >= tradingStartTs) {
+        simTradingStartMinuteIndex = 0;
     }
 
     if (restoreMinuteIndex !== null) {
@@ -1219,6 +1261,59 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
     simIsLoadingTimeframes = false;
     updateLoadingStatus(`All timeframes ready (${simMinuteBarsCache.length} bars)`);
     setTimeout(() => updateLoadingStatus(''), 3000);
+}
+
+function syncSecondsSelect() {
+    const select = document.getElementById('simSecondsSelect');
+    if (!select) return;
+    select.value = simSecondsEnabled ? String(simSecondsInterval) : '';
+}
+
+// Reloads the base bars at the selected resolution while keeping the replay anchored
+// to the same point in time rather than the same array index.
+async function changeSecondsResolution(rawValue) {
+    if (simIsChangingResolution) return;
+    const interval = parseInt(rawValue, 10);
+    const wantSeconds = Number.isInteger(interval) && interval > 0;
+    if (wantSeconds === simSecondsEnabled && (!wantSeconds || interval === simSecondsInterval)) return;
+    if (!simDataLoaded) { syncSecondsSelect(); return; }
+
+    stopAutoplay();
+    simIsChangingResolution = true;
+
+    const prevSecondsEnabled = simSecondsEnabled;
+    const prevSecondsInterval = simSecondsInterval;
+    const prevTimeframe = simCurrentTimeframe;
+    const anchorBar = simMinuteBarsCache[Math.max(0, simCurrentMinuteIndex - 1)];
+    const anchorTs = anchorBar ? anchorBar.timestamp : null;
+
+    simSecondsEnabled = wantSeconds;
+    simSecondsInterval = wantSeconds ? interval : 0;
+    simCurrentTimeframe = wantSeconds ? 'seconds' : (prevTimeframe === 'seconds' ? '1m' : prevTimeframe);
+
+    const loaded = await loadSimulatedChart(null, anchorTs);
+    if (!loaded) {
+        simSecondsEnabled = prevSecondsEnabled;
+        simSecondsInterval = prevSecondsInterval;
+        simCurrentTimeframe = prevTimeframe;
+        simIsChangingResolution = false;
+        syncSecondsSelect();
+        await loadSimulatedChart(null, anchorTs);
+        return;
+    }
+
+    // Option legs were priced from bars at the previous resolution; refetch them so
+    // option P&L, take-profit and stop-loss run on the same grid as the underlying.
+    for (const pos of simOpenOptionPositions) {
+        for (const leg of pos.legs) leg.optionBars = [];
+    }
+    await restoreOptionBarsForOpenPositions();
+
+    updateTradingDisplay();
+    updateOptionsPnlDisplay();
+    updateNavigationButtons();
+    simIsChangingResolution = false;
+    syncSecondsSelect();
 }
 
 function rebuildBarsForCurrentTimeframe() {
@@ -1925,6 +2020,7 @@ function switchTimeframe(timeframe) {
 }
 
 function updateTimeframeButtons() {
+    syncSecondsSelect();
     document.querySelectorAll('.sim-tf-btn').forEach(btn => {
         const tf = btn.dataset.timeframe;
         const hasData = simTimeframeData[tf] && simTimeframeData[tf].length > 0;
@@ -2938,7 +3034,8 @@ async function executeOptionTrade() {
                 }
             }
 
-            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, legExpDateStr, startDateStr, simChartDates.end, simSecondsEnabled ? simSecondsInterval : detectionBar, legConfig, underlyingPrice);
+            const optionEndDate = simDataWindow.end || simChartDates.end;
+            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, legExpDateStr, startDateStr, optionEndDate, simSecondsEnabled ? simSecondsInterval : detectionBar, legConfig, underlyingPrice);
             if (!optionData.bars || optionData.bars.length === 0) {
                 appAlert('No option data found for leg ' + (i + 1) + ': ' + legConfig.name);
                 return;
