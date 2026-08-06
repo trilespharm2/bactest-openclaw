@@ -159,17 +159,6 @@ function initSimulatedTrading() {
     setTimeout(applySimTierRestrictions, 600);
 
     loadBtn.addEventListener('click', startNewSession);
-    const secondToggle = document.getElementById('simUseSecondsBars');
-    const secondsInterval = document.getElementById('simSecondsInterval');
-    const syncSecondControls = function() {
-        if (!secondToggle || !secondsInterval) return;
-        secondsInterval.disabled = !secondToggle.checked;
-        secondsInterval.setAttribute('aria-disabled', String(!secondToggle.checked));
-        if (!secondToggle.checked) document.getElementById('simDateError')?.classList.add('d-none');
-    };
-    secondToggle?.addEventListener('change', syncSecondControls);
-    secondsInterval?.addEventListener('input', () => document.getElementById('simDateError')?.classList.add('d-none'));
-    syncSecondControls();
 
     document.querySelectorAll('#simTradingModeSwitch .sim-mode-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -262,9 +251,6 @@ function startNewSession() {
     const tradingStartDate = document.getElementById('simTradingStartDate').value;
     const mode = document.getElementById('simTradingMode').value;
     const balance = parseFloat(document.getElementById('simAccountBalance').value) || 100000;
-    const secondsEnabled = !!document.getElementById('simUseSecondsBars')?.checked;
-    const secondsInput = document.getElementById('simSecondsInterval');
-    const secondsInterval = Number(secondsInput?.valueAsNumber ?? secondsInput?.value);
 
     const dateErrorDiv = document.getElementById('simDateError');
     const dateErrorText = document.getElementById('simDateErrorText');
@@ -290,20 +276,6 @@ function startNewSession() {
         dateErrorDiv.classList.remove('d-none');
         return;
     }
-    if (secondsEnabled && (!Number.isInteger(secondsInterval) || secondsInterval < 1 || secondsInterval > 59)) {
-        dateErrorText.textContent = 'Seconds interval must be a whole number from 1 to 59.';
-        dateErrorDiv.classList.remove('d-none');
-        return;
-    }
-    if (secondsEnabled) {
-        const calendarDays = Math.floor((new Date(chartEndDate + 'T00:00:00') - new Date(chartStartDate + 'T00:00:00')) / 86400000) + 1;
-        if (calendarDays > 5 || (calendarDays * 23400 / secondsInterval) > 50000) {
-            dateErrorText.textContent = 'Second-bar replay is limited to 5 calendar days and 50,000 bars. Choose a shorter date range or a larger seconds-per-bar interval.';
-            dateErrorDiv.classList.remove('d-none');
-            return;
-        }
-    }
-
     var isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : true;
     if (isGuest) {
         window._simGuestSession = true;
@@ -315,7 +287,7 @@ function startNewSession() {
 
     window._simPendingSession = {
         symbol, chartStartDate, chartEndDate, tradingStartDate, mode, balance,
-        secondsEnabled, secondsInterval: secondsEnabled ? secondsInterval : 10,
+        secondsEnabled: false, secondsInterval: 0,
         isNew: true
     };
 
@@ -1211,12 +1183,11 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null, resto
         secondsButton.textContent = `${simSecondsInterval}s`;
     }
     if (simSecondsEnabled && simCurrentTimeframe !== 'seconds') simCurrentTimeframe = 'seconds';
-    const autoplayInterval = document.getElementById('simAutoplayInterval');
-    if (autoplayInterval) {
-        autoplayInterval.disabled = simSecondsEnabled;
-        autoplayInterval.title = simSecondsEnabled
-            ? 'Second-bar sessions advance one selected bar at a time.'
-            : '';
+    configureSimAdvanceIntervals();
+    const gotoTime = document.getElementById('simGotoTime');
+    if (gotoTime) {
+        gotoTime.placeholder = simSecondsEnabled ? 'HH:MM:SS' : 'HH:MM';
+        gotoTime.style.width = simSecondsEnabled ? '72px' : '55px';
     }
     if (simSecondsEnabled) {
         // A full second-data session can contain 50,000 bars. Build higher
@@ -2002,9 +1973,49 @@ function updateTimeframeButtons() {
     });
 }
 
+// The select stores a number of base bars to advance. In second-bar mode the
+// visible labels are expressed as elapsed seconds/minutes, and every value is
+// a clean multiple of the configured base bar resolution.
+function configureSimAdvanceIntervals() {
+    const select = document.getElementById('simAutoplayInterval');
+    if (!select) return;
+
+    const previousValue = select.value;
+    const options = simSecondsEnabled
+        ? [1, 3, 6, 30, 60].map(seconds => {
+            const actualSeconds = Math.max(simSecondsInterval, Math.ceil(seconds / simSecondsInterval) * simSecondsInterval);
+            const bars = actualSeconds / simSecondsInterval;
+            const label = actualSeconds < 60 ? `${actualSeconds} sec` : `${actualSeconds / 60} min`;
+            return { value: String(bars), label };
+        }).filter((item, index, items) => items.findIndex(other => other.value === item.value) === index)
+        : [
+            { value: '1', label: '1 min' },
+            { value: '5', label: '5 min' },
+            { value: '15', label: '15 min' },
+            { value: '30', label: '30 min' },
+            { value: '60', label: '1 hr' }
+        ];
+
+    select.replaceChildren(...options.map(option => {
+        const node = document.createElement('option');
+        node.value = option.value;
+        node.textContent = option.label;
+        return node;
+    }));
+    select.value = options.some(option => option.value === previousValue) ? previousValue : options[0].value;
+    select.disabled = false;
+    select.title = simSecondsEnabled
+        ? `Advance by a multiple of the current ${simSecondsInterval}-second bar size.`
+        : '';
+}
+
+function getSimBarAdvanceCount() {
+    return parseInt(document.getElementById('simAutoplayInterval')?.value, 10) || 1;
+}
+
 function showNextBar() {
     stopAutoplay();
-    const skipMinutes = simSecondsEnabled ? 1 : (parseInt(document.getElementById('simAutoplayInterval')?.value) || 1);
+    const skipMinutes = getSimBarAdvanceCount();
     if (simCurrentMinuteIndex < simMinuteBarsCache.length) {
         simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
         rebuildBarsForCurrentTimeframe();
@@ -2025,7 +2036,7 @@ function showNextBar() {
 
 function showPreviousBar() {
     stopAutoplay();
-    const skipMinutes = simSecondsEnabled ? 1 : (parseInt(document.getElementById('simAutoplayInterval')?.value) || 1);
+    const skipMinutes = getSimBarAdvanceCount();
     if (simCurrentMinuteIndex > (simTradingStartMinuteIndex || 0)) {
         simCurrentMinuteIndex = Math.max(simTradingStartMinuteIndex || 0, simCurrentMinuteIndex - skipMinutes);
         rebuildBarsForCurrentTimeframe();
@@ -2064,7 +2075,7 @@ function stopAutoplay() {
 }
 
 function autoplayAdvance() {
-    const interval = simSecondsEnabled ? 1 : (parseInt(document.getElementById('simAutoplayInterval')?.value) || 1);
+    const interval = getSimBarAdvanceCount();
     if (simCurrentMinuteIndex >= simMinuteBarsCache.length) { stopAutoplay(); return; }
     simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + interval);
     rebuildBarsForCurrentTimeframe();
@@ -2094,7 +2105,7 @@ function gotoDateTime() {
     const gotoTimeValue = document.getElementById('simGotoTime')?.value.trim();
 
     let targetDateStr;
-    let targetTime = '09:30';
+    let targetTime = simSecondsEnabled ? '09:30:00' : '09:30';
 
     if (gotoDateValue) {
         const dateParts = gotoDateValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -2108,9 +2119,25 @@ function gotoDateTime() {
     } else { appAlert('Please enter a date'); return; }
 
     if (gotoTimeValue) {
-        const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})$/);
-        if (!timeParts) { appAlert('Please enter time in HH:MM format'); return; }
-        targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
+        const timeParts = gotoTimeValue.match(simSecondsEnabled
+            ? /^(\d{1,2}):(\d{2}):(\d{2})$/
+            : /^(\d{1,2}):(\d{2})$/);
+        if (!timeParts) {
+            appAlert(simSecondsEnabled
+                ? 'Please enter time in HH:MM:SS format'
+                : 'Please enter time in HH:MM format');
+            return;
+        }
+        const hour = Number(timeParts[1]);
+        const minute = Number(timeParts[2]);
+        const second = simSecondsEnabled ? Number(timeParts[3]) : 0;
+        if (hour > 23 || minute > 59 || second > 59) {
+            appAlert('Please enter a valid time');
+            return;
+        }
+        targetTime = simSecondsEnabled
+            ? `${timeParts[1].padStart(2, '0')}:${timeParts[2]}:${timeParts[3]}`
+            : `${timeParts[1].padStart(2, '0')}:${timeParts[2]}`;
     }
 
     // Check if the requested date has any trading bars at all
@@ -3763,7 +3790,7 @@ function refreshPayoffModal() {
 }
 
 function payoffModalAdvanceBar(direction) {
-    const skipMinutes = simSecondsEnabled ? 1 : (parseInt(document.getElementById('simAutoplayInterval')?.value) || 1);
+    const skipMinutes = getSimBarAdvanceCount();
     if (direction > 0 && simCurrentMinuteIndex < simMinuteBarsCache.length) {
         simCurrentMinuteIndex = Math.min(simMinuteBarsCache.length, simCurrentMinuteIndex + skipMinutes);
     } else if (direction < 0 && simCurrentMinuteIndex > simTradingStartMinuteIndex) {
