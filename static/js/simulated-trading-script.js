@@ -84,6 +84,8 @@ let simAutoplayTimer = null;
 let simIsPlaying = false;
 
 let simMinuteBarsCache = [];
+let simSecondsEnabled = false;
+let simSecondsInterval = 10;
 
 let lwChart = null;
 let lwCandleSeries = null;
@@ -145,6 +147,14 @@ function initSimulatedTrading() {
     setTimeout(applySimTierRestrictions, 600);
 
     loadBtn.addEventListener('click', startNewSession);
+
+    const secondsToggle = document.getElementById('simUseSecondsBars');
+    const secondsGroup = document.getElementById('simSecondsIntervalGroup');
+    if (secondsToggle && secondsGroup) {
+        secondsToggle.addEventListener('change', () => {
+            secondsGroup.style.display = secondsToggle.checked ? '' : 'none';
+        });
+    }
 
     document.querySelectorAll('#simTradingModeSwitch .sim-mode-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -237,6 +247,8 @@ function startNewSession() {
     const tradingStartDate = document.getElementById('simTradingStartDate').value;
     const mode = document.getElementById('simTradingMode').value;
     const balance = parseFloat(document.getElementById('simAccountBalance').value) || 100000;
+    const secondsEnabled = Boolean(document.getElementById('simUseSecondsBars')?.checked);
+    const secondsInterval = parseInt(document.getElementById('simSecondsInterval')?.value || '10', 10);
 
     const dateErrorDiv = document.getElementById('simDateError');
     const dateErrorText = document.getElementById('simDateErrorText');
@@ -262,6 +274,20 @@ function startNewSession() {
         dateErrorDiv.classList.remove('d-none');
         return;
     }
+    if (secondsEnabled && (!Number.isInteger(secondsInterval) || secondsInterval < 1 || secondsInterval > 59)) {
+        dateErrorText.textContent = 'Seconds interval must be a whole number from 1 to 59.';
+        dateErrorDiv.classList.remove('d-none');
+        return;
+    }
+    if (secondsEnabled) {
+        const requestedDays = Math.floor((new Date(chartEndDate) - new Date(chartStartDate)) / 86400000) + 1;
+        const maxDays = secondsInterval <= 5 ? 1 : secondsInterval <= 15 ? 3 : 7;
+        if (requestedDays > maxDays) {
+            dateErrorText.textContent = `A ${secondsInterval}-second session supports up to ${maxDays} calendar day${maxDays === 1 ? '' : 's'} to keep replay responsive.`;
+            dateErrorDiv.classList.remove('d-none');
+            return;
+        }
+    }
 
     var isGuest = typeof window.isAuthenticated === 'function' ? !window.isAuthenticated() : true;
     if (isGuest) {
@@ -274,6 +300,7 @@ function startNewSession() {
 
     window._simPendingSession = {
         symbol, chartStartDate, chartEndDate, tradingStartDate, mode, balance,
+        secondsEnabled, secondsInterval,
         isNew: true
     };
 
@@ -301,6 +328,8 @@ function resumeSession(index) {
         tradingStartDate: session.tradingStartDate,
         mode: session.mode,
         balance: session.initialBalance,
+        secondsEnabled: Boolean(session.secondsEnabled),
+        secondsInterval: session.secondsInterval || 10,
         isNew: false,
         sessionIndex: index,
         savedState: session
@@ -615,6 +644,8 @@ function initSimTradingActive() {
         simCurrentSymbol = pending.symbol;
         simChartDates = { start: pending.chartStartDate, end: pending.chartEndDate, tradingStart: pending.tradingStartDate };
         simInitialBalance = pending.balance;
+        simSecondsEnabled = Boolean(pending.secondsEnabled);
+        simSecondsInterval = pending.secondsInterval || 10;
         document.getElementById('simTradingMode') && (window._simTradingMode = pending.mode);
         window._simTradingMode = pending.mode;
         applyTradingMode();
@@ -819,6 +850,8 @@ function saveCurrentSessionState() {
         unrealizedPnl: unrealizedPnl,
         currentMinuteIndex: simCurrentMinuteIndex,
         currentTimeframe: simCurrentTimeframe,
+        secondsEnabled: simSecondsEnabled,
+        secondsInterval: simSecondsInterval,
         openPosition: simOpenPosition,
         closedTrades: simClosedTrades,
         closedTradesCount: (mode === 'stock' ? simClosedTrades : simClosedOptionTrades).length,
@@ -882,6 +915,8 @@ async function restoreSession(savedState) {
     resetTradingState();
     simCurrentSymbol = savedState.symbol;
     simChartDates = { start: savedState.chartStartDate, end: savedState.chartEndDate, tradingStart: savedState.tradingStartDate };
+    simSecondsEnabled = Boolean(savedState.secondsEnabled);
+    simSecondsInterval = savedState.secondsInterval || 10;
     simInitialBalance = savedState.initialBalance;
     window._simTradingMode = savedState.mode;
     applyTradingMode();
@@ -895,7 +930,7 @@ async function restoreSession(savedState) {
     simActiveSessionId = savedState.createdAt;
 
     const targetMinuteIndex = savedState.currentMinuteIndex || 0;
-    simCurrentTimeframe = savedState.currentTimeframe || '1m';
+    simCurrentTimeframe = savedState.currentTimeframe || (simSecondsEnabled ? 'seconds' : '1m');
 
     await loadSimulatedChart(targetMinuteIndex);
     await restoreOptionBarsForOpenPositions();
@@ -929,7 +964,8 @@ async function restoreOptionBarsForOpenPositions() {
                         option_symbol: leg.optionSymbol,
                         start_date: simChartDates.start,
                         end_date: simChartDates.end,
-                        multiplier: 1
+                        multiplier: simSecondsEnabled ? simSecondsInterval : 1,
+                        bar_size: simSecondsEnabled ? 'second' : 'minute'
                     })
                 });
                 if (response.ok) {
@@ -967,6 +1003,8 @@ function resetTradingState() {
     simCurrentMinuteIndex = 0;
     simTradingStartMinuteIndex = 0;
     simMinuteBarsCache = [];
+    simSecondsEnabled = false;
+    simSecondsInterval = 10;
     simTimeframeData = {};
     simCurrentTimeframe = '1m';
     simIsLoadingTimeframes = false;
@@ -1009,19 +1047,17 @@ async function fetchMinuteBars(symbol, startDate, endDate) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ symbol, start_date: startDate, end_date: endDate, bar_size: 'minute', multiplier: 1 })
+            body: JSON.stringify({
+                symbol, start_date: startDate, end_date: endDate,
+                bar_size: simSecondsEnabled ? 'second' : 'minute',
+                multiplier: simSecondsEnabled ? simSecondsInterval : 1
+            })
         });
-        if (!response.ok) {
-            const text = await response.text();
-            let errMsg = `HTTP ${response.status}`;
-            try { const parsed = JSON.parse(text); errMsg = parsed.error || errMsg; } catch(e) {}
-            console.error('Error fetching 1m data: server returned', response.status, text.slice(0, 200));
-            throw new Error(errMsg);
-        }
+        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed to fetch data'); }
         const data = await response.json();
         return data.bars || [];
     } catch (error) {
-        console.error('Error fetching 1m data:', error.message || error);
+        console.error('Error fetching simulated bars:', error);
         return null;
     }
 }
@@ -1125,7 +1161,7 @@ async function loadSimulatedChart(restoreMinuteIndex = null) {
 
         simMinuteBarsCache = minuteBars;
         simDataLoaded = true;
-        console.log(`Fetched ${minuteBars.length} 1-minute bars`);
+        console.log(`Fetched ${minuteBars.length} ${simSecondsEnabled ? `${simSecondsInterval}-second` : '1-minute'} bars`);
 
         showLoader(true, 'Computing timeframes...', '0 / 7');
         computeAllTimeframes(simChartDates.tradingStart, restoreMinuteIndex);
@@ -1146,6 +1182,14 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
         updateTimeframeButtons();
     }
 
+    if (simSecondsEnabled) {
+        simTimeframeData.seconds = simMinuteBarsCache;
+        const secondsBtn = document.getElementById('simSecondsTimeframeBtn');
+        if (secondsBtn) {
+            secondsBtn.textContent = `${simSecondsInterval}s`;
+            secondsBtn.style.display = '';
+        }
+    }
     const tradingStartTs = tradingStartDate.includes('T')
         ? new Date(tradingStartDate).getTime()
         : parseETDateTime(tradingStartDate, '09:31');
@@ -1178,6 +1222,13 @@ function computeAllTimeframes(tradingStartDate, restoreMinuteIndex = null) {
 }
 
 function rebuildBarsForCurrentTimeframe() {
+    if (simCurrentTimeframe === 'seconds') {
+        simAllBars = simMinuteBarsCache;
+        simVisibleBars = simMinuteBarsCache.slice(0, simCurrentMinuteIndex);
+        simCurrentBarIndex = simVisibleBars.length;
+        simTradingStartIndex = simTradingStartMinuteIndex;
+        return;
+    }
     const targetMinutes = TIMEFRAME_MINUTES[simCurrentTimeframe];
     simAllBars = simTimeframeData[simCurrentTimeframe] || [];
     simVisibleBars = aggregateBarsUpToMinute(simMinuteBarsCache, targetMinutes, simCurrentMinuteIndex);
@@ -1224,27 +1275,10 @@ function createLWChart() {
         timeScale: {
             borderColor: '#d1d4dc',
             timeVisible: true,
-            secondsVisible: false,
+            secondsVisible: simSecondsEnabled,
             rightOffset: 5,
             barSpacing: 6,
-            minBarSpacing: 2,
-            tickMarkFormatter: function(t, tickType) {
-                // t is a Unix timestamp in seconds (UTC). Convert to ET for display.
-                var d = new Date(t * 1000);
-                var etStr = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour12: false,
-                    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-                // etStr: "MM/DD, HH:MM"
-                var parts = etStr.split(', ');
-                var datePart = parts[0] || '';  // MM/DD
-                var timePart = parts[1] || '';  // HH:MM
-                // tickType 0=Year,1=Month,2=DayOfMonth,3=Time,4=TimeWithSeconds
-                if (tickType === 0 || tickType === 1) {
-                    var yr = d.toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric' });
-                    return tickType === 0 ? yr : datePart;
-                }
-                if (tickType === 2) return datePart;
-                return timePart;
-            }
+            minBarSpacing: 2
         },
         handleScroll: { vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true }
@@ -2904,7 +2938,7 @@ async function executeOptionTrade() {
                 }
             }
 
-            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, legExpDateStr, startDateStr, simChartDates.end, detectionBar, legConfig, underlyingPrice);
+            const optionData = await fetchOptionBars(simCurrentSymbol, legConfig.type, legExpDateStr, startDateStr, simChartDates.end, simSecondsEnabled ? simSecondsInterval : detectionBar, legConfig, underlyingPrice);
             if (!optionData.bars || optionData.bars.length === 0) {
                 appAlert('No option data found for leg ' + (i + 1) + ': ' + legConfig.name);
                 return;
@@ -2965,6 +2999,7 @@ async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, 
     const requestBody = {
         symbol, option_type: optionType, expiration_date: expDate,
         start_date: startDate, end_date: endDate, multiplier,
+        bar_size: simSecondsEnabled ? 'second' : 'minute',
         underlying_price: underlyingPrice, strike_method: legConfig.method,
         method_value: dirSign * (legConfig.value || 0), fallback: legConfig.fallback || 'closest'
     };

@@ -6682,6 +6682,17 @@ def get_simulated_trading_bars():
 
         if not symbol or not start_date or not end_date:
             return jsonify({'error': 'Symbol, start_date, and end_date are required'}), 400
+        if bar_size not in ('minute', 'second'):
+            return jsonify({'error': 'bar_size must be minute or second'}), 400
+        if multiplier < 1 or (bar_size == 'second' and multiplier > 59):
+            return jsonify({'error': 'Second-bar interval must be a whole number from 1 to 59'}), 400
+        if bar_size == 'second':
+            from datetime import datetime as _sim_dt
+            requested_days = (_sim_dt.strptime(end_date, '%Y-%m-%d').date() -
+                              _sim_dt.strptime(start_date, '%Y-%m-%d').date()).days + 1
+            max_days = 1 if multiplier <= 5 else (3 if multiplier <= 15 else 7)
+            if requested_days > max_days:
+                return jsonify({'error': f'{multiplier}-second data is limited to {max_days} calendar day(s) per session'}), 400
 
         tier = get_user_tier()
         tier_errors = validate_tier_restrictions(tier, symbol, start_date=start_date, end_date=end_date)
@@ -6890,6 +6901,7 @@ def get_simulated_trading_option_bars():
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         multiplier = int(data.get('multiplier', 1))
+        bar_size = data.get('bar_size', 'minute')
         fallback = data.get('fallback', 'closest')
         
         underlying_price = data.get('underlying_price')
@@ -6930,6 +6942,8 @@ def get_simulated_trading_option_bars():
         if not symbol or not strike or not expiration_date or not start_date:
             print(f"[SimTrading Option Bars] Missing required fields: symbol={bool(symbol)}, strike={strike}, exp={bool(expiration_date)}, start={bool(start_date)}")
             return jsonify({'error': 'Symbol, strike, expiration_date, and start_date are required'}), 400
+        if bar_size not in ('minute', 'second') or multiplier < 1 or (bar_size == 'second' and multiplier > 59):
+            return jsonify({'error': 'Invalid option-bar resolution'}), 400
         
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
@@ -6956,7 +6970,7 @@ def get_simulated_trading_option_bars():
             aggs = client.get_aggs(
                 ticker=option_symbol,
                 multiplier=multiplier,
-                timespan='minute',
+                timespan=bar_size,
                 from_=start_date,
                 to=end_date or start_date,
                 limit=50000
@@ -7009,7 +7023,7 @@ def get_simulated_trading_option_bars():
                         aggs = client.get_aggs(
                             ticker=option_symbol,
                             multiplier=multiplier,
-                            timespan='minute',
+                            timespan=bar_size,
                             from_=start_date,
                             to=end_date or start_date,
                             limit=50000
@@ -7063,7 +7077,7 @@ def get_simulated_trading_option_bars():
                         t_int = int(test_k * 1000)
                         t_sym = f"O:{option_symbol_base}{date_part}{option_type}{t_int:08d}"
                         t_aggs = client.get_aggs(ticker=t_sym, multiplier=multiplier,
-                                                 timespan='minute', from_=start_date,
+                                                 timespan=bar_size, from_=start_date,
                                                  to=end_date or start_date, limit=50000)
                         tmp = []
                         for agg in t_aggs:
@@ -7081,12 +7095,12 @@ def get_simulated_trading_option_bars():
                 if ref_bars_raw:
                     break
 
-            # Fetch underlying minute bars for per-timestamp S values
+            # Fetch underlying bars at the requested resolution for per-timestamp S values.
             und_map = {}
             try:
                 _IDX = {'SPX': 'I:SPX', 'SPXW': 'I:SPX', 'NDX': 'I:NDX', 'RUT': 'I:RUT', 'XSP': 'I:XSP'}
                 u_ticker = _IDX.get(symbol, symbol)
-                u_aggs = client.get_aggs(ticker=u_ticker, multiplier=1, timespan='minute',
+                u_aggs = client.get_aggs(ticker=u_ticker, multiplier=multiplier, timespan=bar_size,
                                          from_=start_date, to=end_date or start_date, limit=50000)
                 for agg in u_aggs:
                     ts = agg.timestamp
@@ -7378,9 +7392,12 @@ def get_option_bars_by_symbol():
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         multiplier = int(data.get('multiplier', 1))
+        bar_size = data.get('bar_size', 'minute')
 
         if not option_symbol or not start_date:
             return jsonify({'error': 'option_symbol and start_date are required'}), 400
+        if bar_size not in ('minute', 'second') or multiplier < 1 or (bar_size == 'second' and multiplier > 59):
+            return jsonify({'error': 'Invalid option-bar resolution'}), 400
 
         api_key = request.headers.get('X-API-Key') or API_KEY
         if not api_key:
@@ -7395,7 +7412,7 @@ def get_option_bars_by_symbol():
         aggs = client.get_aggs(
             ticker=option_symbol,
             multiplier=multiplier,
-            timespan='minute',
+            timespan=bar_size,
             from_=start_date,
             to=end_date or start_date,
             limit=50000
