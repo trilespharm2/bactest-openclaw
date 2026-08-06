@@ -977,8 +977,7 @@ async function restoreSession(savedState) {
 
 async function restoreOptionBarsForOpenPositions() {
     if (simOpenOptionPositions.length === 0) return;
-    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
+    const apiUrl = '/api';
 
     for (const pos of simOpenOptionPositions) {
         for (const leg of pos.legs) {
@@ -1070,8 +1069,7 @@ function updateLoadingStatus(text) {
 }
 
 async function fetchBaseBars(symbol, startDate, endDate) {
-    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
+    const apiUrl = '/api';
     try {
         const response = await fetch(`${apiUrl}/simulated-trading/bars`, {
             method: 'POST',
@@ -3142,8 +3140,7 @@ async function executeOptionTrade() {
 }
 
 async function fetchOptionBars(symbol, optionType, expDate, startDate, endDate, multiplier, legConfig, underlyingPrice) {
-    const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? `http://${window.location.hostname}:${window.location.port}/api` : '/api';
+    const apiUrl = '/api';
     const dirSign = (legConfig.method === 'dollar_underlying' || legConfig.method === 'pct_underlying')
         ? (legConfig.direction === 'above' ? 1 : -1)
         : 1;
