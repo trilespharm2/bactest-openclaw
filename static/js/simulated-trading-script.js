@@ -113,6 +113,9 @@ function computeDataWindow(anchorTs) {
         return { start: simChartDates.start, end: simChartDates.end };
     }
     const maxDays = maxDaysForSecondsInterval(simSecondsInterval);
+    if (!isFinite(maxDays)) {
+        return { start: simChartDates.start, end: simChartDates.end };
+    }
     let anchorDate = anchorTs ? etDateStrFromTimestamp(anchorTs) : simChartDates.tradingStart;
     if (anchorDate < simChartDates.start) anchorDate = simChartDates.start;
     if (anchorDate > simChartDates.end) anchorDate = simChartDates.end;
