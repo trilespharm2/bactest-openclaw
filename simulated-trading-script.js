@@ -1364,6 +1364,15 @@ function createLWChart() {
             borderColor: '#d1d4dc',
             scaleMargins: { top: 0.1, bottom: 0.2 }
         },
+        localization: {
+            timeFormatter: (ts) => {
+                const d = new Date(ts * 1000);
+                return d.toLocaleTimeString('en-US', {
+                    timeZone: 'America/New_York',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+                });
+            }
+        },
         timeScale: {
             borderColor: '#d1d4dc',
             timeVisible: true,
