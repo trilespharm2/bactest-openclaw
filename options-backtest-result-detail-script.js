@@ -139,10 +139,7 @@ async function loadResults() {
             displayStatistics(metadata);
             await displayTradeLog(backtestId);
             
-            // Build decision tree from metadata (independent of trade log CSV)
-            if (metadata.decision_log && metadata.decision_log.length > 0) {
-                buildOptDecisionTreeFromLog(metadata.decision_log);
-            }
+            await loadDecisionTreeLog(metadata);
         }
         
     } catch (error) {
@@ -229,10 +226,7 @@ async function loadCompletedResults() {
         // Load and display trade log (this also builds the equity curve)
         await displayTradeLog(backtestId);
         
-        // Build decision tree from metadata (independent of trade log CSV)
-        if (metadata.decision_log && metadata.decision_log.length > 0) {
-            buildOptDecisionTreeFromLog(metadata.decision_log);
-        }
+        await loadDecisionTreeLog(metadata);
         
         console.log('Results loaded successfully');
         
@@ -242,17 +236,46 @@ async function loadCompletedResults() {
     }
 }
 
+async function loadDecisionTreeLog(metadata) {
+    // Newer result files keep the potentially large log in a dedicated endpoint.
+    // Retain the metadata fallback for older results that embedded the log.
+    if (Array.isArray(metadata.decision_log) && metadata.decision_log.length > 0) {
+        buildOptDecisionTreeFromLog(metadata.decision_log);
+        return;
+    }
+
+    try {
+        const response = await authFetch(`/api/files/decision-log/${backtestId}`);
+        if (!response.ok) return;
+        const decisionLog = await response.json();
+        if (Array.isArray(decisionLog) && decisionLog.length > 0) {
+            buildOptDecisionTreeFromLog(decisionLog);
+        }
+    } catch (error) {
+        console.warn('Unable to load decision log:', error);
+    }
+}
+
 function displayConfiguration(metadata) {
     const list = document.getElementById('configList');
     
     // Metadata structure: { id, timestamp, config: {...}, summary: {...}, files: {...} }
     const config = metadata.config || {};
     
+    const backtestName = metadata.name || config.backtest_name || config.name || '';
+
     // Update title
-    document.getElementById('backtestTitle').textContent = config.strategy || 'Options Backtest';
+    document.getElementById('backtestTitle').textContent = backtestName || config.strategy || 'Options Backtest';
     
     // Build configuration items
     const configItems = [];
+
+    if (backtestName) {
+        configItems.push({
+            label: 'Backtest Name',
+            value: backtestName
+        });
+    }
     
     // Strategy
     if (config.strategy) {
@@ -933,6 +956,22 @@ function renderOptDtPageFromLog() {
             </div>`;
         }
 
+        const entryEvent = (day.events || []).find(evt => evt.type === 'entry');
+        const contractSymbols = Array.isArray(day.contract_symbols) && day.contract_symbols.length
+            ? day.contract_symbols
+            : (entryEvent?.legs || []).map(leg => leg.symbol).filter(Boolean);
+        if (contractSymbols.length) {
+            flowHtml += `<div style="display:flex; align-items:flex-start; gap:8px; padding:8px 12px; background:#eef2ff; border-radius:8px; margin-bottom:8px;">
+                <i class="fas fa-file-contract" style="color:#4f46e5; margin-top:2px;"></i>
+                <div style="color:#3730a3; font-size:13px;"><strong>Contracts:</strong> ${contractSymbols.map(symbol => `<code style="display:inline-block; margin:1px 4px 1px 0; padding:1px 5px; background:#e0e7ff; border-radius:4px;">${symbol}</code>`).join('')}</div>
+            </div>`;
+        } else {
+            flowHtml += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f8fafc; border-radius:8px; margin-bottom:8px;">
+                <i class="fas fa-file-contract" style="color:#94a3b8;"></i>
+                <span style="color:#64748b; font-size:13px;"><strong>Contracts:</strong> Unavailable for this saved result</span>
+            </div>`;
+        }
+
         flowHtml += '<div style="border-left:2px solid #e2e8f0; margin-left:20px; padding-left:16px;">';
 
         (day.events || []).forEach(evt => {
@@ -972,7 +1011,7 @@ function renderOptDtPageFromLog() {
                 let legsHtml = '';
                 if (evt.legs && evt.legs.length > 0) {
                     legsHtml = '<div style="margin-top:4px;">' + evt.legs.map(l => 
-                        `<span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-size:11px; margin:2px 4px 2px 0;">${l.position} ${l.type === 'C' ? 'Call' : 'Put'} ${l.name} @ $${l.strike} (${l.entry_price.toFixed(4)})</span>`
+                        `<span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-size:11px; margin:2px 4px 2px 0;">${l.position} ${l.type === 'C' ? 'Call' : 'Put'} ${l.name} @ $${l.strike} (${l.entry_price.toFixed(4)})${l.symbol ? `<br><code>${l.symbol}</code>` : ''}</span>`
                     ).join('') + '</div>';
                 }
                 flowHtml += `<div style="display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#f0fdf4; border-radius:8px; margin-bottom:6px; border-left:3px solid #10b981;">

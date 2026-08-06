@@ -355,7 +355,7 @@
           if (!searchTerm) return true;
           const symbol = bt.config?.symbol?.toLowerCase() || '';
           const strategy = bt.config?.strategy?.toLowerCase() || '';
-          const name = bt.config?.name?.toLowerCase() || '';
+            const name = (bt.name || bt.config?.backtest_name || bt.config?.name || '').toLowerCase();
           return symbol.includes(searchTerm) || strategy.includes(searchTerm) || name.includes(searchTerm);
         });
 
@@ -374,6 +374,7 @@
         grid.innerHTML = filtered.map(bt => {
           const config = bt.config || {};
           const summary = bt.summary || {};
+           const backtestName = bt.name || config.backtest_name || config.name || 'Unnamed Backtest';
           const returnClass = (summary.total_return || 0) >= 0 ? 'positive' : 'negative';
           const returnSign = (summary.total_return || 0) >= 0 ? '+' : '';
           
@@ -385,6 +386,10 @@
                   <span class="badge bg-secondary badge-status">${config.strategy || 'Strategy'}</span>
                 </div>
                 <div class="card-body">
+                  <div class="mb-2">
+                    <small class="text-muted d-block">Backtest Name</small>
+                    <div class="fw-semibold text-truncate" title="${backtestName}">${backtestName}</div>
+                  </div>
                   <div class="row mb-2">
                     <div class="col-6">
                       <small class="text-muted">Return</small>

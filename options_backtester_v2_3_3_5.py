@@ -5735,6 +5735,11 @@ def run_backtest(config: Dict, client: RESTClient):
             success, fetched_legs, option_symbols = fetch_options_data_optimized(
                 client, config, underlying_price, trade_date, exp_date
             )
+            # Preserve the calculated contracts before any market-data fallback or
+            # skip path. The decision log is also the audit trail for dates that
+            # did not become trades, so symbols cannot depend on an OHLCV success.
+            if option_symbols:
+                day_entry['contract_symbols'] = option_symbols
         
             _theoretical = False
             if not success:
@@ -6482,7 +6487,7 @@ def run_backtest(config: Dict, client: RESTClient):
                 'num_contracts': num_contracts,
                 'net_premium': round(_entry_display, 4),
                 'max_risk': None if max_risk is None else round(max_risk, 2),
-                'legs': [{'name': l['name'], 'strike': l['strike'], 'type': l['type'], 'position': l['position'], 'entry_price': round(l['entry_price'], 4)} for l in legs_info],
+                'legs': [{'symbol': l['symbol'], 'name': l['name'], 'strike': l['strike'], 'type': l['type'], 'position': l['position'], 'entry_price': round(l['entry_price'], 4)} for l in legs_info],
                 'expiration': exp_date.strftime("%Y-%m-%d")
             })
         
@@ -6912,6 +6917,10 @@ def run_backtest(config: Dict, client: RESTClient):
                     'theta': leg_info.get('theta'),
                     'vega': leg_info.get('vega')
                 })
+
+            # A strike-sweep fallback can replace an initially calculated symbol.
+            # The decision record should show the contract actually selected.
+            day_entry['contract_symbols'] = [leg['symbol'] for leg in legs_info]
         
             trades.append(trade)
             equity_history.append(capital)
