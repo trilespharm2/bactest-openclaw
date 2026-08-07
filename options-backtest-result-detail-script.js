@@ -380,13 +380,20 @@ function displayConfiguration(metadata) {
     }
     
     // Detection Bar Size
-    if (config.detection_bar_size) {
+    // seconds_interval (e.g. 10 for 10-sec bars) takes priority when present.
+    const secInterval = config.seconds_interval || config.secondsInterval || 0;
+    if (secInterval > 0) {
+        configItems.push({
+            label: 'Detection Interval',
+            value: `${secInterval} seconds`
+        });
+    } else if (config.detection_bar_size) {
         let intervalText;
         if (config.detection_bar_size < 1) {
-            const seconds = config.detection_bar_size * 60;
+            const seconds = Math.round(config.detection_bar_size * 60);
             intervalText = `${seconds} seconds`;
         } else {
-            intervalText = `${config.detection_bar_size} minutes`;
+            intervalText = `${config.detection_bar_size} minute${config.detection_bar_size !== 1 ? 's' : ''}`;
         }
         configItems.push({
             label: 'Detection Interval',

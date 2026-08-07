@@ -300,8 +300,16 @@ function _renderOptConfig(config) {
     else if (config.take_profit_dollar) items.push({l: 'Take Profit', v: '$' + config.take_profit_dollar});
     if (config.stop_loss_pct) items.push({l: 'Stop Loss', v: config.stop_loss_pct + '%'});
     else if (config.stop_loss_dollar) items.push({l: 'Stop Loss', v: '$' + config.stop_loss_dollar});
-    if (config.detection_bar_size) {
-        var intText = config.detection_bar_size < 1 ? (config.detection_bar_size * 60) + ' seconds' : config.detection_bar_size + ' minutes';
+    if (config.seconds_interval || config.secondsInterval || config.detection_bar_size) {
+        const secInterval = config.seconds_interval || config.secondsInterval || 0;
+        let intText;
+        if (secInterval > 0) {
+            intText = secInterval + ' seconds';
+        } else if (config.detection_bar_size < 1) {
+            intText = Math.round(config.detection_bar_size * 60) + ' seconds';
+        } else {
+            intText = config.detection_bar_size + ' minute' + (config.detection_bar_size !== 1 ? 's' : '');
+        }
         items.push({l: 'Detection Interval', v: intText});
     }
     if (config.avoid_pdt !== undefined) items.push({l: 'Avoid PDT', v: config.avoid_pdt ? 'Yes' : 'No'});
