@@ -124,9 +124,15 @@ function computeDataWindow(anchorTs) {
     let anchorDate = anchorTs ? etDateStrFromTimestamp(anchorTs) : simChartDates.tradingStart;
     if (anchorDate < simChartDates.start) anchorDate = simChartDates.start;
     if (anchorDate > simChartDates.end) anchorDate = simChartDates.end;
-    let start = addDaysToDateStr(anchorDate, -(maxDays - 1));
+    // Center the window on anchorDate so that both backward and forward navigation
+    // stays within the loaded range. back = floor half, fwd = ceil half.
+    const back = Math.floor((maxDays - 1) / 2);
+    const fwd  = (maxDays - 1) - back;
+    let start = addDaysToDateStr(anchorDate, -back);
     if (start < simChartDates.start) start = simChartDates.start;
-    return { start, end: anchorDate };
+    let end = addDaysToDateStr(anchorDate, fwd);
+    if (end > simChartDates.end) end = simChartDates.end;
+    return { start, end };
 }
 
 let lwChart = null;
@@ -2157,7 +2163,7 @@ function resetViewToCurrentCandle() {
     lwChart.timeScale().scrollToPosition(5, true);
 }
 
-function gotoDateTime() {
+async function gotoDateTime() {
     const gotoDateValue = document.getElementById('simGotoDate')?.value.trim();
     const gotoTimeValue = document.getElementById('simGotoTime')?.value.trim();
 
@@ -2175,10 +2181,30 @@ function gotoDateTime() {
         targetDateStr = new Date(currentBar.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     } else { appAlert('Please enter a date'); return; }
 
+    if (targetDateStr > simChartDates.end) {
+        appAlert(`Date is beyond the session end date (${simChartDates.end})`);
+        return;
+    }
+    if (targetDateStr < simChartDates.start) {
+        appAlert(`Date is before the session start date (${simChartDates.start})`);
+        return;
+    }
+
     if (gotoTimeValue) {
         const timeParts = gotoTimeValue.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
         if (!timeParts) { appAlert('Please enter time as HH:MM or HH:MM:SS'); return; }
         targetTime = `${timeParts[1].padStart(2, '0')}:${timeParts[2]}:${timeParts[3] || '00'}`;
+    }
+
+    const targetTs = parseETDateTime(targetDateStr, targetTime);
+
+    // If the target falls outside the currently loaded cache, reload centered on it.
+    // loadSimulatedChart positions the chart at the anchor timestamp automatically.
+    const cacheEnd = simMinuteBarsCache.length > 0
+        ? simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp : -Infinity;
+    if (targetTs > cacheEnd) {
+        await loadSimulatedChart(null, targetTs);
+        return;
     }
 
     // Check if the requested date has any trading bars at all
@@ -2190,7 +2216,11 @@ function gotoDateTime() {
     if (!hasBarsOnDay) {
         // Weekend or holiday — find the next trading day and land at the same requested time
         const nextBar = simMinuteBarsCache.find(b => b.timestamp >= dayEnd);
-        if (!nextBar) { appAlert(`Market not open on ${gotoDateValue || targetDateStr} and no later data available`); return; }
+        if (!nextBar) {
+            // Should not happen since we reloaded above when target > cacheEnd, but guard anyway
+            await loadSimulatedChart(null, targetTs);
+            return;
+        }
         resolvedDateStr = new Date(nextBar.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     }
 
