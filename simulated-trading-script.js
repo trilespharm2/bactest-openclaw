@@ -86,6 +86,7 @@ let simIsPlaying = false;
 let simMinuteBarsCache = [];
 let simSecondsEnabled = false;
 let simSecondsInterval = 10;
+let simCacheBarSpacingMs = 60000; // resolution the current cache was fetched at
 // Date window actually fetched for the base bars. Equals the full session range for
 // minute data, but is narrowed for seconds data so payloads stay manageable.
 let simDataWindow = { start: '', end: '' };
@@ -1203,6 +1204,10 @@ async function loadSimulatedChart(restoreMinuteIndex = null, restoreTimestamp = 
         if (minuteBars.length === 0) throw new Error('No market data found for the specified parameters');
 
         simMinuteBarsCache = minuteBars;
+        // Record the resolution these bars were fetched at, so navigation can
+        // detect a stale cache after a resolution switch without inferring it
+        // from bar timestamps (fragile across day boundaries / sparse data).
+        simCacheBarSpacingMs = simSecondsEnabled ? simSecondsInterval * 1000 : 60000;
         simDataLoaded = true;
         console.log(`Fetched ${minuteBars.length} ${simSecondsEnabled ? `${simSecondsInterval}-second` : '1-minute'} bars`);
 
@@ -1388,7 +1393,26 @@ function createLWChart() {
             secondsVisible: simSecondsEnabled,
             rightOffset: 5,
             barSpacing: 6,
-            minBarSpacing: 2
+            minBarSpacing: 2,
+            tickMarkFormatter: (ts, tickMarkType) => {
+                const d = new Date(ts * 1000);
+                // TickMarkType: 0=Year, 1=Month, 2=DayOfMonth, 3=Time, 4=TimeWithSeconds
+                if (tickMarkType === 0) {
+                    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', year: 'numeric' });
+                }
+                if (tickMarkType === 1) {
+                    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short' });
+                }
+                if (tickMarkType === 2) {
+                    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', day: 'numeric' });
+                }
+                return d.toLocaleTimeString('en-US', {
+                    timeZone: 'America/New_York',
+                    hour: '2-digit', minute: '2-digit',
+                    ...(tickMarkType === 4 ? { second: '2-digit' } : {}),
+                    hour12: false
+                });
+            }
         },
         handleScroll: { vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true }
@@ -2164,6 +2188,9 @@ function resetViewToCurrentCandle() {
 }
 
 async function gotoDateTime() {
+    // A resolution change is mid-flight and owns the cache/chart state; a
+    // concurrent goto would race it and the loser's window would win.
+    if (simIsChangingResolution) return;
     const gotoDateValue = document.getElementById('simGotoDate')?.value.trim();
     const gotoTimeValue = document.getElementById('simGotoTime')?.value.trim();
 
@@ -2198,20 +2225,19 @@ async function gotoDateTime() {
 
     const targetTs = parseETDateTime(targetDateStr, targetTime);
 
-    // Detect a stale cache: the resolution was switched since the last load,
-    // so the cached bars are at the wrong granularity.  Compare the actual
-    // inter-bar spacing against what the current settings expect.
+    // Stale cache: the resolution was switched since the last load, so the
+    // cached bars are at the wrong granularity.  Uses the recorded load-time
+    // resolution rather than inferring from bar timestamps.
     const expectedSpacingMs = simSecondsEnabled ? simSecondsInterval * 1000 : 60000;
-    const actualSpacingMs = simMinuteBarsCache.length >= 2
-        ? simMinuteBarsCache[1].timestamp - simMinuteBarsCache[0].timestamp : expectedSpacingMs;
-    const cacheIsStale = Math.abs(actualSpacingMs - expectedSpacingMs) > 500;
+    const cacheIsStale = simCacheBarSpacingMs !== expectedSpacingMs;
 
-    // If the target falls outside the currently loaded cache, or the cache is
-    // stale, reload centered on the target.  loadSimulatedChart positions the
-    // chart at the anchor timestamp automatically.
+    // If the target falls outside the currently loaded cache (before its first
+    // bar or after its last), or the cache is stale, reload centered on the
+    // target.  loadSimulatedChart positions the chart at the anchor timestamp.
+    const cacheStart = simMinuteBarsCache.length > 0 ? simMinuteBarsCache[0].timestamp : Infinity;
     const cacheEnd = simMinuteBarsCache.length > 0
         ? simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp : -Infinity;
-    if (cacheIsStale || targetTs > cacheEnd) {
+    if (cacheIsStale || targetTs > cacheEnd || targetTs < cacheStart) {
         await loadSimulatedChart(null, targetTs);
         return;
     }
