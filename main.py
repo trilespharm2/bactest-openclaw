@@ -6765,9 +6765,11 @@ def get_simulated_trading_bars():
 
         def _fetch_polygon_bars(_api_key, _ticker, _multiplier, _bar_size, _start, _end):
             from polygon.rest import RESTClient as _RC
-            _client = _RC(_api_key, connect_timeout=5, read_timeout=10, retries=0)
-            _aggs = _client.get_aggs(ticker=_ticker, multiplier=_multiplier, timespan=_bar_size,
-                                     from_=_start, to=_end, limit=50000)
+            _client = _RC(_api_key, connect_timeout=5, read_timeout=30, retries=0)
+            # list_aggs paginates automatically; get_aggs silently truncates at
+            # `limit` (50k), which cut multi-day seconds windows off mid-day.
+            _aggs = _client.list_aggs(ticker=_ticker, multiplier=_multiplier, timespan=_bar_size,
+                                      from_=_start, to=_end, limit=50000)
             _result = []
             for _agg in _aggs:
                 _ts = _agg.timestamp
@@ -6787,7 +6789,7 @@ def get_simulated_trading_bars():
                 _future = _pool.submit(_fetch_polygon_bars, api_key, polygon_ticker,
                                        multiplier, bar_size, start_date, end_date)
                 try:
-                    bars = _future.result(timeout=20)
+                    bars = _future.result(timeout=45)
                 except _cf.TimeoutError:
                     _future.cancel()
                     return jsonify({'error': 'Data request timed out — Polygon API is slow. Try a different date range or symbol.'}), 504
