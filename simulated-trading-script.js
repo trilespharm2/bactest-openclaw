@@ -91,9 +91,14 @@ let simSecondsInterval = 10;
 let simDataWindow = { start: '', end: '' };
 let simIsChangingResolution = false;
 
-// No calendar day limit on seconds data.
+// Controls how many days of minute-bar data are fetched at once in seconds mode.
+// This is a rolling fetch window, not a hard replay limit — the user can still
+// replay any number of days; data is loaded incrementally as they advance.
 function maxDaysForSecondsInterval(interval) {
-    return Infinity;
+    if (interval <= 1) return 3;
+    if (interval <= 5) return 5;
+    if (interval <= 15) return 7;
+    return 14;
 }
 
 function addDaysToDateStr(dateStr, days) {
