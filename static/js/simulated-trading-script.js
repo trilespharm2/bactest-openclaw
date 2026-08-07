@@ -2229,16 +2229,18 @@ async function gotoDateTime() {
     // Snap DOWN to the bar that CONTAINS the requested instant. Snapping up would reveal
     // a bar that had not finished at the requested time (lookahead). A request finer than
     // the chart resolution (12:31:55 on minute bars) therefore lands on the 12:31 bar.
-    const lowerBound = Math.max(0, (simTradingStartMinuteIndex || 0) - 1);
+    // Search the entire cache — goto must be able to jump to any date in the
+    // loaded chart data, including dates before the trading start (which is
+    // only a floor for prev/next step buttons, not for explicit jumps).
     let targetMinuteIndex = -1;
-    for (let i = simMinuteBarsCache.length - 1; i >= lowerBound; i--) {
+    for (let i = simMinuteBarsCache.length - 1; i >= 0; i--) {
         if (simMinuteBarsCache[i].timestamp <= resolvedTargetTs) { targetMinuteIndex = i + 1; break; }
     }
 
     if (targetMinuteIndex === -1) {
-        // The instant precedes every tradable bar — land on the first one.
+        // The instant precedes every bar in the cache — land on the first one.
         if (simMinuteBarsCache.length === 0) { appAlert('Date/time not found in the available data range'); return; }
-        targetMinuteIndex = lowerBound + 1;
+        targetMinuteIndex = 1;
     }
 
     const landedBar = simMinuteBarsCache[targetMinuteIndex - 1];
