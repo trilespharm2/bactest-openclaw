@@ -2198,11 +2198,20 @@ async function gotoDateTime() {
 
     const targetTs = parseETDateTime(targetDateStr, targetTime);
 
-    // If the target falls outside the currently loaded cache, reload centered on it.
-    // loadSimulatedChart positions the chart at the anchor timestamp automatically.
+    // Detect a stale cache: the resolution was switched since the last load,
+    // so the cached bars are at the wrong granularity.  Compare the actual
+    // inter-bar spacing against what the current settings expect.
+    const expectedSpacingMs = simSecondsEnabled ? simSecondsInterval * 1000 : 60000;
+    const actualSpacingMs = simMinuteBarsCache.length >= 2
+        ? simMinuteBarsCache[1].timestamp - simMinuteBarsCache[0].timestamp : expectedSpacingMs;
+    const cacheIsStale = Math.abs(actualSpacingMs - expectedSpacingMs) > 500;
+
+    // If the target falls outside the currently loaded cache, or the cache is
+    // stale, reload centered on the target.  loadSimulatedChart positions the
+    // chart at the anchor timestamp automatically.
     const cacheEnd = simMinuteBarsCache.length > 0
         ? simMinuteBarsCache[simMinuteBarsCache.length - 1].timestamp : -Infinity;
-    if (targetTs > cacheEnd) {
+    if (cacheIsStale || targetTs > cacheEnd) {
         await loadSimulatedChart(null, targetTs);
         return;
     }
