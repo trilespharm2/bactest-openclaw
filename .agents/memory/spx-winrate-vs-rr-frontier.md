@@ -16,6 +16,9 @@ For any strategy whose exits are fixed barriers (take-profit at +a%, stop-loss a
 
 **Bottom line for future "find a >75% WR AND >2:1 RR" requests:** it is not achievable with mechanical TP/SL on a long equity index. Report the frontier and let the user pick which axis matters most, rather than chasing an impossible point.
 
+## Options engine variant (premium TP/SL barriers)
+WR≈1/(1+R) roughly holds on option premium too, but theta shifts it: long options underperform the frontier (naive 1-DTE long call @ TP15/SL45 was only ~64% WR in Aug24–Jan25); SHORT premium beats it. Best found: **0DTE SPX short put 1% OTM, entry 10:00, TP 15% / SL 45% of credit, net_premium_min $0.50** → 78.9% WR, 223 trades, profitable in both halves of Aug 2024–Jul 2025 (71.6% / 85.1%). The premium floor is essential: in low-vol regimes (Feb–Jul 2024) far-OTM 0DTE credits are ~$0 and %-barriers are pure noise (WR collapses or trades are meaningless) — the filter correctly yields 0 trades there. Dip/momentum entry presets HURT options WR just as they do stocks. ITM long calls → EXPIRATION exits dominate, barriers stop governing, and runs get very slow (many contracts fetched).
+
 ## Day-trade variant (max_days=0 + empty exit_time → forced EOD close)
 Same wall, even tighter. SPX intraday long day-trades (2024-2026, 274 trades) never reach 75% WR with mechanical rules — the forced end-of-day close adds losing days that no entry edge (dip, gap, change-from-open) removes:
 - **With TP>SL** (stop is the nearer barrier, hit more often): max WR ~56% (e.g. TP 2% / SL 1.5%). R>2 only with a tiny ~0.25% stop, which crashes WR to ~33%.
