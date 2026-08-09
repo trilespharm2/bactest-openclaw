@@ -3580,11 +3580,9 @@ function botChartInit() {
   const card = document.getElementById('botChartCard');
   if (card) card.style.display = 'block';
 
-  // Show ORDER + LEGS panels below chart
-  const orderPanel = document.getElementById('botOrderPanel');
-  const legsPanel  = document.getElementById('botLegsPanel');
-  if (orderPanel) orderPanel.style.display = 'block';
-  if (legsPanel)  legsPanel.style.display  = 'block';
+  // Show ORDER + LEGS two-column grid below chart
+  const orderLegsGrid = document.getElementById('botOrderLegsGrid');
+  if (orderLegsGrid) orderLegsGrid.style.display = 'grid';
   botOpUpdateLegs();
 
   // Default load after 200 ms
