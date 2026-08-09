@@ -1,3 +1,4 @@
+- [Options SL/TP dollar units](options-sl-per-contract.md) — stop_loss_dollar is PER-CONTRACT ($/100 = premium pts), needs 2 consecutive bars; per-trade values silently never fire. Tight stops whipsaw 15:59 0DTE spreads; premium-min filter is the W/L lever.
 - [SPX win-rate vs reward/risk frontier](spx-winrate-vs-rr-frontier.md) — >75% WR AND >2:1 avg W/L is impossible for mechanical TP/SL; they're locked by WR≈1/(1+R).
 - [Backtest sweep harness](backtest-sweep-harness.md) — fetch data once, reuse df (no copy), suppress stdout, run foreground/chunked (background procs get killed on bash return).
 - [Indicator entry/exit phase semantics](indicator-entry-exit-phase.md) — entry lookups strict-before bar T (fill at open); exit-at-close includes T; both engines thread an at_bar_close flag.
