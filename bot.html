@@ -941,6 +941,17 @@
           </div>
           <div class="bot-card-body" style="padding:14px 16px;">
             <div id="botOpLegsSection"></div>
+            <div id="botOpPresetSection" style="display:none;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #eef0f4;">
+              <span style="font-size:11px;color:#6a6d78;font-weight:600;">Presets:</span>
+              <div id="botOpPresetButtons" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+            </div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+              <button id="botOpPlaceBtn" onclick="botOpPlaceTrade()"
+                      style="background:#2962ff;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;padding:10px 40px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+                <i class="fas fa-bolt"></i> Place Trade
+              </button>
+              <div id="botOpMsg" style="font-size:12px;min-height:16px;text-align:center;"></div>
+            </div>
           </div>
         </div><!-- /botLegsPanel -->
 

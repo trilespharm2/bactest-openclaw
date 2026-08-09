@@ -4518,6 +4518,109 @@ const BOT_OP_LEG_DIRECTION_RULES = {
     'Long Iron Butterfly': { 0: 'below', 3: 'above' }
 };
 
+const BOT_OP_STRATEGY_PRESETS = {
+    'Short Iron Condor': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_leg', ref: 1, direction: 'below', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 2 },
+            { method: 'dollar_underlying', direction: 'above', value: 2 },
+            { method: 'dollar_leg', ref: 2, direction: 'above', value: 5 }
+        ]},
+        { name: '$10 wide', legs: [
+            { method: 'dollar_leg', ref: 1, direction: 'below', value: 10 },
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 2, direction: 'above', value: 10 }
+        ]}
+    ],
+    'Short Iron Butterfly': [
+        { name: '$5 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 5 }
+        ]},
+        { name: '$10 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 10 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 10 }
+        ]}
+    ],
+    'Long Iron Condor': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 },
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 2, direction: 'below', value: 5 }
+        ]}
+    ],
+    'Long Iron Butterfly': [
+        { name: '$5 wings', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'above', value: 5 }
+        ]}
+    ],
+    'Short Put Spread': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 5 }
+        ]},
+        { name: '$10 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 10 }
+        ]}
+    ],
+    'Short Call Spread': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 }
+        ]},
+        { name: '$10 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 10 }
+        ]}
+    ],
+    'Long Call Spread': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 }
+        ]}
+    ],
+    'Long Put Spread': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'below', value: 5 },
+            { method: 'dollar_leg', ref: 0, direction: 'below', value: 5 }
+        ]}
+    ],
+    'Long Straddle': [
+        { name: 'ATM', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 }
+        ]}
+    ],
+    'Short Straddle': [
+        { name: 'ATM', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 0 },
+            { method: 'dollar_underlying', direction: 'below', value: 0 }
+        ]}
+    ],
+    'Long Strangle': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 5 }
+        ]}
+    ],
+    'Short Strangle': [
+        { name: '$5 wide', legs: [
+            { method: 'dollar_underlying', direction: 'above', value: 5 },
+            { method: 'dollar_underlying', direction: 'below', value: 5 }
+        ]}
+    ]
+};
+
 function botOpIsCalendarDiagonal(strategy) {
     return ['Calendar Call Spread', 'Calendar Put Spread', 'Diagonal Call Spread', 'Diagonal Put Spread', 'Double Calendar', 'Double Diagonal'].includes(strategy);
 }
@@ -4582,6 +4685,7 @@ function botOpUpdateLegs() {
         });
         botOpUpdateLegParams(parseInt(select.dataset.legIndex), select.value);
     });
+    botOpRenderPresets();
 }
 
 function botOpUpdateLegParams(legIndex, method) {
@@ -4589,6 +4693,7 @@ function botOpUpdateLegParams(legIndex, method) {
     if (!paramsContainer) return;
 
     const strategy = document.getElementById('botOpStrategy')?.value;
+    const totalLegs = BOT_OP_STRATEGY_LEGS[strategy]?.length || 0;
     const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '';
 
@@ -4603,6 +4708,14 @@ function botOpUpdateLegParams(legIndex, method) {
             </select></div>`;
     };
 
+    const buildRefDropdown = () => {
+        const refOptions = Array.from({length: totalLegs}, (_, i) => i).filter(i => i !== legIndex);
+        const defaultRef = refOptions.length > 0 ? refOptions[0] : 0;
+        return `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Ref:</label>
+            <select class="bot-op-leg-ref" data-leg="${legIndex}" style="${inputStyle} width:60px;">
+            ${refOptions.map(i => `<option value="${i}" ${i === defaultRef ? 'selected' : ''}>Leg ${i+1}</option>`).join('')}</select></div>`;
+    };
+
     const buildFallback = (opts) => `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Match</label>
         <select class="bot-op-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">${opts}</select></div>`;
 
@@ -4615,18 +4728,21 @@ function botOpUpdateLegParams(legIndex, method) {
         case 'dollar_underlying':
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
-                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
                 ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
             break;
         case 'pct_underlying':
             html = `${buildDirectionDropdown(legIndex)}
                 <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
-                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
                 ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
             break;
         case 'delta':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Delta:</label>
-                <input type="number" class="bot-op-leg-delta" data-leg="${legIndex}" value="0.30" step="0.05" min="0.01" max="0.99" style="${inputStyle} width:55px;"></div>`;
+                <input type="number" class="bot-op-leg-delta" data-leg="${legIndex}" value="0.30" step="0.05" min="0" max="1" style="${inputStyle} width:55px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Method:</label>
+                <select class="bot-op-leg-delta-method" data-leg="${legIndex}" style="${inputStyle} width:70px;">
+                <option value="closest">Closest</option><option value="above">Above</option><option value="below">Below</option></select></div>`;
             break;
         case 'mid_price':
             html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Min$:</label>
@@ -4635,16 +4751,309 @@ function botOpUpdateLegParams(legIndex, method) {
                 <input type="number" class="bot-op-leg-max" data-leg="${legIndex}" value="5" step="0.5" style="${inputStyle} width:50px;"></div>`;
             break;
         case 'dollar_leg':
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
-                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="5" step="1" min="0" style="${inputStyle} width:55px;"></div>
-                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
+            html = `${buildRefDropdown()}
+                ${buildDirectionDropdown(legIndex)}
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" value="5" step="1" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
         case 'pct_leg':
-            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
-                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="1" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
-                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
+            html = `${buildRefDropdown()}
+                ${buildDirectionDropdown(legIndex)}
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" value="2" step="0.5" min="0" style="${inputStyle} width:50px;"></div>`;
             break;
     }
     paramsContainer.innerHTML = html;
 }
+
+/* ── Presets ─────────────────────────────────────────────────────── */
+function botOpRenderPresets() {
+    const strategy = document.getElementById('botOpStrategy')?.value;
+    const section = document.getElementById('botOpPresetSection');
+    const container = document.getElementById('botOpPresetButtons');
+    if (!section || !container) return;
+
+    const presets = BOT_OP_STRATEGY_PRESETS[strategy];
+    if (!presets || presets.length === 0) { section.style.display = 'none'; return; }
+
+    section.style.display = 'flex';
+    container.innerHTML = presets.map((preset, i) =>
+        `<button type="button" onclick="botOpApplyPreset(${i})" style="background:#f0f3fa; color:#2962ff; border:1px solid #d1d4dc; padding:3px 10px; border-radius:4px; font-size:10px; font-weight:600; cursor:pointer;"
+         onmouseover="this.style.background='#2962ff';this.style.color='#fff'" onmouseout="this.style.background='#f0f3fa';this.style.color='#2962ff'">${preset.name}</button>`
+    ).join('');
+}
+
+function botOpApplyPreset(presetIndex) {
+    const strategy = document.getElementById('botOpStrategy')?.value;
+    if (!strategy) return;
+    const preset = (BOT_OP_STRATEGY_PRESETS[strategy] || [])[presetIndex];
+    if (!preset) return;
+
+    preset.legs.forEach((legPreset, i) => {
+        const methodSelect = document.querySelector(`.bot-op-leg-method[data-leg-index="${i}"]`);
+        if (!methodSelect) return;
+        methodSelect.value = legPreset.method;
+        botOpUpdateLegParams(i, legPreset.method);
+
+        setTimeout(() => {
+            const card = document.querySelectorAll('#botOpLegsSection > div > div')[i];
+            if (!card) return;
+            const dirSelect = card.querySelector('.bot-op-leg-direction');
+            if (dirSelect && legPreset.direction) dirSelect.value = legPreset.direction;
+            const valInput = card.querySelector('.bot-op-leg-value');
+            if (valInput && legPreset.value !== undefined) valInput.value = legPreset.value;
+            const refSelect = card.querySelector('.bot-op-leg-ref');
+            if (refSelect && legPreset.ref !== undefined) refSelect.value = legPreset.ref;
+        }, 20);
+    });
+}
+
+/* ── Collect leg configs ─────────────────────────────────────────── */
+function botOpCollectLegs() {
+    const strategy = document.getElementById('botOpStrategy')?.value;
+    const strategyLegs = BOT_OP_STRATEGY_LEGS[strategy] || [];
+    const legs = [];
+
+    document.querySelectorAll('#botOpLegsSection > div > div').forEach((card, index) => {
+        if (index >= strategyLegs.length) return;
+        const def = strategyLegs[index];
+        const method = card.querySelector('.bot-op-leg-method')?.value || 'pct_underlying';
+        const cfg = {
+            type: def.type, position: def.position, name: def.name, method,
+            direction: card.querySelector('.bot-op-leg-direction')?.value || null,
+            value: parseFloat(card.querySelector('.bot-op-leg-value')?.value) || 0,
+            strike: parseFloat(card.querySelector('.bot-op-leg-strike')?.value) || null,
+            fallback: card.querySelector('.bot-op-leg-fallback')?.value || 'closest',
+            delta: parseFloat(card.querySelector('.bot-op-leg-delta')?.value) || 0.30,
+            deltaMethod: card.querySelector('.bot-op-leg-delta-method')?.value || 'closest',
+            minPrice: parseFloat(card.querySelector('.bot-op-leg-min')?.value) || 1,
+            maxPrice: parseFloat(card.querySelector('.bot-op-leg-max')?.value) || 5,
+            ref: parseInt(card.querySelector('.bot-op-leg-ref')?.value ?? '-1', 10),
+            dte: card.querySelector('.bot-op-leg-dte') ? (parseInt(card.querySelector('.bot-op-leg-dte').value, 10) || 0) : null
+        };
+        legs.push(cfg);
+    });
+    return legs;
+}
+
+/* ── Strike resolution + trade placement ─────────────────────────── */
+function botOpPickStrike(strikes, target, fallback) {
+    // strikes: sorted ascending unique numbers
+    if (!strikes.length) return null;
+    if (fallback === 'exactly') return strikes.includes(target) ? target : null;
+    if (fallback === 'higher') {
+        const c = strikes.filter(s => s >= target);
+        return c.length ? c[0] : null;
+    }
+    if (fallback === 'lower') {
+        const c = strikes.filter(s => s <= target);
+        return c.length ? c[c.length - 1] : null;
+    }
+    // closest
+    return strikes.reduce((best, s) => Math.abs(s - target) < Math.abs(best - target) ? s : best, strikes[0]);
+}
+
+async function botOpFetchJson(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Request failed (${r.status})`);
+    return r.json();
+}
+
+function botOpPickExpiration(dates, dte) {
+    // dates: array of 'YYYY-MM-DD'. Choose the one closest to today+dte (>= today).
+    const now = new Date();
+    const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const targetMs = todayMs + dte * 86400000;
+    let best = null, bestDiff = Infinity;
+    for (const d of dates) {
+        const ms = new Date(d + 'T12:00:00').getTime();
+        if (ms < todayMs) continue;
+        const diff = Math.abs(ms - targetMs);
+        if (diff < bestDiff) { bestDiff = diff; best = d; }
+    }
+    return best;
+}
+
+async function botOpPlaceTrade() {
+    const msg = document.getElementById('botOpMsg');
+    const btn = document.getElementById('botOpPlaceBtn');
+    const setMsg = (html) => { if (msg) msg.innerHTML = html; };
+    const strategy = document.getElementById('botOpStrategy')?.value;
+    const dte = parseInt(document.getElementById('botOpDTE')?.value, 10) || 0;
+    const qty = Math.max(1, parseInt(document.getElementById('botOpQty')?.value, 10) || 1);
+    const symbol = (_bc && _bc.symbol) ? _bc.symbol : 'SPX';
+    const legCfgs = botOpCollectLegs();
+
+    if (!strategy || !legCfgs.length) { setMsg('<span style="color:#ef4444;">Select a strategy first.</span>'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Placing…';
+    setMsg('<span style="color:#6a6d78;">Resolving strikes…</span>');
+
+    try {
+        // 1. Underlying quote
+        const qData = await botOpFetchJson(`/api/bot/tradier/quote?symbol=${encodeURIComponent(symbol)}`);
+        const q = qData?.quotes?.quote;
+        const spot = q ? parseFloat(q.last || q.close || q.prevclose) : NaN;
+        if (!spot || isNaN(spot)) throw new Error(`No quote available for ${symbol}`);
+
+        // 2. Expirations
+        const eData = await botOpFetchJson(`/api/bot/tradier/options/expirations?symbol=${encodeURIComponent(symbol)}`);
+        let dates = eData?.expirations?.date || [];
+        if (!Array.isArray(dates)) dates = [dates];
+        if (!dates.length) throw new Error(`No option expirations found for ${symbol}`);
+
+        const isCalDiag = botOpIsCalendarDiagonal(strategy);
+        // Map each leg -> expiration date
+        const legExps = legCfgs.map(cfg => {
+            const legDte = isCalDiag && cfg.dte !== null ? cfg.dte : dte;
+            const exp = botOpPickExpiration(dates, legDte);
+            if (!exp) throw new Error('No valid expiration found');
+            return exp;
+        });
+
+        // 3. Chains per unique expiration
+        const chains = {};
+        for (const exp of [...new Set(legExps)]) {
+            const cData = await botOpFetchJson(`/api/bot/tradier/options/chains?symbol=${encodeURIComponent(symbol)}&expiration=${encodeURIComponent(exp)}`);
+            let opts = cData?.options?.option || [];
+            if (!Array.isArray(opts)) opts = [opts];
+            if (!opts.length) throw new Error(`Empty option chain for ${exp}`);
+            chains[exp] = opts;
+        }
+
+        // 4. Resolve strikes (two passes: absolute methods first, then leg-relative)
+        const resolved = new Array(legCfgs.length).fill(null);
+
+        const optionsFor = (i) => chains[legExps[i]].filter(o =>
+            (o.option_type || '').toLowerCase() === (legCfgs[i].type === 'C' ? 'call' : 'put'));
+        const strikesFor = (i) => [...new Set(optionsFor(i).map(o => parseFloat(o.strike)))].sort((a, b) => a - b);
+
+        const resolveAbsolute = (i) => {
+            const cfg = legCfgs[i];
+            const strikes = strikesFor(i);
+            let target;
+            switch (cfg.method) {
+                case 'exact_strike':
+                    if (cfg.strike === null) throw new Error(`Leg ${i+1}: enter a strike price`);
+                    return botOpPickStrike(strikes, cfg.strike, cfg.fallback);
+                case 'dollar_underlying':
+                    target = cfg.direction === 'above' ? spot + cfg.value : spot - cfg.value;
+                    return botOpPickStrike(strikes, target, cfg.fallback);
+                case 'pct_underlying':
+                    target = cfg.direction === 'above' ? spot * (1 + cfg.value / 100) : spot * (1 - cfg.value / 100);
+                    return botOpPickStrike(strikes, target, cfg.fallback);
+                case 'delta': {
+                    const opts = optionsFor(i).filter(o => o.greeks && o.greeks.delta !== undefined && o.greeks.delta !== null);
+                    if (!opts.length) throw new Error(`Leg ${i+1}: no delta data in chain — use another strike method`);
+                    let cand = opts.map(o => ({ strike: parseFloat(o.strike), d: Math.abs(parseFloat(o.greeks.delta)) }));
+                    if (cfg.deltaMethod === 'above') cand = cand.filter(c => c.d >= cfg.delta);
+                    if (cfg.deltaMethod === 'below') cand = cand.filter(c => c.d <= cfg.delta);
+                    if (!cand.length) throw new Error(`Leg ${i+1}: no strike matches delta filter`);
+                    cand.sort((a, b) => Math.abs(a.d - cfg.delta) - Math.abs(b.d - cfg.delta));
+                    return cand[0].strike;
+                }
+                case 'mid_price': {
+                    const opts = optionsFor(i)
+                        .map(o => ({ strike: parseFloat(o.strike), mid: (parseFloat(o.bid) + parseFloat(o.ask)) / 2 }))
+                        .filter(o => !isNaN(o.mid) && o.mid >= cfg.minPrice && o.mid <= cfg.maxPrice);
+                    if (!opts.length) throw new Error(`Leg ${i+1}: no strike with mid price in $${cfg.minPrice}–$${cfg.maxPrice}`);
+                    const center = (cfg.minPrice + cfg.maxPrice) / 2;
+                    opts.sort((a, b) => Math.abs(a.mid - center) - Math.abs(b.mid - center));
+                    return opts[0].strike;
+                }
+                default:
+                    return null; // leg-relative, second pass
+            }
+        };
+
+        legCfgs.forEach((cfg, i) => {
+            if (cfg.method !== 'dollar_leg' && cfg.method !== 'pct_leg') {
+                resolved[i] = resolveAbsolute(i);
+                if (resolved[i] === null) throw new Error(`Leg ${i+1}: no matching strike found`);
+            }
+        });
+
+        // Leg-relative pass (iterate to handle chains of refs)
+        for (let pass = 0; pass < legCfgs.length; pass++) {
+            let progress = false;
+            legCfgs.forEach((cfg, i) => {
+                if (resolved[i] !== null) return;
+                const refIdx = (cfg.ref >= 0 && cfg.ref < legCfgs.length) ? cfg.ref : (i === 0 ? 1 : 0);
+                const refStrike = resolved[refIdx];
+                if (refStrike === null || refStrike === undefined) return;
+                const delta = cfg.method === 'dollar_leg' ? cfg.value : refStrike * cfg.value / 100;
+                const target = cfg.direction === 'above' ? refStrike + delta : refStrike - delta;
+                const s = botOpPickStrike(strikesFor(i), target, 'closest');
+                if (s === null) throw new Error(`Leg ${i+1}: no matching strike found`);
+                resolved[i] = s;
+                progress = true;
+            });
+            if (!progress) break;
+        }
+        if (resolved.some(s => s === null)) throw new Error('Could not resolve all leg strikes (check Ref selections)');
+
+        // 5. Map strikes back to option symbols + compute net mid
+        const legOrders = legCfgs.map((cfg, i) => {
+            const opt = optionsFor(i).find(o => parseFloat(o.strike) === resolved[i]);
+            if (!opt) throw new Error(`Leg ${i+1}: option not found for strike ${resolved[i]}`);
+            const bid = parseFloat(opt.bid), ask = parseFloat(opt.ask);
+            if (!isFinite(bid) || !isFinite(ask) || bid < 0 || ask <= 0) {
+                throw new Error(`Leg ${i+1} (strike ${resolved[i]}): no valid bid/ask quote — cannot price the order`);
+            }
+            return { symbol: opt.symbol, strike: resolved[i], mid: (bid + ask) / 2, position: cfg.position };
+        });
+
+        let netMid = 0; // positive = net credit
+        legOrders.forEach(l => { netMid += l.position === 'short' ? l.mid : -l.mid; });
+        const price = Math.abs(parseFloat(netMid.toFixed(2)));
+
+        // 6. Build order body
+        const isMulti = legOrders.length > 1;
+        const body = {
+            class: isMulti ? 'multileg' : 'option',
+            symbol,
+            duration: 'day',
+            tag: 'botorderpanel'
+        };
+        if (!isFinite(price)) throw new Error('Could not compute a valid net limit price from quotes');
+        if (isMulti) {
+            body.type = price === 0 ? 'even' : (netMid > 0 ? 'credit' : 'debit');
+            if (price > 0) body.price = price;
+            legOrders.forEach((l, i) => {
+                body[`option_symbol[${i}]`] = l.symbol;
+                body[`side[${i}]`] = l.position === 'long' ? 'buy_to_open' : 'sell_to_open';
+                body[`quantity[${i}]`] = qty;
+            });
+        } else {
+            if (price <= 0) throw new Error('Mid price is zero — no valid limit price for a single-leg order');
+            body.type = 'limit';
+            body.price = price;
+            body.option_symbol = legOrders[0].symbol;
+            body.side = legOrders[0].position === 'long' ? 'buy_to_open' : 'sell_to_open';
+            body.quantity = qty;
+        }
+
+        setMsg('<span style="color:#6a6d78;">Submitting order…</span>');
+        const resp = await fetch('/api/bot/tradier/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await resp.json();
+        const orderId = data?.order?.id;
+        if (orderId) {
+            const legSummary = legOrders.map((l, i) => `L${i+1} ${l.position === 'long' ? '+' : '−'}${l.strike}`).join(' / ');
+            setMsg(`<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Order #${orderId} placed — ${legSummary} @ $${price.toFixed(2)} ${isMulti ? body.type : ''}</span>`);
+            if (typeof botLoadOrders === 'function') setTimeout(() => botLoadOrders(), 1500);
+        } else {
+            const err = data?.errors?.error || data?.error || JSON.stringify(data);
+            setMsg(`<span style="color:#ef4444;"><i class="fas fa-times-circle"></i> ${Array.isArray(err) ? err.join(', ') : err}</span>`);
+        }
+    } catch (e) {
+        setMsg(`<span style="color:#ef4444;"><i class="fas fa-times-circle"></i> ${e.message}</span>`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Place Trade';
+    }
+}
+
 window.botOpUpdateLegs = botOpUpdateLegs;
+window.botOpApplyPreset = botOpApplyPreset;
+window.botOpPlaceTrade = botOpPlaceTrade;
