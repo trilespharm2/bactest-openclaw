@@ -3580,6 +3580,13 @@ function botChartInit() {
   const card = document.getElementById('botChartCard');
   if (card) card.style.display = 'block';
 
+  // Show ORDER + LEGS panels below chart
+  const orderPanel = document.getElementById('botOrderPanel');
+  const legsPanel  = document.getElementById('botLegsPanel');
+  if (orderPanel) orderPanel.style.display = 'block';
+  if (legsPanel)  legsPanel.style.display  = 'block';
+  botOpUpdateLegs();
+
   // Default load after 200 ms
   setTimeout(() => { if (_bc && !_bc.minuteBarsCache.length) bcLoad(); }, 200);
 }
@@ -4473,3 +4480,171 @@ function bcApplyMarkers() {
   try { _bc.candleSeries.setMarkers(_bc.markers || []); } catch(_) {}
 }
 
+
+/* ══════════════ ORDER / LEGS panels (sim-trading style) ══════════════ */
+const BOT_OP_STRATEGY_LEGS = {
+    'Long Call': [{name: 'Long Call', type: 'C', position: 'long'}],
+    'Long Put': [{name: 'Long Put', type: 'P', position: 'long'}],
+    'Naked Short Call': [{name: 'Short Call', type: 'C', position: 'short'}],
+    'Naked Short Put': [{name: 'Short Put', type: 'P', position: 'short'}],
+    'Short Put Spread': [{name: 'Short Put', type: 'P', position: 'short'}, {name: 'Long Put', type: 'P', position: 'long'}],
+    'Short Call Spread': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+    'Short Iron Condor': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+    'Short Iron Butterfly': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+    'Long Call Spread': [{name: 'Long Call', type: 'C', position: 'long'}, {name: 'Short Call', type: 'C', position: 'short'}],
+    'Long Put Spread': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}],
+    'Long Straddle': [{name: 'Long Call', type: 'C', position: 'long'}, {name: 'Long Put', type: 'P', position: 'long'}],
+    'Long Strangle': [{name: 'Long Call', type: 'C', position: 'long'}, {name: 'Long Put', type: 'P', position: 'long'}],
+    'Long Iron Butterfly': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+    'Long Iron Condor': [{name: 'Long Put', type: 'P', position: 'long'}, {name: 'Short Put', type: 'P', position: 'short'}, {name: 'Short Call', type: 'C', position: 'short'}, {name: 'Long Call', type: 'C', position: 'long'}],
+    'Short Straddle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}],
+    'Short Strangle': [{name: 'Short Call', type: 'C', position: 'short'}, {name: 'Short Put', type: 'P', position: 'short'}],
+    'Calendar Call Spread': [{name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}],
+    'Calendar Put Spread': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}],
+    'Diagonal Call Spread': [{name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}],
+    'Diagonal Put Spread': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}],
+    'Double Calendar': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}, {name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}],
+    'Double Diagonal': [{name: 'Short Put (Near)', type: 'P', position: 'short'}, {name: 'Long Put (Far)', type: 'P', position: 'long'}, {name: 'Short Call (Near)', type: 'C', position: 'short'}, {name: 'Long Call (Far)', type: 'C', position: 'long'}]
+};
+
+const BOT_OP_LEG_DIRECTION_RULES = {
+    'Short Put Spread': { 1: 'below' },
+    'Long Call Spread': { 1: 'above' },
+    'Short Call Spread': { 1: 'above' },
+    'Long Put Spread': { 1: 'below' },
+    'Short Iron Condor': { 0: 'below', 3: 'above' },
+    'Short Iron Butterfly': { 0: 'below', 3: 'above' },
+    'Long Iron Condor': { 0: 'below', 3: 'above' },
+    'Long Iron Butterfly': { 0: 'below', 3: 'above' }
+};
+
+function botOpIsCalendarDiagonal(strategy) {
+    return ['Calendar Call Spread', 'Calendar Put Spread', 'Diagonal Call Spread', 'Diagonal Put Spread', 'Double Calendar', 'Double Diagonal'].includes(strategy);
+}
+
+function botOpLegDirection(strategy, legIndex) {
+    const rules = BOT_OP_LEG_DIRECTION_RULES[strategy];
+    if (rules && rules[legIndex] !== undefined) return rules[legIndex];
+    return null;
+}
+
+function botOpUpdateLegs() {
+    const strategy = document.getElementById('botOpStrategy')?.value;
+    const container = document.getElementById('botOpLegsSection');
+    if (!container || !strategy) return;
+
+    const legs = BOT_OP_STRATEGY_LEGS[strategy];
+    if (!legs || legs.length === 0) { container.innerHTML = ''; return; }
+
+    const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
+    let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+    const isCalDiag = botOpIsCalendarDiagonal(strategy);
+
+    legs.forEach((leg, index) => {
+        const badgeColor = leg.type === 'C' ? '#3b7cff' : '#f4a261';
+        const positionBadge = leg.position === 'long' ? '#089981' : '#f23645';
+        const legDirection = botOpLegDirection(strategy, index);
+        const dirLabel = legDirection ? legDirection : 'from';
+        const defaultDte = isCalDiag ? (leg.position === 'short' ? 7 : 30) : null;
+
+        html += `
+            <div style="background: #f8f9fd; border: 1px solid #e0e3eb; border-radius: 6px; padding: 8px; min-width: 190px;">
+                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;">
+                    <span style="font-weight: 600; color: #191919; font-size: 11px;">Leg ${index + 1}: ${leg.name}</span>
+                    <span style="background: ${badgeColor}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.type === 'C' ? 'Call' : 'Put'}</span>
+                    <span style="background: ${positionBadge}; color: white; padding: 1px 5px; border-radius: 3px; font-size: 9px;">${leg.position}</span>
+                </div>
+                ${isCalDiag ? `<div style="margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                    <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">DTE:</label>
+                    <input type="number" class="bot-op-leg-dte" data-leg-index="${index}" value="${defaultDte}" min="0" max="365" style="${inputStyle} width: 50px;">
+                </div>` : ''}
+                <div style="margin-bottom: 4px;">
+                    <select class="bot-op-leg-method" data-leg-index="${index}" style="${inputStyle} width: 100%;">
+                        <option value="pct_underlying" selected>% from Underlying</option>
+                        <option value="dollar_underlying">$ from Underlying</option>
+                        <option value="exact_strike">Exact Strike Price</option>
+                        <option value="delta">Delta-Based</option>
+                        <option value="mid_price">Mid Price Range</option>
+                        ${legs.length > 1 ? `<option value="dollar_leg">$ ${dirLabel} Leg</option>` : ''}
+                        ${legs.length > 1 ? `<option value="pct_leg">% ${dirLabel} Leg</option>` : ''}
+                    </select>
+                </div>
+                <div id="botOpLegParams${index}" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+            </div>`;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.bot-op-leg-method').forEach(select => {
+        select.addEventListener('change', (e) => {
+            botOpUpdateLegParams(parseInt(e.target.dataset.legIndex), e.target.value);
+        });
+        botOpUpdateLegParams(parseInt(select.dataset.legIndex), select.value);
+    });
+}
+
+function botOpUpdateLegParams(legIndex, method) {
+    const paramsContainer = document.getElementById(`botOpLegParams${legIndex}`);
+    if (!paramsContainer) return;
+
+    const strategy = document.getElementById('botOpStrategy')?.value;
+    const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
+    let html = '';
+
+    const buildDirectionDropdown = (legIdx) => {
+        const dirRequired = botOpLegDirection(strategy, legIdx);
+        const defaultDir = dirRequired || 'below';
+        return `<div style="display: flex; align-items: center; gap: 3px;">
+            <label style="font-size: 10px; color: #6a6d78; white-space: nowrap;">Side</label>
+            <select class="bot-op-leg-direction" data-leg="${legIdx}" style="${inputStyle} width: 70px;">
+                <option value="above" ${defaultDir === 'above' ? 'selected' : ''}>above</option>
+                <option value="below" ${defaultDir === 'below' ? 'selected' : ''}>below</option>
+            </select></div>`;
+    };
+
+    const buildFallback = (opts) => `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Match</label>
+        <select class="bot-op-leg-fallback" data-leg="${legIndex}" style="${inputStyle} width:75px;">${opts}</select></div>`;
+
+    switch (method) {
+        case 'exact_strike':
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Strike:</label>
+                <input type="number" class="bot-op-leg-strike" data-leg="${legIndex}" placeholder="" step="1" style="${inputStyle} width:65px;"></div>
+                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option><option value="exactly">Exactly</option>')}`;
+            break;
+        case 'dollar_underlying':
+            html = `${buildDirectionDropdown(legIndex)}
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="1" min="0" style="${inputStyle} width:55px;"></div>
+                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
+            break;
+        case 'pct_underlying':
+            html = `${buildDirectionDropdown(legIndex)}
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="0" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
+                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
+            break;
+        case 'delta':
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Delta:</label>
+                <input type="number" class="bot-op-leg-delta" data-leg="${legIndex}" value="0.30" step="0.05" min="0.01" max="0.99" style="${inputStyle} width:55px;"></div>`;
+            break;
+        case 'mid_price':
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Min$:</label>
+                <input type="number" class="bot-op-leg-min" data-leg="${legIndex}" value="1" step="0.5" style="${inputStyle} width:50px;"></div>
+                <div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">Max$:</label>
+                <input type="number" class="bot-op-leg-max" data-leg="${legIndex}" value="5" step="0.5" style="${inputStyle} width:50px;"></div>`;
+            break;
+        case 'dollar_leg':
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">$:</label>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="5" step="1" min="0" style="${inputStyle} width:55px;"></div>
+                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
+            break;
+        case 'pct_leg':
+            html = `<div style="display:flex;align-items:center;gap:3px;"><label style="font-size:10px;color:#6a6d78;">%:</label>
+                <input type="number" class="bot-op-leg-value" data-leg="${legIndex}" data-param="value" value="1" step="0.5" min="0" style="${inputStyle} width:55px;"></div>
+                ${buildFallback('<option value="closest">Closest</option><option value="higher">Higher</option><option value="lower">Lower</option>')}`;
+            break;
+    }
+    paramsContainer.innerHTML = html;
+}
+window.botOpUpdateLegs = botOpUpdateLegs;

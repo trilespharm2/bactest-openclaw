@@ -467,14 +467,10 @@
             </div>
         </div>
 
-        <!-- ── NEW POSITION ─────────────────────────────────── -->
-        <div class="bot-card">
+        <!-- ── NEW POSITION (removed) ─────────────────────── -->
+        <div class="bot-card" style="display:none;" aria-hidden="true">
             <div class="bot-card-header">
-                <h5><i class="fas fa-plus-circle" style="color:#1b55e2;"></i>New Position</h5>
-                <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-                    <span id="npLivePriceBadge" style="display:none;" class="np-price-badge"></span>
-                    <button id="npRefreshBtn" class="np-refresh-btn" style="display:none;" title="Refresh prices" onclick="npManualRefresh()"><i class="fas fa-sync-alt"></i></button>
-                </div>
+                <h5></h5>
             </div>
             <div class="bot-card-body">
 
@@ -840,6 +836,113 @@
           </div>
 
         </div><!-- /botChartCard -->
+
+        <!-- ══ ORDER PANEL ═════════════════════════════════════════════ -->
+        <div id="botOrderPanel" class="bot-card" style="display:none;">
+          <div class="bot-card-header">
+            <h5 style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8a8e98;margin:0;">
+              Order
+            </h5>
+          </div>
+          <div class="bot-card-body" style="padding:14px 16px;">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">DTE
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Days to expiration"></i>:
+                </label>
+                <input type="number" id="botOpDTE" value="0" min="0" max="365"
+                       style="width:55px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;">
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Strategy
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Option strategy type"></i>:
+                </label>
+                <select id="botOpStrategy" onchange="botOpUpdateLegs()"
+                        style="width:170px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;cursor:pointer;">
+                  <optgroup label="Single Leg">
+                    <option value="Long Call">Long Call</option>
+                    <option value="Long Put">Long Put</option>
+                    <option value="Naked Short Call">Naked Short Call</option>
+                    <option value="Naked Short Put">Naked Short Put</option>
+                  </optgroup>
+                  <optgroup label="Vertical Spreads">
+                    <option value="Short Put Spread" selected>Short Put Spread</option>
+                    <option value="Short Call Spread">Short Call Spread</option>
+                    <option value="Long Call Spread">Long Call Spread</option>
+                    <option value="Long Put Spread">Long Put Spread</option>
+                  </optgroup>
+                  <optgroup label="Iron Strategies">
+                    <option value="Short Iron Condor">Short Iron Condor</option>
+                    <option value="Short Iron Butterfly">Short Iron Butterfly</option>
+                    <option value="Long Iron Butterfly">Long Iron Butterfly</option>
+                    <option value="Long Iron Condor">Long Iron Condor</option>
+                  </optgroup>
+                  <optgroup label="Straddles &amp; Strangles">
+                    <option value="Long Straddle">Long Straddle</option>
+                    <option value="Long Strangle">Long Strangle</option>
+                    <option value="Short Straddle">Short Straddle</option>
+                    <option value="Short Strangle">Short Strangle</option>
+                  </optgroup>
+                  <optgroup label="Calendar &amp; Diagonal">
+                    <option value="Calendar Call Spread">Calendar Call Spread</option>
+                    <option value="Calendar Put Spread">Calendar Put Spread</option>
+                    <option value="Diagonal Call Spread">Diagonal Call Spread</option>
+                    <option value="Diagonal Put Spread">Diagonal Put Spread</option>
+                    <option value="Double Calendar">Double Calendar</option>
+                    <option value="Double Diagonal">Double Diagonal</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">TP
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Take Profit threshold"></i>
+                </label>
+                <div style="display:flex;">
+                  <input type="number" id="botOpTP" placeholder="" step="5"
+                         style="width:55px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px 0 0 6px;border-right:none;font-size:13px;color:#1a1a2e;outline:none;">
+                  <select id="botOpTPType"
+                          style="width:40px;padding:3px 4px;border:1.5px solid #dee2e6;border-radius:0 6px 6px 0;font-size:11px;color:#1a1a2e;outline:none;background:#f8f9fc;cursor:pointer;">
+                    <option value="pct" selected>%</option>
+                    <option value="dollar">$</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">SL
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Stop Loss threshold"></i>
+                </label>
+                <div style="display:flex;">
+                  <input type="number" id="botOpSL" placeholder="" step="10"
+                         style="width:55px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px 0 0 6px;border-right:none;font-size:13px;color:#1a1a2e;outline:none;">
+                  <select id="botOpSLType"
+                          style="width:40px;padding:3px 4px;border:1.5px solid #dee2e6;border-radius:0 6px 6px 0;font-size:11px;color:#1a1a2e;outline:none;background:#f8f9fc;cursor:pointer;">
+                    <option value="pct">%</option>
+                    <option value="dollar" selected>$</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Qty
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Number of contracts"></i>:
+                </label>
+                <input type="number" id="botOpQty" value="10" min="1"
+                       style="width:60px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;">
+              </div>
+            </div>
+          </div>
+        </div><!-- /botOrderPanel -->
+
+        <!-- ══ LEGS PANEL ══════════════════════════════════════════════ -->
+        <div id="botLegsPanel" class="bot-card" style="display:none;">
+          <div class="bot-card-header">
+            <h5 style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8a8e98;margin:0;">
+              Legs
+            </h5>
+          </div>
+          <div class="bot-card-body" style="padding:14px 16px;">
+            <div id="botOpLegsSection"></div>
+          </div>
+        </div><!-- /botLegsPanel -->
 
     </div><!-- /botDashboardView -->
 </div><!-- /botPageRoot -->
