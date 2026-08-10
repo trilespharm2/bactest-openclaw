@@ -488,7 +488,19 @@ function displayConfiguration(metadata) {
         };
         const condLines = config.price_conditions.map(pc => {
             const metric = (pc.metric || 'price').toUpperCase();
-            const leftDesc = sideFmt(metric, pc.left);
+            let leftDesc;
+            if (pc.metric === 'current_candle') {
+                // Left side of current_candle conditions is either the live current
+                // price (at the detection interval) or the forming candle's OPEN —
+                // never its close. Don't run it through sideFmt (whose 'close'
+                // default mislabels it as lookahead).
+                const ldp = ((pc.left || {}).datapoint || 'price').toLowerCase();
+                leftDesc = (ldp === 'price' || ldp === 'current_price' || ldp === 'current')
+                    ? 'Current Price (live)'
+                    : 'CURRENT_CANDLE ' + ldp + ' (forming)';
+            } else {
+                leftDesc = sideFmt(metric, pc.left);
+            }
             const op = opLbl(pc.operator || '>');
             let rightDesc = '';
             if (pc.comparator === 'value') {
