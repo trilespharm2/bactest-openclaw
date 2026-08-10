@@ -4620,6 +4620,17 @@ const BOT_OP_STRATEGY_PRESETS = {
     ]
 };
 
+const BOT_OP_STRATEGY_DEFAULTS = {
+    'Short Put Spread': [
+        { method: 'dollar_underlying', direction: 'below', value: 1, fallback: 'lower' },
+        { method: 'dollar_leg', ref: 0, direction: 'below', value: 5 }
+    ],
+    'Short Call Spread': [
+        { method: 'dollar_underlying', direction: 'above', value: 1, fallback: 'higher' },
+        { method: 'dollar_leg', ref: 0, direction: 'above', value: 5 }
+    ]
+};
+
 function botOpIsCalendarDiagonal(strategy) {
     return ['Calendar Call Spread', 'Calendar Put Spread', 'Diagonal Call Spread', 'Diagonal Put Spread', 'Double Calendar', 'Double Diagonal'].includes(strategy);
 }
@@ -4685,6 +4696,9 @@ function botOpUpdateLegs(p = '') {
         botOpUpdateLegParams(parseInt(select.dataset.legIndex), select.value, p);
     });
     botOpRenderPresets(p);
+    botOpStopQuote(p);
+    const defaults = BOT_OP_STRATEGY_DEFAULTS[strategy];
+    if (defaults) botOpApplyLegConfig(defaults, p);
 }
 
 function botOpUpdateLegParams(legIndex, method, p = '') {
@@ -4787,8 +4801,11 @@ function botOpApplyPreset(presetIndex, p = '') {
     if (!strategy) return;
     const preset = (BOT_OP_STRATEGY_PRESETS[strategy] || [])[presetIndex];
     if (!preset) return;
+    botOpApplyLegConfig(preset.legs, p);
+}
 
-    preset.legs.forEach((legPreset, i) => {
+function botOpApplyLegConfig(legs, p = '') {
+    legs.forEach((legPreset, i) => {
         const methodSelect = document.querySelector(`#botOpLegsSection${p} .bot-op-leg-method[data-leg-index="${i}"]`);
         if (!methodSelect) return;
         methodSelect.value = legPreset.method;
@@ -4803,6 +4820,8 @@ function botOpApplyPreset(presetIndex, p = '') {
             if (valInput && legPreset.value !== undefined) valInput.value = legPreset.value;
             const refSelect = card.querySelector('.bot-op-leg-ref');
             if (refSelect && legPreset.ref !== undefined) refSelect.value = legPreset.ref;
+            const fbSelect = card.querySelector('.bot-op-leg-fallback');
+            if (fbSelect && legPreset.fallback) fbSelect.value = legPreset.fallback;
         }, 20);
     });
 }
@@ -4873,141 +4892,144 @@ function botOpPickExpiration(dates, dte) {
     return best;
 }
 
+/* Resolve strategy legs into concrete option contracts (steps: quote → expirations → chains → strikes) */
+async function botOpResolveLegOrders(p = '') {
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
+    const dte = parseInt(document.getElementById('botOpDTE' + p)?.value, 10) || 0;
+    const symbol = (_bc && _bc.symbol) ? _bc.symbol : 'SPX';
+    const legCfgs = botOpCollectLegs(p);
+    if (!strategy || !legCfgs.length) throw new Error('Select a strategy first.');
+
+    // 1. Underlying quote
+    const qData = await botOpFetchJson(`/api/bot/tradier/quote?symbol=${encodeURIComponent(symbol)}`);
+    const q = qData?.quotes?.quote;
+    const spot = q ? parseFloat(q.last || q.close || q.prevclose) : NaN;
+    if (!spot || isNaN(spot)) throw new Error(`No quote available for ${symbol}`);
+
+    // 2. Expirations
+    const eData = await botOpFetchJson(`/api/bot/tradier/options/expirations?symbol=${encodeURIComponent(symbol)}`);
+    let dates = eData?.expirations?.date || [];
+    if (!Array.isArray(dates)) dates = [dates];
+    if (!dates.length) throw new Error(`No option expirations found for ${symbol}`);
+
+    const isCalDiag = botOpIsCalendarDiagonal(strategy);
+    const legExps = legCfgs.map(cfg => {
+        const legDte = isCalDiag && cfg.dte !== null ? cfg.dte : dte;
+        const exp = botOpPickExpiration(dates, legDte);
+        if (!exp) throw new Error('No valid expiration found');
+        return exp;
+    });
+
+    // 3. Chains per unique expiration
+    const chains = {};
+    for (const exp of [...new Set(legExps)]) {
+        const cData = await botOpFetchJson(`/api/bot/tradier/options/chains?symbol=${encodeURIComponent(symbol)}&expiration=${encodeURIComponent(exp)}`);
+        let opts = cData?.options?.option || [];
+        if (!Array.isArray(opts)) opts = [opts];
+        if (!opts.length) throw new Error(`Empty option chain for ${exp}`);
+        chains[exp] = opts;
+    }
+
+    // 4. Resolve strikes (absolute methods first, then leg-relative)
+    const resolved = new Array(legCfgs.length).fill(null);
+    const optionsFor = (i) => chains[legExps[i]].filter(o =>
+        (o.option_type || '').toLowerCase() === (legCfgs[i].type === 'C' ? 'call' : 'put'));
+    const strikesFor = (i) => [...new Set(optionsFor(i).map(o => parseFloat(o.strike)))].sort((a, b) => a - b);
+
+    const resolveAbsolute = (i) => {
+        const cfg = legCfgs[i];
+        const strikes = strikesFor(i);
+        let target;
+        switch (cfg.method) {
+            case 'exact_strike':
+                if (cfg.strike === null) throw new Error(`Leg ${i+1}: enter a strike price`);
+                return botOpPickStrike(strikes, cfg.strike, cfg.fallback);
+            case 'dollar_underlying':
+                target = cfg.direction === 'above' ? spot + cfg.value : spot - cfg.value;
+                return botOpPickStrike(strikes, target, cfg.fallback);
+            case 'pct_underlying':
+                target = cfg.direction === 'above' ? spot * (1 + cfg.value / 100) : spot * (1 - cfg.value / 100);
+                return botOpPickStrike(strikes, target, cfg.fallback);
+            case 'delta': {
+                const opts = optionsFor(i).filter(o => o.greeks && o.greeks.delta !== undefined && o.greeks.delta !== null);
+                if (!opts.length) throw new Error(`Leg ${i+1}: no delta data in chain — use another strike method`);
+                let cand = opts.map(o => ({ strike: parseFloat(o.strike), d: Math.abs(parseFloat(o.greeks.delta)) }));
+                if (cfg.deltaMethod === 'above') cand = cand.filter(c => c.d >= cfg.delta);
+                if (cfg.deltaMethod === 'below') cand = cand.filter(c => c.d <= cfg.delta);
+                if (!cand.length) throw new Error(`Leg ${i+1}: no strike matches delta filter`);
+                cand.sort((a, b) => Math.abs(a.d - cfg.delta) - Math.abs(b.d - cfg.delta));
+                return cand[0].strike;
+            }
+            case 'mid_price': {
+                const opts = optionsFor(i)
+                    .map(o => ({ strike: parseFloat(o.strike), mid: (parseFloat(o.bid) + parseFloat(o.ask)) / 2 }))
+                    .filter(o => !isNaN(o.mid) && o.mid >= cfg.minPrice && o.mid <= cfg.maxPrice);
+                if (!opts.length) throw new Error(`Leg ${i+1}: no strike with mid price in $${cfg.minPrice}–$${cfg.maxPrice}`);
+                const center = (cfg.minPrice + cfg.maxPrice) / 2;
+                opts.sort((a, b) => Math.abs(a.mid - center) - Math.abs(b.mid - center));
+                return opts[0].strike;
+            }
+            default:
+                return null; // leg-relative, second pass
+        }
+    };
+
+    legCfgs.forEach((cfg, i) => {
+        if (cfg.method !== 'dollar_leg' && cfg.method !== 'pct_leg') {
+            resolved[i] = resolveAbsolute(i);
+            if (resolved[i] === null) throw new Error(`Leg ${i+1}: no matching strike found`);
+        }
+    });
+
+    for (let pass = 0; pass < legCfgs.length; pass++) {
+        let progress = false;
+        legCfgs.forEach((cfg, i) => {
+            if (resolved[i] !== null) return;
+            const refIdx = (cfg.ref >= 0 && cfg.ref < legCfgs.length) ? cfg.ref : (i === 0 ? 1 : 0);
+            const refStrike = resolved[refIdx];
+            if (refStrike === null || refStrike === undefined) return;
+            const delta = cfg.method === 'dollar_leg' ? cfg.value : refStrike * cfg.value / 100;
+            const target = cfg.direction === 'above' ? refStrike + delta : refStrike - delta;
+            const s = botOpPickStrike(strikesFor(i), target, 'closest');
+            if (s === null) throw new Error(`Leg ${i+1}: no matching strike found`);
+            resolved[i] = s;
+            progress = true;
+        });
+        if (!progress) break;
+    }
+    if (resolved.some(s => s === null)) throw new Error('Could not resolve all leg strikes (check Ref selections)');
+
+    // 5. Map strikes to option symbols + net mid (require valid quotes)
+    const legOrders = legCfgs.map((cfg, i) => {
+        const opt = optionsFor(i).find(o => parseFloat(o.strike) === resolved[i]);
+        if (!opt) throw new Error(`Leg ${i+1}: option not found for strike ${resolved[i]}`);
+        const bid = parseFloat(opt.bid), ask = parseFloat(opt.ask);
+        if (!isFinite(bid) || !isFinite(ask) || bid < 0 || ask <= 0) {
+            throw new Error(`Leg ${i+1} (strike ${resolved[i]}): no valid bid/ask quote — cannot price the order`);
+        }
+        return { symbol: opt.symbol, strike: resolved[i], mid: (bid + ask) / 2, position: cfg.position };
+    });
+
+    let netMid = 0; // positive = net credit
+    legOrders.forEach(l => { netMid += l.position === 'short' ? l.mid : -l.mid; });
+    return { symbol, legOrders, netMid };
+}
+
 async function botOpPlaceTrade(p = '') {
     const msg = document.getElementById('botOpMsg' + p);
     const btn = document.getElementById('botOpPlaceBtn' + p);
     const setMsg = (html) => { if (msg) msg.innerHTML = html; };
-    const strategy = document.getElementById('botOpStrategy' + p)?.value;
-    const dte = parseInt(document.getElementById('botOpDTE' + p)?.value, 10) || 0;
     const qty = Math.max(1, parseInt(document.getElementById('botOpQty' + p)?.value, 10) || 1);
-    const symbol = (_bc && _bc.symbol) ? _bc.symbol : 'SPX';
-    const legCfgs = botOpCollectLegs(p);
-
-    if (!strategy || !legCfgs.length) { setMsg('<span style="color:#ef4444;">Select a strategy first.</span>'); return; }
 
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Placing…';
     setMsg('<span style="color:#6a6d78;">Resolving strikes…</span>');
 
     try {
-        // 1. Underlying quote
-        const qData = await botOpFetchJson(`/api/bot/tradier/quote?symbol=${encodeURIComponent(symbol)}`);
-        const q = qData?.quotes?.quote;
-        const spot = q ? parseFloat(q.last || q.close || q.prevclose) : NaN;
-        if (!spot || isNaN(spot)) throw new Error(`No quote available for ${symbol}`);
-
-        // 2. Expirations
-        const eData = await botOpFetchJson(`/api/bot/tradier/options/expirations?symbol=${encodeURIComponent(symbol)}`);
-        let dates = eData?.expirations?.date || [];
-        if (!Array.isArray(dates)) dates = [dates];
-        if (!dates.length) throw new Error(`No option expirations found for ${symbol}`);
-
-        const isCalDiag = botOpIsCalendarDiagonal(strategy);
-        // Map each leg -> expiration date
-        const legExps = legCfgs.map(cfg => {
-            const legDte = isCalDiag && cfg.dte !== null ? cfg.dte : dte;
-            const exp = botOpPickExpiration(dates, legDte);
-            if (!exp) throw new Error('No valid expiration found');
-            return exp;
-        });
-
-        // 3. Chains per unique expiration
-        const chains = {};
-        for (const exp of [...new Set(legExps)]) {
-            const cData = await botOpFetchJson(`/api/bot/tradier/options/chains?symbol=${encodeURIComponent(symbol)}&expiration=${encodeURIComponent(exp)}`);
-            let opts = cData?.options?.option || [];
-            if (!Array.isArray(opts)) opts = [opts];
-            if (!opts.length) throw new Error(`Empty option chain for ${exp}`);
-            chains[exp] = opts;
-        }
-
-        // 4. Resolve strikes (two passes: absolute methods first, then leg-relative)
-        const resolved = new Array(legCfgs.length).fill(null);
-
-        const optionsFor = (i) => chains[legExps[i]].filter(o =>
-            (o.option_type || '').toLowerCase() === (legCfgs[i].type === 'C' ? 'call' : 'put'));
-        const strikesFor = (i) => [...new Set(optionsFor(i).map(o => parseFloat(o.strike)))].sort((a, b) => a - b);
-
-        const resolveAbsolute = (i) => {
-            const cfg = legCfgs[i];
-            const strikes = strikesFor(i);
-            let target;
-            switch (cfg.method) {
-                case 'exact_strike':
-                    if (cfg.strike === null) throw new Error(`Leg ${i+1}: enter a strike price`);
-                    return botOpPickStrike(strikes, cfg.strike, cfg.fallback);
-                case 'dollar_underlying':
-                    target = cfg.direction === 'above' ? spot + cfg.value : spot - cfg.value;
-                    return botOpPickStrike(strikes, target, cfg.fallback);
-                case 'pct_underlying':
-                    target = cfg.direction === 'above' ? spot * (1 + cfg.value / 100) : spot * (1 - cfg.value / 100);
-                    return botOpPickStrike(strikes, target, cfg.fallback);
-                case 'delta': {
-                    const opts = optionsFor(i).filter(o => o.greeks && o.greeks.delta !== undefined && o.greeks.delta !== null);
-                    if (!opts.length) throw new Error(`Leg ${i+1}: no delta data in chain — use another strike method`);
-                    let cand = opts.map(o => ({ strike: parseFloat(o.strike), d: Math.abs(parseFloat(o.greeks.delta)) }));
-                    if (cfg.deltaMethod === 'above') cand = cand.filter(c => c.d >= cfg.delta);
-                    if (cfg.deltaMethod === 'below') cand = cand.filter(c => c.d <= cfg.delta);
-                    if (!cand.length) throw new Error(`Leg ${i+1}: no strike matches delta filter`);
-                    cand.sort((a, b) => Math.abs(a.d - cfg.delta) - Math.abs(b.d - cfg.delta));
-                    return cand[0].strike;
-                }
-                case 'mid_price': {
-                    const opts = optionsFor(i)
-                        .map(o => ({ strike: parseFloat(o.strike), mid: (parseFloat(o.bid) + parseFloat(o.ask)) / 2 }))
-                        .filter(o => !isNaN(o.mid) && o.mid >= cfg.minPrice && o.mid <= cfg.maxPrice);
-                    if (!opts.length) throw new Error(`Leg ${i+1}: no strike with mid price in $${cfg.minPrice}–$${cfg.maxPrice}`);
-                    const center = (cfg.minPrice + cfg.maxPrice) / 2;
-                    opts.sort((a, b) => Math.abs(a.mid - center) - Math.abs(b.mid - center));
-                    return opts[0].strike;
-                }
-                default:
-                    return null; // leg-relative, second pass
-            }
-        };
-
-        legCfgs.forEach((cfg, i) => {
-            if (cfg.method !== 'dollar_leg' && cfg.method !== 'pct_leg') {
-                resolved[i] = resolveAbsolute(i);
-                if (resolved[i] === null) throw new Error(`Leg ${i+1}: no matching strike found`);
-            }
-        });
-
-        // Leg-relative pass (iterate to handle chains of refs)
-        for (let pass = 0; pass < legCfgs.length; pass++) {
-            let progress = false;
-            legCfgs.forEach((cfg, i) => {
-                if (resolved[i] !== null) return;
-                const refIdx = (cfg.ref >= 0 && cfg.ref < legCfgs.length) ? cfg.ref : (i === 0 ? 1 : 0);
-                const refStrike = resolved[refIdx];
-                if (refStrike === null || refStrike === undefined) return;
-                const delta = cfg.method === 'dollar_leg' ? cfg.value : refStrike * cfg.value / 100;
-                const target = cfg.direction === 'above' ? refStrike + delta : refStrike - delta;
-                const s = botOpPickStrike(strikesFor(i), target, 'closest');
-                if (s === null) throw new Error(`Leg ${i+1}: no matching strike found`);
-                resolved[i] = s;
-                progress = true;
-            });
-            if (!progress) break;
-        }
-        if (resolved.some(s => s === null)) throw new Error('Could not resolve all leg strikes (check Ref selections)');
-
-        // 5. Map strikes back to option symbols + compute net mid
-        const legOrders = legCfgs.map((cfg, i) => {
-            const opt = optionsFor(i).find(o => parseFloat(o.strike) === resolved[i]);
-            if (!opt) throw new Error(`Leg ${i+1}: option not found for strike ${resolved[i]}`);
-            const bid = parseFloat(opt.bid), ask = parseFloat(opt.ask);
-            if (!isFinite(bid) || !isFinite(ask) || bid < 0 || ask <= 0) {
-                throw new Error(`Leg ${i+1} (strike ${resolved[i]}): no valid bid/ask quote — cannot price the order`);
-            }
-            return { symbol: opt.symbol, strike: resolved[i], mid: (bid + ask) / 2, position: cfg.position };
-        });
-
-        let netMid = 0; // positive = net credit
-        legOrders.forEach(l => { netMid += l.position === 'short' ? l.mid : -l.mid; });
+        const { symbol, legOrders, netMid } = await botOpResolveLegOrders(p);
         const price = Math.abs(parseFloat(netMid.toFixed(2)));
+        if (!isFinite(price)) throw new Error('Could not compute a valid net limit price from quotes');
 
-        // 6. Build order body
         const isMulti = legOrders.length > 1;
         const body = {
             class: isMulti ? 'multileg' : 'option',
@@ -5015,7 +5037,6 @@ async function botOpPlaceTrade(p = '') {
             duration: 'day',
             tag: 'botorderpanel'
         };
-        if (!isFinite(price)) throw new Error('Could not compute a valid net limit price from quotes');
         if (isMulti) {
             body.type = price === 0 ? 'even' : (netMid > 0 ? 'credit' : 'debit');
             if (price > 0) body.price = price;
@@ -5053,6 +5074,94 @@ async function botOpPlaceTrade(p = '') {
     }
 }
 
+/* ── Live spread quote (tick-by-tick poll of Tradier bid/ask/mid) ── */
+const _botOpQuoteState = {};   // p -> { timer } while polling
+const _botOpQuoteGen = {};     // p -> generation token (bumped on every stop/start)
+const _botOpQuotePending = {}; // p -> true while resolving legs
+
+function botOpStopQuote(p = '') {
+    _botOpQuoteGen[p] = (_botOpQuoteGen[p] || 0) + 1; // invalidates any in-flight resolve/tick
+    _botOpQuotePending[p] = false;
+    const st = _botOpQuoteState[p];
+    if (st && st.timer) clearInterval(st.timer);
+    _botOpQuoteState[p] = null;
+    const btn = document.getElementById('botOpQuoteBtn' + p);
+    if (btn) { btn.style.background = '#f0f3fa'; btn.style.color = '#2962ff'; }
+    const disp = document.getElementById('botOpQuoteDisplay' + p);
+    if (disp) { disp.style.display = 'none'; disp.innerHTML = ''; }
+}
+
+function botOpStopAllQuotes() { botOpStopQuote(''); botOpStopQuote('2'); }
+window.addEventListener('pagehide', botOpStopAllQuotes);
+
+async function botOpToggleQuote(p = '') {
+    if (_botOpQuoteState[p] || _botOpQuotePending[p]) { botOpStopQuote(p); return; }
+    const btn = document.getElementById('botOpQuoteBtn' + p);
+    const disp = document.getElementById('botOpQuoteDisplay' + p);
+    if (!disp) return;
+    const gen = _botOpQuoteGen[p] = (_botOpQuoteGen[p] || 0) + 1;
+    _botOpQuotePending[p] = true;
+    disp.style.display = 'block';
+    disp.innerHTML = '<span style="color:#6a6d78;">Resolving legs…</span>';
+    if (btn) { btn.style.background = '#2962ff'; btn.style.color = '#fff'; }
+
+    try {
+        const { legOrders } = await botOpResolveLegOrders(p);
+        if (_botOpQuoteGen[p] !== gen) return; // stopped/superseded while resolving
+        _botOpQuotePending[p] = false;
+        const state = { timer: null };
+        _botOpQuoteState[p] = state;
+
+        const tick = async () => {
+            if (_botOpQuoteState[p] !== state || _botOpQuoteGen[p] !== gen) return;
+            try {
+                const syms = legOrders.map(l => l.symbol).join(',');
+                const data = await botOpFetchJson('/api/bot/tradier/quote?symbol=' + encodeURIComponent(syms));
+                if (_botOpQuoteState[p] !== state || _botOpQuoteGen[p] !== gen) return;
+                let qs = data?.quotes?.quote || [];
+                if (!Array.isArray(qs)) qs = [qs];
+                const bySym = {};
+                qs.forEach(qq => { bySym[qq.symbol] = qq; });
+
+                let netBid = 0, netAsk = 0, ok = true;
+                legOrders.forEach(l => {
+                    const qq = bySym[l.symbol];
+                    const bid = qq ? parseFloat(qq.bid) : NaN;
+                    const ask = qq ? parseFloat(qq.ask) : NaN;
+                    if (!isFinite(bid) || !isFinite(ask)) { ok = false; return; }
+                    if (l.position === 'short') { netBid += bid; netAsk += ask; }
+                    else { netBid -= ask; netAsk -= bid; }
+                });
+                if (!ok) { disp.innerHTML = '<span style="color:#ef4444;">No quote data for one or more legs</span>'; return; }
+
+                const mid = (netBid + netAsk) / 2;
+                const lbl = mid >= 0 ? 'credit' : 'debit';
+                const strikes = legOrders.map(l => (l.position === 'long' ? '+' : '−') + l.strike).join(' / ');
+                disp.innerHTML =
+                    `<span style="color:#6a6d78;">${strikes}</span>&nbsp;&nbsp;` +
+                    `Bid <b style="color:#f23645;">$${netBid.toFixed(2)}</b> · ` +
+                    `Mid <b style="color:#191919;">$${mid.toFixed(2)}</b> · ` +
+                    `Ask <b style="color:#089981;">$${netAsk.toFixed(2)}</b> ` +
+                    `<span style="color:#6a6d78;">(${lbl})</span>`;
+            } catch (e) {
+                if (_botOpQuoteState[p] === state && _botOpQuoteGen[p] === gen) {
+                    disp.innerHTML = `<span style="color:#ef4444;">${e.message}</span>`;
+                }
+            }
+        };
+        state.timer = setInterval(tick, 1000);
+        tick();
+    } catch (e) {
+        if (_botOpQuoteGen[p] !== gen) return;
+        _botOpQuotePending[p] = false;
+        disp.innerHTML = `<span style="color:#ef4444;">${e.message}</span>`;
+        if (btn) { btn.style.background = '#f0f3fa'; btn.style.color = '#2962ff'; }
+    }
+}
+
 window.botOpUpdateLegs = botOpUpdateLegs;
 window.botOpApplyPreset = botOpApplyPreset;
 window.botOpPlaceTrade = botOpPlaceTrade;
+window.botOpToggleQuote = botOpToggleQuote;
+window.botOpStopAllQuotes = botOpStopAllQuotes;
+
