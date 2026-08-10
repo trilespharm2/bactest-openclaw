@@ -66,3 +66,6 @@ In `_eval_current_candle_condition` (options engine), when comparator is
 NOT abort with "No current candle data". Guard the early bail with a `needs_cur_candle`
 check (only require the bar for color-only mode, a candle-datapoint left, or a green/red
 left color filter).
+
+## Current-price lookup lookahead guard
+`_current_underlying_price` returns the CLOSE of the last bar at/before the entry ts. A bar still spanning the entry ts (ts + bar_ms > entry_ts) is forming — its close is future (up to a full minute in the 1-min fallback). Fixed to use that bar's OPEN; close only for fully-completed bars. Any "price at time T" lookup must compare bar END time (start + interval), not start time, against T.

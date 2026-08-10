@@ -471,9 +471,11 @@ def _current_underlying_price(client, symbol, trade_date, entry_ts_ms, ten_secon
     underlying_sym = get_underlying_ticker(symbol)
     sub_seconds = 10 if ten_second is True else (int(ten_second) if ten_second else 0)
     mult, span = (sub_seconds, 'second') if sub_seconds else (1, 'minute')
+    bar_ms = sub_seconds * 1000 if sub_seconds else 60000
     bars = _fetch_underlying_candles(client, underlying_sym, trade_date, mult, span)
     if not bars:
         bars = _fetch_underlying_candles(client, underlying_sym, trade_date, 1, 'minute')
+        bar_ms = 60000
     if not bars:
         return None
     last = None
@@ -486,8 +488,13 @@ def _current_underlying_price(client, symbol, trade_date, entry_ts_ms, ten_secon
         # No bar exists at/before entry: never fall back to a future bar
         # (that would introduce lookahead bias). Signal "no price available".
         return None
-    c = last.get('close')
-    return float(c) if c is not None else None
+    # Lookahead guard: a bar still spanning the entry timestamp is FORMING at
+    # decision time — only its OPEN is known (its close is up to one
+    # bar-interval in the future; a full minute in the 1-min fallback, which
+    # also happens when a sub-minute entry time lands mid-minute). Only bars
+    # that fully COMPLETED at/before the entry timestamp may use their close.
+    v = last.get('close') if (last['timestamp'] + bar_ms) <= entry_ts_ms else last.get('open')
+    return float(v) if v is not None else None
 
 def _eval_current_candle_condition(condition, client, symbol, trade_date, entry_ts_ms, ten_second=True):
     """Evaluate a Custom-Builder 'current_candle' metric condition.
