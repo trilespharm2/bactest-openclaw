@@ -932,6 +932,16 @@
                 </div>
               </div>
               <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Order
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Market or limit (credit/debit) order"></i>:
+                </label>
+                <select id="botOpOrderType" onchange="botOpToggleLimitPrice('')"
+                        style="width:80px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;cursor:pointer;">
+                  <option value="market" selected>Market</option>
+                  <option value="limit">Limit</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
                 <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Qty
                   <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Number of contracts"></i>:
                 </label>
@@ -957,6 +967,11 @@
             </div>
             <div style="margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:8px;">
               <div style="display:flex;align-items:center;gap:8px;">
+              <div id="botOpLimitWrap" style="display:none;align-items:center;gap:4px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Limit $:</label>
+                <input type="number" id="botOpLimitPrice" placeholder="0.00" step="0.05" min="0"
+                       style="width:70px;padding:8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;">
+              </div>
               <button id="botOpPlaceBtn" onclick="botOpPlaceTrade('')"
                       style="background:#2962ff;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;padding:10px 40px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
                 <i class="fas fa-bolt"></i> Place Trade
@@ -1060,6 +1075,16 @@
                 </div>
               </div>
               <div style="display:flex;align-items:center;gap:5px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Order
+                  <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Market or limit (credit/debit) order"></i>:
+                </label>
+                <select id="botOpOrderType2" onchange="botOpToggleLimitPrice('2')"
+                        style="width:80px;padding:5px 8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;cursor:pointer;">
+                  <option value="market" selected>Market</option>
+                  <option value="limit">Limit</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
                 <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Qty
                   <i class="fas fa-info-circle" style="font-size:9px;color:#b0b4c0;" title="Number of contracts"></i>:
                 </label>
@@ -1085,6 +1110,11 @@
             </div>
             <div style="margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:8px;">
               <div style="display:flex;align-items:center;gap:8px;">
+              <div id="botOpLimitWrap2" style="display:none;align-items:center;gap:4px;">
+                <label style="font-size:11px;color:#6a6d78;white-space:nowrap;">Limit $:</label>
+                <input type="number" id="botOpLimitPrice2" placeholder="0.00" step="0.05" min="0"
+                       style="width:70px;padding:8px;border:1.5px solid #dee2e6;border-radius:6px;font-size:13px;color:#1a1a2e;outline:none;background:#fff;">
+              </div>
               <button id="botOpPlaceBtn2" onclick="botOpPlaceTrade('2')"
                       style="background:#2962ff;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;padding:10px 40px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
                 <i class="fas fa-bolt"></i> Place Trade

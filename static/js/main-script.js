@@ -440,9 +440,9 @@ async function navigateToPage(pageName, skipPushState = false) {
         }
     }
     
-    // Stop BOT page live quote polling when navigating away
+    // Stop BOT page live quote + chart tick polling when navigating away
     if (currentPage === 'bot' && pageName !== 'bot') {
-        try { if (typeof window.botOpStopAllQuotes === 'function') window.botOpStopAllQuotes(); } catch(e) {}
+        try { if (typeof window.botPageTeardownLive === 'function') window.botPageTeardownLive(); } catch(e) {}
     }
 
     // Update current page
@@ -602,7 +602,7 @@ async function loadPageContent(pageName) {
                     scriptName = '/static/js/notifications-script.js';
                 }
                 if (pageName === 'bot') {
-                    scriptName = '/static/js/bot-script.js?v=44';
+                    scriptName = '/static/js/bot-script.js?v=45';
                 }
                 if (pageName === 'strategyGuide') {
                     fileName = 'strategy-guide';
@@ -680,7 +680,7 @@ async function loadPageContent(pageName) {
                     scriptName = '/static/js/notifications-script.js';
                 }
                 if (pageName === 'bot') {
-                    scriptName = '/static/js/bot-script.js?v=44';
+                    scriptName = '/static/js/bot-script.js?v=45';
                 }
                 if (pageName === 'strategyGuide') {
                     scriptName = '/static/js/strategy-guide-script.js';

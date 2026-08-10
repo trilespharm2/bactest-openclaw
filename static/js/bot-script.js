@@ -4386,6 +4386,8 @@ function bcToggleRealtime() {
 
 function bcStartRt() {
   if (!_bc) return;
+  if (_bc.rtTimer) { clearInterval(_bc.rtTimer); _bc.rtTimer = null; }
+  if (_bc.tickTimer) { clearInterval(_bc.tickTimer); _bc.tickTimer = null; }
   _bc.isRealtime = true;
   const btn = document.getElementById('bcRtBtn');
   const dot = document.getElementById('bcLiveDot');
@@ -4393,12 +4395,14 @@ function bcStartRt() {
   if (dot) dot.style.display = 'block';
   bcPollRt();
   _bc.rtTimer = setInterval(bcPollRt, 60000);
+  _bc.tickTimer = setInterval(bcPollTick, 1000);
 }
 
 function bcStopRt() {
   if (!_bc) return;
   _bc.isRealtime = false;
   if (_bc.rtTimer) { clearInterval(_bc.rtTimer); _bc.rtTimer = null; }
+  if (_bc.tickTimer) { clearInterval(_bc.tickTimer); _bc.tickTimer = null; }
   const btn = document.getElementById('bcRtBtn');
   const dot = document.getElementById('bcLiveDot');
   if (btn) btn.classList.remove('active');
@@ -4429,6 +4433,49 @@ async function bcPollRt() {
       bcUpdateNavButtons();
       if (_bc.showMarkers) bcApplyMarkers();
     }
+  } catch(_) {}
+}
+
+// ── Tick-by-tick live price (1s quote poll updates forming bar) ────
+async function bcPollTick() {
+  if (!_bc || !_bc.symbol || !_bc.isRealtime || !_bc.candleSeries) return;
+  if (_bc.currentMinuteIndex < _bc.minuteBarsCache.length) return; // replaying history
+  if (!_bc.minuteBarsCache.length) return;
+  try {
+    const resp = await fetch(`/api/bot/tradier/quote?symbol=${encodeURIComponent(_bc.symbol)}`);
+    const data = await resp.json();
+    const q = data?.quotes?.quote;
+    const last = q ? parseFloat(q.last) : NaN;
+    if (!isFinite(last) || !_bc || !_bc.isRealtime || !_bc.candleSeries) return;
+    const mb = _bc.minuteBarsCache[_bc.minuteBarsCache.length - 1];
+    // Only mutate the forming bar: once the wall-clock minute rolls past the
+    // minute in which we first saw this bar, stop touching it (it's closed)
+    // and nudge the bar poll to fetch the new forming bar.
+    const nowMin = Math.floor(Date.now() / 60000);
+    const barKey = mb.time;
+    if (_bc.tickBarKey !== barKey) {
+        _bc.tickBarKey = barKey;
+        _bc.tickBarMinute = nowMin;
+    } else if (nowMin > _bc.tickBarMinute) {
+        if (!_bc.tickRollPolled || _bc.tickRollPolled !== barKey) {
+            _bc.tickRollPolled = barKey;
+            bcPollRt();
+        }
+        return;
+    }
+    if (last === mb.close) return;
+    mb.close = last;
+    if (last > mb.high) mb.high = last;
+    if (last < mb.low) mb.low = last;
+    _bcRebuildBars();
+    const lb = _bc.displayBars[_bc.displayBars.length - 1];
+    if (lb) {
+      try {
+        _bc.candleSeries.update({ time: Math.floor(lb.timestamp / 1000), open: lb.open, high: lb.high, low: lb.low, close: lb.close });
+      } catch(_) {}
+    }
+    bcUpdateOHLCDisplay();
+    bcUpdateSymbolDisplay();
   } catch(_) {}
 }
 
@@ -5026,9 +5073,17 @@ async function botOpPlaceTrade(p = '') {
     setMsg('<span style="color:#6a6d78;">Resolving strikes…</span>');
 
     try {
+        const orderType = document.getElementById('botOpOrderType' + p)?.value || 'market';
+        let limitPrice = null;
+        if (orderType === 'limit') {
+            limitPrice = parseFloat(document.getElementById('botOpLimitPrice' + p)?.value);
+            if (!isFinite(limitPrice) || limitPrice <= 0) throw new Error('Enter a valid limit price');
+            limitPrice = parseFloat(limitPrice.toFixed(2));
+        }
+
         const { symbol, legOrders, netMid } = await botOpResolveLegOrders(p);
-        const price = Math.abs(parseFloat(netMid.toFixed(2)));
-        if (!isFinite(price)) throw new Error('Could not compute a valid net limit price from quotes');
+        const price = orderType === 'limit' ? limitPrice : Math.abs(parseFloat(netMid.toFixed(2)));
+        if (!isFinite(price)) throw new Error('Could not compute a valid net price from quotes');
 
         const isMulti = legOrders.length > 1;
         const body = {
@@ -5038,17 +5093,26 @@ async function botOpPlaceTrade(p = '') {
             tag: 'botorderpanel'
         };
         if (isMulti) {
-            body.type = price === 0 ? 'even' : (netMid > 0 ? 'credit' : 'debit');
-            if (price > 0) body.price = price;
+            // Tradier multileg order types: market | debit | credit | even.
+            // Net-credit strategies (netMid > 0) use 'credit' limits; net-debit use 'debit'.
+            if (orderType === 'market') {
+                body.type = 'market';
+            } else {
+                body.type = price === 0 ? 'even' : (netMid >= 0 ? 'credit' : 'debit');
+                if (price > 0) body.price = price;
+            }
             legOrders.forEach((l, i) => {
                 body[`option_symbol[${i}]`] = l.symbol;
                 body[`side[${i}]`] = l.position === 'long' ? 'buy_to_open' : 'sell_to_open';
                 body[`quantity[${i}]`] = qty;
             });
         } else {
-            if (price <= 0) throw new Error('Mid price is zero — no valid limit price for a single-leg order');
-            body.type = 'limit';
-            body.price = price;
+            if (orderType === 'market') {
+                body.type = 'market';
+            } else {
+                body.type = 'limit';
+                body.price = price;
+            }
             body.option_symbol = legOrders[0].symbol;
             body.side = legOrders[0].position === 'long' ? 'buy_to_open' : 'sell_to_open';
             body.quantity = qty;
@@ -5060,7 +5124,8 @@ async function botOpPlaceTrade(p = '') {
         const orderId = data?.order?.id;
         if (orderId) {
             const legSummary = legOrders.map((l, i) => `L${i+1} ${l.position === 'long' ? '+' : '−'}${l.strike}`).join(' / ');
-            setMsg(`<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Order #${orderId} placed — ${legSummary} @ $${price.toFixed(2)} ${isMulti ? body.type : ''}</span>`);
+            const priceLbl = body.type === 'market' ? 'market' : `$${price.toFixed(2)} ${isMulti ? body.type : 'limit'}`;
+            setMsg(`<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Order #${orderId} placed — ${legSummary} @ ${priceLbl}</span>`);
             if (typeof botLoadOrders === 'function') setTimeout(() => botLoadOrders(), 1500);
         } else {
             const err = data?.errors?.error || data?.error || JSON.stringify(data);
@@ -5091,8 +5156,20 @@ function botOpStopQuote(p = '') {
     if (disp) { disp.style.display = 'none'; disp.innerHTML = ''; }
 }
 
+function botOpToggleLimitPrice(p = '') {
+    const sel = document.getElementById('botOpOrderType' + p);
+    const box = document.getElementById('botOpLimitWrap' + p);
+    if (box) box.style.display = (sel && sel.value === 'limit') ? 'flex' : 'none';
+}
+
 function botOpStopAllQuotes() { botOpStopQuote(''); botOpStopQuote('2'); }
-window.addEventListener('pagehide', botOpStopAllQuotes);
+
+function botPageTeardownLive() {
+    botOpStopAllQuotes();
+    try { if (typeof bcStopRt === 'function' && _bc) bcStopRt(); } catch(e) {}
+}
+window.botPageTeardownLive = botPageTeardownLive;
+window.addEventListener('pagehide', botPageTeardownLive);
 
 async function botOpToggleQuote(p = '') {
     if (_botOpQuoteState[p] || _botOpQuotePending[p]) { botOpStopQuote(p); return; }
@@ -5163,5 +5240,6 @@ window.botOpUpdateLegs = botOpUpdateLegs;
 window.botOpApplyPreset = botOpApplyPreset;
 window.botOpPlaceTrade = botOpPlaceTrade;
 window.botOpToggleQuote = botOpToggleQuote;
+window.botOpToggleLimitPrice = botOpToggleLimitPrice;
 window.botOpStopAllQuotes = botOpStopAllQuotes;
 
