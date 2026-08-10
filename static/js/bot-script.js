@@ -3583,7 +3583,8 @@ function botChartInit() {
   // Show ORDER + LEGS two-column grid below chart
   const orderLegsGrid = document.getElementById('botOrderLegsGrid');
   if (orderLegsGrid) orderLegsGrid.style.display = 'grid';
-  botOpUpdateLegs();
+  botOpUpdateLegs('');
+  botOpUpdateLegs('2');
 
   // Default load after 200 ms
   setTimeout(() => { if (_bc && !_bc.minuteBarsCache.length) bcLoad(); }, 200);
@@ -4629,9 +4630,9 @@ function botOpLegDirection(strategy, legIndex) {
     return null;
 }
 
-function botOpUpdateLegs() {
-    const strategy = document.getElementById('botOpStrategy')?.value;
-    const container = document.getElementById('botOpLegsSection');
+function botOpUpdateLegs(p = '') {
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
+    const container = document.getElementById('botOpLegsSection' + p);
     if (!container || !strategy) return;
 
     const legs = BOT_OP_STRATEGY_LEGS[strategy];
@@ -4670,7 +4671,7 @@ function botOpUpdateLegs() {
                         ${legs.length > 1 ? `<option value="pct_leg">% ${dirLabel} Leg</option>` : ''}
                     </select>
                 </div>
-                <div id="botOpLegParams${index}" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+                <div id="botOpLegParams${p}_${index}" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
             </div>`;
     });
 
@@ -4679,18 +4680,18 @@ function botOpUpdateLegs() {
 
     container.querySelectorAll('.bot-op-leg-method').forEach(select => {
         select.addEventListener('change', (e) => {
-            botOpUpdateLegParams(parseInt(e.target.dataset.legIndex), e.target.value);
+            botOpUpdateLegParams(parseInt(e.target.dataset.legIndex), e.target.value, p);
         });
-        botOpUpdateLegParams(parseInt(select.dataset.legIndex), select.value);
+        botOpUpdateLegParams(parseInt(select.dataset.legIndex), select.value, p);
     });
-    botOpRenderPresets();
+    botOpRenderPresets(p);
 }
 
-function botOpUpdateLegParams(legIndex, method) {
-    const paramsContainer = document.getElementById(`botOpLegParams${legIndex}`);
+function botOpUpdateLegParams(legIndex, method, p = '') {
+    const paramsContainer = document.getElementById(`botOpLegParams${p}_${legIndex}`);
     if (!paramsContainer) return;
 
-    const strategy = document.getElementById('botOpStrategy')?.value;
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
     const totalLegs = BOT_OP_STRATEGY_LEGS[strategy]?.length || 0;
     const inputStyle = 'background: #fff; color: #191919; border: 1px solid #d1d4dc; border-radius: 4px; font-size: 11px; padding: 3px 6px;';
     let html = '';
@@ -4765,10 +4766,10 @@ function botOpUpdateLegParams(legIndex, method) {
 }
 
 /* ── Presets ─────────────────────────────────────────────────────── */
-function botOpRenderPresets() {
-    const strategy = document.getElementById('botOpStrategy')?.value;
-    const section = document.getElementById('botOpPresetSection');
-    const container = document.getElementById('botOpPresetButtons');
+function botOpRenderPresets(p = '') {
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
+    const section = document.getElementById('botOpPresetSection' + p);
+    const container = document.getElementById('botOpPresetButtons' + p);
     if (!section || !container) return;
 
     const presets = BOT_OP_STRATEGY_PRESETS[strategy];
@@ -4776,25 +4777,25 @@ function botOpRenderPresets() {
 
     section.style.display = 'flex';
     container.innerHTML = presets.map((preset, i) =>
-        `<button type="button" onclick="botOpApplyPreset(${i})" style="background:#f0f3fa; color:#2962ff; border:1px solid #d1d4dc; padding:3px 10px; border-radius:4px; font-size:10px; font-weight:600; cursor:pointer;"
+        `<button type="button" onclick="botOpApplyPreset(${i}, '${p}')" style="background:#f0f3fa; color:#2962ff; border:1px solid #d1d4dc; padding:3px 10px; border-radius:4px; font-size:10px; font-weight:600; cursor:pointer;"
          onmouseover="this.style.background='#2962ff';this.style.color='#fff'" onmouseout="this.style.background='#f0f3fa';this.style.color='#2962ff'">${preset.name}</button>`
     ).join('');
 }
 
-function botOpApplyPreset(presetIndex) {
-    const strategy = document.getElementById('botOpStrategy')?.value;
+function botOpApplyPreset(presetIndex, p = '') {
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
     if (!strategy) return;
     const preset = (BOT_OP_STRATEGY_PRESETS[strategy] || [])[presetIndex];
     if (!preset) return;
 
     preset.legs.forEach((legPreset, i) => {
-        const methodSelect = document.querySelector(`.bot-op-leg-method[data-leg-index="${i}"]`);
+        const methodSelect = document.querySelector(`#botOpLegsSection${p} .bot-op-leg-method[data-leg-index="${i}"]`);
         if (!methodSelect) return;
         methodSelect.value = legPreset.method;
-        botOpUpdateLegParams(i, legPreset.method);
+        botOpUpdateLegParams(i, legPreset.method, p);
 
         setTimeout(() => {
-            const card = document.querySelectorAll('#botOpLegsSection > div > div')[i];
+            const card = document.querySelectorAll(`#botOpLegsSection${p} > div > div`)[i];
             if (!card) return;
             const dirSelect = card.querySelector('.bot-op-leg-direction');
             if (dirSelect && legPreset.direction) dirSelect.value = legPreset.direction;
@@ -4807,12 +4808,12 @@ function botOpApplyPreset(presetIndex) {
 }
 
 /* ── Collect leg configs ─────────────────────────────────────────── */
-function botOpCollectLegs() {
-    const strategy = document.getElementById('botOpStrategy')?.value;
+function botOpCollectLegs(p = '') {
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
     const strategyLegs = BOT_OP_STRATEGY_LEGS[strategy] || [];
     const legs = [];
 
-    document.querySelectorAll('#botOpLegsSection > div > div').forEach((card, index) => {
+    document.querySelectorAll(`#botOpLegsSection${p} > div > div`).forEach((card, index) => {
         if (index >= strategyLegs.length) return;
         const def = strategyLegs[index];
         const method = card.querySelector('.bot-op-leg-method')?.value || 'pct_underlying';
@@ -4872,15 +4873,15 @@ function botOpPickExpiration(dates, dte) {
     return best;
 }
 
-async function botOpPlaceTrade() {
-    const msg = document.getElementById('botOpMsg');
-    const btn = document.getElementById('botOpPlaceBtn');
+async function botOpPlaceTrade(p = '') {
+    const msg = document.getElementById('botOpMsg' + p);
+    const btn = document.getElementById('botOpPlaceBtn' + p);
     const setMsg = (html) => { if (msg) msg.innerHTML = html; };
-    const strategy = document.getElementById('botOpStrategy')?.value;
-    const dte = parseInt(document.getElementById('botOpDTE')?.value, 10) || 0;
-    const qty = Math.max(1, parseInt(document.getElementById('botOpQty')?.value, 10) || 1);
+    const strategy = document.getElementById('botOpStrategy' + p)?.value;
+    const dte = parseInt(document.getElementById('botOpDTE' + p)?.value, 10) || 0;
+    const qty = Math.max(1, parseInt(document.getElementById('botOpQty' + p)?.value, 10) || 1);
     const symbol = (_bc && _bc.symbol) ? _bc.symbol : 'SPX';
-    const legCfgs = botOpCollectLegs();
+    const legCfgs = botOpCollectLegs(p);
 
     if (!strategy || !legCfgs.length) { setMsg('<span style="color:#ef4444;">Select a strategy first.</span>'); return; }
 
